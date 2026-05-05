@@ -20,13 +20,9 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // Usuário não autenticado tentando acessar área protegida
+  // /login é sempre acessível — o redirect "já logado → /" é feito pela própria página de login
   if (!user && pathname !== '/login') {
     return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  // Usuário autenticado tentando acessar login
-  if (user && pathname === '/login') {
-    return NextResponse.redirect(new URL('/', request.url))
   }
 
   return response

@@ -1,7 +1,23 @@
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 import LoginForm from './LoginForm'
 import styles from './login.module.css'
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Se já está autenticado E tem perfil ativo em fv.users → vai direto para o sistema
+  if (user) {
+    const { data: profile } = await supabase
+      .from('users')
+      .select('id, is_active')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.is_active) redirect('/')
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.card}>
