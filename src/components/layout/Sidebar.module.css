@@ -1,0 +1,116 @@
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-width);
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  transition: width var(--transition-base);
+  overflow: hidden;
+}
+
+.collapsed {
+  width: var(--sidebar-width-collapsed);
+}
+
+/* Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  height: var(--header-height);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.logoIcon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.logoText {
+  font-size: 13px;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+.logoText strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Nav */
+.nav {
+  flex: 1;
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-decoration: none;
+}
+
+.navItem:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.navItem.active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.navIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.navLabel {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Botão colapsar */
+.collapseBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.collapseBtn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
