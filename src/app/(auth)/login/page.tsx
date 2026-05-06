@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import LoginForm from './LoginForm'
@@ -7,7 +8,6 @@ export default async function LoginPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Se já está autenticado E tem perfil ativo em fv.users → vai direto para o sistema
   if (user) {
     const { data: profile } = await supabase
       .from('users')
@@ -21,7 +21,6 @@ export default async function LoginPage() {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
-        {/* Logo */}
         <div className={styles.logo}>
           <div className={styles.logoGem}>◆</div>
           <div className={styles.logoText}>
@@ -30,8 +29,9 @@ export default async function LoginPage() {
           </div>
         </div>
 
-        {/* Formulário */}
-        <LoginForm />
+        <Suspense fallback={<div style={{ height: 180 }} />}>
+          <LoginForm />
+        </Suspense>
       </div>
     </div>
   )

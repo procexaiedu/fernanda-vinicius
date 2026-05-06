@@ -1,30 +1,14 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { loginAction } from './actions'
+import { useSearchParams } from 'next/navigation'
 import styles from './login.module.css'
 
 export default function LoginForm() {
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const formRef = useRef<HTMLFormElement>(null)
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
-
-    const formData = new FormData(formRef.current!)
-    const result = await loginAction(formData)
-
-    if (result?.error) {
-      setError(result.error)
-      setLoading(false)
-    }
-  }
+  const searchParams = useSearchParams()
+  const hasError = searchParams.get('error') === 'invalid'
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className={styles.form}>
+    <form method="POST" action="/api/auth/login" className={styles.form}>
       <div className={styles.field}>
         <label htmlFor="email" className={styles.label}>E-mail</label>
         <input
@@ -35,7 +19,6 @@ export default function LoginForm() {
           required
           placeholder="seu@email.com"
           className={styles.input}
-          disabled={loading}
         />
       </div>
 
@@ -49,22 +32,17 @@ export default function LoginForm() {
           required
           placeholder="••••••••"
           className={styles.input}
-          disabled={loading}
         />
       </div>
 
-      {error && (
+      {hasError && (
         <div className={styles.errorBox} role="alert">
-          {error}
+          E-mail ou senha inválidos.
         </div>
       )}
 
-      <button type="submit" className={styles.submitBtn} disabled={loading}>
-        {loading ? (
-          <span className={styles.spinner} aria-hidden />
-        ) : (
-          'Entrar'
-        )}
+      <button type="submit" className={styles.submitBtn}>
+        Entrar
       </button>
     </form>
   )
