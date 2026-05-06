@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__devcontext__get_context",
+      "mcp__devcontext__create_task",
+      "mcp__devcontext__search_vault",
+      "mcp__devcontext__vault_read",
+      "mcp__devcontext__start_time",
+      "mcp__devcontext__update_task",
+      "mcp__devcontext__vault_write",
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(npm install:*)",
+      "Bash(mkdir -p src/app/\\\\\\(auth\\\\\\)/login src/app/\\\\\\(sistema\\\\\\)/produtos src/app/\\\\\\(sistema\\\\\\)/clientes src/app/\\\\\\(sistema\\\\\\)/compras src/app/\\\\\\(sistema\\\\\\)/vendas src/app/\\\\\\(sistema\\\\\\)/financeiro src/app/\\\\\\(sistema\\\\\\)/configuracoes src/components/ui src/components/layout src/lib/supabase src/hooks src/types)",
+      "Bash(rm src/app/page.module.css)",
+      "Bash(npm run:*)",
+      "Bash(git remote:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "mcp__devcontext__stop_time",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__list_tables",
+      "mcp__chrome-devtools__new_page",
+      "mcp__chrome-devtools__take_screenshot",
+      "mcp__chrome-devtools__fill",
+      "mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__click",
+      "mcp__chrome-devtools__get_console_message",
+      "mcp__chrome-devtools__list_console_messages",
+      "mcp__supabase__execute_sql",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__list_network_requests",
+      "mcp__chrome-devtools__evaluate_script",
+      "mcp__supabase__list_projects",
+      "mcp__chrome-devtools__wait_for"
+    ]
+  }
+}
