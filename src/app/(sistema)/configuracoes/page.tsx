@@ -1,3 +1,5 @@
+import { redirect } from 'next/navigation'
+
 export default function ConfiguracoesPage() {
-  return <div>Configurações — em construção</div>
+  redirect('/configuracoes/lojas')
 }

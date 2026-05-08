@@ -6,6 +6,7 @@ import styles from './login.module.css'
 export default function LoginForm() {
   const searchParams = useSearchParams()
   const hasError = searchParams.get('error') === 'invalid'
+  const isInactive = searchParams.get('error') === 'inactive'
 
   return (
     <form method="POST" action="/api/auth/login" className={styles.form}>
@@ -35,7 +36,12 @@ export default function LoginForm() {
         />
       </div>
 
-      {hasError && (
+      {isInactive && (
+        <div className={styles.errorBox} role="alert">
+          Sua conta foi desativada. Fale com a administração.
+        </div>
+      )}
+      {hasError && !isInactive && (
         <div className={styles.errorBox} role="alert">
           E-mail ou senha inválidos.
         </div>

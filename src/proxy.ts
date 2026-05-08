@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next()
+  const pathname = request.nextUrl.pathname
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,12 +18,37 @@ export async function proxy(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
-  const pathname = request.nextUrl.pathname
 
-  // Usuário não autenticado tentando acessar área protegida
-  // /login é sempre acessível — o redirect "já logado → /" é feito pela própria página de login
-  if (!user && pathname !== '/login') {
+  // /login e /api/* são sempre acessíveis — sem autenticação prévia necessária
+  if (!user && pathname !== '/login' && !pathname.startsWith('/api/')) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Verificar se a conta está ativa (somente em rotas protegidas do sistema)
+  if (user && pathname !== '/login' && !pathname.startsWith('/api/')) {
+    const supabaseFv = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll: () => request.cookies.getAll(),
+          setAll: (cs) =>
+            cs.forEach((c) => response.cookies.set(c.name, c.value, c.options)),
+        },
+        db: { schema: 'fv' },
+      }
+    )
+
+    const { data: profile } = await supabaseFv
+      .from('users')
+      .select('is_active')
+      .eq('id', user.id)
+      .single()
+
+    if (profile && !profile.is_active) {
+      await supabase.auth.signOut()
+      return NextResponse.redirect(new URL('/login?error=inactive', request.url))
+    }
   }
 
   return response

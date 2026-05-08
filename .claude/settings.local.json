@@ -33,7 +33,23 @@
       "mcp__chrome-devtools__list_network_requests",
       "mcp__chrome-devtools__evaluate_script",
       "mcp__supabase__list_projects",
-      "mcp__chrome-devtools__wait_for"
+      "mcp__chrome-devtools__wait_for",
+      "mcp__chrome-devtools__list_pages",
+      "Bash(rm -rf .next/dev)",
+      "Bash(rm -rf .next/server)",
+      "Bash(find .next -name \"middleware*\" -delete)",
+      "mcp__chrome-devtools__get_network_request",
+      "Bash(npx next:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(curl:*)",
+      "mcp__devcontext__get_tasks",
+      "Bash(xargs ls:*)",
+      "Bash(grep -A 20 \"^### \\\\`users\\\\`\")",
+      "Bash(grep -A 40 \"^### \\\\`sales\\\\`\")",
+      "Bash(grep -E \"^### \\\\`\" docs/schema_database.md)",
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\(Object.keys\\(l\\).filter\\(k => k.toLowerCase\\(\\).includes\\('instagram'\\) || k.toLowerCase\\(\\).includes\\('brand'\\)\\)\\)\")",
+      "Bash(node -e \"const l = require\\('lucide-react'\\); const keys = Object.keys\\(l\\); console.log\\(keys.filter\\(k => k.match\\(/[Ii]nst|[Ss]ocial|[Bb]rand|[Mm]essage/\\)\\).slice\\(0, 20\\)\\)\")"
     ]
   }
 }

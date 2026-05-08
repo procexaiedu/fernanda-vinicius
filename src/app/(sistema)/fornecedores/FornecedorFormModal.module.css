@@ -1,0 +1,343 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.flex1 { flex: 1; min-width: 0; }
+.flex2 { flex: 2; min-width: 0; }
+
+.initialsCol {
+  width: 90px;
+  flex-shrink: 0;
+}
+
+.stateCol {
+  width: 80px;
+  flex-shrink: 0;
+}
+
+/* ─── Alerta iniciais duplicadas ─────────────────────── */
+.dupeAlert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--warning-subtle);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-md);
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ─── Toggle consignação ─────────────────────────────── */
+.toggleLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding-top: 28px; /* alinha com os inputs ao lado */
+  user-select: none;
+}
+
+.toggleInput {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ─── Input com ícone ────────────────────────────────── */
+.inputWithIcon {
+  position: relative;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  color: var(--text-muted);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Push the input text to the right of the icon */
+.inputWithIcon :global(input) {
+  padding-left: 30px;
+}
+
+/* ─── Telefones dinâmicos ────────────────────────────── */
+.phonesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.addPhoneBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.addPhoneBtn:hover { border-color: var(--accent); color: var(--accent); }
+
+.phonesEmpty {
+  font-size: 12px;
+  color: var(--text-disabled);
+  font-style: italic;
+}
+
+.phonesList { display: flex; flex-direction: column; gap: 8px; }
+
+.phoneRow { display: flex; align-items: center; gap: 6px; }
+
+.phoneInput {
+  flex: 1;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color var(--transition-fast);
+}
+
+.phoneInput:focus { outline: none; border-color: var(--accent); }
+.phoneInput::placeholder { color: var(--text-disabled); }
+
+.waAuto {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  color: #25D366; flex-shrink: 0;
+}
+
+.waToggle {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: none; color: var(--text-disabled);
+  cursor: pointer; flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.waToggle:hover { border-color: #25D366; color: #25D366; }
+
+.waActive {
+  border-color: #25D366 !important;
+  background: rgba(37, 211, 102, 0.1) !important;
+  color: #25D366 !important;
+}
+
+.removePhoneBtn {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  border: none; background: none;
+  color: var(--text-disabled); border-radius: var(--radius-md);
+  cursor: pointer; flex-shrink: 0;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.removePhoneBtn:hover { background: var(--danger-subtle); color: var(--danger); }
+
+.waHint {
+  font-size: 11px; color: var(--text-disabled);
+  display: flex; align-items: center; gap: 4px;
+}
+
+/* ─── CEP col ────────────────────────────────────────── */
+.cepCol {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.cepSpinner {
+  margin-left: 6px;
+  color: var(--accent);
+  animation: spin 1s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.addressInputError {
+  border-color: var(--danger) !important;
+}
+
+.cepErrorMsg {
+  font-size: 11px;
+  color: var(--danger);
+}
+
+/* ─── Campo endereço ─────────────────────────────────── */
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.noPlaces {
+  color: var(--text-disabled);
+  font-weight: 400;
+}
+
+.addressInput {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color var(--transition-fast);
+}
+
+.addressInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.addressInput::placeholder {
+  color: var(--text-disabled);
+}
+
+/* ─── Autocomplete endereço ──────────────────────────────── */
+.addressWrapper {
+  position: relative;
+}
+
+.addressSuggestions {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  z-index: 200;
+  max-height: 210px;
+  overflow-y: auto;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+.addressSuggestionItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.5;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.addressSuggestionItem:last-child { border-bottom: none; }
+
+.addressSuggestionItem:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+/* ─── Select estado ──────────────────────────────────── */
+.selectLabel {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.select {
+  width: 100%;
+  height: 38px;
+  padding: 0 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+  appearance: none;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ─── Textarea ───────────────────────────────────────── */
+.textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color var(--transition-fast);
+  line-height: 1.5;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.textarea::placeholder {
+  color: var(--text-disabled);
+}
+
+/* ─── Erro + footer ──────────────────────────────────── */
+.actionError {
+  font-size: 12px;
+  color: var(--danger);
+  background: var(--danger-subtle);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}

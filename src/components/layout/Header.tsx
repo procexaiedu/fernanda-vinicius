@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { LogOut, ChevronRight, Store } from 'lucide-react'
+import { LogOut, ChevronRight, Store, Sun, Moon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './Header.module.css'
 
@@ -9,6 +9,8 @@ interface HeaderProps {
   userName?: string
   userRole?: 'admin' | 'operator'
   storeName?: string
+  theme?: 'dark' | 'light'
+  onToggleTheme?: () => void
 }
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -28,7 +30,7 @@ function getBreadcrumb(pathname: string): string[] {
   return ['Dashboard', label]
 }
 
-export default function Header({ userName, userRole, storeName }: HeaderProps) {
+export default function Header({ userName, userRole, storeName, theme = 'dark', onToggleTheme }: HeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
   const breadcrumb = getBreadcrumb(pathname)
@@ -63,6 +65,16 @@ export default function Header({ userName, userRole, storeName }: HeaderProps) {
             <span>{storeName}</span>
           </div>
         )}
+
+        {/* Toggle de tema */}
+        <button
+          className={styles.themeBtn}
+          onClick={onToggleTheme}
+          title={theme === 'dark' ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
+          aria-label="Alternar tema"
+        >
+          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
 
         {/* Usuário + logout */}
         <div className={styles.user}>

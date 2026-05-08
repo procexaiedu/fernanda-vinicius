@@ -1,0 +1,179 @@
+/* ── Layout ──────────────────────────────────────────────────────────────────── */
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Card de seção ────────────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cardIconWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  background: var(--accent-subtle);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.cardIcon {
+  color: var(--accent);
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.cardDesc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ── Lista de configurações ───────────────────────────────────────────────────── */
+
+.settingsList {
+  display: flex;
+  flex-direction: column;
+}
+
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+  transition: background var(--transition-fast);
+}
+
+.settingRow:last-child {
+  border-bottom: none;
+}
+
+.settingRow:hover {
+  background: var(--surface-hover, rgba(255,255,255,0.02));
+}
+
+.settingInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.settingLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.settingHint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ── Input com unidade ────────────────────────────────────────────────────────── */
+
+.inputWrap {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised, var(--bg));
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.inputWrap:focus-within {
+  border-color: var(--accent);
+}
+
+.input {
+  width: 80px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  outline: none;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+
+.input::-webkit-outer-spin-button,
+.input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.unit {
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface-subtle, rgba(255,255,255,0.03));
+  border-left: 1px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.inputWrap .unit:first-child {
+  border-left: none;
+  border-right: 1px solid var(--border);
+}
+
+/* ── Rodapé ───────────────────────────────────────────────────────────────────── */
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--surface-subtle, rgba(255,255,255,0.015));
+  border-top: 1px solid var(--border);
+}
+
+.savedMsg {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--success);
+}
+
+.errorMsg {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--danger, #ef4444);
+}

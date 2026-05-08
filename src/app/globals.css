@@ -43,6 +43,39 @@
   --transition-base: 250ms ease;
 }
 
+/* ─── Modo Claro ─────────────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Backgrounds — off-white quente, premium */
+  --bg-base:     #F5F2EE;
+  --bg-surface:  #FFFFFF;
+  --bg-elevated: #EDE9E4;
+
+  /* Borders */
+  --border:       #DDD9D3;
+  --border-light: #CBC7C1;
+
+  /* Text */
+  --text-primary:   #111111;
+  --text-secondary: #444444;
+  --text-muted:     #767676;
+  --text-disabled:  #AAAAAA;
+
+  /* Semantic — versões mais escuras para contraste no fundo claro */
+  --success:        #2A7A4E;
+  --success-subtle: rgba(42, 122, 78, 0.12);
+  --danger:         #CC3535;
+  --danger-subtle:  rgba(204, 53, 53, 0.1);
+  --warning:        #B07A20;
+  --warning-subtle: rgba(176, 122, 32, 0.1);
+
+  /* Accent — dourado permanece igual */
+  --accent:        #C9A84C;
+  --accent-hover:  #B8922E;
+  --accent-subtle: rgba(201, 168, 76, 0.15);
+}
+
 /* ─── Reset ──────────────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;

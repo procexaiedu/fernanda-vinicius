@@ -1,0 +1,451 @@
+/* ─── Header ─────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+  letter-spacing: 0.05em;
+}
+
+.headerInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.supplierName {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.supplierMeta {
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 8px;
+}
+
+.headerBadges {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.socialBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.socialBtn:hover {
+  background: var(--bg-elevated);
+  color: var(--accent);
+}
+
+.editBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.editBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.closeBtn:hover {
+  background: var(--danger-subtle);
+  color: var(--danger);
+}
+
+/* ─── Quick stats ────────────────────────────────────── */
+.quickStats {
+  display: flex;
+  align-items: center;
+  padding: 12px 24px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  gap: 0;
+}
+
+.quickStat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 20px;
+}
+
+.quickStat:first-child { padding-left: 0; }
+
+.quickStatLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-disabled);
+  font-weight: 500;
+}
+
+.quickStatValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.quickStatDanger { color: var(--danger) !important; }
+
+.quickStatDivider {
+  width: 1px;
+  height: 28px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* ─── Abas ───────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+}
+
+.tab {
+  height: 42px;
+  padding: 0 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tabActive {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.tabAlert {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  color: var(--danger);
+  vertical-align: middle;
+}
+
+/* ─── Body ───────────────────────────────────────────── */
+.body {
+  padding: 20px 24px;
+  min-height: 360px;
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+
+.tabContent {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─── Stat Cards ─────────────────────────────────────── */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.statCard {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statIcon {
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.statValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.statEmpty {
+  font-size: 22px;
+  color: var(--text-disabled);
+}
+
+.statLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.statHint {
+  font-size: 10px;
+  color: var(--text-disabled);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.statSub {
+  font-size: 10px;
+  color: var(--text-disabled);
+  margin-top: 1px;
+}
+
+/* ─── Info Grid ──────────────────────────────────────── */
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.infoGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.infoItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.infoIcon {
+  color: var(--text-muted);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.infoContent {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.infoLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-disabled);
+}
+
+.infoValue {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* ─── Summary bar ────────────────────────────────────── */
+.summaryBar {
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summaryBar strong {
+  color: var(--text-primary);
+}
+
+/* ─── Mini tabela ────────────────────────────────────── */
+.miniTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.miniTable th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.miniTable td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.miniTable tr:last-child td {
+  border-bottom: none;
+}
+
+.miniTable tr:hover td {
+  background: var(--bg-elevated);
+}
+
+.codeCell {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--accent) !important;
+  font-weight: 600;
+}
+
+.mutedCell { color: var(--text-muted) !important; }
+.rightCol  { text-align: right; }
+
+/* ─── Skeleton ───────────────────────────────────────── */
+.skeleton {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.skeletonList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ─── Empty State ────────────────────────────────────── */
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.emptyHint {
+  font-size: 12px;
+  color: var(--text-disabled);
+  max-width: 360px;
+}
+
+.consigBadge {
+  margin-left: 6px;
+  display: inline-flex;
+}
+
+/* ─── Financeiro ─────────────────────────────────────── */
+.pendingChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: var(--danger-subtle);
+  color: var(--danger);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.overdueDate { color: var(--danger); font-weight: 500; }
+
+.overdueBadge {
+  display: inline;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--danger);
+  background: var(--danger-subtle);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  margin-left: 4px;
+}
+
+.soonBadge {
+  display: inline;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--warning);
+  background: var(--warning-subtle);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  margin-left: 4px;
+}

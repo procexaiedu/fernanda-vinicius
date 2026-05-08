@@ -85,6 +85,25 @@
   color: var(--text-muted);
 }
 
+.themeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.themeBtn:hover {
+  background: var(--bg-elevated);
+  color: var(--accent);
+}
+
 .logoutBtn {
   display: flex;
   align-items: center;

@@ -11,6 +11,7 @@ import {
   ShoppingBag,
   BarChart2,
   Settings,
+  Truck,
   ChevronLeft,
   ChevronRight,
   Gem,
@@ -31,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Clientes',     href: '/clientes',      icon: <Users size={18} /> },
   { label: 'Compras',      href: '/compras',       icon: <ShoppingBag size={18} /> },
   { label: 'Financeiro',   href: '/financeiro',    icon: <BarChart2 size={18} /> },
+  { label: 'Fornecedores', href: '/fornecedores',  icon: <Truck size={18} />, adminOnly: true },
   { label: 'Configurações',href: '/configuracoes', icon: <Settings size={18} />, adminOnly: true },
 ]
 
