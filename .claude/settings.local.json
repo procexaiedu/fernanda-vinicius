@@ -49,7 +49,9 @@
       "Bash(grep -E \"^### \\\\`\" docs/schema_database.md)",
       "Bash(npx tsc:*)",
       "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\(Object.keys\\(l\\).filter\\(k => k.toLowerCase\\(\\).includes\\('instagram'\\) || k.toLowerCase\\(\\).includes\\('brand'\\)\\)\\)\")",
-      "Bash(node -e \"const l = require\\('lucide-react'\\); const keys = Object.keys\\(l\\); console.log\\(keys.filter\\(k => k.match\\(/[Ii]nst|[Ss]ocial|[Bb]rand|[Mm]essage/\\)\\).slice\\(0, 20\\)\\)\")"
+      "Bash(node -e \"const l = require\\('lucide-react'\\); const keys = Object.keys\\(l\\); console.log\\(keys.filter\\(k => k.match\\(/[Ii]nst|[Ss]ocial|[Bb]rand|[Mm]essage/\\)\\).slice\\(0, 20\\)\\)\")",
+      "mcp__devcontext__vault_list",
+      "mcp__devcontext__get_task"
     ]
   }
 }

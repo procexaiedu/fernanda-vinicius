@@ -70,6 +70,8 @@ Ao longo do desenvolvimento, se você e o usuário tomarem novas decisões de ar
 
 ---
 
+---
+
 # DevContext — Instruções para Claude Code
 
 ## REGRAS INVIOLÁVEIS (leia antes de qualquer coisa)

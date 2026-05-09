@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FV — Protótipo Visual</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ============================================================
+       TOKENS — DARK MODE
+    ============================================================ */
+    [data-theme="dark"] {
+      --bg-base:        #0e0d0b;
+      --bg-surface:     #161410;
+      --bg-elevated:    #1e1b14;
+      --bg-overlay:     #26221a;
+      --bg-input:       #1a1713;
+      --bg-hover:       #2a2620;
+
+      --gold-300:       #e8c878;
+      --gold-400:       #d4a94a;
+      --gold-500:       #b8872a;
+      --gold-glow:      rgba(212, 169, 74, 0.18);
+      --gold-glow-sm:   rgba(212, 169, 74, 0.10);
+
+      --text-primary:   #f2ede4;
+      --text-secondary: #a09880;
+      --text-muted:     #5c5448;
+      --text-inverse:   #0e0d0b;
+
+      --border-subtle:  rgba(212, 169, 74, 0.10);
+      --border-default: rgba(212, 169, 74, 0.18);
+      --border-focus:   rgba(212, 169, 74, 0.55);
+
+      --success:        #5ab87a;
+      --success-bg:     rgba(90, 184, 122, 0.12);
+      --warning:        #e8a838;
+      --warning-bg:     rgba(232, 168, 56, 0.12);
+      --danger:         #e05c5c;
+      --danger-bg:      rgba(224, 92, 92, 0.12);
+      --info:           #6baed6;
+      --info-bg:        rgba(107, 174, 214, 0.12);
+
+      --shadow-sm:      0 1px 3px rgba(0,0,0,0.5);
+      --shadow-md:      0 4px 16px rgba(0,0,0,0.6);
+      --shadow-lg:      0 8px 32px rgba(0,0,0,0.7);
+      --shadow-gold:    0 0 24px rgba(212, 169, 74, 0.14);
+      --shadow-modal:   0 24px 64px rgba(0,0,0,0.8), 0 0 0 1px rgba(212,169,74,0.12);
+
+      --sidebar-width:  220px;
+      --header-height:  56px;
+    }
+
+    /* ============================================================
+       TOKENS — LIGHT MODE
+    ============================================================ */
+    [data-theme="light"] {
+      --bg-base:        #f5f0e8;
+      --bg-surface:     #faf6ef;
+      --bg-elevated:    #ffffff;
+      --bg-overlay:     #fff8ec;
+      --bg-input:       #ffffff;
+      --bg-hover:       #f0e8d8;
+
+      --gold-300:       #c8941a;
+      --gold-400:       #a87420;
+      --gold-500:       #8a5e18;
+      --gold-glow:      rgba(168, 116, 32, 0.14);
+      --gold-glow-sm:   rgba(168, 116, 32, 0.08);
+
+      --text-primary:   #1a1610;
+      --text-secondary: #6b5e48;
+      --text-muted:     #a8987c;
+      --text-inverse:   #faf6ef;
+
+      --border-subtle:  rgba(168, 116, 32, 0.12);
+      --border-default: rgba(168, 116, 32, 0.22);
+      --border-focus:   rgba(168, 116, 32, 0.60);
+
+      --success:        #2d8a52;
+      --success-bg:     rgba(45, 138, 82, 0.10);
+      --warning:        #c07820;
+      --warning-bg:     rgba(192, 120, 32, 0.10);
+      --danger:         #c03838;
+      --danger-bg:      rgba(192, 56, 56, 0.10);
+      --info:           #2860a8;
+      --info-bg:        rgba(40, 96, 168, 0.10);
+
+      --shadow-sm:      0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md:      0 4px 16px rgba(0,0,0,0.10);
+      --shadow-lg:      0 8px 32px rgba(0,0,0,0.12);
+      --shadow-gold:    0 0 24px rgba(168, 116, 32, 0.10);
+      --shadow-modal:   0 24px 64px rgba(0,0,0,0.20), 0 0 0 1px rgba(168,116,32,0.14);
+
+      --sidebar-width:  220px;
+      --header-height:  56px;
+    }
+
+    /* ============================================================
+       RESET & BASE
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+      transition: background 300ms ease, color 300ms ease;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ============================================================
+       LAYOUT
+    ============================================================ */
+    .app { display: flex; height: 100vh; overflow: hidden; }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      height: 100vh;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+    }
+
+    .sidebar-logo {
+      height: var(--header-height);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .logo-gem {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, var(--gold-300), var(--gold-500));
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      box-shadow: var(--shadow-gold);
+      flex-shrink: 0;
+    }
+
+    .logo-text { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .logo-text span { color: var(--gold-400); }
+
+    .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 150ms ease;
+      border: 1px solid transparent;
+    }
+    .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .nav-item.active {
+      background: var(--gold-glow);
+      color: var(--gold-300);
+      border-color: var(--border-default);
+    }
+    .nav-icon { font-size: 16px; width: 18px; text-align: center; flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 12px;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .user-card {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+    }
+    .user-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold-400), var(--gold-500));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: var(--text-inverse);
+      flex-shrink: 0;
+    }
+    .user-info { flex: 1; min-width: 0; }
+    .user-name { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-role { font-size: 11px; color: var(--text-muted); }
+
+    /* Header */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .header {
+      height: var(--header-height);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: center;
+      padding: 0 24px;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    .header-title { font-size: 15px; font-weight: 600; flex: 1; }
+
+    .store-selector {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 12px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-default);
+      border-radius: 8px;
+      font-size: 13px; font-weight: 500;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .store-selector:hover { border-color: var(--border-focus); box-shadow: var(--shadow-gold); }
+    .store-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+
+    .theme-toggle {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      border: 1px solid var(--border-default);
+      background: var(--bg-elevated);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 150ms ease;
+      color: var(--text-secondary);
+    }
+    .theme-toggle:hover { border-color: var(--border-focus); color: var(--gold-400); }
+
+    /* Page content */
+    .content {
+      flex: 1; overflow-y: auto;
+      padding: 28px 32px;
+    }
+
+    /* ============================================================
+       COMPONENTES
+    ============================================================ */
+
+    /* Page Header */
+    .page-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .page-title { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+    .page-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+
+    /* Tabs */
+    .tabs {
+      display: flex; gap: 2px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 24px;
+      width: fit-content;
+    }
+    .tab {
+      padding: 7px 18px;
+      border-radius: 7px;
+      font-size: 13px; font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 150ms ease;
+      border: 1px solid transparent;
+    }
+    .tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+    .tab.active {
+      background: var(--gold-glow);
+      color: var(--gold-300);
+      border-color: var(--border-default);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .card-title {
+      font-size: 13px; font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title::before {
+      content: '';
+      display: inline-block;
+      width: 3px; height: 14px;
+      background: var(--gold-400);
+      border-radius: 2px;
+    }
+
+    /* Grid */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+    /* Stat cards */
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    .stat-label { font-size: 12px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-size: 26px; font-weight: 700; color: var(--text-primary); margin: 6px 0 4px; }
+    .stat-change { font-size: 12px; }
+    .stat-change.up { color: var(--success); }
+    .stat-change.down { color: var(--danger); }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 150ms ease;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--gold-400), var(--gold-500));
+      color: var(--text-inverse);
+      box-shadow: 0 2px 8px var(--gold-glow);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, var(--gold-300), var(--gold-400));
+      box-shadow: 0 4px 14px var(--gold-glow);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border-color: var(--border-default);
+    }
+    .btn-secondary:hover { border-color: var(--border-focus); background: var(--bg-hover); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+    }
+    .btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .btn-danger {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border-color: rgba(224, 92, 92, 0.25);
+    }
+    .btn-danger:hover { background: var(--danger); color: white; }
+    .btn-sm { padding: 5px 11px; font-size: 12px; }
+    .btn-icon { padding: 8px; }
+
+    /* Badges */
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .badge-success { background: var(--success-bg); color: var(--success); }
+    .badge-danger  { background: var(--danger-bg);  color: var(--danger);  }
+    .badge-warning { background: var(--warning-bg); color: var(--warning); }
+    .badge-gold    { background: var(--gold-glow);  color: var(--gold-300);}
+    .badge-muted   { background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+
+    /* Inputs */
+    .form-field { display: flex; flex-direction: column; gap: 6px; }
+    .form-label {
+      font-size: 12px; font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .form-label .required { color: var(--gold-400); margin-left: 2px; }
+    .input {
+      width: 100%;
+      padding: 9px 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-default);
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text-primary);
+      font-family: inherit;
+      transition: all 150ms ease;
+      outline: none;
+    }
+    .input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px var(--gold-glow-sm);
+    }
+    .input::placeholder { color: var(--text-muted); }
+    .input-group { display: flex; }
+    .input-group .input { border-radius: 8px 0 0 8px; }
+    .input-addon {
+      padding: 9px 12px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-default);
+      border-left: none;
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      color: var(--text-muted);
+      display: flex; align-items: center;
+      white-space: nowrap;
+    }
+    .form-hint { font-size: 12px; color: var(--text-muted); }
+    .form-example {
+      font-size: 12px;
+      color: var(--gold-400);
+      background: var(--gold-glow-sm);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 5px 10px;
+    }
+
+    /* Table */
+    .table-wrap {
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: var(--bg-elevated); }
+    th {
+      padding: 11px 16px;
+      text-align: left;
+      font-size: 11px; font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    td {
+      padding: 13px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+    }
+    tr:last-child td { border-bottom: none; }
+    tbody tr { transition: background 100ms ease; }
+    tbody tr:hover { background: var(--bg-hover); }
+    .td-muted { color: var(--text-secondary); }
+    .td-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
+    /* Divider */
+    .divider { height: 1px; background: var(--border-subtle); margin: 24px 0; }
+
+    /* Section spacing */
+    .section { margin-bottom: 28px; }
+    .flex-between { display: flex; align-items: center; justify-content: space-between; }
+    .flex-gap { display: flex; align-items: center; gap: 10px; }
+    .mt-4  { margin-top: 4px; }
+    .mt-8  { margin-top: 8px; }
+    .mt-16 { margin-top: 16px; }
+    .mt-24 { margin-top: 24px; }
+    .gap-12 { gap: 12px; }
+
+    /* ============================================================
+       MODAL
+    ============================================================ */
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      animation: backdropIn 200ms ease;
+    }
+    @keyframes backdropIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .modal {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-default);
+      border-radius: 16px;
+      box-shadow: var(--shadow-modal);
+      display: flex; flex-direction: column;
+      max-height: calc(100vh - 64px);
+      animation: modalIn 220ms cubic-bezier(0.34, 1.4, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.94) translateY(8px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    /* Linha dourada no topo do modal */
+    .modal::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold-400), transparent);
+    }
+
+    .modal-sm  { width: 100%; max-width: 560px;  }
+    .modal-md  { width: 100%; max-width: 760px;  }
+    .modal-lg  { width: 100%; max-width: 1020px; }
+    .modal-full{ width: 95vw; max-width: 1280px; }
+
+    .modal-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+      flex-shrink: 0;
+    }
+    .modal-title    { font-size: 17px; font-weight: 700; }
+    .modal-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+    .modal-close {
+      width: 30px; height: 30px;
+      border-radius: 7px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      font-size: 16px; line-height: 1;
+      transition: all 150ms ease;
+      flex-shrink: 0;
+    }
+    .modal-close:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
+
+    .modal-body {
+      padding: 20px 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-footer {
+      padding: 14px 24px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+      flex-shrink: 0;
+      background: var(--bg-elevated);
+    }
+
+    /* ============================================================
+       SETTINGS PREVIEW
+    ============================================================ */
+    .settings-group {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .settings-group-header {
+      padding: 14px 20px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 12px; font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .settings-group-header .icon { color: var(--gold-400); font-size: 14px; }
+    .settings-row {
+      padding: 16px 20px;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .settings-row:last-child { border-bottom: none; }
+    .settings-label { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+    .settings-desc  { font-size: 12px; color: var(--text-muted); margin-top: 3px; line-height: 1.5; }
+    .settings-control { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+    /* Toast */
+    .toast-stack {
+      position: fixed; bottom: 24px; right: 24px;
+      display: flex; flex-direction: column; gap: 10px;
+      z-index: 200;
+    }
+    .toast {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      box-shadow: var(--shadow-lg);
+      min-width: 280px; max-width: 360px;
+      animation: toastIn 250ms cubic-bezier(0.34, 1.4, 0.64, 1);
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateX(20px) scale(0.96); }
+      to   { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    .toast-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .toast-success { border-left: 3px solid var(--success); }
+    .toast-error   { border-left: 3px solid var(--danger);  }
+    .toast-warning { border-left: 3px solid var(--warning); }
+    .toast-title   { font-size: 13px; font-weight: 600; }
+    .toast-desc    { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--gold-500); }
+
+    /* ============================================================
+       DEMO HELPERS
+    ============================================================ */
+    .demo-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-gem">◆</div>
+      <span class="logo-text">Fernanda<span>Vinícius</span></span>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-item"><span class="nav-icon">▦</span> Dashboard</div>
+      <div class="nav-item"><span class="nav-icon">◎</span> Vendas</div>
+      <div class="nav-item"><span class="nav-icon">◈</span> Produtos</div>
+      <div class="nav-item"><span class="nav-icon">◉</span> Clientes</div>
+      <div class="nav-item"><span class="nav-icon">◐</span> Compras</div>
+      <div class="nav-item"><span class="nav-icon">◑</span> Financeiro</div>
+      <div class="nav-item active"><span class="nav-icon">⚙</span> Configurações</div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="user-card">
+        <div class="user-avatar">F</div>
+        <div class="user-info">
+          <div class="user-name">Fernanda</div>
+          <div class="user-role">Administradora</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- HEADER -->
+    <header class="header">
+      <span class="header-title">Configurações</span>
+      <div class="store-selector">
+        <span class="store-dot"></span>
+        Todas as lojas ▾
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
+        <span id="theme-icon">☀</span>
+      </button>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="content">
+
+      <!-- PAGE HEADER -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Configurações</h1>
+          <p class="page-subtitle">Gerencie lojas, usuários e regras de negócio</p>
+        </div>
+      </div>
+
+      <!-- TABS -->
+      <div class="tabs">
+        <div class="tab">Lojas</div>
+        <div class="tab active">Usuários</div>
+        <div class="tab">Sistema</div>
+        <div class="tab">Logs</div>
+      </div>
+
+      <!-- ======================================================
+           ABA: USUÁRIOS (com tabela e modal de exemplo)
+      ====================================================== -->
+      <div class="section">
+        <div class="flex-between" style="margin-bottom: 16px;">
+          <div>
+            <div style="font-size: 15px; font-weight: 600;">Usuários do sistema</div>
+            <div style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">3 usuários cadastrados</div>
+          </div>
+          <button class="btn btn-primary" onclick="document.getElementById('modal-usuario').style.display='flex'">
+            + Novo usuário
+          </button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>E-mail</th>
+                <th>Perfil</th>
+                <th>Loja</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr onclick="document.getElementById('modal-detalhe').style.display='flex'" style="cursor:pointer">
+                <td><strong>Fernanda Oliveira</strong></td>
+                <td class="td-muted">fernanda@fv.com</td>
+                <td><span class="badge badge-gold">Admin</span></td>
+                <td class="td-muted">Todas as lojas</td>
+                <td><span class="badge badge-success">Ativa</span></td>
+                <td>
+                  <div class="td-actions">
+                    <button class="btn btn-sm btn-secondary">Editar</button>
+                  </div>
+                </td>
+              </tr>
+              <tr onclick="document.getElementById('modal-detalhe').style.display='flex'" style="cursor:pointer">
+                <td><strong>Camila Santos</strong></td>
+                <td class="td-muted">camila@fv.com</td>
+                <td><span class="badge badge-muted">Operadora</span></td>
+                <td class="td-muted">Campinas</td>
+                <td><span class="badge badge-success">Ativa</span></td>
+                <td>
+                  <div class="td-actions">
+                    <button class="btn btn-sm btn-secondary">Editar</button>
+                    <button class="btn btn-sm btn-danger">Desativar</button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Renata Costa</strong></td>
+                <td class="td-muted">renata@fv.com</td>
+                <td><span class="badge badge-muted">Operadora</span></td>
+                <td class="td-muted">Brasília</td>
+                <td><span class="badge badge-danger">Inativa</span></td>
+                <td>
+                  <div class="td-actions">
+                    <button class="btn btn-sm btn-secondary">Editar</button>
+                    <button class="btn btn-sm btn-ghost">Reativar</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ======================================================
+           PRÉVIA: SETTINGS (Sistema)
+      ====================================================== -->
+      <div class="divider"></div>
+      <div class="demo-label">prévia — aba "sistema" (settings)</div>
+
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <span class="icon">◈</span> Descontos Automáticos
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Desconto no Pix</div>
+            <div class="settings-desc">Aplicado sobre o total da venda quando a forma de pagamento for Pix.<br>Acumula com o desconto de aniversário.</div>
+            <div class="form-example mt-4" id="ex-pix">Venda de R$ 200 no Pix → R$ 190,00</div>
+          </div>
+          <div class="settings-control">
+            <div class="input-group" style="width: 110px;">
+              <input class="input" type="number" value="5" min="0" max="50" id="val-pix" oninput="updateExamples()" />
+              <span class="input-addon">%</span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Desconto de Aniversário</div>
+            <div class="settings-desc">Aplicado sobre o subtotal dos produtos quando o mês de aniversário<br>da cliente for o mês atual. Vale para qualquer forma de pagamento.</div>
+            <div class="form-example mt-4" id="ex-bday">Produtos R$ 200 + Pix → subtotal R$ 180,00 → total R$ 171,00</div>
+          </div>
+          <div class="settings-control">
+            <div class="input-group" style="width: 110px;">
+              <input class="input" type="number" value="10" min="0" max="50" id="val-bday" oninput="updateExamples()" />
+              <span class="input-addon">%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <span class="icon">◑</span> Parcelamento (Cielo)
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Parcelas padrão</div>
+            <div class="settings-desc">Máximo de parcelas sem juros para qualquer valor de compra.</div>
+          </div>
+          <div class="settings-control">
+            <div class="input-group" style="width: 110px;">
+              <input class="input" type="number" value="5" min="1" max="12" />
+              <span class="input-addon">×</span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Parcelas para compras acima de</div>
+            <div class="settings-desc">Quando o total da venda ultrapassar esse valor, libera parcelas extras.</div>
+          </div>
+          <div class="settings-control" style="gap: 8px;">
+            <div class="input-group" style="width: 130px;">
+              <span class="input-addon">R$</span>
+              <input class="input" type="number" value="3000" style="border-radius: 0 8px 8px 0; border-left: none;" />
+            </div>
+            <span style="font-size: 13px; color: var(--text-muted);">até</span>
+            <div class="input-group" style="width: 90px;">
+              <input class="input" type="number" value="6" min="1" max="18" />
+              <span class="input-addon">×</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-header">
+          <span class="icon">◐</span> Operacional
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Prazo de troca</div>
+            <div class="settings-desc">A partir da data da venda. Após esse prazo, trocas requerem aprovação manual.</div>
+          </div>
+          <div class="settings-control">
+            <div class="input-group" style="width: 130px;">
+              <input class="input" type="number" value="30" min="1" max="365" />
+              <span class="input-addon">dias</span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Markup padrão sugerido</div>
+            <div class="settings-desc">Ao cadastrar um produto, o sistema sugere o preço de venda como custo × markup.</div>
+          </div>
+          <div class="settings-control">
+            <div class="input-group" style="width: 110px;">
+              <input class="input" type="number" value="150" min="0" max="500" />
+              <span class="input-addon">%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap: 10px; margin-top: 8px;">
+        <button class="btn btn-ghost">Restaurar padrões</button>
+        <button class="btn btn-primary">Salvar alterações</button>
+      </div>
+
+      <!-- ======================================================
+           PRÉVIA: COMPONENTES VISUAIS
+      ====================================================== -->
+      <div class="divider"></div>
+      <div class="demo-label">prévia — componentes</div>
+
+      <div class="grid-3" style="margin-bottom: 20px;">
+        <div class="stat-card">
+          <div class="stat-label">Vendas hoje</div>
+          <div class="stat-value">R$ 4.280</div>
+          <div class="stat-change up">↑ 12% vs ontem</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Peças em estoque</div>
+          <div class="stat-value">1.342</div>
+          <div class="stat-change down">↓ 8 peças paradas</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Margem bruta (mês)</div>
+          <div class="stat-value">63,4%</div>
+          <div class="stat-change up">↑ dentro do esperado</div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: center;">
+        <button class="btn btn-primary">Botão principal</button>
+        <button class="btn btn-secondary">Botão secundário</button>
+        <button class="btn btn-ghost">Ghost</button>
+        <button class="btn btn-danger">Desativar</button>
+        <button class="btn btn-primary btn-sm">Pequeno</button>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; align-items: center;">
+        <span class="badge badge-success">Ativa</span>
+        <span class="badge badge-danger">Inativa</span>
+        <span class="badge badge-warning">Consignado</span>
+        <span class="badge badge-gold">Admin</span>
+        <span class="badge badge-muted">Operadora</span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL — DETALHE USUÁRIO (clique em linha da tabela)
+============================================================ -->
+<div class="modal-backdrop" id="modal-detalhe" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Camila Santos</div>
+        <div class="modal-subtitle">Operadora · Loja Campinas · Ativa desde jan/2025</div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('modal-detalhe').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid-2" style="gap: 20px;">
+        <div class="form-field">
+          <label class="form-label">Nome completo</label>
+          <input class="input" value="Camila Santos" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">E-mail</label>
+          <input class="input" value="camila@fv.com" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Perfil de acesso</label>
+          <select class="input">
+            <option>Operadora</option>
+            <option>Admin</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Loja</label>
+          <select class="input">
+            <option>Campinas</option>
+            <option>Brasília</option>
+          </select>
+        </div>
+      </div>
+      <div class="divider" style="margin: 20px 0;"></div>
+      <div style="font-size: 12px; color: var(--text-muted); display: flex; gap: 20px;">
+        <span>Criada em 15/01/2025</span>
+        <span>Último acesso há 2 dias</span>
+        <span>48 vendas registradas</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm">Redefinir senha</button>
+      <button class="btn btn-danger btn-sm">Desativar usuária</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-detalhe').style.display='none'">Cancelar</button>
+      <button class="btn btn-primary">Salvar alterações</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL — CRIAR USUÁRIO
+============================================================ -->
+<div class="modal-backdrop" id="modal-usuario" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Novo usuário</div>
+        <div class="modal-subtitle">Preencha os dados para criar o acesso</div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('modal-usuario').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+      <div class="form-field">
+        <label class="form-label">Nome completo <span class="required">*</span></label>
+        <input class="input" placeholder="Ex: Juliana Ferreira" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">E-mail <span class="required">*</span></label>
+        <input class="input" type="email" placeholder="juliana@fv.com" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Senha temporária <span class="required">*</span></label>
+        <input class="input" type="password" placeholder="Mínimo 8 caracteres" />
+        <span class="form-hint">A funcionária poderá alterar após o primeiro acesso</span>
+      </div>
+      <div class="grid-2">
+        <div class="form-field">
+          <label class="form-label">Perfil <span class="required">*</span></label>
+          <select class="input">
+            <option value="">Selecionar...</option>
+            <option>Operadora</option>
+            <option>Admin</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Loja <span class="required">*</span></label>
+          <select class="input">
+            <option value="">Selecionar...</option>
+            <option>Campinas</option>
+            <option>Brasília</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="document.getElementById('modal-usuario').style.display='none'">Cancelar</button>
+      <button class="btn btn-primary">Criar usuário</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div class="toast-stack">
+  <div class="toast toast-success">
+    <span class="toast-icon" style="color: var(--success);">✓</span>
+    <div>
+      <div class="toast-title">Configurações salvas</div>
+      <div class="toast-desc">As regras de negócio foram atualizadas.</div>
+    </div>
+  </div>
+  <div class="toast toast-error">
+    <span class="toast-icon" style="color: var(--danger);">✕</span>
+    <div>
+      <div class="toast-title">Erro ao criar usuário</div>
+      <div class="toast-desc">E-mail já cadastrado no sistema.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement
+    const icon = document.getElementById('theme-icon')
+    if (html.getAttribute('data-theme') === 'dark') {
+      html.setAttribute('data-theme', 'light')
+      icon.textContent = '☾'
+    } else {
+      html.setAttribute('data-theme', 'dark')
+      icon.textContent = '☀'
+    }
+  }
+
+  function updateExamples() {
+    const pix  = parseFloat(document.getElementById('val-pix').value)  || 0
+    const bday = parseFloat(document.getElementById('val-bday').value) || 0
+    const base = 200
+    const afterBday  = base * (1 - bday / 100)
+    const afterPix   = base * (1 - pix / 100)
+    const afterBoth  = afterBday * (1 - pix / 100)
+    const fmt = v => 'R$ ' + v.toFixed(2).replace('.', ',')
+    document.getElementById('ex-pix').textContent =
+      `Venda de R$ 200 no Pix → ${fmt(afterPix)}`
+    document.getElementById('ex-bday').textContent =
+      `Produtos R$ 200 + Pix → subtotal ${fmt(afterBday)} → total ${fmt(afterBoth)}`
+  }
+</script>
+</body>
+</html>
