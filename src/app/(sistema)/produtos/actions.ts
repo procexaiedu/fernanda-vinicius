@@ -1,0 +1,162 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
+
+export interface ActionResult {
+  success: boolean
+  error?: string
+}
+
+export interface ProductFormData {
+  name: string
+  category: string
+  material: string
+  supplier_id: string
+  store_id: string
+  cost_price: number
+  sale_price: number
+  promotional_price: number | null
+  quantity_in_stock: number
+  ownership_type: 'own' | 'consignment'
+  purchase_month: number
+  purchase_year: number
+  photo_url: string | null
+}
+
+function generateCode(initials: string, month: number, costPrice: number): string {
+  const m = String(month).padStart(2, '0')
+  const costCents = Math.round(costPrice * 100)
+  return `F${initials.toUpperCase()}${m}${costCents}`
+}
+
+async function verifyAdmin(): Promise<{ userId: string | null; error: string | null }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { userId: null, error: 'Não autenticado.' }
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin') return { userId: null, error: 'Acesso negado. Apenas administradores podem gerenciar produtos.' }
+  return { userId: user.id, error: null }
+}
+
+export async function createProduct(data: ProductFormData): Promise<ActionResult> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { success: false, error: authErr }
+
+  const admin = createAdminClient()
+
+  const { data: supplier, error: supplierErr } = await admin
+    .from('suppliers')
+    .select('initials')
+    .eq('id', data.supplier_id)
+    .single()
+
+  if (supplierErr || !supplier) return { success: false, error: 'Fornecedor não encontrado.' }
+
+  const code = generateCode(supplier.initials, data.purchase_month, data.cost_price)
+
+  const { error } = await admin.from('products').insert({
+    code,
+    name:              data.name.trim(),
+    category:          data.category.trim().toLowerCase(),
+    material:          data.material.trim().toLowerCase(),
+    supplier_id:       data.supplier_id,
+    store_id:          data.store_id,
+    cost_price:        data.cost_price,
+    sale_price:        data.sale_price,
+    promotional_price: data.promotional_price,
+    quantity_in_stock: data.quantity_in_stock,
+    ownership_type:    data.ownership_type,
+    purchase_month:    data.purchase_month,
+    purchase_year:     data.purchase_year,
+    photo_url:         data.photo_url,
+    is_active:         true,
+  })
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/produtos')
+  revalidatePath('/estoque')
+  return { success: true }
+}
+
+export async function updateProduct(id: string, data: ProductFormData): Promise<ActionResult> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { success: false, error: authErr }
+
+  const admin = createAdminClient()
+
+  const { data: supplier, error: supplierErr } = await admin
+    .from('suppliers')
+    .select('initials')
+    .eq('id', data.supplier_id)
+    .single()
+
+  if (supplierErr || !supplier) return { success: false, error: 'Fornecedor não encontrado.' }
+
+  const code = generateCode(supplier.initials, data.purchase_month, data.cost_price)
+
+  const { error } = await admin.from('products').update({
+    code,
+    name:              data.name.trim(),
+    category:          data.category.trim().toLowerCase(),
+    material:          data.material.trim().toLowerCase(),
+    supplier_id:       data.supplier_id,
+    store_id:          data.store_id,
+    cost_price:        data.cost_price,
+    sale_price:        data.sale_price,
+    promotional_price: data.promotional_price,
+    quantity_in_stock: data.quantity_in_stock,
+    ownership_type:    data.ownership_type,
+    purchase_month:    data.purchase_month,
+    purchase_year:     data.purchase_year,
+    photo_url:         data.photo_url,
+    updated_at:        new Date().toISOString(),
+  }).eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/produtos')
+  revalidatePath('/estoque')
+  return { success: true }
+}
+
+export async function deleteProduct(id: string): Promise<ActionResult> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { success: false, error: authErr }
+
+  const admin = createAdminClient()
+  // Deleta o produto — o banco em cascata remove sale_items, purchase_items e stock_transfers
+  // se houver FK ON DELETE CASCADE; caso contrário, deleta manualmente na ordem certa
+  const { error } = await admin.from('products').delete().eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/produtos')
+  revalidatePath('/estoque')
+  return { success: true }
+}
+
+export async function toggleProductStatus(id: string, isActive: boolean): Promise<ActionResult> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { success: false, error: authErr }
+
+  const admin = createAdminClient()
+  const { error } = await admin.from('products').update({
+    is_active: isActive,
+    updated_at: new Date().toISOString(),
+  }).eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/produtos')
+  revalidatePath('/estoque')
+  return { success: true }
+}

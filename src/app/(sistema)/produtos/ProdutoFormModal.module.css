@@ -1,0 +1,270 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.section {
+  padding: 0 0 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+}
+.section:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.required { color: var(--danger); margin-left: 2px; }
+
+.input,
+.select,
+.textarea {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+.select {
+  padding: 0 28px 0 12px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-color: var(--bg-elevated);
+  cursor: pointer;
+}
+.input:focus, .select:focus, .textarea:focus { border-color: var(--accent); }
+.input::placeholder { color: var(--text-muted); }
+.input:disabled, .select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.textarea {
+  height: auto;
+  padding: 8px 12px;
+  resize: vertical;
+  min-height: 72px;
+}
+
+/* Código gerado */
+.codeBlock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 4px;
+}
+
+.codeLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.codeValue {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+  flex: 1;
+}
+
+.codeCopy {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.12s;
+}
+.codeCopy:hover { color: var(--accent); }
+
+/* Upload foto */
+.uploadArea {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  background: var(--bg-elevated);
+  position: relative;
+}
+.uploadArea:hover { border-color: var(--accent); }
+
+.uploadInput {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.uploadPreview {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.uploadIcon { color: var(--text-muted); }
+.uploadText { font-size: 13px; color: var(--text-muted); }
+.uploadHint { font-size: 11px; color: var(--text-muted); opacity: 0.6; }
+.uploadError { font-size: 12px; color: var(--danger); }
+
+/* Tipo de propriedade */
+.radioGroup {
+  display: flex;
+  gap: 12px;
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.radioLabel input { accent-color: var(--accent); cursor: pointer; }
+
+/* Combobox customizado para categoria/material */
+.comboWrapper { position: relative; }
+
+.comboDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 110;
+  max-height: 180px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.comboDropdown::-webkit-scrollbar { display: none; }
+
+.comboOption {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.1s;
+  text-transform: capitalize;
+}
+.comboOption:hover { background: var(--bg-elevated); }
+
+/* SearchableSelect dentro do form: mesma altura dos inputs */
+.fullWidth {
+  width: 100%;
+}
+.fullWidth > button {
+  height: 36px;
+  font-size: 13px;
+}
+
+/* Link criar fornecedor */
+.createLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0 0;
+  text-decoration: none;
+  transition: opacity 0.12s;
+}
+.createLink:hover { opacity: 0.75; }
+
+/* Botão deletar */
+.deleteBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--danger);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-right: auto;
+  transition: opacity 0.12s;
+}
+.deleteBtn:hover { opacity: 0.75; }
+.deleteBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Footer */
+.footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  padding: 16px 0 0;
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.error {
+  font-size: 12px;
+  color: var(--danger);
+  margin-bottom: 8px;
+  text-align: right;
+}

@@ -1,0 +1,286 @@
+/* Reutiliza a maioria dos estilos de ProdutosClient */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.toolbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.toolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  width: 220px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.search:focus { border-color: var(--accent); }
+.search::placeholder { color: var(--text-muted); }
+
+.filterSelect {
+  height: 34px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+.filterSelect:focus { border-color: var(--accent); }
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.toggle input { cursor: pointer; accent-color: var(--accent); }
+
+.counter {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-left: 4px;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 260px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  scrollbar-width: none;
+}
+.tableWrapper::-webkit-scrollbar { display: none; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-elevated);
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.05));
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.row { cursor: pointer; transition: background 0.12s; }
+.row:hover { background: var(--bg-hover, rgba(255,255,255,0.04)); }
+.row:last-child td { border-bottom: none; }
+
+.productCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.photo {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+}
+
+.photoPlaceholder {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.productInfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.productName {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.productCategory {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.code {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.mutedCell { color: var(--text-secondary); }
+
+.salePrice { font-weight: 600; color: var(--success); }
+.promoPrice { font-size: 11px; color: var(--accent); font-weight: 600; }
+
+.qty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.qtyLow {
+  background: rgba(224,82,82,0.15);
+  color: var(--danger);
+}
+
+.statusParado {
+  font-size: 11px;
+  font-weight: 600;
+  color: #E0A352;
+  background: rgba(224,163,82,0.12);
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.statusCritico {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+  background: rgba(224,82,82,0.12);
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.iconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.iconBtn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+
+.transferBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+/* Paginação */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.paginationInfo { font-size: 12px; color: var(--text-muted); }
+.paginationButtons { display: flex; align-items: center; gap: 4px; }
+
+.pageBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.pageBtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.pageBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pageBtnActive { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+.pageBtnActive:hover { background: var(--accent); color: #000; }
+.pageDots { display: flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; font-size: 13px; color: var(--text-muted); }
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.emptyHint { font-size: 12px; color: var(--text-muted); opacity: 0.7; }
