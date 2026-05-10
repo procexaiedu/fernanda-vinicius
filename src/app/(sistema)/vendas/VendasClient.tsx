@@ -18,7 +18,8 @@ function fmt(v: number) {
 }
 
 function fmtDate(s: string) {
-  const [y, m, d] = s.split('-')
+  const date = s.slice(0, 10)   // pega só YYYY-MM-DD mesmo que seja timestamptz
+  const [y, m, d] = date.split('-')
   return `${d}/${m}/${y}`
 }
 

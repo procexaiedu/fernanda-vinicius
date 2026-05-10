@@ -39,7 +39,7 @@ interface SaleItem {
     sale_date: string
     stores: { name: string } | null
     users?: { name: string } | null
-    clients?: { name: string } | null
+    customers?: { name: string } | null
   } | null
 }
 
@@ -90,9 +90,8 @@ export default function ProdutoDetalheModal({ produto, isAdmin, onClose, onEdit 
     const supabase = createBrowserClient()
     supabase
       .from('sale_items')
-      .select('id, quantity, unit_price, sales(sale_date, stores(name), users(name), clients(name))')
+      .select('id, quantity, unit_price, sales(sale_date, stores(name), users(full_name), customers(name))')
       .eq('product_id', produto.id)
-      .order('created_at', { ascending: false })
       .limit(20)
       .then(({ data }) => { setSalesItems((data as unknown as SaleItem[]) ?? []); setLoadingSales(false) })
   }, [tab, salesItems, produto.id])
@@ -235,10 +234,10 @@ export default function ProdutoDetalheModal({ produto, isAdmin, onClose, onEdit 
                     {salesItems.map(si => (
                       <tr key={si.id}>
                         <td>{fmtDate(si.sales?.sale_date ?? null)}</td>
-                        {isAdmin && <td>{(si.sales?.clients as { name: string } | null)?.name ?? '—'}</td>}
+                        {isAdmin && <td>{(si.sales?.customers as { name: string } | null)?.name ?? '—'}</td>}
                         <td>{si.quantity}</td>
                         <td>{fmt(si.unit_price)}</td>
-                        {isAdmin && <td>{(si.sales?.users as { name: string } | null)?.name ?? '—'}</td>}
+                        {isAdmin && <td>{(si.sales?.users as { full_name: string } | null)?.full_name ?? '—'}</td>}
                         <td>{si.sales?.stores?.name ?? '—'}</td>
                       </tr>
                     ))}

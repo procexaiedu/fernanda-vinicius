@@ -27,11 +27,11 @@ export interface SalePaymentRow {
 }
 
 export interface ExchangeItemSelected {
-  saleItemId: string       // id do sale_item original
+  saleItemId: string
   productId: string
   productName: string
   quantity: number
-  unitPrice: number
+  unitPrice: number            // preço efetivo pago (com desconto)
   originalSaleId: string
 }
 
@@ -90,13 +90,15 @@ export interface VendaDetail {
 export interface VendaParaTroca {
   id: string
   sale_date: string
-  total: number
+  subtotal: number   // soma dos preços sem desconto
+  total: number      // valor efetivamente pago (com desconto)
   items: Array<{
     id: string
     product_id: string
     product_name: string
     product_code: string
-    unit_price: number
+    unit_price: number       // preço unitário sem desconto
+    effective_unit_price: number  // preço efetivo pago (proporcional ao desconto)
     quantity: number
     already_returned: boolean
   }>
@@ -414,7 +416,7 @@ export async function buscarVendasCliente(customerId: string): Promise<VendaPara
 
   const { data: sales } = await admin
     .from('sales')
-    .select('id, sale_date, total')
+    .select('id, sale_date, subtotal, total')
     .eq('customer_id', customerId)
     .eq('status', 'completed')
     .order('sale_date', { ascending: false })
@@ -431,8 +433,7 @@ export async function buscarVendasCliente(customerId: string): Promise<VendaPara
       .eq('sale_id', sale.id)
 
     // Verificar quais itens já foram devolvidos
-    const itemIds = (items ?? []).map((i: any) => i.id)
-    const { data: returnedItems } = itemIds.length > 0
+    const { data: returnedItems } = (items ?? []).length > 0
       ? await admin
           .from('exchange_items')
           .select('product_id')
@@ -442,19 +443,29 @@ export async function buscarVendasCliente(customerId: string): Promise<VendaPara
 
     const returnedProductIds = new Set((returnedItems ?? []).map((r: any) => r.product_id))
 
+    // Ratio desconto: quanto do subtotal o cliente realmente pagou
+    const saleSubtotal = Number(sale.subtotal) || 1
+    const saleTotal    = Number(sale.total)
+    const discountRatio = saleTotal / saleSubtotal  // ex: 0.85 se teve 15% desconto
+
     results.push({
       id:        sale.id,
       sale_date: sale.sale_date,
-      total:     Number(sale.total),
-      items:     (items ?? []).map((i: any) => ({
-        id:               i.id,
-        product_id:       i.product_id,
-        product_name:     i.products?.name ?? '—',
-        product_code:     i.products?.code ?? '—',
-        unit_price:       Number(i.unit_price),
-        quantity:         i.quantity,
-        already_returned: returnedProductIds.has(i.product_id),
-      })),
+      subtotal:  saleSubtotal,
+      total:     saleTotal,
+      items:     (items ?? []).map((i: any) => {
+        const unitPrice = Number(i.unit_price)
+        return {
+          id:                   i.id,
+          product_id:           i.product_id,
+          product_name:         i.products?.name ?? '—',
+          product_code:         i.products?.code ?? '—',
+          unit_price:           unitPrice,
+          effective_unit_price: parseFloat((unitPrice * discountRatio).toFixed(2)),
+          quantity:             i.quantity,
+          already_returned:     returnedProductIds.has(i.product_id),
+        }
+      }),
     })
   }
 

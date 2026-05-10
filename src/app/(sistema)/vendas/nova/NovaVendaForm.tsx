@@ -484,11 +484,18 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
         saleItemId:     item.id,
         productId:      item.product_id,
         productName:    item.product_name,
-        quantity:       item.quantity,
-        unitPrice:      item.unit_price,
+        quantity:       1,  // começa com 1; usuário pode ajustar
+        unitPrice:      item.effective_unit_price,  // preço real pago (com desconto)
         originalSaleId: sale.id,
       }])
     }
+  }
+
+  function updateExchangeQty(saleItemId: string, qty: number, maxQty: number) {
+    const clamped = Math.max(1, Math.min(qty, maxQty))
+    setSelectedExchangeItems(prev =>
+      prev.map(e => e.saleItemId === saleItemId ? { ...e, quantity: clamped } : e)
+    )
   }
 
   function clearExchange() {
@@ -845,34 +852,54 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               <button className={styles.clearExchangeBtn} onClick={clearExchange}><X size={12} /> Cancelar troca</button>
             </div>
 
-            {exchangeSales.map(sale => (
-              <div key={sale.id} className={styles.exchangeSale}>
-                <div className={styles.exchangeSaleHeader}>
-                  📦 Compra {fmtDate(sale.sale_date)} · {sale.items.length} {sale.items.length === 1 ? 'item' : 'itens'} · {fmt(sale.total)}
+            {exchangeSales.map(sale => {
+              const totalUnits = sale.items.reduce((s, i) => s + i.quantity, 0)
+              return (
+                <div key={sale.id} className={styles.exchangeSale}>
+                  <div className={styles.exchangeSaleHeader}>
+                    📦 Compra {fmtDate(sale.sale_date)} · {sale.items.length} {sale.items.length === 1 ? 'produto' : 'produtos'} · {totalUnits} {totalUnits === 1 ? 'unidade' : 'unidades'} · {fmt(sale.total)}
+                  </div>
+                  {sale.items.map(item => {
+                    const sel      = selectedExchangeItems.find(e => e.saleItemId === item.id)
+                    const checked  = !!sel
+                    const returned = item.already_returned
+                    return (
+                      <div
+                        key={item.id}
+                        className={`${styles.exchangeItem} ${returned ? styles.exchangeItemReturned : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={returned}
+                          onChange={() => !returned && toggleExchangeItem(sale, item)}
+                        />
+                        <span className={styles.exchangeItemName}>{item.product_name}</span>
+                        <span className={styles.exchangeItemCode}>{item.product_code}</span>
+                        <span className={styles.exchangeItemPrice}>{fmt(item.effective_unit_price)}/un.</span>
+                        {checked && item.quantity > 1 && (
+                          <span className={styles.exchangeQtyWrap}>
+                            <button
+                              className={styles.exchangeQtyBtn}
+                              onClick={() => updateExchangeQty(item.id, (sel?.quantity ?? 1) - 1, item.quantity)}
+                              type="button"
+                            >−</button>
+                            <span className={styles.exchangeQtyVal}>{sel?.quantity ?? 1}</span>
+                            <button
+                              className={styles.exchangeQtyBtn}
+                              onClick={() => updateExchangeQty(item.id, (sel?.quantity ?? 1) + 1, item.quantity)}
+                              type="button"
+                            >+</button>
+                            <span className={styles.exchangeQtyMax}>/ {item.quantity}</span>
+                          </span>
+                        )}
+                        {returned && <span className={styles.exchangeItemReturnedBadge}>já devolvido</span>}
+                      </div>
+                    )
+                  })}
                 </div>
-                {sale.items.map(item => {
-                  const checked  = selectedExchangeItems.some(e => e.saleItemId === item.id)
-                  const returned = item.already_returned
-                  return (
-                    <label
-                      key={item.id}
-                      className={`${styles.exchangeItem} ${returned ? styles.exchangeItemReturned : ''}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={returned}
-                        onChange={() => !returned && toggleExchangeItem(sale, item)}
-                      />
-                      <span className={styles.exchangeItemName}>{item.product_name}</span>
-                      <span className={styles.exchangeItemCode}>{item.product_code}</span>
-                      <span className={styles.exchangeItemPrice}>{fmt(item.unit_price)}</span>
-                      {returned && <span className={styles.exchangeItemReturnedBadge}>já devolvido</span>}
-                    </label>
-                  )
-                })}
-              </div>
-            ))}
+              )
+            })}
 
             {selectedExchangeItems.length > 0 && (
               <div className={styles.exchangeCredit}>
