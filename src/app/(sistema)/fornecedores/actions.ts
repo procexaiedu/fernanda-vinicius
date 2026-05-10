@@ -107,14 +107,8 @@ export async function deletarFornecedor(id: string): Promise<ActionResult> {
 
   const admin = createAdminClient()
 
-  // Bloquear se tiver produtos vinculados
-  const { count } = await admin
-    .from('products')
-    .select('id', { count: 'exact', head: true })
-    .eq('supplier_id', id)
-
-  if (count && count > 0)
-    return { success: false, error: `Este fornecedor possui ${count} produto${count > 1 ? 's' : ''} cadastrado${count > 1 ? 's' : ''}. Remova ou reatribua os produtos antes de excluir.` }
+  // Desvincula produtos (nulla supplier_id) antes de deletar
+  await admin.from('products').update({ supplier_id: null }).eq('supplier_id', id)
 
   const { error } = await admin.from('suppliers').delete().eq('id', id)
   if (error) return { success: false, error: error.message }

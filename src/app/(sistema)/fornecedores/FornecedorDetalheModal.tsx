@@ -233,7 +233,7 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDe
           ) : (
             <div className={styles.deleteConfirm}>
               <AlertTriangle size={13} style={{ color: 'var(--warning)', flexShrink: 0 }} />
-              <span>Excluir?</span>
+              <span>Produtos ficam no catálogo sem fornecedor. Confirma?</span>
               <button className={styles.deleteBtnConfirm} onClick={handleDelete} disabled={deleting}>
                 {deleting ? '...' : 'Sim'}
               </button>
