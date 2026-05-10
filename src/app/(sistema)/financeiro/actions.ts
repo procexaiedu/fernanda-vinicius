@@ -289,7 +289,7 @@ export async function buscarPnl(storeId: string | null, month: number, year: num
     .map(([category, amount]) => ({
       category,
       amount,
-      pct: receitaBruta > 0 ? (amount / receitaBruta) * 100 : 0,
+      pct: despesasOp > 0 ? (amount / despesasOp) * 100 : 0,
     }))
 
   return {

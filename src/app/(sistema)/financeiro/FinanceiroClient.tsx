@@ -742,7 +742,7 @@ function PnlTab({ stores }: { stores: Store[] }) {
                     <tr>
                       <th>Categoria</th>
                       <th>Valor</th>
-                      <th style={{ width: '200px' }}>% Receita</th>
+                      <th style={{ width: '200px' }}>% das Despesas</th>
                     </tr>
                   </thead>
                   <tbody>
