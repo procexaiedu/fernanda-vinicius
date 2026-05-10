@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 export interface ActionResult {
   success: boolean
   error?: string
+  id?: string
 }
 
 export interface CustomerFormData {
@@ -29,7 +30,7 @@ export async function createCustomer(data: CustomerFormData): Promise<ActionResu
   if (!user) return { success: false, error: 'Não autenticado.' }
 
   const admin = createAdminClient()
-  const { error } = await admin.from('customers').insert({
+  const { data: created, error } = await admin.from('customers').insert({
     name:            data.name.trim(),
     phone:           data.phone.trim(),
     cpf:             data.cpf.trim() || null,
@@ -39,13 +40,13 @@ export async function createCustomer(data: CustomerFormData): Promise<ActionResu
     city:            data.city.trim() || null,
     state:           data.state.trim().toUpperCase() || null,
     zip_code:        data.zip_code.trim() || null,
-    origin_store_id: data.origin_store_id,
+    origin_store_id: data.origin_store_id || null,
     notes:           data.notes.trim() || null,
-  })
+  }).select('id').single()
 
   if (error) return { success: false, error: error.message }
   revalidatePath('/clientes')
-  return { success: true }
+  return { success: true, id: created.id }
 }
 
 export async function updateCustomer(id: string, data: CustomerFormData): Promise<ActionResult> {

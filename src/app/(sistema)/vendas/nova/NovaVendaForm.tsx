@@ -146,12 +146,19 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
   customers: CustomerOption[]
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
-  const q = value.toLowerCase()
-  const filtered = customers.filter(c =>
-    c.name.toLowerCase().includes(q) ||
-    (c.phone && c.phone.replace(/\D/g, '').includes(q.replace(/\D/g, ''))) ||
-    (c.cpf && c.cpf.replace(/\D/g, '').includes(q.replace(/\D/g, '')))
-  ).slice(0, 8)
+  const q = value.trim().toLowerCase()
+  const qDigits = q.replace(/\D/g, '')
+
+  const filtered = q === ''
+    ? customers.slice(0, 8)
+    : customers.filter(c => {
+        if (c.name.toLowerCase().includes(q)) return true
+        if (qDigits.length > 0) {
+          if (c.phone && c.phone.replace(/\D/g, '').includes(qDigits)) return true
+          if (c.cpf  && c.cpf.replace(/\D/g, '').includes(qDigits))  return true
+        }
+        return false
+      }).slice(0, 8)
 
   return (
     <div className={styles.comboWrap}>
@@ -179,6 +186,9 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.phone}{c.cpf ? ` · CPF: ${c.cpf}` : ''}</span>
             </div>
           ))}
+          {filtered.length === 0 && q !== '' && (
+            <div className={styles.comboEmpty}>Nenhum cliente encontrado para "{value}"</div>
+          )}
           <div className={styles.comboCreateBtn} onMouseDown={() => { close(); onCreateClick() }}>
             <Plus size={12} /> Criar novo cliente
           </div>
@@ -237,6 +247,24 @@ function ProductCombobox({ value, onChange, products }: {
   )
 }
 
+// ─── Máscaras ─────────────────────────────────────────────────────────────────
+
+function maskPhone(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2)  return d.length ? `(${d}` : ''
+  if (d.length <= 7)  return `(${d.slice(0,2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
+  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
+}
+
+function maskCpf(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 3)  return d
+  if (d.length <= 6)  return `${d.slice(0,3)}.${d.slice(3)}`
+  if (d.length <= 9)  return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`
+  return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`
+}
+
 // ─── Modal criar cliente ──────────────────────────────────────────────────────
 
 function CreateCustomerModal({ storeId, onClose, onCreated }: {
@@ -244,13 +272,13 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
   onClose: () => void
   onCreated: (c: CustomerOption) => void
 }) {
-  const [name, setName]       = useState('')
-  const [phone, setPhone]     = useState('')
-  const [cpf, setCpf]         = useState('')
+  const [name, setName]         = useState('')
+  const [phone, setPhone]       = useState('')
+  const [cpf, setCpf]           = useState('')
   const [birthday, setBirthday] = useState('')
-  const [email, setEmail]     = useState('')
-  const [saving, setSaving]   = useState(false)
-  const [error, setError]     = useState('')
+  const [email, setEmail]       = useState('')
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
 
   async function handleSave() {
     if (!name.trim()) { setError('Nome é obrigatório.'); return }
@@ -265,31 +293,50 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
     })
     setSaving(false)
     if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
-    onCreated({ id: '', name: name.trim(), phone: phone.trim(), cpf: cpf.trim() || null, birthday: birthday || null })
+    // result.id vem do banco — nunca vazio
+    onCreated({ id: result.id!, name: name.trim(), phone: phone.trim(), cpf: cpf.replace(/\D/g, '') || null, birthday: birthday || null })
   }
 
   return (
     <Modal isOpen title="Novo Cliente" onClose={onClose}>
       <div className={styles.createCustomerForm}>
-        <div className={styles.createField}>
-          <label>Nome <span className={styles.req}>*</span></label>
-          <input className={styles.createInput} value={name} onChange={e => setName(e.target.value)} placeholder="Nome completo" autoFocus />
+        <div className={styles.createRow}>
+          <div className={styles.createField}>
+            <label>Nome <span className={styles.req}>*</span></label>
+            <input className={styles.createInput} value={name} onChange={e => setName(e.target.value)} placeholder="Nome completo" autoFocus />
+          </div>
         </div>
-        <div className={styles.createField}>
-          <label>Telefone <span className={styles.req}>*</span></label>
-          <input className={styles.createInput} value={phone} onChange={e => setPhone(e.target.value)} placeholder="(11) 99999-9999" />
+        <div className={styles.createRow}>
+          <div className={styles.createField}>
+            <label>Telefone <span className={styles.req}>*</span></label>
+            <input
+              className={styles.createInput}
+              value={phone}
+              onChange={e => setPhone(maskPhone(e.target.value))}
+              placeholder="(11) 99999-9999"
+              inputMode="numeric"
+            />
+          </div>
+          <div className={styles.createField}>
+            <label>CPF</label>
+            <input
+              className={styles.createInput}
+              value={cpf}
+              onChange={e => setCpf(maskCpf(e.target.value))}
+              placeholder="000.000.000-00"
+              inputMode="numeric"
+            />
+          </div>
         </div>
-        <div className={styles.createField}>
-          <label>CPF</label>
-          <input className={styles.createInput} value={cpf} onChange={e => setCpf(e.target.value)} placeholder="000.000.000-00" />
-        </div>
-        <div className={styles.createField}>
-          <label>Aniversário</label>
-          <input type="date" className={styles.createInput} value={birthday} onChange={e => setBirthday(e.target.value)} />
-        </div>
-        <div className={styles.createField}>
-          <label>E-mail</label>
-          <input className={styles.createInput} value={email} onChange={e => setEmail(e.target.value)} placeholder="email@exemplo.com" />
+        <div className={styles.createRow}>
+          <div className={styles.createField}>
+            <label>Aniversário</label>
+            <DatePicker value={birthday} onChange={setBirthday} className={styles.createInput} />
+          </div>
+          <div className={styles.createField}>
+            <label>E-mail</label>
+            <input className={styles.createInput} value={email} onChange={e => setEmail(e.target.value)} placeholder="email@exemplo.com" />
+          </div>
         </div>
         {error && <div className={styles.createError}><AlertTriangle size={13} /> {error}</div>}
         <div className={styles.createActions}>
