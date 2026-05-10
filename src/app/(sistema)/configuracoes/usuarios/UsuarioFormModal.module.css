@@ -112,11 +112,20 @@
   border-color: var(--accent);
 }
 
-/* ─── Select ─────────────────────────────────────── */
+/* ─── Select customizado ─────────────────────────── */
 
-.select {
+.selectWrap {
+  position: relative;
+}
+
+.selectBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
   height: 36px;
-  padding: 0 8px;
+  padding: 0 10px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -124,18 +133,77 @@
   font-size: 13px;
   font-family: inherit;
   cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
+  text-align: left;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.select:focus {
-  outline: none;
+.selectBtn:hover {
+  border-color: rgba(201, 168, 76, 0.4);
+}
+
+.selectBtnOpen {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
-.selectError { border-color: var(--danger) !important; }
+.selectBtnError {
+  border-color: var(--danger) !important;
+}
+
+.selectBtnLabel {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectBtnPlaceholder {
+  color: var(--text-muted);
+}
+
+.selectChevron {
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: transform 0.15s;
+}
+
+.selectChevronOpen {
+  transform: rotate(180deg);
+  opacity: 1;
+  color: var(--accent);
+}
+
+.selectDropdown {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.selectOption {
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.selectOption:hover {
+  background: rgba(201, 168, 76, 0.08);
+  color: var(--text-primary);
+}
+
+.selectOptionActive {
+  color: var(--accent);
+  font-weight: 600;
+  background: rgba(201, 168, 76, 0.06);
+}
+
+.selectOptionMuted {
+  color: var(--text-muted);
+  font-size: 12px;
+}
 
 /* ─── Notas ──────────────────────────────────────── */
 

@@ -1,13 +1,148 @@
 'use client'
 
-import { useState } from 'react'
-import { Eye, EyeOff, Copy, Check } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Eye, EyeOff, Copy, Check, ChevronDown } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import type { UserWithMetrics } from './page'
 import { createUser, updateUser } from './actions'
 import styles from './UsuarioFormModal.module.css'
+
+// ─── FormSelect ───────────────────────────────────────────────────────────────
+
+function FormSelect<T extends string>({ value, onChange, options, error }: {
+  value: T
+  onChange: (v: T) => void
+  options: Array<{ value: T; label: string }>
+  error?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+
+  function toggle() {
+    if (open) { setOpen(false); setPos(null); return }
+    if (!ref.current) return
+    const r = ref.current.getBoundingClientRect()
+    setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    setOpen(true)
+  }
+
+  function select(v: T) { onChange(v); setOpen(false); setPos(null) }
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setPos(null) }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const selected = options.find(o => o.value === value)
+
+  return (
+    <div ref={ref} className={styles.selectWrap}>
+      <button
+        type="button"
+        className={`${styles.selectBtn} ${open ? styles.selectBtnOpen : ''} ${error ? styles.selectBtnError : ''}`}
+        onClick={toggle}
+      >
+        <span className={styles.selectBtnLabel}>{selected?.label ?? '—'}</span>
+        <ChevronDown size={11} className={`${styles.selectChevron} ${open ? styles.selectChevronOpen : ''}`} />
+      </button>
+      {pos && (
+        <div
+          className={styles.selectDropdown}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
+        >
+          {options.map(o => (
+            <div
+              key={o.value}
+              className={`${styles.selectOption} ${value === o.value ? styles.selectOptionActive : ''}`}
+              onMouseDown={() => select(o.value)}
+            >
+              {o.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── StoreSelect (com opção vazia) ────────────────────────────────────────────
+
+function StoreSelect({ value, onChange, stores, placeholder, error }: {
+  value: string
+  onChange: (v: string) => void
+  stores: { id: string; name: string }[]
+  placeholder: string
+  error?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+
+  function toggle() {
+    if (open) { setOpen(false); setPos(null); return }
+    if (!ref.current) return
+    const r = ref.current.getBoundingClientRect()
+    setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    setOpen(true)
+  }
+
+  function select(v: string) { onChange(v); setOpen(false); setPos(null) }
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setPos(null) }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const selected = stores.find(s => s.id === value)
+
+  return (
+    <div ref={ref} className={styles.selectWrap}>
+      <button
+        type="button"
+        className={`${styles.selectBtn} ${open ? styles.selectBtnOpen : ''} ${error ? styles.selectBtnError : ''}`}
+        onClick={toggle}
+      >
+        <span className={`${styles.selectBtnLabel} ${!selected ? styles.selectBtnPlaceholder : ''}`}>
+          {selected?.name ?? placeholder}
+        </span>
+        <ChevronDown size={11} className={`${styles.selectChevron} ${open ? styles.selectChevronOpen : ''}`} />
+      </button>
+      {pos && (
+        <div
+          className={styles.selectDropdown}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
+        >
+          <div
+            className={`${styles.selectOption} ${!value ? styles.selectOptionActive : ''} ${styles.selectOptionMuted}`}
+            onMouseDown={() => select('')}
+          >
+            {placeholder}
+          </div>
+          {stores.map(s => (
+            <div
+              key={s.id}
+              className={`${styles.selectOption} ${value === s.id ? styles.selectOptionActive : ''}`}
+              onMouseDown={() => select(s.id)}
+            >
+              {s.name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -208,14 +343,14 @@ export default function UsuarioFormModal({ user, stores, onClose, onSaved }: Pro
             {/* Papel */}
             <div className={styles.fieldGroup}>
               <label className={styles.fieldLabel}>Papel</label>
-              <select
-                className={styles.select}
+              <FormSelect
                 value={role}
-                onChange={e => setRole(e.target.value as 'admin' | 'operator')}
-              >
-                <option value="operator">Operadora</option>
-                <option value="admin">Administrador</option>
-              </select>
+                onChange={v => { setRole(v); if (v === 'admin') setStoreId('') }}
+                options={[
+                  { value: 'operator', label: 'Operadora' },
+                  { value: 'admin', label: 'Administrador' },
+                ]}
+              />
             </div>
 
             {/* Loja */}
@@ -223,18 +358,13 @@ export default function UsuarioFormModal({ user, stores, onClose, onSaved }: Pro
               <label className={styles.fieldLabel}>
                 Loja {role === 'operator' && <span className={styles.required}>*</span>}
               </label>
-              <select
-                className={`${styles.select} ${errors.storeId ? styles.selectError : ''}`}
+              <StoreSelect
                 value={storeId}
-                onChange={e => setStoreId(e.target.value)}
-              >
-                <option value="">
-                  {role === 'admin' ? 'Sem loja (acesso global)' : 'Selecionar loja…'}
-                </option>
-                {stores.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+                onChange={setStoreId}
+                stores={stores}
+                placeholder={role === 'admin' ? 'Sem loja (acesso global)' : 'Selecionar loja…'}
+                error={!!errors.storeId}
+              />
               {errors.storeId && <span className={styles.fieldError}>{errors.storeId}</span>}
             </div>
           </div>

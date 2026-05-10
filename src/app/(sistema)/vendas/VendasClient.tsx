@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   ChevronUp, ChevronDown, ArrowLeftRight, AlertTriangle, X,
   BarChart2, Trash2, Receipt,
@@ -25,6 +25,68 @@ function fmtDate(s: string) {
 
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito',
+}
+
+// ─── FilterSelect ─────────────────────────────────────────────────────────────
+
+function FilterSelect({ value, onChange, placeholder, options }: {
+  value: string
+  onChange: (v: string) => void
+  placeholder: string
+  options: Array<{ value: string; label: string }>
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+
+  function toggle() {
+    if (open) { setOpen(false); setPos(null); return }
+    if (!ref.current) return
+    const r = ref.current.getBoundingClientRect()
+    setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 160) })
+    setOpen(true)
+  }
+
+  function select(v: string) { onChange(v); setOpen(false); setPos(null) }
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setPos(null) }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const selected = options.find(o => o.value === value)
+
+  return (
+    <div ref={ref} className={styles.filterWrap}>
+      <button type="button" className={`${styles.filterBtn} ${open ? styles.filterBtnOpen : ''}`} onClick={toggle}>
+        <span className={value ? styles.filterBtnActive : ''}>{selected?.label ?? placeholder}</span>
+        <ChevronDown size={11} style={{ flexShrink: 0, opacity: 0.5, transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
+      </button>
+      {pos && (
+        <div className={styles.filterDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}>
+          <div
+            className={`${styles.filterOption} ${value === '' ? styles.filterOptionActive : ''}`}
+            onMouseDown={() => select('')}
+          >
+            {placeholder}
+          </div>
+          {options.map(o => (
+            <div
+              key={o.value}
+              className={`${styles.filterOption} ${value === o.value ? styles.filterOptionActive : ''}`}
+              onMouseDown={() => select(o.value)}
+            >
+              {o.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Modal de detalhe ─────────────────────────────────────────────────────────
@@ -101,6 +163,12 @@ function VendaDetalheModal({ saleId, onClose, onDeleted }: {
                     <>
                       <span className={styles.detailSep}>·</span>
                       <span>{venda.customer_name}</span>
+                    </>
+                  )}
+                  {venda.seller_name && (
+                    <>
+                      <span className={styles.detailSep}>·</span>
+                      <span className={styles.sellerTag}>Vendedora: {venda.seller_name}</span>
                     </>
                   )}
                 </div>
@@ -243,14 +311,16 @@ type SortDir = 'asc' | 'desc'
 interface Props {
   sales: SaleRow[]
   stores: Array<{ id: string; name: string }>
+  sellers: Array<{ id: string; full_name: string }>
   userRole: string
 }
 
-export default function VendasClient({ sales: initial, stores, userRole }: Props) {
+export default function VendasClient({ sales: initial, stores, sellers, userRole }: Props) {
   const [sales, setSales]         = useState(initial)
   const [search, setSearch]       = useState('')
   const [filterStore, setFilterStore] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterSeller, setFilterSeller] = useState('')
   const [sortKey, setSortKey]     = useState<SortKey>('date')
   const [sortDir, setSortDir]     = useState<SortDir>('desc')
   const [detalheId, setDetalheId] = useState<string | null>(null)
@@ -266,6 +336,7 @@ export default function VendasClient({ sales: initial, stores, userRole }: Props
     const q = search.toLowerCase()
     let list = sales.filter(s => {
       if (filterStore && s.store_id !== filterStore) return false
+      if (filterSeller && s.seller_id !== filterSeller) return false
       if (filterStatus === 'exchange' && !s.has_exchange) return false
       if (filterStatus === 'completed' && s.status !== 'completed') return false
       if (q && !(s.customer_name ?? '').toLowerCase().includes(q) && !s.payment_summary?.toLowerCase().includes(q)) return false
@@ -328,16 +399,30 @@ export default function VendasClient({ sales: initial, stores, userRole }: Props
             onChange={e => setSearch(e.target.value)}
           />
           {userRole === 'admin' && (
-            <select className={styles.filter} value={filterStore} onChange={e => setFilterStore(e.target.value)}>
-              <option value="">Todas as lojas</option>
-              {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <FilterSelect
+              value={filterStore}
+              onChange={setFilterStore}
+              placeholder="Todas as lojas"
+              options={stores.map(s => ({ value: s.id, label: s.name }))}
+            />
           )}
-          <select className={styles.filter} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="">Todos os status</option>
-            <option value="completed">Concluídas</option>
-            <option value="exchange">Com troca</option>
-          </select>
+          {userRole === 'admin' && (
+            <FilterSelect
+              value={filterSeller}
+              onChange={setFilterSeller}
+              placeholder="Todas as vendedoras"
+              options={sellers.map(u => ({ value: u.id, label: u.full_name }))}
+            />
+          )}
+          <FilterSelect
+            value={filterStatus}
+            onChange={setFilterStatus}
+            placeholder="Todos os status"
+            options={[
+              { value: 'completed', label: 'Concluídas' },
+              { value: 'exchange', label: 'Com troca' },
+            ]}
+          />
         </div>
       </div>
 
@@ -361,6 +446,7 @@ export default function VendasClient({ sales: initial, stores, userRole }: Props
                   Cliente <SortIcon col="customer" />
                 </th>
                 {userRole === 'admin' && <th>Loja</th>}
+                {userRole === 'admin' && <th>Vendedora</th>}
                 <th className={styles.thSortable} onClick={() => toggleSort('items')}>
                   Itens <SortIcon col="items" />
                 </th>
@@ -386,6 +472,9 @@ export default function VendasClient({ sales: initial, stores, userRole }: Props
                   <td className={styles.dateCell}>{fmtDate(s.sale_date)}</td>
                   <td>{s.customer_name ?? <span className={styles.muted}>—</span>}</td>
                   {userRole === 'admin' && <td className={styles.muted}>{s.store_name}</td>}
+                  {userRole === 'admin' && (
+                    <td className={styles.muted}>{s.seller_name ?? <span className={styles.muted}>—</span>}</td>
+                  )}
                   <td className={styles.muted}>{s.items_count}</td>
                   <td className={styles.muted}>{fmt(s.subtotal)}</td>
                   <td className={styles.muted}>

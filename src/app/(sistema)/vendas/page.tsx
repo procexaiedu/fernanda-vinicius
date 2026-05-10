@@ -11,6 +11,8 @@ export interface SaleRow {
   customer_id: string | null
   store_name: string
   store_id: string
+  seller_name: string | null
+  seller_id: string | null
   items_count: number
   subtotal: number
   discount_pct: number
@@ -37,7 +39,7 @@ export default async function VendasPage() {
     .from('sales')
     .select(`
       id, sale_date, subtotal, discount_pct, discount_amount, total,
-      payment_summary, status, store_id,
+      payment_summary, status, store_id, seller_id,
       customers(name, id),
       stores(name)
     `)
@@ -74,6 +76,8 @@ export default async function VendasPage() {
     customer_id:     s.customers?.id ?? null,
     store_name:      s.stores?.name ?? '—',
     store_id:        s.store_id,
+    seller_name:     s.seller_id ? (sellersMap.get(s.seller_id) ?? null) : null,
+    seller_id:       s.seller_id ?? null,
     items_count:     itemCounts.get(s.id) ?? 0,
     subtotal:        Number(s.subtotal),
     discount_pct:    Number(s.discount_pct),
@@ -84,11 +88,21 @@ export default async function VendasPage() {
     has_exchange:    exchangeSaleIds.has(s.id),
   }))
 
-  const [storesRes] = await Promise.all([
+  // Buscar sellers (nomes) para as vendas listadas
+  const sellerIds = [...new Set((rawSales ?? []).map((s: any) => s.seller_id).filter(Boolean))]
+  const sellersMap = new Map<string, string>()
+  if (sellerIds.length > 0) {
+    const { data: sellerUsers } = await admin.from('users').select('id, full_name').in('id', sellerIds)
+    for (const u of sellerUsers ?? []) sellersMap.set(u.id, u.full_name)
+  }
+
+  const [storesRes, usersRes] = await Promise.all([
     admin.from('stores').select('id, name').eq('is_active', true).order('name'),
+    admin.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
   ])
 
   const stores = storesRes.data ?? []
+  const sellers = usersRes.data ?? []
 
   return (
     <div style={{ padding: '24px 32px' }}>
@@ -108,7 +122,7 @@ export default async function VendasPage() {
         </Link>
       </div>
 
-      <VendasClient sales={sales} stores={stores} userRole={profile.role} />
+      <VendasClient sales={sales} stores={stores} sellers={sellers} userRole={profile.role} />
     </div>
   )
 }

@@ -41,6 +41,11 @@ interface UserProfile {
   storeId: string | null
   storeName: string | null
   fullName: string
+  userId: string
+}
+
+interface UserOption {
+  id: string; full_name: string; store_id: string | null
 }
 
 interface SaleRow {
@@ -64,6 +69,7 @@ interface Props {
   customers: CustomerOption[]
   settings: Settings
   userProfile: UserProfile
+  users: UserOption[]
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -350,12 +356,13 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function NovaVendaForm({ stores, products, customers: initialCustomers, settings, userProfile }: Props) {
+export default function NovaVendaForm({ stores, products, customers: initialCustomers, settings, userProfile, users }: Props) {
   const router = useRouter()
 
   // ── Estado geral ──────────────────────────────────────────────────────────
   const [saleDate, setSaleDate]   = useState(today())
   const [storeId, setStoreId]     = useState(userProfile.storeId ?? stores[0]?.id ?? '')
+  const [sellerId, setSellerId]   = useState<string>(userProfile.userId)
   const [notes, setNotes]         = useState('')
 
   // ── Cliente ───────────────────────────────────────────────────────────────
@@ -538,6 +545,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       saleDate,
       customerId:            selectedCustomer?.id ?? null,
       customerBirthdayMonth: selectedCustomer?.birthday ? parseInt(selectedCustomer.birthday.slice(5, 7)) : null,
+      sellerId:              sellerId || null,
       items,
       hasPix,
       hasBirthday,
@@ -617,6 +625,18 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               />
             )}
           </div>
+
+          {/* Vendedora */}
+          {userProfile.role === 'admin' && (
+            <div className={styles.field}>
+              <label className={styles.label}>Vendedora</label>
+              <StoreSelect
+                value={sellerId}
+                onChange={setSellerId}
+                stores={users.map(u => ({ id: u.id, name: u.full_name, city: '' }))}
+              />
+            </div>
+          )}
 
           {/* Observações */}
           <div className={styles.field} style={{ gridColumn: '1 / -1' }}>

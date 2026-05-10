@@ -14,7 +14,7 @@ export default async function NovaVendaPage() {
 
   const admin = createAdminClient()
 
-  const [storesRes, productsRes, customersRes, settingsRes, userStoreRes] = await Promise.all([
+  const [storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
     admin.from('stores').select('id, name, city').eq('is_active', true).order('name'),
     admin.from('products')
       .select('id, name, code, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock')
@@ -30,11 +30,13 @@ export default async function NovaVendaPage() {
     profile.store_id
       ? admin.from('stores').select('id, name').eq('id', profile.store_id).single()
       : Promise.resolve({ data: null }),
+    admin.from('users').select('id, full_name, store_id').eq('is_active', true).order('full_name'),
   ])
 
   const stores    = storesRes.data ?? []
   const products  = productsRes.data ?? []
   const customers = customersRes.data ?? []
+  const users     = usersRes.data ?? []
 
   const settingsMap = new Map((settingsRes.data ?? []).map(s => [s.key, Number(s.value)]))
   const settings = {
@@ -48,6 +50,7 @@ export default async function NovaVendaPage() {
     storeId:   profile.store_id ?? null,
     storeName: (userStoreRes as any).data?.name ?? null,
     fullName:  profile.full_name ?? '',
+    userId:    user.id,
   }
 
   return (
@@ -70,6 +73,7 @@ export default async function NovaVendaPage() {
         customers={customers}
         settings={settings}
         userProfile={userProfile}
+        users={users}
       />
     </div>
   )

@@ -40,6 +40,7 @@ export interface VendaFormData {
   saleDate: string          // YYYY-MM-DD
   customerId: string | null
   customerBirthdayMonth: number | null   // 1-12 ou null
+  sellerId: string | null   // funcionária que realizou a venda
   items: SaleItem[]
   hasPix: boolean
   hasBirthday: boolean
@@ -55,6 +56,7 @@ export interface VendaDetail {
   store_name: string
   customer_name: string | null
   customer_id: string | null
+  seller_name: string | null
   subtotal: number
   discount_type: string | null
   discount_pct: number
@@ -187,6 +189,7 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
       store_id:        finalStoreId,
       customer_id:     data.customerId ?? null,
       user_id:         userId,
+      seller_id:       data.sellerId ?? userId,
       sale_date:       data.saleDate,
       subtotal,
       discount_type:   discountType,
@@ -319,11 +322,18 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
 
   const { data: sale, error: saleErr } = await admin
     .from('sales')
-    .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, customers(name), stores(name)')
+    .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, seller_id, customers(name), stores(name)')
     .eq('id', saleId)
     .single()
 
   if (saleErr || !sale) return { data: null, error: saleErr?.message }
+
+  let sellerName: string | null = null
+  const sellerIdVal = (sale as any).seller_id
+  if (sellerIdVal) {
+    const { data: sellerUser } = await admin.from('users').select('full_name').eq('id', sellerIdVal).single()
+    sellerName = sellerUser?.full_name ?? null
+  }
 
   const { data: rawItems } = await admin
     .from('sale_items')
@@ -380,6 +390,7 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
       store_name:      s.stores?.name ?? '—',
       customer_name:   s.customers?.name ?? null,
       customer_id:     s.customer_id,
+      seller_name:     sellerName,
       subtotal:        Number(s.subtotal),
       discount_type:   s.discount_type,
       discount_pct:    Number(s.discount_pct),
