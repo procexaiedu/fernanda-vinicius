@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   ChevronDown, ChevronLeft, ChevronRight, Plus, Check, Pencil, Trash2, X,
-  TrendingUp, TrendingDown, RefreshCw, DollarSign,
+  RefreshCw,
 } from 'lucide-react'
 import DatePicker from '@/components/ui/DatePicker'
 import styles from './FinanceiroClient.module.css'
@@ -412,7 +412,6 @@ function DespesaModal({
 }) {
   const [description, setDescription] = useState(tx?.description ?? '')
   const [amount,      setAmount]      = useState(tx ? String(tx.amount) : '')
-  const [category,    setCategory]    = useState(tx?.category ?? '')
   const [catInput,    setCatInput]    = useState(tx?.category ?? '')
   const [storeId,     setStoreId]     = useState(tx?.store_id ?? '')
   const [date,        setDate]        = useState(tx?.transaction_date ?? today())
@@ -520,7 +519,7 @@ function DespesaModal({
                 <input
                   className={styles.input}
                   value={catInput}
-                  onChange={e => { setCatInput(e.target.value); setCategory(e.target.value) }}
+                  onChange={e => setCatInput(e.target.value)}
                   placeholder="aluguel, salario..."
                   list="cat-suggestions"
                 />
@@ -793,7 +792,7 @@ function RecorrentesTab({ stores }: { stores: Store[] }) {
   }
 
   // Load on mount
-  useState(() => { load() })
+  useEffect(() => { load() }, [])
 
   async function handleToggle(id: string, current: boolean) {
     await toggleRecorrente(id, !current)
