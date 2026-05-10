@@ -20,7 +20,7 @@ export default async function NovaVendaPage() {
       .select('id, name, code, category, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock')
       .eq('is_active', true)
       .order('name'),
-    admin.from('customers').select('id, name, phone, cpf, birthday').eq('is_active', true).order('name'),
+    admin.from('customers').select('id, name, phone, cpf, birthday').order('name'),
     admin.from('settings').select('key, value').in('key', [
       'pix_discount_pct',
       'birthday_discount_pct',

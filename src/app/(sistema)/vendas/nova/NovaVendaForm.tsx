@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
+import DatePicker from '@/components/ui/DatePicker'
 import {
   salvarVenda, buscarVendasCliente, type VendaFormData,
   type SaleItem, type SalePaymentRow, type ExchangeItemSelected, type VendaParaTroca,
@@ -45,7 +46,7 @@ interface UserProfile {
 interface SaleRow {
   productId: string | null
   productName: string
-  quantity: number
+  quantity: number | ''   // '' permite apagar o campo livremente
   unitPrice: number
   unitCost: number
   stockAvailable: number
@@ -353,7 +354,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   }, [payments])
 
   // ── Totais ────────────────────────────────────────────────────────────────
-  const subtotal       = rows.reduce((s, r) => s + r.unitPrice * r.quantity, 0)
+  const subtotal       = rows.reduce((s, r) => s + r.unitPrice * (r.quantity || 0), 0)
   const discountPct    = (hasPix ? settings.pixDiscountPct : 0) + (hasBirthday ? settings.birthdayDiscountPct : 0)
   const discountAmt    = parseFloat((subtotal * discountPct / 100 + manualDiscount).toFixed(2))
   const total          = Math.max(0, parseFloat((subtotal - discountAmt).toFixed(2)))
@@ -460,6 +461,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     for (let i = 0; i < rows.length; i++) {
       if (!rows[i].productId) { setError(`Linha ${i + 1}: selecione um produto do catálogo.`); return }
       if (rows[i].unitPrice <= 0) { setError(`Linha ${i + 1}: preço inválido.`); return }
+      if (!rows[i].quantity || (rows[i].quantity as number) < 1) { setError(`Linha ${i + 1}: quantidade deve ser ao menos 1.`); return }
     }
     if (!storeId) { setError('Selecione a loja.'); return }
 
@@ -472,7 +474,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     const items: SaleItem[] = rows.map(r => ({
       productId:   r.productId!,
       productName: r.productName,
-      quantity:    r.quantity,
+      quantity:    (r.quantity as number) || 1,
       unitPrice:   r.unitPrice,
       unitCost:    r.unitCost,
     }))
@@ -532,7 +534,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
           {/* Data */}
           <div className={styles.field}>
             <label className={styles.label}>Data da venda</label>
-            <input type="date" className={styles.headerInput} value={saleDate} onChange={e => setSaleDate(e.target.value)} />
+            <DatePicker value={saleDate} onChange={setSaleDate} className={styles.headerInput} />
           </div>
 
           {/* Cliente */}
@@ -593,8 +595,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             </thead>
             <tbody>
               {rows.map((row, i) => {
-                const rowSubtotal = row.unitPrice * row.quantity
-                const stockWarn = row.productId && row.quantity > row.stockAvailable && row.stockAvailable >= 0
+                const qty = row.quantity || 0
+                const rowSubtotal = row.unitPrice * qty
+                const stockWarn = row.productId && qty > row.stockAvailable && row.stockAvailable >= 0
                 const noStock   = row.stockAvailable === 0 && row.productId
 
                 return (
@@ -620,7 +623,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                         type="number" min="1" step="1"
                         className={styles.cell}
                         value={row.quantity}
-                        onChange={e => updateRow(i, { quantity: parseInt(e.target.value) || 1 })}
+                        onChange={e => updateRow(i, { quantity: e.target.value === '' ? '' : parseInt(e.target.value) || 1 })}
                       />
                     </td>
 
