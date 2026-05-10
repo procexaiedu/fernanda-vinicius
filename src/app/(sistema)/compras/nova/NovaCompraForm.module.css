@@ -155,6 +155,7 @@
 
 .gridWrapper {
   overflow-x: auto;
+  overflow-y: visible;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   margin-bottom: 12px;
@@ -281,6 +282,22 @@
 
 .comboOption:hover {
   background: rgba(201, 168, 76, 0.1);
+}
+
+.comboOptionActive {
+  background: rgba(201, 168, 76, 0.15);
+  color: var(--accent);
+}
+
+.storeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 /* ── Aviso duplicata ────────────────────────────────────────────────────── */

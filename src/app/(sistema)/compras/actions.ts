@@ -307,6 +307,84 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   return { success: true, purchaseId: purchase.id }
 }
 
+// ─── Action: detalhe de uma compra ───────────────────────────────────────────
+
+export interface PurchaseDetail {
+  id: string
+  purchase_date: string
+  nf_number: string | null
+  nf_url: string | null
+  notes: string | null
+  total_cost: number
+  total_items: number
+  items: Array<{
+    id: string
+    product_name: string
+    supplier_name: string
+    category: string
+    material: string
+    unit_cost: number
+    quantity: number
+    subtotal: number
+    label_format: string
+    store_name: string
+    code: string
+  }>
+  payments: Array<{
+    id: string
+    payment_method: string
+    amount: number
+    installment_number: number | null
+    due_date: string
+    status: string
+  }>
+}
+
+export async function buscarDetalheCompra(purchaseId: string): Promise<{ data: PurchaseDetail | null; error?: string }> {
+  const admin = createAdminClient()
+
+  const { data: purchase, error: purchErr } = await admin
+    .from('purchases')
+    .select('id, purchase_date, nf_number, nf_url, notes, total_cost, total_items')
+    .eq('id', purchaseId)
+    .single()
+
+  if (purchErr || !purchase) return { data: null, error: purchErr?.message }
+
+  const { data: rawItems } = await admin
+    .from('purchase_items')
+    .select('id, quantity, unit_cost, subtotal, label_format, products(name, code, category, material, suppliers(name), stores(name))')
+    .eq('purchase_id', purchaseId)
+
+  const { data: payments } = await admin
+    .from('purchase_payments')
+    .select('id, payment_method, amount, installment_number, due_date, status')
+    .eq('purchase_id', purchaseId)
+    .order('due_date', { ascending: true })
+
+  const items = (rawItems ?? []).map((item: any) => ({
+    id: item.id,
+    product_name: item.products?.name ?? '—',
+    supplier_name: item.products?.suppliers?.name ?? '—',
+    category: item.products?.category ?? '—',
+    material: item.products?.material ?? '—',
+    unit_cost: item.unit_cost,
+    quantity: item.quantity,
+    subtotal: item.subtotal,
+    label_format: item.label_format ?? 'A',
+    store_name: item.products?.stores?.name ?? '—',
+    code: item.products?.code ?? '—',
+  }))
+
+  return {
+    data: {
+      ...purchase,
+      items,
+      payments: payments ?? [],
+    }
+  }
+}
+
 // ─── Action: deletar compra ───────────────────────────────────────────────────
 
 export async function deletarCompra(purchaseId: string): Promise<ActionResult> {
@@ -314,6 +392,26 @@ export async function deletarCompra(purchaseId: string): Promise<ActionResult> {
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
+
+  // Reverter estoque dos itens antes de deletar
+  const { data: items } = await admin
+    .from('purchase_items')
+    .select('product_id, quantity')
+    .eq('purchase_id', purchaseId)
+
+  if (items) {
+    for (const item of items) {
+      const { data: prod } = await admin
+        .from('products').select('quantity_in_stock').eq('id', item.product_id).single()
+      if (prod) {
+        const newQty = Math.max(0, (prod.quantity_in_stock ?? 0) - item.quantity)
+        await admin.from('products')
+          .update({ quantity_in_stock: newQty })
+          .eq('id', item.product_id)
+      }
+    }
+  }
+
   await admin.from('transactions').delete().eq('reference_id', purchaseId).eq('reference_type', 'purchase')
   await admin.from('purchase_payments').delete().eq('purchase_id', purchaseId)
   await admin.from('purchase_items').delete().eq('purchase_id', purchaseId)
@@ -321,5 +419,7 @@ export async function deletarCompra(purchaseId: string): Promise<ActionResult> {
 
   if (error) return { success: false, error: error.message }
   revalidatePath('/compras')
+  revalidatePath('/produtos')
+  revalidatePath('/estoque')
   return { success: true }
 }

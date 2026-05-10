@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useId } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, AlertTriangle, Upload, ChevronDown } from 'lucide-react'
 import Button from '@/components/ui/Button'
@@ -36,7 +36,7 @@ function generateCode(initials: string, month: number, costPrice: number): strin
 }
 
 function suggestInitials(name: string): string {
-  return name.trim().split(/\s+/).map(w => w[0] ?? '').join('').toUpperCase().slice(0, 4)
+  return name.trim().split(/\s+/).map(w => w[0] ?? '').join('').toUpperCase().slice(0, 2)
 }
 
 function fmt(v: number) {
@@ -68,6 +68,23 @@ function emptyRow(defaultStoreId: string): GridRow {
   }
 }
 
+// ─── Hook: posição do dropdown fixo ───────────────────────────────────────────
+
+function useFixedDropdown() {
+  const inputRef = useRef<HTMLElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+
+  function openAt() {
+    if (!inputRef.current) return
+    const r = inputRef.current.getBoundingClientRect()
+    setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+  }
+
+  function close() { setPos(null) }
+
+  return { inputRef, pos, openAt, close }
+}
+
 // ─── Combobox genérico ─────────────────────────────────────────────────────────
 
 function Combobox({ value, onChange, options, placeholder, className }: {
@@ -77,24 +94,25 @@ function Combobox({ value, onChange, options, placeholder, className }: {
   placeholder: string
   className?: string
 }) {
-  const [open, setOpen] = useState(false)
+  const { inputRef, pos, openAt, close } = useFixedDropdown()
   const filtered = options.filter(o => o.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
 
   return (
     <div className={styles.comboWrap}>
       <input
+        ref={inputRef}
         className={`${styles.cell} ${className ?? ''}`}
         value={value}
-        onChange={e => { onChange(e.target.value); setOpen(true) }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={e => { onChange(e.target.value); openAt() }}
+        onFocus={openAt}
+        onBlur={() => setTimeout(close, 150)}
         placeholder={placeholder}
         autoComplete="off"
       />
-      {open && filtered.length > 0 && (
-        <div className={styles.comboDropdown}>
+      {pos && filtered.length > 0 && (
+        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}>
           {filtered.map(o => (
-            <div key={o} className={styles.comboOption} onMouseDown={() => { onChange(o); setOpen(false) }}>
+            <div key={o} className={styles.comboOption} onMouseDown={() => { onChange(o); close() }}>
               {o}
             </div>
           ))}
@@ -112,24 +130,25 @@ function ProductCombobox({ value, onChange, products, placeholder }: {
   products: ProductOption[]
   placeholder: string
 }) {
-  const [open, setOpen] = useState(false)
+  const { inputRef, pos, openAt, close } = useFixedDropdown()
   const filtered = products.filter(p => p.name.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
 
   return (
     <div className={styles.comboWrap}>
       <input
+        ref={inputRef}
         className={styles.cell}
         value={value}
-        onChange={e => { onChange(e.target.value, null); setOpen(true) }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={e => { onChange(e.target.value, null); openAt() }}
+        onFocus={openAt}
+        onBlur={() => setTimeout(close, 150)}
         placeholder={placeholder}
         autoComplete="off"
       />
-      {open && filtered.length > 0 && (
-        <div className={styles.comboDropdown}>
+      {pos && filtered.length > 0 && (
+        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 280), zIndex: 9999 }}>
           {filtered.map(p => (
-            <div key={p.id} className={styles.comboOption} onMouseDown={() => { onChange(p.name, p); setOpen(false) }}>
+            <div key={p.id} className={styles.comboOption} onMouseDown={() => { onChange(p.name, p); close() }}>
               <span style={{ fontWeight: 600 }}>{p.name}</span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{p.code} · R$ {p.cost_price}</span>
             </div>
@@ -148,26 +167,66 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder }: {
   suppliers: SupplierOption[]
   placeholder: string
 }) {
-  const [open, setOpen] = useState(false)
+  const { inputRef, pos, openAt, close } = useFixedDropdown()
   const filtered = suppliers.filter(s => s.name.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
 
   return (
     <div className={styles.comboWrap}>
       <input
+        ref={inputRef}
         className={styles.cell}
         value={value}
-        onChange={e => { onChange(e.target.value, null); setOpen(true) }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={e => { onChange(e.target.value, null); openAt() }}
+        onFocus={openAt}
+        onBlur={() => setTimeout(close, 150)}
         placeholder={placeholder}
         autoComplete="off"
       />
-      {open && filtered.length > 0 && (
-        <div className={styles.comboDropdown}>
+      {pos && filtered.length > 0 && (
+        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 240), zIndex: 9999 }}>
           {filtered.map(s => (
-            <div key={s.id} className={styles.comboOption} onMouseDown={() => { onChange(s.name, s); setOpen(false) }}>
+            <div key={s.id} className={styles.comboOption} onMouseDown={() => { onChange(s.name, s); close() }}>
               <span style={{ fontWeight: 600 }}>{s.name}</span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{s.initials}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── StoreSelect customizado ───────────────────────────────────────────────────
+
+function StoreSelect({ value, onChange, stores }: {
+  value: string
+  onChange: (id: string) => void
+  stores: StoreOption[]
+}) {
+  const { inputRef, pos, openAt, close } = useFixedDropdown()
+  const selected = stores.find(s => s.id === value)
+
+  return (
+    <div className={styles.comboWrap}>
+      <button
+        type="button"
+        ref={inputRef as React.RefObject<HTMLButtonElement>}
+        className={`${styles.cell} ${styles.storeBtn}`}
+        onClick={() => pos ? close() : openAt()}
+        onBlur={() => setTimeout(close, 150)}
+      >
+        <span>{selected?.name ?? 'Selecione...'}</span>
+        <ChevronDown size={11} style={{ flexShrink: 0, opacity: 0.5 }} />
+      </button>
+      {pos && (
+        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 160), zIndex: 9999 }}>
+          {stores.map(s => (
+            <div
+              key={s.id}
+              className={`${styles.comboOption} ${s.id === value ? styles.comboOptionActive : ''}`}
+              onMouseDown={() => { onChange(s.id); close() }}
+            >
+              {s.name}
             </div>
           ))}
         </div>
@@ -495,8 +554,8 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                       <input
                         className={styles.cell}
                         value={row.supplierInitials}
-                        onChange={e => updateRow(i, { supplierInitials: e.target.value.toUpperCase() })}
-                        maxLength={4}
+                        onChange={e => updateRow(i, { supplierInitials: e.target.value.toUpperCase().slice(0, 2) })}
+                        maxLength={2}
                         placeholder="MJ"
                         readOnly={!!row.supplierId}
                         style={{ opacity: row.supplierId ? 0.5 : 1 }}
@@ -576,16 +635,11 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
 
                     {/* Loja */}
                     <td className={styles.tdLoja}>
-                      <select
-                        className={styles.cell}
+                      <StoreSelect
                         value={row.storeId}
-                        onChange={e => updateRow(i, { storeId: e.target.value })}
-                      >
-                        <option value="">Selecione...</option>
-                        {stores.map(s => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
+                        onChange={id => updateRow(i, { storeId: id })}
+                        stores={stores}
+                      />
                     </td>
 
                     {/* Código (read-only) */}
