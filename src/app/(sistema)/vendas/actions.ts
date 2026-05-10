@@ -411,13 +411,14 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
 
 // ─── Action: vendas do cliente para troca ─────────────────────────────────────
 
-export async function buscarVendasCliente(customerId: string): Promise<VendaParaTroca[]> {
+export async function buscarVendasCliente(customerId: string, storeId: string): Promise<VendaParaTroca[]> {
   const admin = createAdminClient()
 
   const { data: sales } = await admin
     .from('sales')
     .select('id, sale_date, subtotal, total')
     .eq('customer_id', customerId)
+    .eq('store_id', storeId)
     .eq('status', 'completed')
     .order('sale_date', { ascending: false })
     .limit(20)

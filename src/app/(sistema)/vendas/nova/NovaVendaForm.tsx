@@ -19,7 +19,7 @@ import styles from './NovaVendaForm.module.css'
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface ProductOption {
-  id: string; name: string; code: string; category: string
+  id: string; name: string; code: string; category: string; store_id: string
   sale_price: number; promotional_price: number | null; promotional_active: boolean
   cost_price: number; quantity_in_stock: number
 }
@@ -469,7 +469,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     if (!selectedCustomer) { setError('Selecione um cliente para habilitar troca.'); return }
     setError('')
     setExchangeLoading(true)
-    const sales = await buscarVendasCliente(selectedCustomer.id)
+    const sales = await buscarVendasCliente(selectedCustomer.id, storeId)
     setExchangeSales(sales)
     setExchangeLoading(false)
   }
@@ -662,7 +662,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                       <ProductCombobox
                         value={row.productName}
                         onChange={(name, p) => handleProductSelect(i, name, p)}
-                        products={products}
+                        products={products.filter(p => p.store_id === storeId)}
                       />
                       {stockWarn && (
                         <div className={styles.stockWarn}>
