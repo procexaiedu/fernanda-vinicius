@@ -19,7 +19,6 @@ interface Props {
 export default function DatePicker({ value, onChange, className }: Props) {
   const btnRef   = useRef<HTMLButtonElement>(null)
   const [open, setOpen]   = useState(false)
-  const [pos, setPos]     = useState<{ top: number; left: number } | null>(null)
 
   // Cursor mês/ano do calendário — inicia no mês do value ou hoje
   const parsed   = value ? new Date(value + 'T00:00:00') : new Date()
@@ -27,10 +26,7 @@ export default function DatePicker({ value, onChange, className }: Props) {
   const [curMonth, setCurMonth] = useState(parsed.getMonth())   // 0-based
 
   function toggle() {
-    if (open) { setOpen(false); setPos(null); return }
-    if (!btnRef.current) return
-    const r = btnRef.current.getBoundingClientRect()
-    setPos({ top: r.bottom + 4, left: r.left })
+    if (open) { setOpen(false); return }
     // sincroniza cursor ao abrir
     const p = value ? new Date(value + 'T00:00:00') : new Date()
     setCurYear(p.getFullYear())
@@ -38,7 +34,7 @@ export default function DatePicker({ value, onChange, className }: Props) {
     setOpen(true)
   }
 
-  function close() { setOpen(false); setPos(null) }
+  function close() { setOpen(false) }
 
   function prevMonth() {
     if (curMonth === 0) { setCurYear(y => y - 1); setCurMonth(11) }
@@ -96,10 +92,9 @@ export default function DatePicker({ value, onChange, className }: Props) {
         <span>{fmtLabel()}</span>
       </button>
 
-      {open && pos && (
+      {open && (
         <div
           className={styles.calendar}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
           onMouseDown={e => e.preventDefault()}
         >
           {/* Nav mês */}
