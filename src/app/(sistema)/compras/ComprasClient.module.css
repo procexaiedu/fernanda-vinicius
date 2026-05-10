@@ -214,3 +214,236 @@
   font-size: 12px;
   color: var(--text-muted);
 }
+
+/* ── Row clicável ────────────────────────────────────────────────────────── */
+
+.rowClickable {
+  cursor: pointer;
+}
+
+/* ── Badges inline ───────────────────────────────────────────────────────── */
+
+.badgeMuted {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+.badgeAccent {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  background: rgba(201, 168, 76, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(201, 168, 76, 0.3);
+}
+
+/* ── Modal overlay ───────────────────────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 24px;
+  overflow-y: auto;
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 1000px;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.modalTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.modalSubtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.closeBtn:hover {
+  color: var(--text-primary);
+}
+
+.modalLoading {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.notesBox {
+  margin: 16px 24px 0;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.modalSection {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modalSection:last-of-type {
+  border-bottom: none;
+}
+
+.modalSectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.detailTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.detailTable thead th {
+  background: var(--bg-elevated);
+  padding: 6px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.detailTable tbody td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.detailTable tfoot td {
+  border-top: 1px solid var(--border);
+}
+
+/* ── Modal actions ───────────────────────────────────────────────────────── */
+
+.modalActions {
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+}
+
+.deleteBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.deleteBtn:hover {
+  background: rgba(239, 68, 68, 0.16);
+}
+
+.confirmDelete {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--warning);
+}
+
+.deleteBtnConfirm {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--danger);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.deleteBtnConfirm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancelBtn {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+}

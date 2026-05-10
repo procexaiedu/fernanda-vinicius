@@ -43,46 +43,73 @@ export default async function FornecedoresPage() {
 
   const admin = createAdminClient()
 
-  const [suppliersRes, productCountsRes, purchasesRes] = await Promise.all([
+  const [suppliersRes, productCountsRes, purchaseItemsRes, purchasesRes] = await Promise.all([
     admin.from('suppliers').select('*').order('name'),
     admin.from('products').select('supplier_id').eq('is_active', true),
-    admin.from('purchases').select('id, supplier_id, purchase_date, total_cost'),
+    // Join purchase_items → products para obter supplier_id e purchase_date por item
+    admin.from('purchase_items').select('purchase_id, unit_cost, quantity, products(supplier_id), purchases(purchase_date)'),
+    admin.from('purchases').select('id, purchase_date'),
   ])
 
-  const suppliers    = suppliersRes.data ?? []
-  const products     = productCountsRes.data ?? []
-  const purchases    = purchasesRes.data ?? []
+  const suppliers     = suppliersRes.data ?? []
+  const products      = productCountsRes.data ?? []
+  const purchaseItems = (purchaseItemsRes.data ?? []) as unknown as Array<{
+    purchase_id: string
+    unit_cost: number
+    quantity: number
+    products: { supplier_id: string } | null
+    purchases: { purchase_date: string } | null
+  }>
+  const purchases     = purchasesRes.data ?? []
 
   // Pending payments via purchase IDs
   const purchaseIds = purchases.map(p => p.id)
   const pendingRes = purchaseIds.length > 0
-    ? await admin.from('purchase_payments').select('purchase_id, amount').eq('status', 'pending').in('purchase_id', purchaseIds)
+    ? await admin
+        .from('purchase_payments')
+        .select('purchase_id, amount')
+        .eq('status', 'pending')
+        .in('purchase_id', purchaseIds)
     : { data: [] }
   const pendingPayments = pendingRes.data ?? []
 
-  // Build lookup maps
+  // Build lookup maps via purchase_items (supplier_id está no produto, não na compra)
   const countMap         = new Map<string, number>()
   const lastPurchaseMap  = new Map<string, string>()
   const totalInvestedMap = new Map<string, number>()
 
   for (const p of products) {
-    countMap.set(p.supplier_id, (countMap.get(p.supplier_id) ?? 0) + 1)
+    if (p.supplier_id) countMap.set(p.supplier_id, (countMap.get(p.supplier_id) ?? 0) + 1)
   }
 
-  for (const p of purchases) {
-    const existing = lastPurchaseMap.get(p.supplier_id)
-    if (!existing || p.purchase_date > existing) lastPurchaseMap.set(p.supplier_id, p.purchase_date)
-    totalInvestedMap.set(p.supplier_id, (totalInvestedMap.get(p.supplier_id) ?? 0) + Number(p.total_cost))
+  // purchase_items → supplier via products
+  const purchaseSupplierMap = new Map<string, Set<string>>() // purchase_id → set of supplier_ids
+  for (const item of purchaseItems) {
+    const sid  = item.products?.supplier_id
+    const date = item.purchases?.purchase_date
+    if (!sid) continue
+
+    // Last purchase date
+    const existing = lastPurchaseMap.get(sid)
+    if (date && (!existing || date > existing)) lastPurchaseMap.set(sid, date)
+
+    // Total invested (unit_cost × quantity)
+    totalInvestedMap.set(sid, (totalInvestedMap.get(sid) ?? 0) + (item.unit_cost * item.quantity))
+
+    // Map purchase_id → suppliers for pending calc
+    if (!purchaseSupplierMap.has(item.purchase_id)) purchaseSupplierMap.set(item.purchase_id, new Set())
+    purchaseSupplierMap.get(item.purchase_id)!.add(sid)
   }
 
-  // Map purchase_id → supplier_id for pending aggregation
-  const purchaseSupplierMap = new Map<string, string>()
-  for (const p of purchases) purchaseSupplierMap.set(p.id, p.supplier_id)
-
+  // Pending por fornecedor: distribuir proporcionalmente entre fornecedores da compra
   const pendingMap = new Map<string, number>()
   for (const pp of pendingPayments) {
-    const sid = purchaseSupplierMap.get(pp.purchase_id)
-    if (sid) pendingMap.set(sid, (pendingMap.get(sid) ?? 0) + Number(pp.amount))
+    const sids = purchaseSupplierMap.get(pp.purchase_id)
+    if (!sids || sids.size === 0) continue
+    const share = Number(pp.amount) / sids.size
+    for (const sid of sids) {
+      pendingMap.set(sid, (pendingMap.get(sid) ?? 0) + share)
+    }
   }
 
   const suppliersWithCount: SupplierWithCount[] = suppliers.map((s) => ({

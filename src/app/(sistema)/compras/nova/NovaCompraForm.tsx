@@ -70,8 +70,8 @@ function emptyRow(defaultStoreId: string): GridRow {
 
 // ─── Hook: posição do dropdown fixo ───────────────────────────────────────────
 
-function useFixedDropdown() {
-  const inputRef = useRef<HTMLElement>(null)
+function useFixedDropdown<T extends HTMLElement = HTMLInputElement>() {
+  const inputRef = useRef<T>(null)
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
   function openAt() {
@@ -203,14 +203,14 @@ function StoreSelect({ value, onChange, stores }: {
   onChange: (id: string) => void
   stores: StoreOption[]
 }) {
-  const { inputRef, pos, openAt, close } = useFixedDropdown()
+  const { inputRef, pos, openAt, close } = useFixedDropdown<HTMLButtonElement>()
   const selected = stores.find(s => s.id === value)
 
   return (
     <div className={styles.comboWrap}>
       <button
         type="button"
-        ref={inputRef as React.RefObject<HTMLButtonElement>}
+        ref={inputRef}
         className={`${styles.cell} ${styles.storeBtn}`}
         onClick={() => pos ? close() : openAt()}
         onBlur={() => setTimeout(close, 150)}
