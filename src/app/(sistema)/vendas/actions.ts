@@ -260,6 +260,7 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
     const { data: exchange, error: exchErr } = await admin
       .from('exchanges')
       .insert({
+        sale_id:          sale.id,
         original_sale_id: data.exchangeItems[0]?.originalSaleId ?? null,
         store_id:         finalStoreId,
         customer_id:      data.customerId,
@@ -332,11 +333,11 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
     .select('id, payment_method, amount, installments')
     .eq('sale_id', saleId)
 
-  // Buscar exchange vinculado
+  // Buscar exchange vinculado à venda (via sale_id)
   const { data: exchanges } = await admin
     .from('exchanges')
     .select('id, price_difference')
-    .eq('original_sale_id', saleId)
+    .eq('sale_id', saleId)
     .limit(1)
 
   let exchangeDetail: VendaDetail['exchange'] = null
@@ -481,9 +482,9 @@ export async function deletarVenda(saleId: string): Promise<ActionResult> {
     }
   }
 
-  // Reverter exchange vinculado
+  // Reverter exchange vinculado à venda atual (via sale_id, não original_sale_id)
   const { data: exchanges } = await admin
-    .from('exchanges').select('id').eq('original_sale_id', saleId)
+    .from('exchanges').select('id').eq('sale_id', saleId)
 
   if (exchanges) {
     for (const exch of exchanges) {
