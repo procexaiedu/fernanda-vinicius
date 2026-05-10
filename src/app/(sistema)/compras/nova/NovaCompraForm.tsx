@@ -564,7 +564,10 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
 
                     {/* Categoria */}
                     <td className={styles.tdCat}>
-                      <Combobox value={row.category} onChange={v => updateRow(i, { category: v })} options={categories} placeholder="brinco..." />
+                      <Combobox value={row.category} onChange={v => {
+                        const isBrinco = v.toLowerCase().includes('brinco')
+                        updateRow(i, { category: v, labelFormat: isBrinco ? 'B' : 'A' })
+                      }} options={categories} placeholder="brinco..." />
                     </td>
 
                     {/* Material */}
