@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, AlertTriangle, Upload, ChevronDown } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import DatePicker from '@/components/ui/DatePicker'
 import { salvarCompra } from '../actions'
 import type { GridRow, PaymentRow } from '../actions'
 import styles from './NovaCompraForm.module.css'
@@ -188,6 +189,59 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder }: {
             <div key={s.id} className={styles.comboOption} onMouseDown={() => { onChange(s.name, s); close() }}>
               <span style={{ fontWeight: 600 }}>{s.name}</span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{s.initials}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── PaySelect — dropdown customizado para pagamentos ─────────────────────
+
+const METHOD_OPTIONS = [
+  { value: 'pix',      label: 'PIX' },
+  { value: 'cash',     label: 'Dinheiro' },
+  { value: 'transfer', label: 'Transferência' },
+  { value: 'credit',   label: 'Crédito' },
+]
+
+const STATUS_OPTIONS = [
+  { value: 'completed', label: 'Pago' },
+  { value: 'pending',   label: 'Pendente' },
+]
+
+function PaySelect({ value, onChange, options, disabled }: {
+  value: string
+  onChange: (v: string) => void
+  options: { value: string; label: string }[]
+  disabled?: boolean
+}) {
+  const { inputRef, pos, openAt, close } = useFixedDropdown<HTMLButtonElement>()
+  const selected = options.find(o => o.value === value)
+
+  return (
+    <div className={styles.comboWrap}>
+      <button
+        type="button"
+        ref={inputRef}
+        className={`${styles.payCell} ${styles.storeBtn}`}
+        onClick={() => { if (!disabled) { pos ? close() : openAt() } }}
+        onBlur={() => setTimeout(close, 150)}
+        disabled={disabled}
+      >
+        <span>{selected?.label ?? '—'}</span>
+        {!disabled && <ChevronDown size={11} style={{ flexShrink: 0, opacity: 0.5 }} />}
+      </button>
+      {pos && !disabled && (
+        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 130), zIndex: 9999 }}>
+          {options.map(o => (
+            <div
+              key={o.value}
+              className={`${styles.comboOption} ${o.value === value ? styles.comboOptionActive : ''}`}
+              onMouseDown={() => { onChange(o.value); close() }}
+            >
+              {o.label}
             </div>
           ))}
         </div>
@@ -448,7 +502,7 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
         <div className={styles.headerGrid}>
           <div className={styles.field}>
             <label className={styles.label}>Data da compra <span className={styles.req}>*</span></label>
-            <input type="date" className={styles.input} value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} />
+            <DatePicker value={purchaseDate} onChange={setPurchaseDate} className={styles.input} />
           </div>
           <div className={styles.field}>
             <label className={styles.label}>NF Número</label>
@@ -467,7 +521,7 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
             <>
               <div className={styles.field}>
                 <label className={styles.label}>Prazo devolução <span className={styles.req}>*</span></label>
-                <input type="date" className={styles.input} value={returnDeadline} onChange={e => setReturnDeadline(e.target.value)} />
+                <DatePicker value={returnDeadline} onChange={setReturnDeadline} className={styles.input} />
               </div>
               <div className={styles.field}>
                 <label className={styles.label}>% mínimo de compra</label>
@@ -702,17 +756,13 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
 
               {payments.map((p, i) => (
                 <div key={i} className={styles.payRow}>
-                  <select
-                    className={styles.payCell}
-                    style={{ flex: '0 0 140px' }}
-                    value={p.method}
-                    onChange={e => updatePayment(i, { method: e.target.value as PaymentRow['method'], installments: 1 })}
-                  >
-                    <option value="pix">PIX</option>
-                    <option value="cash">Dinheiro</option>
-                    <option value="transfer">Transferência</option>
-                    <option value="credit">Crédito</option>
-                  </select>
+                  <div style={{ flex: '0 0 140px' }}>
+                    <PaySelect
+                      value={p.method}
+                      onChange={v => updatePayment(i, { method: v as PaymentRow['method'], installments: 1 })}
+                      options={METHOD_OPTIONS}
+                    />
+                  </div>
 
                   <input
                     type="number" min="0" step="0.01"
@@ -723,35 +773,29 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                     placeholder="R$ 0,00"
                   />
 
-                  <select
-                    className={styles.payCell}
-                    style={{ flex: '0 0 80px', opacity: p.method !== 'credit' ? 0.3 : 1 }}
-                    value={p.installments}
-                    onChange={e => updatePayment(i, { installments: parseInt(e.target.value) })}
-                    disabled={p.method !== 'credit'}
-                  >
-                    {Array.from({ length: 12 }, (_, k) => k + 1).map(n => (
-                      <option key={n} value={n}>{n}x</option>
-                    ))}
-                  </select>
+                  <div style={{ flex: '0 0 80px', opacity: p.method !== 'credit' ? 0.3 : 1 }}>
+                    <PaySelect
+                      value={String(p.installments)}
+                      onChange={v => updatePayment(i, { installments: parseInt(v) })}
+                      options={Array.from({ length: 12 }, (_, k) => ({ value: String(k + 1), label: `${k + 1}x` }))}
+                      disabled={p.method !== 'credit'}
+                    />
+                  </div>
 
-                  <input
-                    type="date"
-                    className={styles.payCell}
-                    style={{ flex: '0 0 150px' }}
-                    value={p.firstDueDate}
-                    onChange={e => updatePayment(i, { firstDueDate: e.target.value })}
-                  />
+                  <div style={{ flex: '0 0 150px' }}>
+                    <DatePicker
+                      value={p.firstDueDate}
+                      onChange={v => updatePayment(i, { firstDueDate: v })}
+                    />
+                  </div>
 
-                  <select
-                    className={styles.payCell}
-                    style={{ flex: '0 0 120px' }}
-                    value={p.status}
-                    onChange={e => updatePayment(i, { status: e.target.value as PaymentRow['status'] })}
-                  >
-                    <option value="completed">Pago</option>
-                    <option value="pending">Pendente</option>
-                  </select>
+                  <div style={{ flex: '0 0 120px' }}>
+                    <PaySelect
+                      value={p.status}
+                      onChange={v => updatePayment(i, { status: v as PaymentRow['status'] })}
+                      options={STATUS_OPTIONS}
+                    />
+                  </div>
 
                   {p.method === 'credit' && p.installments > 1 && (
                     <span className={styles.installmentHint}>

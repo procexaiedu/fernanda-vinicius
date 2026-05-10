@@ -456,6 +456,7 @@
 .payCell {
   height: 34px;
   padding: 0 10px;
+  width: 100%;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
