@@ -101,6 +101,28 @@ export async function updateSupplier(id: string, data: SupplierFormData): Promis
   return { success: true }
 }
 
+export async function deletarFornecedor(id: string): Promise<ActionResult> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { success: false, error: authErr }
+
+  const admin = createAdminClient()
+
+  // Bloquear se tiver produtos vinculados
+  const { count } = await admin
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('supplier_id', id)
+
+  if (count && count > 0)
+    return { success: false, error: `Este fornecedor possui ${count} produto${count > 1 ? 's' : ''} cadastrado${count > 1 ? 's' : ''}. Remova ou reatribua os produtos antes de excluir.` }
+
+  const { error } = await admin.from('suppliers').delete().eq('id', id)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/fornecedores')
+  return { success: true }
+}
+
 export async function toggleSupplierStatus(id: string, isActive: boolean): Promise<ActionResult> {
   const { error: authErr } = await verifyAdmin()
   if (authErr) return { success: false, error: authErr }

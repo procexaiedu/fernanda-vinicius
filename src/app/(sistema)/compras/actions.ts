@@ -412,6 +412,9 @@ export async function deletarCompra(purchaseId: string): Promise<ActionResult> {
     }
   }
 
+  // Nullar purchase_id nos produtos antes de deletar (FK constraint)
+  await admin.from('products').update({ purchase_id: null }).eq('purchase_id', purchaseId)
+
   await admin.from('transactions').delete().eq('reference_id', purchaseId).eq('reference_type', 'purchase')
   await admin.from('purchase_payments').delete().eq('purchase_id', purchaseId)
   await admin.from('purchase_items').delete().eq('purchase_id', purchaseId)

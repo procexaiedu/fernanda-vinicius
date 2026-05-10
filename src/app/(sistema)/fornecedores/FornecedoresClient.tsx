@@ -368,6 +368,7 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
           supplier={detalhe}
           onClose={() => setDetalhe(null)}
           onEdit={s => { setDetalhe(null); setEditing(s); setFormOpen(true) }}
+          onDeleted={() => { setSuppliers(prev => prev.filter(s => s.id !== detalhe.id)); setDetalhe(null) }}
         />
       )}
     </>

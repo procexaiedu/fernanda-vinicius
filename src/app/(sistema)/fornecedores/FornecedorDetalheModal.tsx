@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react'
 import {
   Pencil, X, Package, MessageCircle, AtSign,
   Mail, MapPin, Hash, Calendar, Phone, TrendingUp, DollarSign,
-  ShoppingBag, AlertCircle,
+  ShoppingBag, AlertCircle, Trash2, AlertTriangle,
 } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
 import { createClient } from '@/lib/supabase/client'
+import { deletarFornecedor } from './actions'
 import type { SupplierWithCount } from './page'
 import styles from './FornecedorDetalheModal.module.css'
 
@@ -90,15 +91,28 @@ function Skeleton({ width, height = 16 }: { width?: string; height?: number }) {
 // ─── Componente ──────────────────────────────────────────────────────────────
 
 interface Props {
-  supplier: SupplierWithCount
-  onClose:  () => void
-  onEdit:   (s: SupplierWithCount) => void
+  supplier:   SupplierWithCount
+  onClose:    () => void
+  onEdit:     (s: SupplierWithCount) => void
+  onDeleted?: () => void
 }
 
-export default function FornecedorDetalheModal({ supplier, onClose, onEdit }: Props) {
-  const [activeTab, setActiveTab] = useState<'geral' | 'produtos' | 'financeiro'>('geral')
-  const [loading, setLoading]     = useState(true)
-  const [data, setData]           = useState<SupplierData | null>(null)
+export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDeleted }: Props) {
+  const [activeTab, setActiveTab]       = useState<'geral' | 'produtos' | 'financeiro'>('geral')
+  const [loading, setLoading]           = useState(true)
+  const [data, setData]                 = useState<SupplierData | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting]         = useState(false)
+  const [deleteError, setDeleteError]   = useState<string | null>(null)
+
+  async function handleDelete() {
+    setDeleting(true)
+    setDeleteError(null)
+    const r = await deletarFornecedor(supplier.id)
+    setDeleting(false)
+    if (r.success) { onDeleted?.(); onClose() }
+    else { setDeleteError(r.error ?? 'Erro ao excluir.'); setConfirmDelete(false) }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -212,6 +226,25 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit }: Pr
           <button className={styles.editBtn} onClick={() => onEdit(supplier)}>
             <Pencil size={14} /> Editar
           </button>
+          {!confirmDelete ? (
+            <button className={styles.deleteBtn} onClick={() => setConfirmDelete(true)} title="Excluir fornecedor">
+              <Trash2 size={14} />
+            </button>
+          ) : (
+            <div className={styles.deleteConfirm}>
+              <AlertTriangle size={13} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+              <span>Excluir?</span>
+              <button className={styles.deleteBtnConfirm} onClick={handleDelete} disabled={deleting}>
+                {deleting ? '...' : 'Sim'}
+              </button>
+              <button className={styles.deleteBtnCancel} onClick={() => setConfirmDelete(false)}>Não</button>
+            </div>
+          )}
+          {deleteError && (
+            <div className={styles.deleteError}>
+              <AlertTriangle size={12} /> {deleteError}
+            </div>
+          )}
           <button className={styles.closeBtn} onClick={onClose} aria-label="Fechar">
             <X size={16} />
           </button>
