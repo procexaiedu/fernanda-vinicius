@@ -59,6 +59,7 @@ export interface PnlData {
   lucroLiquido: number
   aPagar: number
   breakdown: Array<{ category: string; amount: number; pct: number }>
+  pendingBreakdown: Array<{ category: string; description: string; amount: number; due_date: string | null; reference_type: string }>
 }
 
 export interface RecurrenteRow {
@@ -251,11 +252,12 @@ export async function buscarPnl(storeId: string | null, month: number, year: num
 
   let pendQ = admin
     .from('transactions')
-    .select('amount')
+    .select('amount, category, description, due_date, reference_type')
     .eq('type', 'expense')
     .eq('status', 'pending')
     .gte('due_date', dateFrom)
     .lte('due_date', dateTo)
+    .order('due_date', { ascending: true })
 
   if (storeId) pendQ = pendQ.eq('store_id', storeId)
 
@@ -277,7 +279,15 @@ export async function buscarPnl(storeId: string | null, month: number, year: num
   const cmv          = (salesRes.data ?? []).reduce((s: number, r: any) => s + (r.total_cost ?? 0), 0)
   const lucroBruto   = receitaBruta - cmv
   const lucroLiquido = lucroBruto - despesasOp
-  const aPagar       = (pendRes.data ?? []).reduce((s, t) => s + t.amount, 0)
+  const pendRows = (pendRes.data ?? []) as Array<{ amount: number; category: string; description: string; due_date: string | null; reference_type: string }>
+  const aPagar   = pendRows.reduce((s, t) => s + t.amount, 0)
+  const pendingBreakdown = pendRows.map(p => ({
+    category:       p.category,
+    description:    p.description,
+    amount:         p.amount,
+    due_date:       p.due_date,
+    reference_type: p.reference_type,
+  }))
 
   // Breakdown de despesas por categoria
   const catMap = new Map<string, number>()
@@ -293,7 +303,7 @@ export async function buscarPnl(storeId: string | null, month: number, year: num
     }))
 
   return {
-    data: { receitaBruta, cmv, lucroBruto, despesasOp, lucroLiquido, aPagar, breakdown }
+    data: { receitaBruta, cmv, lucroBruto, despesasOp, lucroLiquido, aPagar, breakdown, pendingBreakdown }
   }
 }
 

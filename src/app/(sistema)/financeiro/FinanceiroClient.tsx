@@ -765,6 +765,51 @@ function PnlTab({ stores }: { stores: Store[] }) {
               </div>
             </div>
           )}
+
+          {/* Detalhamento das despesas pendentes (A Pagar) */}
+          {data.pendingBreakdown.length > 0 && (
+            <div style={{ marginTop: 20 }}>
+              <div className={styles.sectionTitle}>
+                A Pagar — Detalhamento ({fmt(data.aPagar)})
+              </div>
+              <div className={styles.tableWrapper}>
+                <table className={styles.breakdownTable}>
+                  <thead>
+                    <tr>
+                      <th>Vencimento</th>
+                      <th>Descrição</th>
+                      <th>Categoria</th>
+                      <th>Origem</th>
+                      <th style={{ textAlign: 'right' }}>Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.pendingBreakdown.map((p, i) => (
+                      <tr key={i}>
+                        <td className={styles.dateCell}>{fmtDate(p.due_date)}</td>
+                        <td>{p.description}</td>
+                        <td><span className={styles.categoryBadge}>{p.category}</span></td>
+                        <td className={styles.muted}>
+                          {p.reference_type === 'purchase' ? 'Compra' :
+                           p.reference_type === 'manual'   ? 'Manual/Recorrente' :
+                           p.reference_type}
+                        </td>
+                        <td style={{ color: 'var(--accent)', fontWeight: 700, textAlign: 'right' }}>
+                          {fmt(p.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr style={{ background: 'var(--bg-elevated)' }}>
+                      <td colSpan={4} style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Total</td>
+                      <td style={{ color: 'var(--accent)', fontWeight: 700, textAlign: 'right' }}>
+                        {fmt(data.aPagar)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
