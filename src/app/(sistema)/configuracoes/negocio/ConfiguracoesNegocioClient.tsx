@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { CreditCard, Tag, TrendingUp, Check, AlertCircle } from 'lucide-react'
+import { CreditCard, Tag, TrendingUp, Check, AlertCircle, Users } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import type { SettingRow } from './page'
 import { updateSetting } from './actions'
@@ -99,6 +99,21 @@ const SECTIONS: SectionDef[] = [
         unit: '%', unitPosition: 'suffix',
         min: 0, max: 10000, step: 10,
         hint: 'Percentual sobre o custo usado para sugerir o preço de venda ao cadastrar um produto.',
+      },
+    ],
+  },
+  {
+    id: 'clientes',
+    title: 'Clientes',
+    description: 'Parâmetros de relacionamento e CRM aplicados na base de clientes.',
+    icon: Users,
+    settings: [
+      {
+        key: 'inactive_customer_days',
+        label: 'Dias para inatividade',
+        unit: 'dias', unitPosition: 'suffix',
+        min: 30, max: 730, step: 30,
+        hint: 'Quantidade de dias sem compra para que uma cliente seja considerada inativa.',
       },
     ],
   },
