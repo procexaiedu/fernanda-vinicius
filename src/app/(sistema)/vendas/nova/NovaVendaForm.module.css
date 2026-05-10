@@ -1,0 +1,856 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-bottom: 48px;
+}
+
+/* ── Seções ─────────────────────────────────────────────────────────────── */
+
+.section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.sectionHeader .sectionTitle {
+  margin-bottom: 0;
+}
+
+.sectionStats {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.sectionStats strong {
+  color: var(--text-primary);
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.headerGrid {
+  display: grid;
+  grid-template-columns: 200px 160px 1fr;
+  gap: 12px 16px;
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.req {
+  color: var(--danger);
+  margin-left: 2px;
+}
+
+.headerInput {
+  height: 34px;
+  padding: 0 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.headerInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.headerInputLocked {
+  height: 34px;
+  padding: 0 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+}
+
+.storeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.textarea {
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Badge aniversário ──────────────────────────────────────────────────── */
+
+.birthdayBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(201, 168, 76, 0.15);
+  border: 1px solid rgba(201, 168, 76, 0.3);
+  border-radius: 20px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Customer input ─────────────────────────────────────────────────────── */
+
+.customerInputWrap {
+  position: relative;
+  width: 100%;
+}
+
+.customerIcon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.customerInput {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px 0 32px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.customerInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.selectedCustomer {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  background: rgba(201, 168, 76, 0.08);
+  border: 1px solid rgba(201, 168, 76, 0.25);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.selectedCustomerName {
+  font-weight: 600;
+}
+
+.selectedCustomerMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.clearCustomerBtn {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: 4px;
+  margin-left: 4px;
+}
+
+.clearCustomerBtn:hover {
+  color: var(--danger);
+}
+
+/* ── Combobox ───────────────────────────────────────────────────────────── */
+
+.comboWrap {
+  position: relative;
+  width: 100%;
+}
+
+.comboDropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.comboDropdown::-webkit-scrollbar { display: none; }
+
+.comboOption {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.comboOption:hover {
+  background: rgba(201, 168, 76, 0.1);
+}
+
+.comboOptionActive {
+  background: rgba(201, 168, 76, 0.15);
+  color: var(--accent);
+}
+
+.comboCreateBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--accent);
+  border-top: 1px solid var(--border);
+  transition: background var(--transition-fast);
+  font-weight: 600;
+}
+
+.comboCreateBtn:hover {
+  background: rgba(201, 168, 76, 0.08);
+}
+
+/* ── Grid de itens ──────────────────────────────────────────────────────── */
+
+.gridWrapper {
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+  scrollbar-width: none;
+}
+
+.gridWrapper::-webkit-scrollbar { display: none; }
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 700px;
+}
+
+.grid thead th {
+  background: var(--bg-elevated);
+  padding: 8px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  text-align: left;
+  position: sticky;
+  top: 0;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.grid tbody td {
+  padding: 4px 4px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.row:last-child td { border-bottom: none; }
+
+.row:hover { background: rgba(201, 168, 76, 0.03); }
+
+.thNum   { width: 36px; }
+.thProd  { min-width: 240px; }
+.thQty   { width: 70px; }
+.thPrice { width: 110px; }
+.thSub   { width: 110px; }
+.thDel   { width: 36px; }
+
+.tdNum {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 6px;
+}
+
+.tdProd { padding: 4px; }
+.tdQty  { padding: 4px; }
+.tdPrice { padding: 4px; }
+.tdSub { padding: 4px 8px; }
+.tdDel { padding: 4px; text-align: center; }
+
+/* ── Células grid ───────────────────────────────────────────────────────── */
+
+.cell {
+  width: 100%;
+  height: 30px;
+  padding: 0 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.cell:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+}
+
+.cell::placeholder { color: var(--text-disabled); }
+
+.stockWarn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--warning);
+  margin-top: 2px;
+  padding: 0 6px;
+}
+
+.subtotalText {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* ── Botão adicionar linha ──────────────────────────────────────────────── */
+
+.addRowBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.addRowBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Deletar ────────────────────────────────────────────────────────────── */
+
+.delBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.delBtn:hover:not(:disabled) {
+  background: rgba(224, 82, 82, 0.1);
+  color: var(--danger);
+}
+
+.delBtn:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+/* ── Descontos ──────────────────────────────────────────────────────────── */
+
+.discountsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.discountRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.discountPct {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 40px;
+}
+
+.discountAmt {
+  font-size: 13px;
+  color: var(--text-secondary);
+  min-width: 80px;
+}
+
+.manualDiscInput {
+  width: 100px;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.manualDiscInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Resumo total ───────────────────────────────────────────────────────── */
+
+.totalSummary {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 360px;
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.discountRow2 {
+  color: #4CAF7D;
+}
+
+.totalRow {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.totalRow strong {
+  color: var(--accent);
+  font-size: 16px;
+}
+
+/* ── Pagamentos ─────────────────────────────────────────────────────────── */
+
+.paymentActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.addPayBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.addPayBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.addPayBtnExchange {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: rgba(91, 141, 239, 0.08);
+  border: 1px solid rgba(91, 141, 239, 0.3);
+  border-radius: var(--radius-md);
+  color: #5B8DEF;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.addPayBtnExchange:hover:not(:disabled) {
+  background: rgba(91, 141, 239, 0.15);
+}
+
+.addPayBtnExchange:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.paymentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  margin-bottom: 16px;
+}
+
+.paymentRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.payCell {
+  height: 34px;
+  padding: 0 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color var(--transition-fast);
+}
+
+.payCell:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.payAmtInput {
+  width: 130px;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.payAmtInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.installmentsWrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.installmentHint {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ── Painel de troca ────────────────────────────────────────────────────── */
+
+.exchangePanel {
+  margin-top: 16px;
+  border: 1px solid rgba(91, 141, 239, 0.25);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.exchangeHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(91, 141, 239, 0.07);
+  border-bottom: 1px solid rgba(91, 141, 239, 0.2);
+  font-size: 13px;
+  font-weight: 600;
+  color: #5B8DEF;
+}
+
+.clearExchangeBtn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: none;
+  border: 1px solid rgba(91, 141, 239, 0.3);
+  border-radius: var(--radius-md);
+  color: #5B8DEF;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.clearExchangeBtn:hover {
+  background: rgba(224, 82, 82, 0.08);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.exchangeSale {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.exchangeSale:last-of-type { border-bottom: none; }
+
+.exchangeSaleHeader {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.exchangeItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.exchangeItem:hover {
+  background: rgba(201, 168, 76, 0.04);
+}
+
+.exchangeItemReturned {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.exchangeItemName {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.exchangeItemCode {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-muted);
+}
+
+.exchangeItemPrice {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 80px;
+  text-align: right;
+}
+
+.exchangeItemReturnedBadge {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: var(--bg-elevated);
+  border-radius: 10px;
+  color: var(--text-muted);
+}
+
+.exchangeCredit {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: rgba(76, 175, 125, 0.06);
+  border-top: 1px solid var(--border);
+}
+
+.exchangeCredit strong {
+  color: #4CAF7D;
+}
+
+/* ── Resumo de pagamento ────────────────────────────────────────────────── */
+
+.paymentSummary {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 360px;
+}
+
+.payStatusOk {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4CAF7D;
+  padding-top: 4px;
+}
+
+.payStatusWarn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(224, 163, 82, 0.1);
+  border: 1px solid rgba(224, 163, 82, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.payStatusError {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(224, 82, 82, 0.1);
+  border: 1px solid rgba(224, 82, 82, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ── Erro e ações ───────────────────────────────────────────────────────── */
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(224, 82, 82, 0.1);
+  border: 1px solid rgba(224, 82, 82, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+/* ── Modal criar cliente ────────────────────────────────────────────────── */
+
+.createCustomerForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0;
+}
+
+.createField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.createField label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.createInput {
+  height: 36px;
+  padding: 0 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.createInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.createError {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--danger);
+  padding: 6px 10px;
+  background: rgba(224, 82, 82, 0.08);
+  border-radius: var(--radius-md);
+}
+
+.createActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
