@@ -160,3 +160,63 @@ export async function toggleProductStatus(id: string, isActive: boolean): Promis
   revalidatePath('/estoque')
   return { success: true }
 }
+
+export interface SaleHistoryItem {
+  id: string
+  quantity: number
+  unit_price: number
+  sale_date: string
+  store_name: string
+  customer_name: string | null
+  seller_name: string | null
+}
+
+export async function buscarHistoricoVendas(productId: string): Promise<SaleHistoryItem[]> {
+  const admin = createAdminClient()
+
+  const { data: items } = await admin
+    .from('sale_items')
+    .select('id, quantity, unit_price, sales(id, sale_date, store_id, customer_id, seller_id, user_id)')
+    .eq('product_id', productId)
+    .order('created_at', { ascending: false })
+    .limit(30)
+
+  if (!items?.length) return []
+
+  const saleIds    = (items as any[]).map(i => i.sales?.id).filter(Boolean)
+  const storeIds   = [...new Set((items as any[]).map(i => i.sales?.store_id).filter(Boolean))]
+  const customerIds = [...new Set((items as any[]).map(i => i.sales?.customer_id).filter(Boolean))]
+  const sellerIds  = [...new Set(
+    (items as any[]).flatMap(i => [i.sales?.seller_id, i.sales?.user_id]).filter(Boolean)
+  )]
+
+  const [storesRes, customersRes, usersRes] = await Promise.all([
+    storeIds.length
+      ? admin.from('stores').select('id, name').in('id', storeIds)
+      : { data: [] },
+    customerIds.length
+      ? admin.from('customers').select('id, name').in('id', customerIds)
+      : { data: [] },
+    sellerIds.length
+      ? admin.from('users').select('id, full_name').in('id', sellerIds)
+      : { data: [] },
+  ])
+
+  const storeMap    = new Map((storesRes.data ?? []).map((s: any) => [s.id, s.name]))
+  const customerMap = new Map((customersRes.data ?? []).map((c: any) => [c.id, c.name]))
+  const userMap     = new Map((usersRes.data ?? []).map((u: any) => [u.id, u.full_name]))
+
+  return (items as any[]).map(i => {
+    const sale      = i.sales
+    const sellerId  = sale?.seller_id ?? sale?.user_id ?? null
+    return {
+      id:            i.id,
+      quantity:      i.quantity,
+      unit_price:    i.unit_price,
+      sale_date:     sale?.sale_date ?? '',
+      store_name:    storeMap.get(sale?.store_id) ?? '—',
+      customer_name: sale?.customer_id ? (customerMap.get(sale.customer_id) ?? '—') : null,
+      seller_name:   sellerId ? (userMap.get(sellerId) ?? '—') : null,
+    }
+  })
+}

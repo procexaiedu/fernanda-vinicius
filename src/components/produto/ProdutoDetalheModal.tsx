@@ -6,6 +6,7 @@ import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
+import { buscarHistoricoVendas, type SaleHistoryItem } from '@/app/(sistema)/produtos/actions'
 import styles from './ProdutoDetalheModal.module.css'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -31,18 +32,6 @@ export interface ProdutoParaDetalhe {
   stores?: { id: string; name: string } | null
 }
 
-interface SaleItem {
-  id: string
-  quantity: number
-  unit_price: number
-  sales: {
-    sale_date: string
-    stores: { name: string } | null
-    users?: { name: string } | null
-    customers?: { name: string } | null
-  } | null
-}
-
 interface Transfer {
   id: string
   quantity: number
@@ -50,7 +39,7 @@ interface Transfer {
   notes: string | null
   from_store: { name: string } | null
   to_store: { name: string } | null
-  users: { name: string } | null
+  users: { full_name: string } | null
 }
 
 interface Props {
@@ -75,7 +64,7 @@ function fmtDate(s: string | null) {
 export default function ProdutoDetalheModal({ produto, isAdmin, onClose, onEdit }: Props) {
   type Tab = 'geral' | 'vendas' | 'transferencias'
   const [tab, setTab] = useState<Tab>('geral')
-  const [salesItems, setSalesItems] = useState<SaleItem[] | null>(null)
+  const [salesItems, setSalesItems] = useState<SaleHistoryItem[] | null>(null)
   const [transfers, setTransfers] = useState<Transfer[] | null>(null)
   const [loadingSales, setLoadingSales] = useState(false)
   const [loadingTransfers, setLoadingTransfers] = useState(false)
@@ -87,13 +76,9 @@ export default function ProdutoDetalheModal({ produto, isAdmin, onClose, onEdit 
   useEffect(() => {
     if (tab !== 'vendas' || salesItems !== null) return
     setLoadingSales(true)
-    const supabase = createBrowserClient()
-    supabase
-      .from('sale_items')
-      .select('id, quantity, unit_price, sales(sale_date, stores(name), users(full_name), customers(name))')
-      .eq('product_id', produto.id)
-      .limit(20)
-      .then(({ data }) => { setSalesItems((data as unknown as SaleItem[]) ?? []); setLoadingSales(false) })
+    buscarHistoricoVendas(produto.id)
+      .then(data => { setSalesItems(data); setLoadingSales(false) })
+      .catch(() => { setSalesItems([]); setLoadingSales(false) })
   }, [tab, salesItems, produto.id])
 
   useEffect(() => {
@@ -102,11 +87,11 @@ export default function ProdutoDetalheModal({ produto, isAdmin, onClose, onEdit 
     const supabase = createBrowserClient()
     supabase
       .from('stock_transfers')
-      .select('id, quantity, created_at, notes, from_store:stores!from_store_id(name), to_store:stores!to_store_id(name), users(name)')
+      .select('id, quantity, created_at, notes, from_store:stores!from_store_id(name), to_store:stores!to_store_id(name), users!user_id(full_name)')
       .eq('product_id', produto.id)
       .order('created_at', { ascending: false })
       .limit(20)
-      .then(({ data }) => { setTransfers((data as unknown as Transfer[]) ?? []); setLoadingTransfers(false) })
+      .then(({ data }: { data: unknown }) => { setTransfers((data as Transfer[]) ?? []); setLoadingTransfers(false) })
   }, [tab, transfers, produto.id, isAdmin])
 
   const tabs: { key: Tab; label: string }[] = [
@@ -233,12 +218,12 @@ export default function ProdutoDetalheModal({ produto, isAdmin, onClose, onEdit 
                   <tbody>
                     {salesItems.map(si => (
                       <tr key={si.id}>
-                        <td>{fmtDate(si.sales?.sale_date ?? null)}</td>
-                        {isAdmin && <td>{(si.sales?.customers as { name: string } | null)?.name ?? '—'}</td>}
+                        <td>{fmtDate(si.sale_date)}</td>
+                        {isAdmin && <td>{si.customer_name ?? '—'}</td>}
                         <td>{si.quantity}</td>
                         <td>{fmt(si.unit_price)}</td>
-                        {isAdmin && <td>{(si.sales?.users as { full_name: string } | null)?.full_name ?? '—'}</td>}
-                        <td>{si.sales?.stores?.name ?? '—'}</td>
+                        {isAdmin && <td>{si.seller_name ?? '—'}</td>}
+                        <td>{si.store_name}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -269,7 +254,7 @@ export default function ProdutoDetalheModal({ produto, isAdmin, onClose, onEdit 
                         <td>{fmtDate(t.created_at)}</td>
                         <td>{t.from_store?.name ?? '—'} → {t.to_store?.name ?? '—'}</td>
                         <td>{t.quantity}</td>
-                        <td>{t.users?.name ?? '—'}</td>
+                        <td>{t.users?.full_name ?? '—'}</td>
                         <td>{t.notes ?? '—'}</td>
                       </tr>
                     ))}

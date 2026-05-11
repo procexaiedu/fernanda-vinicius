@@ -455,34 +455,55 @@ export async function buscarTopVendedoras(
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
+  // Busca apenas os campos necessários sem join ambíguo (seller_id e user_id apontam para users)
   let q = admin
     .from('sales')
-    .select('user_id, total, users(full_name, store_id, stores(name))')
+    .select('seller_id, user_id, total')
     .neq('status', 'cancelled')
     .gte('sale_date', dateFrom)
     .lte('sale_date', dateTo)
   if (storeId) q = q.eq('store_id', storeId)
 
-  const { data } = await q
-  if (!data?.length) return []
+  const { data: salesData } = await q
+  if (!salesData?.length) return []
 
-  const map = new Map<string, { name: string; store_id: string | null; store_name: string | null; count: number; total: number }>()
-  for (const s of data) {
-    const uid  = s.user_id as string
-    const user = s.users as any
-    const cur  = map.get(uid) ?? {
-      name:       user?.full_name ?? uid,
-      store_id:   user?.store_id  ?? null,
-      store_name: (user?.stores as { name: string } | null)?.name ?? null,
-      count: 0, total: 0,
-    }
+  // Agrupa por seller (usa seller_id se preenchido, fallback para user_id)
+  const agg = new Map<string, { count: number; total: number }>()
+  for (const s of salesData) {
+    const uid = ((s as any).seller_id ?? (s as any).user_id) as string | null
+    if (!uid) continue
+    const cur = agg.get(uid) ?? { count: 0, total: 0 }
     cur.count++
     cur.total += Number(s.total)
-    map.set(uid, cur)
+    agg.set(uid, cur)
   }
 
-  return Array.from(map.entries())
-    .map(([id, v]) => ({ id, name: v.name, store_id: v.store_id, store_name: v.store_name, nrVendas: v.count, totalVendido: v.total }))
+  if (!agg.size) return []
+
+  // Busca dados dos usuários separadamente (sem join ambíguo)
+  const userIds = Array.from(agg.keys())
+  const { data: usersData } = await admin
+    .from('users')
+    .select('id, full_name, store_id, stores(name)')
+    .in('id', userIds)
+
+  const userMap = new Map((usersData ?? []).map((u: any) => [
+    u.id,
+    { name: u.full_name, store_id: u.store_id ?? null, store_name: (u.stores as { name: string } | null)?.name ?? null },
+  ]))
+
+  return Array.from(agg.entries())
+    .map(([id, v]) => {
+      const u = userMap.get(id)
+      return {
+        id,
+        name:         u?.name ?? id,
+        store_id:     u?.store_id ?? null,
+        store_name:   u?.store_name ?? null,
+        nrVendas:     v.count,
+        totalVendido: v.total,
+      }
+    })
     .sort((a, b) => b.totalVendido - a.totalVendido)
 }
 
