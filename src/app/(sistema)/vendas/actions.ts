@@ -280,16 +280,19 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
 
     if (exchErr || !exchange) return { success: false, error: `Erro ao criar troca: ${exchErr?.message}` }
 
-    // Itens devolvidos (returned) — voltam ao estoque
+    // Itens devolvidos (returned) — voltam ao estoque, snapshot do custo para CMV
     for (const ei of data.exchangeItems) {
+      const { data: prod } = await admin.from('products')
+        .select('quantity_in_stock, cost_price')
+        .eq('id', ei.productId).single()
       await admin.from('exchange_items').insert({
         exchange_id: exchange.id,
         direction:   'returned',
         product_id:  ei.productId,
         quantity:    ei.quantity,
         unit_price:  ei.unitPrice,
+        unit_cost:   prod?.cost_price ?? 0,
       })
-      const { data: prod } = await admin.from('products').select('quantity_in_stock').eq('id', ei.productId).single()
       await admin.from('products')
         .update({ quantity_in_stock: (prod?.quantity_in_stock ?? 0) + ei.quantity })
         .eq('id', ei.productId)
@@ -303,6 +306,7 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
         product_id:  item.productId,
         quantity:    item.quantity,
         unit_price:  item.unitPrice,
+        unit_cost:   item.unitCost,
       })
     }
   }

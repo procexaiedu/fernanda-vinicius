@@ -204,12 +204,23 @@ export async function buscarKpis(
     .lte('sale_date', dateTo)
   if (storeId) salesQ = salesQ.eq('store_id', storeId)
 
-  const [txRes, salesRes] = await Promise.all([txQ, salesQ])
+  // Crédito de CMV: custo dos itens devolvidos em trocas no período
+  let exchQ = admin
+    .from('exchange_items')
+    .select('quantity, unit_cost, exchanges!inner(exchange_date, store_id)')
+    .eq('direction', 'returned')
+    .gte('exchanges.exchange_date', dateFrom)
+    .lte('exchanges.exchange_date', dateTo)
+  if (storeId) exchQ = exchQ.eq('exchanges.store_id', storeId)
+
+  const [txRes, salesRes, exchRes] = await Promise.all([txQ, salesQ, exchQ])
 
   const txRows = txRes.data ?? []
   const receitaBruta = txRows.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
   const despesasOp   = txRows.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
-  const cmv          = (salesRes.data ?? []).reduce((s: number, r: any) => s + Number(r.total_cost ?? 0), 0)
+  const cmvBruto     = (salesRes.data ?? []).reduce((s: number, r: any) => s + Number(r.total_cost ?? 0), 0)
+  const cmvCredito   = (exchRes.data ?? []).reduce((s: number, r: any) => s + Number(r.unit_cost ?? 0) * Number(r.quantity), 0)
+  const cmv          = cmvBruto - cmvCredito
   const lucroBruto   = receitaBruta - cmv
   const lucroLiquido = lucroBruto - despesasOp
   const disponivelCompra = lucroLiquido * (1 - reservePct / 100)
@@ -284,7 +295,16 @@ export async function buscarGrafico(
     .lte('sale_date', dateTo)
   if (storeId) salesQ = salesQ.eq('store_id', storeId)
 
-  const [txRes, salesRes] = await Promise.all([txQ, salesQ])
+  // Crédito de CMV por mês: itens devolvidos em trocas
+  let exchQ = admin
+    .from('exchange_items')
+    .select('quantity, unit_cost, exchanges!inner(exchange_date, store_id)')
+    .eq('direction', 'returned')
+    .gte('exchanges.exchange_date', dateFrom)
+    .lte('exchanges.exchange_date', dateTo)
+  if (storeId) exchQ = exchQ.eq('exchanges.store_id', storeId)
+
+  const [txRes, salesRes, exchRes] = await Promise.all([txQ, salesQ, exchQ])
 
   // Monta mapa por "YYYY-MM"
   type MonthMap = { income: number; expenseAll: number; custoCompras: number; cmv: number }
@@ -312,6 +332,16 @@ export async function buscarGrafico(
     const entry = map.get(key)
     if (!entry) continue
     entry.cmv += Number(s.total_cost ?? 0)
+  }
+
+  // Subtrai crédito de CMV dos itens devolvidos
+  for (const ei of exchRes.data ?? []) {
+    const exchDate = (ei as any).exchanges?.exchange_date as string | undefined
+    if (!exchDate) continue
+    const key = exchDate.slice(0, 7)
+    const entry = map.get(key)
+    if (!entry) continue
+    entry.cmv -= Number((ei as any).unit_cost ?? 0) * Number((ei as any).quantity)
   }
 
   // Gera array cronológico

@@ -269,14 +269,26 @@ export async function buscarPnl(storeId: string | null, month: number, year: num
 
   if (storeId) salesQ = salesQ.eq('store_id', storeId)
 
-  const [txRes, pendRes, salesRes] = await Promise.all([txQ, pendQ, salesQ])
+  // Crédito de CMV: custo dos itens devolvidos em trocas no período
+  let exchQ = admin
+    .from('exchange_items')
+    .select('quantity, unit_cost, exchanges!inner(exchange_date, store_id)')
+    .eq('direction', 'returned')
+    .gte('exchanges.exchange_date', dateFrom)
+    .lte('exchanges.exchange_date', dateTo)
+
+  if (storeId) exchQ = exchQ.eq('exchanges.store_id', storeId)
+
+  const [txRes, pendRes, salesRes, exchRes] = await Promise.all([txQ, pendQ, salesQ, exchQ])
 
   if (txRes.error) return { data: null, error: txRes.error.message }
 
   const txRows = txRes.data ?? []
   const receitaBruta = txRows.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const despesasOp   = txRows.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-  const cmv          = (salesRes.data ?? []).reduce((s: number, r: any) => s + (r.total_cost ?? 0), 0)
+  const cmvBruto     = (salesRes.data ?? []).reduce((s: number, r: any) => s + (r.total_cost ?? 0), 0)
+  const cmvCredito   = (exchRes.data ?? []).reduce((s: number, r: any) => s + Number(r.unit_cost ?? 0) * Number(r.quantity), 0)
+  const cmv          = cmvBruto - cmvCredito
   const lucroBruto   = receitaBruta - cmv
   const lucroLiquido = lucroBruto - despesasOp
   const pendRows = (pendRes.data ?? []) as Array<{ amount: number; category: string; description: string; due_date: string | null; reference_type: string }>
