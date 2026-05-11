@@ -6,6 +6,8 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import DatePicker from '@/components/ui/DatePicker'
+import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
+import CompraDetalheModal from '@/components/compra/CompraDetalheModal'
 import styles from './FinanceiroClient.module.css'
 import {
   buscarTransacoes, marcarComoPago, criarDespesaManual, editarDespesaManual,
@@ -177,6 +179,18 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
   const [editingTx, setEditingTx]       = useState<TransactionRow | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
+  // Modais de detalhe de venda/compra (quando linha referencia uma origem)
+  const [vendaModalId,  setVendaModalId]  = useState<string | null>(null)
+  const [compraModalId, setCompraModalId] = useState<string | null>(null)
+
+  function handleRowClick(tx: TransactionRow) {
+    if (tx.reference_type === 'sale' && tx.reference_id) {
+      setVendaModalId(tx.reference_id)
+    } else if (tx.reference_type === 'purchase' && tx.reference_id) {
+      setCompraModalId(tx.reference_id)
+    }
+  }
+
   async function reload() {
     setLoading(true)
     const res = await buscarTransacoes({
@@ -313,8 +327,16 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
                 </td>
               </tr>
             )}
-            {transactions.map(tx => (
-              <tr key={tx.id} className={styles.row}>
+            {transactions.map(tx => {
+              const isClickable = (tx.reference_type === 'sale' || tx.reference_type === 'purchase') && !!tx.reference_id
+              return (
+              <tr
+                key={tx.id}
+                className={styles.row}
+                onClick={() => isClickable && handleRowClick(tx)}
+                style={{ cursor: isClickable ? 'pointer' : 'default' }}
+                title={isClickable ? `Ver detalhe da ${tx.reference_type === 'sale' ? 'venda' : 'compra'}` : undefined}
+              >
                 <td className={styles.dateCell}>{fmtDate(tx.transaction_date)}</td>
                 <td className={styles.dateCell}>{fmtDate(tx.due_date)}</td>
                 <td>
@@ -334,7 +356,7 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
                     {tx.status === 'completed' ? 'Pago' : 'Pendente'}
                   </span>
                 </td>
-                <td>
+                <td onClick={e => e.stopPropagation()}>
                   <div className={styles.actionsCell}>
                     {tx.status === 'pending' && (
                       <button
@@ -373,7 +395,8 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
                   </div>
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -392,6 +415,30 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
               setTransactions(prev => [newTx, ...prev])
             }
             setShowModal(false)
+          }}
+        />
+      )}
+
+      {/* Modal detalhe da venda (linha clicada) */}
+      {vendaModalId && (
+        <VendaDetalheModal
+          saleId={vendaModalId}
+          onClose={() => setVendaModalId(null)}
+          onDeleted={() => {
+            setTransactions(prev => prev.filter(t => !(t.reference_type === 'sale' && t.reference_id === vendaModalId)))
+            setVendaModalId(null)
+          }}
+        />
+      )}
+
+      {/* Modal detalhe da compra (linha clicada) */}
+      {compraModalId && (
+        <CompraDetalheModal
+          purchaseId={compraModalId}
+          onClose={() => setCompraModalId(null)}
+          onDeleted={() => {
+            setTransactions(prev => prev.filter(t => !(t.reference_type === 'purchase' && t.reference_id === compraModalId)))
+            setCompraModalId(null)
           }}
         />
       )}
