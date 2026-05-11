@@ -510,16 +510,22 @@ export async function buscarTopVendedoras(
 
   if (!agg.size) return []
 
-  // Busca dados dos usuários separadamente (sem join ambíguo)
+  // Busca usuários e lojas em queries separadas (sem join PostgREST)
   const userIds = Array.from(agg.keys())
   const { data: usersData } = await admin
     .from('users')
-    .select('id, full_name, store_id, stores(name)')
+    .select('id, full_name, store_id')
     .in('id', userIds)
 
-  const userMap = new Map((usersData ?? []).map((u: any) => [
+  const storeIds = [...new Set((usersData ?? []).map((u: any) => u.store_id).filter(Boolean))]
+  const { data: storesData } = storeIds.length
+    ? await admin.from('stores').select('id, name').in('id', storeIds)
+    : { data: [] }
+
+  const storeMap = new Map((storesData ?? []).map((s: any) => [s.id, s.name]))
+  const userMap  = new Map((usersData ?? []).map((u: any) => [
     u.id,
-    { name: u.full_name, store_id: u.store_id ?? null, store_name: (u.stores as { name: string } | null)?.name ?? null },
+    { name: u.full_name, store_id: u.store_id ?? null, store_name: u.store_id ? (storeMap.get(u.store_id) ?? null) : null },
   ]))
 
   return Array.from(agg.entries())

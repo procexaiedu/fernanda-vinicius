@@ -174,49 +174,55 @@ export interface SaleHistoryItem {
 export async function buscarHistoricoVendas(productId: string): Promise<SaleHistoryItem[]> {
   const admin = createAdminClient()
 
+  // Passo 1: sale_items do produto — sem nenhum join PostgREST
   const { data: items } = await admin
     .from('sale_items')
-    .select('id, quantity, unit_price, sales(id, sale_date, store_id, customer_id, seller_id, user_id)')
+    .select('id, quantity, unit_price, sale_id')
     .eq('product_id', productId)
     .order('created_at', { ascending: false })
     .limit(30)
 
   if (!items?.length) return []
 
-  const saleIds    = (items as any[]).map(i => i.sales?.id).filter(Boolean)
-  const storeIds   = [...new Set((items as any[]).map(i => i.sales?.store_id).filter(Boolean))]
-  const customerIds = [...new Set((items as any[]).map(i => i.sales?.customer_id).filter(Boolean))]
-  const sellerIds  = [...new Set(
-    (items as any[]).flatMap(i => [i.sales?.seller_id, i.sales?.user_id]).filter(Boolean)
+  const saleIds = items.map((i: any) => i.sale_id).filter(Boolean)
+  if (!saleIds.length) return []
+
+  // Passo 2: busca os dados das vendas (sem joins)
+  const { data: sales } = await admin
+    .from('sales')
+    .select('id, sale_date, store_id, customer_id, seller_id, user_id')
+    .in('id', saleIds)
+
+  const salesMap = new Map((sales ?? []).map((s: any) => [s.id, s]))
+
+  // Passo 3: resolve stores, customers e usuários em paralelo
+  const storeIds    = [...new Set((sales ?? []).map((s: any) => s.store_id).filter(Boolean))]
+  const customerIds = [...new Set((sales ?? []).map((s: any) => s.customer_id).filter(Boolean))]
+  const sellerIds   = [...new Set(
+    (sales ?? []).flatMap((s: any) => [s.seller_id, s.user_id]).filter(Boolean)
   )]
 
   const [storesRes, customersRes, usersRes] = await Promise.all([
-    storeIds.length
-      ? admin.from('stores').select('id, name').in('id', storeIds)
-      : { data: [] },
-    customerIds.length
-      ? admin.from('customers').select('id, name').in('id', customerIds)
-      : { data: [] },
-    sellerIds.length
-      ? admin.from('users').select('id, full_name').in('id', sellerIds)
-      : { data: [] },
+    storeIds.length    ? admin.from('stores').select('id, name').in('id', storeIds)       : { data: [] },
+    customerIds.length ? admin.from('customers').select('id, name').in('id', customerIds) : { data: [] },
+    sellerIds.length   ? admin.from('users').select('id, full_name').in('id', sellerIds)  : { data: [] },
   ])
 
   const storeMap    = new Map((storesRes.data ?? []).map((s: any) => [s.id, s.name]))
   const customerMap = new Map((customersRes.data ?? []).map((c: any) => [c.id, c.name]))
   const userMap     = new Map((usersRes.data ?? []).map((u: any) => [u.id, u.full_name]))
 
-  return (items as any[]).map(i => {
-    const sale      = i.sales
-    const sellerId  = sale?.seller_id ?? sale?.user_id ?? null
+  return items.map((i: any) => {
+    const sale     = salesMap.get(i.sale_id)
+    const sellerId = sale?.seller_id ?? sale?.user_id ?? null
     return {
       id:            i.id,
       quantity:      i.quantity,
       unit_price:    i.unit_price,
       sale_date:     sale?.sale_date ?? '',
-      store_name:    storeMap.get(sale?.store_id) ?? '—',
-      customer_name: sale?.customer_id ? (customerMap.get(sale.customer_id) ?? '—') : null,
-      seller_name:   sellerId ? (userMap.get(sellerId) ?? '—') : null,
+      store_name:    sale ? (storeMap.get(sale.store_id) ?? '—') : '—',
+      customer_name: sale?.customer_id ? (customerMap.get(sale.customer_id) ?? null) : null,
+      seller_name:   sellerId ? (userMap.get(sellerId) ?? null) : null,
     }
   })
 }
