@@ -69,6 +69,14 @@ export default async function VendasPage() {
 
   const exchangeSaleIds = new Set((exchangesRes.data ?? []).map(e => e.original_sale_id))
 
+  // Buscar sellers (nomes) para as vendas listadas
+  const sellerIds = [...new Set((rawSales ?? []).map((s: any) => s.seller_id).filter(Boolean))]
+  const sellersMap = new Map<string, string>()
+  if (sellerIds.length > 0) {
+    const { data: sellerUsers } = await admin.from('users').select('id, full_name').in('id', sellerIds)
+    for (const u of sellerUsers ?? []) sellersMap.set(u.id, u.full_name)
+  }
+
   const sales: SaleRow[] = (rawSales ?? []).map((s: any) => ({
     id:              s.id,
     sale_date:       s.sale_date,
@@ -87,14 +95,6 @@ export default async function VendasPage() {
     status:          s.status,
     has_exchange:    exchangeSaleIds.has(s.id),
   }))
-
-  // Buscar sellers (nomes) para as vendas listadas
-  const sellerIds = [...new Set((rawSales ?? []).map((s: any) => s.seller_id).filter(Boolean))]
-  const sellersMap = new Map<string, string>()
-  if (sellerIds.length > 0) {
-    const { data: sellerUsers } = await admin.from('users').select('id, full_name').in('id', sellerIds)
-    for (const u of sellerUsers ?? []) sellersMap.set(u.id, u.full_name)
-  }
 
   const [storesRes, usersRes] = await Promise.all([
     admin.from('stores').select('id, name').eq('is_active', true).order('name'),
