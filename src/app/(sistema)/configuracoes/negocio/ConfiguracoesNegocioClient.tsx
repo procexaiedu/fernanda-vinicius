@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { CreditCard, Tag, TrendingUp, Check, AlertCircle, Users } from 'lucide-react'
+import { CreditCard, Tag, TrendingUp, Check, AlertCircle, Users, LayoutDashboard } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import type { SettingRow } from './page'
 import { updateSetting } from './actions'
@@ -114,6 +114,28 @@ const SECTIONS: SectionDef[] = [
         unit: 'dias', unitPosition: 'suffix',
         min: 30, max: 730, step: 30,
         hint: 'Quantidade de dias sem compra para que uma cliente seja considerada inativa.',
+      },
+      {
+        key: 'stale_product_days',
+        label: 'Dias para peça parada',
+        unit: 'dias', unitPosition: 'suffix',
+        min: 7, max: 365, step: 7,
+        hint: 'Dias sem venda para que um produto (com estoque > 0) seja alertado como parado no Dashboard.',
+      },
+    ],
+  },
+  {
+    id: 'dashboard',
+    title: 'Dashboard',
+    description: 'Parâmetros do painel gerencial e cálculos de disponível para compra.',
+    icon: LayoutDashboard,
+    settings: [
+      {
+        key: 'purchase_reserve_pct',
+        label: 'Reserva de segurança',
+        unit: '%', unitPosition: 'suffix',
+        min: 0, max: 100, step: 5,
+        hint: 'Percentual retido do lucro líquido como reserva. O restante é exibido como "Disponível para Compra" no Dashboard.',
       },
     ],
   },
