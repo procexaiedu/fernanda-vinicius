@@ -19,6 +19,25 @@ import {
 
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
+// Categorias semeadas — sempre aparecem mesmo que ainda não tenham sido usadas
+const DEFAULT_CATEGORIES = [
+  'aluguel', 'salário', 'energia elétrica', 'água e saneamento',
+  'internet', 'telefone', 'compra de estoque', 'embalagens',
+  'limpeza', 'manutenção', 'marketing', 'contador',
+  'impostos', 'transporte', 'outros',
+]
+
+function mergeCategories(fromDb: string[]): string[] {
+  const set = new Set<string>()
+  DEFAULT_CATEGORIES.forEach(c => set.add(c.toLowerCase()))
+  fromDb.forEach(c => set.add(c.toLowerCase()))
+  return Array.from(set).sort()
+}
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
@@ -110,6 +129,134 @@ function FilterDropdown({
   )
 }
 
+// ─── SelectField (substitui <select> nativo nos modais) ──────────────────────
+
+function SelectField({
+  value, onChange, options, placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  options: DropdownOption[]
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos]   = useState<{ top: number; left: number; width: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  function toggle() {
+    if (open) { setOpen(false); setPos(null); return }
+    const r = btnRef.current?.getBoundingClientRect()
+    if (!r) return
+    setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    setOpen(true)
+  }
+
+  const selected = options.find(o => o.value === value)
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <button
+        type="button"
+        ref={btnRef}
+        className={styles.input}
+        onClick={toggle}
+        onBlur={() => setTimeout(() => { setOpen(false); setPos(null) }, 150)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          textAlign: 'left',
+          fontFamily: 'inherit',
+        }}
+      >
+        <span style={{ color: selected ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+          {selected?.label ?? placeholder ?? 'Selecione...'}
+        </span>
+        <ChevronDown size={13} style={{ opacity: 0.6, transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
+      </button>
+      {open && pos && (
+        <div
+          className={styles.filterDropdown}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 10000 }}
+          onMouseDown={e => e.preventDefault()}
+        >
+          {options.map(o => (
+            <div
+              key={o.value}
+              className={`${styles.filterOption} ${o.value === value ? styles.filterOptionActive : ''}`}
+              onClick={() => { onChange(o.value); setOpen(false); setPos(null) }}
+            >
+              {o.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── CategoryCombobox (input + sugestões) ────────────────────────────────────
+
+function CategoryCombobox({
+  value, onChange, suggestions, placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  suggestions: string[]
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos]   = useState<{ top: number; left: number; width: number } | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  function openMenu() {
+    const r = inputRef.current?.getBoundingClientRect()
+    if (!r) return
+    setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    setOpen(true)
+  }
+
+  function close() { setOpen(false); setPos(null) }
+
+  const q = value.trim().toLowerCase()
+  const filtered = q
+    ? suggestions.filter(s => s.toLowerCase().includes(q))
+    : suggestions
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <input
+        ref={inputRef}
+        className={styles.input}
+        value={value}
+        placeholder={placeholder}
+        onChange={e => { onChange(e.target.value); if (!open) openMenu() }}
+        onFocus={openMenu}
+        onBlur={() => setTimeout(close, 150)}
+      />
+      {open && pos && filtered.length > 0 && (
+        <div
+          className={styles.filterDropdown}
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 10000 }}
+          onMouseDown={e => e.preventDefault()}
+        >
+          {filtered.map(s => (
+            <div
+              key={s}
+              className={`${styles.filterOption} ${s.toLowerCase() === q ? styles.filterOptionActive : ''}`}
+              onClick={() => { onChange(s); close() }}
+              style={{ textTransform: 'capitalize' }}
+            >
+              {s}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Store { id: string; name: string }
@@ -124,8 +271,9 @@ interface Props {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function FinanceiroClient({ stores, users, categories, initialTransactions }: Props) {
+export default function FinanceiroClient({ stores, users, categories: dbCategories, initialTransactions }: Props) {
   const [activeTab, setActiveTab] = useState<'transactions' | 'pnl' | 'recorrentes'>('transactions')
+  const categories = useMemo(() => mergeCategories(dbCategories), [dbCategories])
 
   return (
     <div>
@@ -152,7 +300,7 @@ export default function FinanceiroClient({ stores, users, categories, initialTra
         <PnlTab stores={stores} />
       )}
       {activeTab === 'recorrentes' && (
-        <RecorrentesTab stores={stores} />
+        <RecorrentesTab stores={stores} categories={categories} />
       )}
     </div>
   )
@@ -469,8 +617,6 @@ function DespesaModal({
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState('')
 
-  const catSuggestions = categories.filter(c => c.toLowerCase().includes(catInput.toLowerCase()) && c !== catInput)
-
   async function save() {
     if (!description.trim() || !amount || !catInput.trim() || !date) {
       setError('Preencha todos os campos obrigatórios.')
@@ -562,47 +708,43 @@ function DespesaModal({
             </div>
             <div className={styles.formGroup}>
               <label className={styles.label}>Categoria *</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  className={styles.input}
-                  value={catInput}
-                  onChange={e => setCatInput(e.target.value)}
-                  placeholder="aluguel, salario..."
-                  list="cat-suggestions"
-                />
-                <datalist id="cat-suggestions">
-                  {catSuggestions.map(c => <option key={c} value={c} />)}
-                </datalist>
-              </div>
+              <CategoryCombobox
+                value={catInput}
+                onChange={setCatInput}
+                suggestions={categories}
+                placeholder="aluguel, salário..."
+              />
             </div>
           </div>
 
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
               <label className={styles.label}>Loja</label>
-              <select
-                className={styles.select}
+              <SelectField
                 value={storeId}
-                onChange={e => setStoreId(e.target.value)}
-              >
-                <option value="">Geral (empresa)</option>
-                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+                onChange={setStoreId}
+                placeholder="Geral (empresa)"
+                options={[
+                  { value: '', label: 'Geral (empresa)' },
+                  ...stores.map(s => ({ value: s.id, label: s.name })),
+                ]}
+              />
             </div>
             <div className={styles.formGroup}>
               <label className={styles.label}>Método de Pagamento</label>
-              <select
-                className={styles.select}
+              <SelectField
                 value={method}
-                onChange={e => setMethod(e.target.value)}
-              >
-                <option value="">—</option>
-                <option value="cash">Dinheiro</option>
-                <option value="pix">Pix</option>
-                <option value="transfer">Transferência</option>
-                <option value="credit">Crédito</option>
-                <option value="debit">Débito</option>
-              </select>
+                onChange={setMethod}
+                placeholder="—"
+                options={[
+                  { value: '',         label: '—'             },
+                  { value: 'cash',     label: 'Dinheiro'      },
+                  { value: 'pix',      label: 'Pix'           },
+                  { value: 'transfer', label: 'Transferência' },
+                  { value: 'credit',   label: 'Crédito'       },
+                  { value: 'debit',    label: 'Débito'        },
+                ]}
+              />
             </div>
           </div>
 
@@ -865,7 +1007,7 @@ function PnlTab({ stores }: { stores: Store[] }) {
 
 // ─── Aba Recorrentes ──────────────────────────────────────────────────────────
 
-function RecorrentesTab({ stores }: { stores: Store[] }) {
+function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: string[] }) {
   const [items, setItems]         = useState<RecurrenteRow[]>([])
   const [loaded, setLoaded]       = useState(false)
   const [loading, setLoading]     = useState(false)
@@ -991,6 +1133,7 @@ function RecorrentesTab({ stores }: { stores: Store[] }) {
         <RecorrenteModal
           item={editing}
           stores={stores}
+          categories={categories}
           onClose={() => setShowModal(false)}
           onSaved={(saved) => {
             if (editing) {
@@ -1009,10 +1152,11 @@ function RecorrentesTab({ stores }: { stores: Store[] }) {
 // ─── Modal Recorrente ─────────────────────────────────────────────────────────
 
 function RecorrenteModal({
-  item, stores, onClose, onSaved,
+  item, stores, categories, onClose, onSaved,
 }: {
   item: RecurrenteRow | null
   stores: Store[]
+  categories: string[]
   onClose: () => void
   onSaved: (r: RecurrenteRow) => void
 }) {
@@ -1108,11 +1252,11 @@ function RecorrenteModal({
             </div>
             <div className={styles.formGroup}>
               <label className={styles.label}>Categoria *</label>
-              <input
-                className={styles.input}
+              <CategoryCombobox
                 value={category}
-                onChange={e => setCategory(e.target.value)}
-                placeholder="aluguel, energia..."
+                onChange={setCategory}
+                suggestions={categories}
+                placeholder="aluguel, salário, energia..."
               />
             </div>
           </div>
@@ -1120,14 +1264,15 @@ function RecorrenteModal({
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
               <label className={styles.label}>Loja</label>
-              <select
-                className={styles.select}
+              <SelectField
                 value={storeId}
-                onChange={e => setStoreId(e.target.value)}
-              >
-                <option value="">Geral (empresa)</option>
-                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+                onChange={setStoreId}
+                placeholder="Geral (empresa)"
+                options={[
+                  { value: '', label: 'Geral (empresa)' },
+                  ...stores.map(s => ({ value: s.id, label: s.name })),
+                ]}
+              />
             </div>
             <div className={styles.formGroup}>
               <label className={styles.label}>Vence dia</label>
