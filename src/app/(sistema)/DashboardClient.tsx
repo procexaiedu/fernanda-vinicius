@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
-  ResponsiveContainer, ComposedChart, BarChart, Bar, Line, AreaChart, Area,
+  ResponsiveContainer, LineChart, Line, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
 import {
@@ -376,27 +376,18 @@ export default function DashboardClient({
           </div>
           <div className={styles.chartWrap}>
             <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart data={grafico} margin={{ top: 4, right: 16, left: 0, bottom: 0 }} barGap={4} barCategoryGap="30%">
+              <LineChart data={grafico} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
                   tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v < -1000 ? `-${(Math.abs(v)/1000).toFixed(0)}k` : String(v)} width={42} />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                 <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 2" />
-                <Bar dataKey="faturamento"  name="Faturamento"   fill="#C9A84C" radius={[3,3,0,0]} maxBarSize={28} />
-                <Bar dataKey="custoCompras" name="Custo Compras" fill="#E05252" radius={[3,3,0,0]} maxBarSize={28} />
-                <Line
-                  dataKey="lucroLiquido"
-                  name="Lucro Líquido"
-                  stroke="#4CAF7D"
-                  strokeWidth={2}
-                  strokeDasharray="5 3"
-                  dot={{ fill: '#4CAF7D', r: 3, strokeWidth: 0 }}
-                  activeDot={{ r: 5, fill: '#4CAF7D' }}
-                  type="monotone"
-                />
-              </ComposedChart>
+                <Line dataKey="faturamento"  name="Faturamento"   stroke="#C9A84C" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#C9A84C' }} type="monotone" />
+                <Line dataKey="custoCompras" name="Custo Compras" stroke="#E05252" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#E05252' }} type="monotone" />
+                <Line dataKey="lucroLiquido" name="Lucro Líquido" stroke="#4CAF7D" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: '#4CAF7D' }} type="monotone" />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
