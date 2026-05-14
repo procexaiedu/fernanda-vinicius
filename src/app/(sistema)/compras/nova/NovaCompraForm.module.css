@@ -512,6 +512,56 @@
   padding: 12px 4px;
 }
 
+/* ── Cards de pagamento por fornecedor ──────────────────────────────────── */
+
+.supplierPayCard {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.supplierPayCard:last-child {
+  margin-bottom: 0;
+}
+
+.supplierPayHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.supplierPayInfo {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.supplierPayName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.supplierPaySubtotal {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.supplierPaySubtotal strong {
+  color: var(--accent);
+}
+
+.diffOk {
+  font-size: 12px;
+  color: var(--success, #4caf82);
+  font-weight: 600;
+  padding: 4px 10px;
+  background: rgba(76, 175, 130, 0.1);
+  border-radius: var(--radius-md);
+}
+
 /* ── Erro e ações ───────────────────────────────────────────────────────── */
 
 .errorBanner {

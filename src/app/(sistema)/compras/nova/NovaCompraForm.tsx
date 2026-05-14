@@ -440,31 +440,38 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
     }
   }
 
-  // ── Pagamentos ────────────────────────────────────────────────────────────
+  // ── Pagamentos por fornecedor ─────────────────────────────────────────────
 
-  function addPayment() {
-    setPayments(prev => [...prev, {
-      method: 'pix',
-      totalAmount: 0,
-      installments: 1,
-      firstDueDate: today(),
-      status: 'completed',
-    }])
+  function addPaymentForSupplier(groupKey: string) {
+    setSupplierPayments(prev => ({
+      ...prev,
+      [groupKey]: [...(prev[groupKey] ?? []), {
+        method: 'pix' as const,
+        totalAmount: 0,
+        installments: 1,
+        firstDueDate: today(),
+        status: 'completed' as const,
+      }]
+    }))
   }
 
-  function updatePayment(index: number, patch: Partial<PaymentRow>) {
-    setPayments(prev => prev.map((p, i) => i === index ? { ...p, ...patch } : p))
+  function updatePaymentForSupplier(groupKey: string, index: number, patch: Partial<PaymentRow>) {
+    setSupplierPayments(prev => ({
+      ...prev,
+      [groupKey]: (prev[groupKey] ?? []).map((p, i) => i === index ? { ...p, ...patch } : p)
+    }))
   }
 
-  function removePayment(index: number) {
-    setPayments(prev => prev.filter((_, i) => i !== index))
+  function removePaymentForSupplier(groupKey: string, index: number) {
+    setSupplierPayments(prev => ({
+      ...prev,
+      [groupKey]: (prev[groupKey] ?? []).filter((_, i) => i !== index)
+    }))
   }
 
   // ── Totais ────────────────────────────────────────────────────────────────
 
-  const totalCost     = rows.reduce((s, r) => s + (r.costPrice || 0) * (r.quantity || 1), 0)
-  const totalPayments = payments.reduce((s, p) => s + (p.totalAmount || 0), 0)
-  const difference    = totalPayments - totalCost
+  const totalCost = rows.reduce((s, r) => s + (r.costPrice || 0) * (r.quantity || 1), 0)
 
   // ── Validação e submit ────────────────────────────────────────────────────
 
@@ -488,7 +495,13 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
 
     if (isConsignment && !returnDeadline) { setError('Informe o prazo de devolução da consignação.'); return }
 
-    if (!isConsignment && payments.length === 0) { setError('Adicione ao menos uma forma de pagamento.'); return }
+    if (!isConsignment) {
+      if (supplierGroups.length === 0) { setError('Adicione itens com custo antes de salvar.'); return }
+      for (const group of supplierGroups) {
+        const gp = supplierPayments[group.groupKey] ?? []
+        if (gp.length === 0) { setError(`Adicione ao menos um pagamento para "${group.supplierName}".`); return }
+      }
+    }
 
     setSaving(true)
     const result = await salvarCompra({
@@ -497,7 +510,10 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
       nfUrl,
       notes,
       rows,
-      payments,
+      supplierPayments: supplierGroups.map(g => ({
+        groupKey: g.groupKey,
+        payments: supplierPayments[g.groupKey] ?? [],
+      })),
       isConsignment,
       returnDeadline,
       minPurchasePct: minPurchasePct ? parseFloat(minPurchasePct) : null,
@@ -770,99 +786,119 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
         </button>
       </div>
 
-      {/* ── Pagamentos ───────────────────────────────────────────────── */}
+      {/* ── Pagamentos por fornecedor ────────────────────────────── */}
       {!isConsignment && (
         <div className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <div className={styles.sectionTitle}>Pagamento</div>
-            <button type="button" className={styles.addPayBtn} onClick={addPayment}>
-              <Plus size={13} /> Adicionar pagamento
-            </button>
-          </div>
+          <div className={styles.sectionTitle}>Pagamento</div>
 
-          {payments.length > 0 && (
-            <div className={styles.paymentsTable}>
-              <div className={styles.payHeader}>
-                <span style={{ flex: '0 0 140px' }}>Método</span>
-                <span style={{ flex: '0 0 130px' }}>Valor total</span>
-                <span style={{ flex: '0 0 80px' }}>Parcelas</span>
-                <span style={{ flex: '0 0 150px' }}>1ª Data venc.</span>
-                <span style={{ flex: '0 0 120px' }}>Status</span>
-                <span style={{ flex: 1 }}></span>
-              </div>
+          {supplierGroups.length === 0 && (
+            <p className={styles.emptyPay}>Adicione itens com fornecedor e custo no grid para configurar os pagamentos.</p>
+          )}
 
-              {payments.map((p, i) => (
-                <div key={i} className={styles.payRow}>
-                  <div style={{ flex: '0 0 140px' }}>
-                    <PaySelect
-                      value={p.method}
-                      onChange={v => updatePayment(i, { method: v as PaymentRow['method'], installments: 1 })}
-                      options={METHOD_OPTIONS}
-                    />
+          {supplierGroups.map(group => {
+            const gp = supplierPayments[group.groupKey] ?? []
+            const gpTotal = gp.reduce((s, p) => s + (p.totalAmount || 0), 0)
+            const diff = gpTotal - group.subtotal
+
+            return (
+              <div key={group.groupKey} className={styles.supplierPayCard}>
+                <div className={styles.supplierPayHeader}>
+                  <div className={styles.supplierPayInfo}>
+                    <span className={styles.supplierPayName}>{group.supplierName}</span>
+                    <span className={styles.supplierPaySubtotal}>Subtotal: <strong>{fmt(group.subtotal)}</strong></span>
                   </div>
-
-                  <input
-                    type="number" min="0" step="0.01"
-                    className={styles.payCell}
-                    style={{ flex: '0 0 130px' }}
-                    value={p.totalAmount || ''}
-                    onChange={e => updatePayment(i, { totalAmount: parseFloat(e.target.value) || 0 })}
-                    placeholder="R$ 0,00"
-                  />
-
-                  <div style={{ flex: '0 0 80px', opacity: p.method !== 'credit' ? 0.3 : 1 }}>
-                    <PaySelect
-                      value={String(p.installments)}
-                      onChange={v => updatePayment(i, { installments: parseInt(v) })}
-                      options={Array.from({ length: 12 }, (_, k) => ({ value: String(k + 1), label: `${k + 1}x` }))}
-                      disabled={p.method !== 'credit'}
-                    />
-                  </div>
-
-                  <div style={{ flex: '0 0 150px' }}>
-                    <DatePicker
-                      value={p.firstDueDate}
-                      onChange={v => updatePayment(i, { firstDueDate: v })}
-                    />
-                  </div>
-
-                  <div style={{ flex: '0 0 120px' }}>
-                    <PaySelect
-                      value={p.status}
-                      onChange={v => updatePayment(i, { status: v as PaymentRow['status'] })}
-                      options={STATUS_OPTIONS}
-                    />
-                  </div>
-
-                  {p.method === 'credit' && p.installments > 1 && (
-                    <span className={styles.installmentHint}>
-                      {p.installments}x de {fmt(p.totalAmount / p.installments)}
-                    </span>
-                  )}
-
-                  <button type="button" className={styles.delBtn} onClick={() => removePayment(i)}>
-                    <Trash2 size={13} />
+                  <button type="button" className={styles.addPayBtn} onClick={() => addPaymentForSupplier(group.groupKey)}>
+                    <Plus size={13} /> Adicionar pagamento
                   </button>
                 </div>
-              ))}
 
-              {/* Totais */}
-              <div className={styles.payTotals}>
-                <span>Custo total dos itens: <strong>{fmt(totalCost)}</strong></span>
-                <span>Total informado: <strong>{fmt(totalPayments)}</strong></span>
-                {Math.abs(difference) > 0.01 && (
-                  <span className={styles.diffWarning}>
-                    <AlertTriangle size={13} />
-                    Diferença: {fmt(Math.abs(difference))} {difference > 0 ? '(a mais)' : '(a menos)'} — possível taxa da maquininha
-                  </span>
+                {gp.length > 0 && (
+                  <div className={styles.paymentsTable}>
+                    <div className={styles.payHeader}>
+                      <span style={{ flex: '0 0 140px' }}>Método</span>
+                      <span style={{ flex: '0 0 130px' }}>Valor total</span>
+                      <span style={{ flex: '0 0 80px' }}>Parcelas</span>
+                      <span style={{ flex: '0 0 150px' }}>1ª Data venc.</span>
+                      <span style={{ flex: '0 0 120px' }}>Status</span>
+                      <span style={{ flex: 1 }}></span>
+                    </div>
+
+                    {gp.map((p, i) => (
+                      <div key={i} className={styles.payRow}>
+                        <div style={{ flex: '0 0 140px' }}>
+                          <PaySelect
+                            value={p.method}
+                            onChange={v => updatePaymentForSupplier(group.groupKey, i, { method: v as PaymentRow['method'], installments: 1 })}
+                            options={METHOD_OPTIONS}
+                          />
+                        </div>
+
+                        <input
+                          type="number" min="0" step="0.01"
+                          className={styles.payCell}
+                          style={{ flex: '0 0 130px' }}
+                          value={p.totalAmount || ''}
+                          onChange={e => updatePaymentForSupplier(group.groupKey, i, { totalAmount: parseFloat(e.target.value) || 0 })}
+                          placeholder="R$ 0,00"
+                        />
+
+                        <div style={{ flex: '0 0 80px', opacity: p.method !== 'credit' ? 0.3 : 1 }}>
+                          <PaySelect
+                            value={String(p.installments)}
+                            onChange={v => updatePaymentForSupplier(group.groupKey, i, { installments: parseInt(v) })}
+                            options={Array.from({ length: 12 }, (_, k) => ({ value: String(k + 1), label: `${k + 1}x` }))}
+                            disabled={p.method !== 'credit'}
+                          />
+                        </div>
+
+                        <div style={{ flex: '0 0 150px' }}>
+                          <DatePicker
+                            value={p.firstDueDate}
+                            onChange={v => updatePaymentForSupplier(group.groupKey, i, { firstDueDate: v })}
+                          />
+                        </div>
+
+                        <div style={{ flex: '0 0 120px' }}>
+                          <PaySelect
+                            value={p.status}
+                            onChange={v => updatePaymentForSupplier(group.groupKey, i, { status: v as PaymentRow['status'] })}
+                            options={STATUS_OPTIONS}
+                          />
+                        </div>
+
+                        {p.method === 'credit' && p.installments > 1 && (
+                          <span className={styles.installmentHint}>
+                            {p.installments}x de {fmt(p.totalAmount / p.installments)}
+                          </span>
+                        )}
+
+                        <button type="button" className={styles.delBtn} onClick={() => removePaymentForSupplier(group.groupKey, i)}>
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+
+                    <div className={styles.payTotals}>
+                      <span>Total informado: <strong>{fmt(gpTotal)}</strong></span>
+                      {Math.abs(diff) > 0.01 && (
+                        <span className={styles.diffWarning}>
+                          <AlertTriangle size={13} />
+                          Diferença: {fmt(Math.abs(diff))} {diff > 0 ? '(a mais)' : '(a menos)'} — possível taxa da maquininha
+                        </span>
+                      )}
+                      {Math.abs(diff) <= 0.01 && gpTotal > 0 && (
+                        <span className={styles.diffOk}>✓ Pagamento completo</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {gp.length === 0 && (
+                  <p className={styles.emptyPay}>Nenhum pagamento adicionado.</p>
                 )}
               </div>
-            </div>
-          )}
-
-          {payments.length === 0 && (
-            <p className={styles.emptyPay}>Nenhum pagamento adicionado. Clique em "+ Adicionar pagamento".</p>
-          )}
+            )
+          })}
         </div>
       )}
 
