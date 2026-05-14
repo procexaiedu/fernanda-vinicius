@@ -283,7 +283,7 @@ export async function buscarGrafico(
 
   let txQ = admin
     .from('transactions')
-    .select('type, amount, category, transaction_date')
+    .select('type, amount, category, reference_type, transaction_date')
     .eq('status', 'completed')
     .gte('transaction_date', dateFrom)
     .lte('transaction_date', dateTo)
@@ -325,7 +325,7 @@ export async function buscarGrafico(
     if (t.type === 'income') entry.income += Number(t.amount)
     if (t.type === 'expense') {
       entry.expenseAll += Number(t.amount)
-      if (t.category === 'compra_fornecedor') entry.custoCompras += Number(t.amount)
+      if (t.category === 'compra_fornecedor' || t.reference_type === 'purchase') entry.custoCompras += Number(t.amount)
     }
   }
 
