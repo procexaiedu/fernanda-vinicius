@@ -912,3 +912,33 @@
   gap: 8px;
   padding-top: 4px;
 }
+
+/* ── Toast do scanner de código de barras ───────────────────────────────── */
+
+.scanToastOk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(76, 175, 130, 0.12);
+  border: 1px solid rgba(76, 175, 130, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--success, #4caf82);
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.scanToastErr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(224, 82, 82, 0.1);
+  border: 1px solid rgba(224, 82, 82, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}

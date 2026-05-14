@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Plus, Trash2, AlertTriangle, ChevronDown, Cake, X, CreditCard,
-  Banknote, Smartphone, ArrowLeftRight, RefreshCw, User,
+  Banknote, Smartphone, ArrowLeftRight, RefreshCw, User, CheckCircle2,
 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
@@ -391,6 +391,70 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
 
+  // ── Scanner HID ───────────────────────────────────────────────────────────
+  const [scanFeedback, setScanFeedback] = useState<{ text: string; ok: boolean } | null>(null)
+  const scanBuffer   = useRef<{ chars: string[]; firstTs: number }>({ chars: [], firstTs: 0 })
+  const scanStoreId  = useRef(storeId)
+  const scanProducts = useRef(products)
+
+  // ── Sync refs do scanner ──────────────────────────────────────────────────
+  useEffect(() => { scanStoreId.current  = storeId   }, [storeId])
+  useEffect(() => { scanProducts.current = products  }, [products])
+
+  // ── Scanner HID: captura global de keydown ────────────────────────────────
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const buf = scanBuffer.current
+      const now = Date.now()
+
+      if (e.key === 'Enter') {
+        const code    = buf.chars.join('')
+        const elapsed = buf.firstTs ? now - buf.firstTs : 9999
+        const nChars  = buf.chars.length
+        buf.chars = []; buf.firstTs = 0
+
+        // < 3 chars ou > 80ms/char = não é scanner
+        if (nChars < 3 || (nChars > 1 && elapsed / nChars > 80)) return
+
+        const storeProds = scanProducts.current.filter(p => p.store_id === scanStoreId.current)
+        const match      = storeProds.find(p => p.code.toUpperCase() === code.toUpperCase())
+
+        if (match) {
+          const price = match.promotional_active && match.promotional_price
+            ? match.promotional_price : match.sale_price
+          const newRow: SaleRow = {
+            productId: match.id, productName: match.name,
+            quantity: 1, unitPrice: price,
+            unitCost: match.cost_price, stockAvailable: match.quantity_in_stock,
+          }
+          setRows(prev => {
+            const last = prev[prev.length - 1]
+            // preenche última linha se vazia; senão adiciona nova
+            if (!last.productId && !last.productName.trim()) {
+              return [...prev.slice(0, -1), newRow]
+            }
+            return [...prev, newRow]
+          })
+          setScanFeedback({ text: `${match.name} adicionado`, ok: true })
+        } else {
+          setScanFeedback({ text: `Código "${code}" não encontrado`, ok: false })
+        }
+        setTimeout(() => setScanFeedback(null), 2500)
+        return
+      }
+
+      if (e.key.length === 1) {
+        if (!buf.chars.length) buf.firstTs = now
+        buf.chars.push(e.key)
+      } else if (e.key !== 'Shift' && e.key !== 'CapsLock') {
+        buf.chars = []; buf.firstTs = 0
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   // ── Efeito: birthday discount ──────────────────────────────────────────────
   useEffect(() => {
     if (selectedCustomer && isBirthdayMonth(selectedCustomer.birthday)) {
@@ -654,6 +718,15 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             {rows.length} {rows.length === 1 ? 'item' : 'itens'} · Subtotal: <strong>{fmt(subtotal)}</strong>
           </div>
         </div>
+
+        {scanFeedback && (
+          <div className={scanFeedback.ok ? styles.scanToastOk : styles.scanToastErr}>
+            {scanFeedback.ok
+              ? <CheckCircle2 size={13} />
+              : <AlertTriangle size={13} />}
+            {scanFeedback.text}
+          </div>
+        )}
 
         <div className={styles.gridWrapper}>
           <table className={styles.grid}>
