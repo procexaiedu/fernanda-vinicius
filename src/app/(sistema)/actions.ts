@@ -28,6 +28,7 @@ export interface DashboardStock {
   totalPecas: number
   totalSkus: number
   valorEstoque: number
+  valorEstoqueVenda: number
   pecasParadas: number
   staleDays: number
 }
@@ -241,7 +242,7 @@ export async function buscarEstoque(
 
   let q = admin
     .from('products')
-    .select('id, quantity_in_stock, cost_price, last_sale_date, created_at')
+    .select('id, quantity_in_stock, cost_price, sale_price, last_sale_date, created_at')
     .eq('is_active', true)
     .gt('quantity_in_stock', 0)
   if (storeId) q = q.eq('store_id', storeId)
@@ -249,17 +250,18 @@ export async function buscarEstoque(
   const { data } = await q
   const rows = data ?? []
 
-  const totalPecas    = rows.reduce((s, r) => s + Number(r.quantity_in_stock), 0)
-  const totalSkus     = rows.length
-  const valorEstoque  = rows.reduce((s, r) => s + Number(r.cost_price) * Number(r.quantity_in_stock), 0)
-  const pecasParadas  = rows.filter(r => {
+  const totalPecas         = rows.reduce((s, r) => s + Number(r.quantity_in_stock), 0)
+  const totalSkus          = rows.length
+  const valorEstoque       = rows.reduce((s, r) => s + Number(r.cost_price) * Number(r.quantity_in_stock), 0)
+  const valorEstoqueVenda  = rows.reduce((s, r) => s + Number(r.sale_price) * Number(r.quantity_in_stock), 0)
+  const pecasParadas       = rows.filter(r => {
     const ref = r.last_sale_date
       ? r.last_sale_date.slice(0, 10)
       : r.created_at.slice(0, 10)
     return ref < staleDateStr
   }).length
 
-  return { totalPecas, totalSkus, valorEstoque, pecasParadas, staleDays }
+  return { totalPecas, totalSkus, valorEstoque, valorEstoqueVenda, pecasParadas, staleDays }
 }
 
 // ─── Gráfico mensal ───────────────────────────────────────────────────────────

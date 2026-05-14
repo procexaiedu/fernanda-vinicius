@@ -31,6 +31,21 @@ function generateCode(initials: string, month: number, costPrice: number): strin
   return `F${initials.toUpperCase()}${m}${costCents}`
 }
 
+async function generateUniqueCode(
+  admin: ReturnType<typeof createAdminClient>,
+  baseCode: string
+): Promise<string> {
+  const { data } = await admin
+    .from('products')
+    .select('code')
+    .like('code', `${baseCode}%`)
+  const existing = new Set((data ?? []).map((r: { code: string }) => r.code))
+  if (!existing.has(baseCode)) return baseCode
+  let i = 1
+  while (existing.has(`${baseCode}-${i}`)) i++
+  return `${baseCode}-${i}`
+}
+
 async function verifyAdmin(): Promise<{ userId: string | null; error: string | null }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -60,7 +75,7 @@ export async function createProduct(data: ProductFormData): Promise<ActionResult
 
   if (supplierErr || !supplier) return { success: false, error: 'Fornecedor não encontrado.' }
 
-  const code = generateCode(supplier.initials, data.purchase_month, data.cost_price)
+  const code = await generateUniqueCode(admin, generateCode(supplier.initials, data.purchase_month, data.cost_price))
 
   const { error } = await admin.from('products').insert({
     code,
@@ -101,7 +116,7 @@ export async function updateProduct(id: string, data: ProductFormData): Promise<
 
   if (supplierErr || !supplier) return { success: false, error: 'Fornecedor não encontrado.' }
 
-  const code = generateCode(supplier.initials, data.purchase_month, data.cost_price)
+  const code = await generateUniqueCode(admin, generateCode(supplier.initials, data.purchase_month, data.cost_price))
 
   const { error } = await admin.from('products').update({
     code,

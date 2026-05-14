@@ -14,15 +14,17 @@ export default async function NovaCompraPage() {
 
   const admin = createAdminClient()
 
-  const [suppliersRes, storesRes, productsRes] = await Promise.all([
+  const [suppliersRes, storesRes, productsRes, markupRes] = await Promise.all([
     admin.from('suppliers').select('id, name, initials').eq('is_active', true).order('name'),
     admin.from('stores').select('id, name, city').eq('is_active', true).order('name'),
     admin.from('products').select('id, name, code, category, material, cost_price, sale_price, promotional_price, supplier_id, store_id, ownership_type').eq('is_active', true).order('name'),
+    admin.from('settings').select('value').eq('key', 'default_markup_pct').maybeSingle(),
   ])
 
-  const suppliers = suppliersRes.data ?? []
-  const stores    = storesRes.data ?? []
-  const products  = productsRes.data ?? []
+  const suppliers      = suppliersRes.data ?? []
+  const stores         = storesRes.data ?? []
+  const products       = productsRes.data ?? []
+  const defaultMarkupPct = Number(markupRes.data?.value ?? 280)
 
   // Categorias e materiais distintos para combobox
   const categories = [...new Set(products.map(p => p.category).filter(Boolean))].sort()
@@ -48,6 +50,7 @@ export default async function NovaCompraPage() {
         products={products}
         categories={categories}
         materials={materials}
+        defaultMarkupPct={defaultMarkupPct}
       />
     </div>
   )

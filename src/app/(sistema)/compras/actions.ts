@@ -37,13 +37,18 @@ export interface PaymentRow {
   status: 'completed' | 'pending'
 }
 
+export interface SupplierPaymentGroup {
+  groupKey: string
+  payments: PaymentRow[]
+}
+
 export interface CompraFormData {
   purchaseDate: string        // YYYY-MM-DD
   nfNumber: string
   nfUrl: string
   notes: string
   rows: GridRow[]
-  payments: PaymentRow[]
+  supplierPayments: SupplierPaymentGroup[]
   isConsignment: boolean
   returnDeadline: string      // só se consignação
   minPurchasePct: number | null
@@ -55,6 +60,21 @@ function generateCode(initials: string, month: number, costPrice: number): strin
   const m = String(month).padStart(2, '0')
   const costCents = Math.round(costPrice * 100)
   return `F${initials.toUpperCase()}${m}${costCents}`
+}
+
+async function generateUniqueCode(
+  admin: ReturnType<typeof createAdminClient>,
+  baseCode: string
+): Promise<string> {
+  const { data } = await admin
+    .from('products')
+    .select('code')
+    .like('code', `${baseCode}%`)
+  const existing = new Set((data ?? []).map((r: { code: string }) => r.code))
+  if (!existing.has(baseCode)) return baseCode
+  let i = 1
+  while (existing.has(`${baseCode}-${i}`)) i++
+  return `${baseCode}-${i}`
 }
 
 function installmentDate(firstDate: string, index: number): string {
@@ -137,7 +157,7 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   for (const row of data.rows) {
     const supId    = resolveSupplier(row)
     const initials = initialsCache.get(supId) ?? 'FV'
-    const code     = generateCode(initials, purchaseMonth, row.costPrice)
+    const code     = await generateUniqueCode(admin, generateCode(initials, purchaseMonth, row.costPrice))
 
     if (row.productId && !row.productExistingCostDiffers) {
       // Reusar produto — só incrementa estoque
@@ -261,7 +281,8 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   // Crédito: banco gerencia as parcelas → 1 registro completed pelo total
   // À prazo direto (pending): 1 registro pending
   // À vista (pix/cash/debit/completed): 1 registro completed
-  for (const payment of data.payments) {
+  const allPayments = data.supplierPayments.flatMap(g => g.payments)
+  for (const payment of allPayments) {
     const isCredit  = payment.method === 'credit'
     const isPending = payment.status === 'pending'
     const status    = (isCredit || !isPending) ? 'completed' : 'pending'

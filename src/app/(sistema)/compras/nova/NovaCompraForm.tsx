@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, AlertTriangle, Upload, ChevronDown } from 'lucide-react'
 import Button from '@/components/ui/Button'
@@ -20,11 +20,12 @@ interface ProductOption  {
 }
 
 interface Props {
-  suppliers:  SupplierOption[]
-  stores:     StoreOption[]
-  products:   ProductOption[]
-  categories: string[]
-  materials:  string[]
+  suppliers:       SupplierOption[]
+  stores:          StoreOption[]
+  products:        ProductOption[]
+  categories:      string[]
+  materials:       string[]
+  defaultMarkupPct: number
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -291,9 +292,9 @@ function StoreSelect({ value, onChange, stores }: {
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-export default function NovaCompraForm({ suppliers, stores, products, categories, materials }: Props) {
+export default function NovaCompraForm({ suppliers, stores, products, categories, materials, defaultMarkupPct }: Props) {
   const router = useRouter()
-  const defaultStoreId = stores[0]?.id ?? ''
+  const defaultStoreId = stores.find(s => s.name.toLowerCase().includes('campinas'))?.id ?? stores[0]?.id ?? ''
 
   // Cabeçalho
   const [purchaseDate, setPurchaseDate]     = useState(today())
@@ -308,8 +309,41 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
   // Grid de itens
   const [rows, setRows] = useState<GridRow[]>([emptyRow(defaultStoreId)])
 
-  // Pagamentos
-  const [payments, setPayments] = useState<PaymentRow[]>([])
+  // Grupos de fornecedor derivados dos itens
+  const supplierGroups = useMemo(() => {
+    const map = new Map<string, { groupKey: string; supplierName: string; subtotal: number }>()
+    for (const row of rows) {
+      if (!row.supplierName.trim() || !row.costPrice) continue
+      const key = row.supplierId ?? row.supplierName.trim().toLowerCase()
+      const existing = map.get(key)
+      const rowSubtotal = (row.costPrice || 0) * (row.quantity || 1)
+      if (existing) {
+        existing.subtotal += rowSubtotal
+      } else {
+        map.set(key, { groupKey: key, supplierName: row.supplierName, subtotal: rowSubtotal })
+      }
+    }
+    return [...map.values()]
+  }, [rows])
+
+  // Pagamentos por fornecedor
+  const [supplierPayments, setSupplierPayments] = useState<Record<string, PaymentRow[]>>({})
+
+  // Sincronizar chaves de pagamento quando os grupos mudam
+  useEffect(() => {
+    const activeKeys = new Set(supplierGroups.map(g => g.groupKey))
+    setSupplierPayments(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const key of Object.keys(next)) {
+        if (!activeKeys.has(key)) { delete next[key]; changed = true }
+      }
+      for (const key of activeKeys) {
+        if (!next[key]) { next[key] = []; changed = true }
+      }
+      return changed ? next : prev
+    })
+  }, [supplierGroups])
 
   // Estado
   const [saving, setSaving]   = useState(false)
@@ -365,12 +399,15 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
 
   function handleCostChange(index: number, cost: number) {
     const row = rows[index]
-    const differs = !!row.productId && cost !== 0 && cost !== row.costPrice && row.costPrice !== cost
-    // Só marca como difere se o produto já tinha custo e o novo é diferente
     const originalCost = products.find(p => p.id === row.productId)?.cost_price ?? 0
+    // Auto-sugere preço de venda se o campo ainda não foi editado manualmente
+    const autoSalePrice = cost > 0 ? parseFloat((cost * (1 + defaultMarkupPct / 100)).toFixed(2)) : 0
+    const prevAutoPrice = row.costPrice > 0 ? parseFloat((row.costPrice * (1 + defaultMarkupPct / 100)).toFixed(2)) : 0
+    const salePriceWasAuto = row.salePrice === 0 || row.salePrice === prevAutoPrice
     updateRow(index, {
       costPrice: cost,
       productExistingCostDiffers: !!row.productId && originalCost !== 0 && cost !== originalCost,
+      ...(salePriceWasAuto ? { salePrice: autoSalePrice } : {}),
     })
   }
 

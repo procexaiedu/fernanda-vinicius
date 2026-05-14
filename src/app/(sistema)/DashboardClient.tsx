@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
 import {
   ChevronLeft, ChevronRight, ChevronDown,
@@ -343,6 +343,9 @@ export default function DashboardClient({
             {isAdmin && (
               <StockCard label="Valor em Custo" value={fmt(estoque.valorEstoque)} small />
             )}
+            {isAdmin && (
+              <StockCard label="Valor em Venda" value={fmt(estoque.valorEstoqueVenda)} small />
+            )}
             <StockCard
               label="Peças Paradas"
               value={estoque.pecasParadas.toLocaleString('pt-BR')}
@@ -372,18 +375,27 @@ export default function DashboardClient({
           </div>
           <div className={styles.chartWrap}>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={grafico} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <ComposedChart data={grafico} margin={{ top: 4, right: 16, left: 0, bottom: 0 }} barGap={4} barCategoryGap="30%">
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
-                  tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} width={40} />
+                  tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v < -1000 ? `-${(Math.abs(v)/1000).toFixed(0)}k` : String(v)} width={42} />
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Bar dataKey="faturamento"  name="Faturamento"    fill="#C9A84C" radius={[3,3,0,0]} maxBarSize={24} />
-                <Bar dataKey="custoCompras" name="Custo Compras"  fill="#E05252" radius={[3,3,0,0]} maxBarSize={24} />
-                <Bar dataKey="lucroBruto"   name="Lucro Bruto"    fill="#5B8DEF" radius={[3,3,0,0]} maxBarSize={24} />
-                <Bar dataKey="lucroLiquido" name="Lucro Líquido"  fill="#4CAF7D" radius={[3,3,0,0]} maxBarSize={24} />
-              </BarChart>
+                <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 2" />
+                <Bar dataKey="faturamento"  name="Faturamento"   fill="#C9A84C" radius={[3,3,0,0]} maxBarSize={28} />
+                <Bar dataKey="custoCompras" name="Custo Compras" fill="#E05252" radius={[3,3,0,0]} maxBarSize={28} />
+                <Line
+                  dataKey="lucroLiquido"
+                  name="Lucro Líquido"
+                  stroke="#4CAF7D"
+                  strokeWidth={2}
+                  strokeDasharray="5 3"
+                  dot={{ fill: '#4CAF7D', r: 3, strokeWidth: 0 }}
+                  activeDot={{ r: 5, fill: '#4CAF7D' }}
+                  type="monotone"
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>
