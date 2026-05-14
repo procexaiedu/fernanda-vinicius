@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -106,22 +105,6 @@ export default async function VendasPage() {
 
   return (
     <div style={{ padding: '24px 32px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Vendas</h1>
-        <Link
-          href="/vendas/nova"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '7px 16px',
-            background: 'var(--accent)', color: '#000',
-            borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700,
-            textDecoration: 'none',
-          }}
-        >
-          + Nova Venda
-        </Link>
-      </div>
-
       <VendasClient sales={sales} stores={stores} sellers={sellers} userRole={profile.role} />
     </div>
   )

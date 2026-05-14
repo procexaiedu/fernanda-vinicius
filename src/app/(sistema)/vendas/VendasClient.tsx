@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import {
   ChevronUp, ChevronDown, ArrowLeftRight,
-  BarChart2,
+  BarChart2, FileBarChart2,
 } from 'lucide-react'
 import Badge from '@/components/ui/Badge'
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
+import FechamentoModal from './FechamentoModal'
 import type { SaleRow } from './page'
 import styles from './VendasClient.module.css'
 
@@ -105,6 +107,7 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
   const [sortKey, setSortKey]     = useState<SortKey>('date')
   const [sortDir, setSortDir]     = useState<SortDir>('desc')
   const [detalheId, setDetalheId] = useState<string | null>(null)
+  const [fechamentoOpen, setFechamentoOpen] = useState(false)
 
   useEffect(() => { setSales(initial) }, [initial])
 
@@ -150,6 +153,42 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
 
   return (
     <>
+      {/* Page header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Vendas</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={() => setFechamentoOpen(true)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '7px 14px',
+              background: 'var(--bg-elevated)', color: 'var(--text-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'inherit',
+              transition: 'border-color 0.15s, color 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(201,168,76,0.4)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)' }}
+          >
+            <FileBarChart2 size={14} />
+            Fechamento
+          </button>
+          <Link
+            href="/vendas/nova"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '7px 16px',
+              background: 'var(--accent)', color: '#000',
+              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700,
+              textDecoration: 'none',
+            }}
+          >
+            + Nova Venda
+          </Link>
+        </div>
+      </div>
+
       {/* Stats */}
       <div className={styles.statsRow}>
         <div className={styles.stat}>
@@ -299,6 +338,14 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
             setSales(prev => prev.filter(s => s.id !== detalheId))
             setDetalheId(null)
           }}
+        />
+      )}
+
+      {fechamentoOpen && (
+        <FechamentoModal
+          sellers={sellers}
+          userRole={userRole}
+          onClose={() => setFechamentoOpen(false)}
         />
       )}
     </>
