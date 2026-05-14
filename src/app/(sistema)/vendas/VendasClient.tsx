@@ -3,12 +3,11 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import {
-  ChevronUp, ChevronDown, ArrowLeftRight,
-  BarChart2, FileBarChart2,
+  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2,
 } from 'lucide-react'
 import Badge from '@/components/ui/Badge'
+import DatePicker from '@/components/ui/DatePicker'
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
-import FechamentoModal from './FechamentoModal'
 import type { SaleRow } from './page'
 import styles from './VendasClient.module.css'
 
@@ -19,9 +18,15 @@ function fmt(v: number) {
 }
 
 function fmtDate(s: string) {
-  const date = s.slice(0, 10)   // pega só YYYY-MM-DD mesmo que seja timestamptz
-  const [y, m, d] = date.split('-')
+  const [y, m, d] = s.slice(0, 10).split('-')
   return `${d}/${m}/${y}`
+}
+
+function todayStr() {
+  const t = new Date()
+  const mm = String(t.getMonth() + 1).padStart(2, '0')
+  const dd = String(t.getDate()).padStart(2, '0')
+  return `${t.getFullYear()}-${mm}-${dd}`
 }
 
 // ─── FilterSelect ─────────────────────────────────────────────────────────────
@@ -99,29 +104,29 @@ interface Props {
 }
 
 export default function VendasClient({ sales: initial, stores, sellers, userRole }: Props) {
-  const [sales, setSales]         = useState(initial)
-  const [search, setSearch]       = useState('')
+  const today = todayStr()
+
+  const [sales, setSales]             = useState(initial)
+  const [search, setSearch]           = useState('')
   const [filterStore, setFilterStore] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterSeller, setFilterSeller] = useState('')
-  const [sortKey, setSortKey]     = useState<SortKey>('date')
-  const [sortDir, setSortDir]     = useState<SortDir>('desc')
-  const [detalheId, setDetalheId] = useState<string | null>(null)
-  const [fechamentoOpen, setFechamentoOpen] = useState(false)
+  const [dateFrom, setDateFrom]       = useState(today)
+  const [dateTo, setDateTo]           = useState(today)
+  const [sortKey, setSortKey]         = useState<SortKey>('date')
+  const [sortDir, setSortDir]         = useState<SortDir>('desc')
+  const [detalheId, setDetalheId]     = useState<string | null>(null)
 
   useEffect(() => { setSales(initial) }, [initial])
-
-  // Stats
-  const totalRevenue = sales.reduce((s, v) => s + v.total, 0)
-  const avgTicket    = sales.length ? totalRevenue / sales.length : 0
-  const nExchanges   = sales.filter(s => s.has_exchange).length
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     let list = sales.filter(s => {
-      if (filterStore && s.store_id !== filterStore) return false
+      if (dateFrom && s.sale_date < dateFrom) return false
+      if (dateTo   && s.sale_date > dateTo)   return false
+      if (filterStore  && s.store_id  !== filterStore)  return false
       if (filterSeller && s.seller_id !== filterSeller) return false
-      if (filterStatus === 'exchange' && !s.has_exchange) return false
+      if (filterStatus === 'exchange'  && !s.has_exchange)       return false
       if (filterStatus === 'completed' && s.status !== 'completed') return false
       if (q && !(s.customer_name ?? '').toLowerCase().includes(q) && !s.payment_summary?.toLowerCase().includes(q)) return false
       return true
@@ -137,7 +142,12 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
     })
 
     return list
-  }, [sales, search, filterStore, filterStatus, sortKey, sortDir])
+  }, [sales, search, dateFrom, dateTo, filterStore, filterSeller, filterStatus, sortKey, sortDir])
+
+  // Stats refletem o período e filtros ativos
+  const totalRevenue = filtered.reduce((s, v) => s + v.total, 0)
+  const avgTicket    = filtered.length ? totalRevenue / filtered.length : 0
+  const nExchanges   = filtered.filter(s => s.has_exchange).length
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -156,44 +166,25 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
       {/* Page header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Vendas</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={() => setFechamentoOpen(true)}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '7px 14px',
-              background: 'var(--bg-elevated)', color: 'var(--text-secondary)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit',
-              transition: 'border-color 0.15s, color 0.15s',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(201,168,76,0.4)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)' }}
-          >
-            <FileBarChart2 size={14} />
-            Fechamento
-          </button>
-          <Link
-            href="/vendas/nova"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '7px 16px',
-              background: 'var(--accent)', color: '#000',
-              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700,
-              textDecoration: 'none',
-            }}
-          >
-            + Nova Venda
-          </Link>
-        </div>
+        <Link
+          href="/vendas/nova"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '7px 16px',
+            background: 'var(--accent)', color: '#000',
+            borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700,
+            textDecoration: 'none',
+          }}
+        >
+          + Nova Venda
+        </Link>
       </div>
 
-      {/* Stats */}
+      {/* Stats — refletem o período selecionado */}
       <div className={styles.statsRow}>
         <div className={styles.stat}>
           <span className={styles.statLabel}>Vendas</span>
-          <span className={styles.statValue}>{sales.length}</span>
+          <span className={styles.statValue}>{filtered.length}</span>
         </div>
         <div className={styles.stat}>
           <span className={styles.statLabel}>Receita total</span>
@@ -212,6 +203,23 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
       {/* Toolbar */}
       <div className={styles.toolbar}>
         <div className={styles.toolbarLeft}>
+          {/* Filtro de data */}
+          <div className={styles.dateRange}>
+            <div className={styles.dateRangeField}>
+              <DatePicker
+                value={dateFrom}
+                onChange={v => { setDateFrom(v); if (v && dateTo && v > dateTo) setDateTo(v) }}
+              />
+            </div>
+            <span className={styles.dateRangeSep}>—</span>
+            <div className={styles.dateRangeField}>
+              <DatePicker
+                value={dateTo}
+                onChange={v => { setDateTo(v); if (v && dateFrom && v < dateFrom) setDateFrom(v) }}
+              />
+            </div>
+          </div>
+
           <input
             className={styles.search}
             placeholder="Buscar por cliente ou pagamento..."
@@ -252,7 +260,7 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
           <div className={styles.empty}>
             <span>Nenhuma venda encontrada.</span>
             <span className={styles.emptyHint}>
-              {sales.length === 0 ? 'Clique em "+ Nova Venda" para registrar a primeira.' : 'Tente ajustar os filtros.'}
+              {sales.length === 0 ? 'Clique em "+ Nova Venda" para registrar a primeira.' : 'Tente ajustar os filtros ou o período.'}
             </span>
           </div>
         ) : (
@@ -338,14 +346,6 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
             setSales(prev => prev.filter(s => s.id !== detalheId))
             setDetalheId(null)
           }}
-        />
-      )}
-
-      {fechamentoOpen && (
-        <FechamentoModal
-          sellers={sellers}
-          userRole={userRole}
-          onClose={() => setFechamentoOpen(false)}
         />
       )}
     </>

@@ -48,9 +48,29 @@
   flex: 1;
 }
 
+/* ── Date range ─────────────────────────────────────────────────────────── */
+
+.dateRange {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.dateRangeField {
+  width: 122px;
+}
+
+.dateRangeSep {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  user-select: none;
+}
+
 .search {
   flex: 1;
-  max-width: 320px;
+  max-width: 280px;
   height: 34px;
   padding: 0 10px;
   background: var(--bg-surface);
