@@ -653,3 +653,87 @@ export async function buscarAniversariantes(storeId: string | null): Promise<Ale
     origin_store_name:(c.stores as { name: string } | null)?.name ?? '—',
   }))
 }
+
+// ─── Gráficos de categoria e evolução ─────────────────────────────────────────
+
+export interface CategoryChartData {
+  category: string
+  receita: number
+  qtd: number
+}
+
+export interface EvolucaoChartData {
+  label: string
+  receita: number
+}
+
+export async function buscarVendasPorCategoria(
+  storeId: string | null,
+  month: number,
+  year: number,
+): Promise<CategoryChartData[]> {
+  const admin = createAdminClient()
+  const { dateFrom, dateTo } = monthBounds(year, month)
+
+  let q = admin
+    .from('sale_items')
+    .select('quantity, subtotal, products!inner(category), sales!inner(sale_date, store_id, status)')
+    .gte('sales.sale_date', dateFrom)
+    .lte('sales.sale_date', dateTo)
+    .neq('sales.status', 'cancelled')
+  if (storeId) q = q.eq('sales.store_id', storeId)
+
+  const { data } = await q
+  const map = new Map<string, { receita: number; qtd: number }>()
+  for (const r of data ?? []) {
+    const cat = (r.products as any)?.category ?? 'Sem categoria'
+    const cur = map.get(cat) ?? { receita: 0, qtd: 0 }
+    cur.receita += Number(r.subtotal)
+    cur.qtd     += Number(r.quantity)
+    map.set(cat, cur)
+  }
+  return Array.from(map.entries())
+    .map(([category, v]) => ({ category, ...v }))
+    .sort((a, b) => b.receita - a.receita)
+    .slice(0, 7)
+}
+
+export async function buscarEvolucaoVendas(
+  storeId: string | null,
+  meses: number,
+): Promise<EvolucaoChartData[]> {
+  const admin = createAdminClient()
+  const now = new Date()
+  const endYear  = now.getFullYear()
+  const endMonth = now.getMonth() + 1
+  const startDate = new Date(endYear, endMonth - meses, 1)
+  const dateFrom  = startDate.toISOString().slice(0, 10)
+  const lastDay   = new Date(endYear, endMonth, 0).getDate()
+  const dateTo    = `${endYear}-${String(endMonth).padStart(2,'0')}-${lastDay}`
+
+  let q = admin
+    .from('transactions')
+    .select('amount, transaction_date')
+    .eq('type', 'income')
+    .eq('status', 'completed')
+    .gte('transaction_date', dateFrom)
+    .lte('transaction_date', dateTo)
+  if (storeId) q = q.eq('store_id', storeId)
+
+  const { data } = await q
+  const map = new Map<string, number>()
+  for (let i = 0; i < meses; i++) {
+    const d = new Date(endYear, endMonth - 1 - i, 1)
+    map.set(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`, 0)
+  }
+  for (const t of data ?? []) {
+    const key = (t.transaction_date as string).slice(0, 7)
+    if (map.has(key)) map.set(key, (map.get(key) ?? 0) + Number(t.amount))
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, receita]) => {
+      const [y, m] = key.split('-').map(Number)
+      return { label: `${MONTHS_PT_SHORT[m - 1]}/${String(y).slice(2)}`, receita }
+    })
+}

@@ -2,24 +2,27 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
-  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
+  ResponsiveContainer, ComposedChart, BarChart, Bar, Line, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
 import {
   ChevronLeft, ChevronRight, ChevronDown,
   TrendingUp, TrendingDown, Package, AlertTriangle, Users, Calendar,
   DollarSign, ShoppingCart, Gem, Award, Clock, ArrowRight,
 } from 'lucide-react'
+
 import ProdutoDetalheModal from '@/components/produto/ProdutoDetalheModal'
-import ClienteDetalheModal from '@/app/(sistema)/clientes/ClienteDetalheModal'
 import VendedoraDetalheModal from '@/components/vendedora/VendedoraDetalheModal'
 import {
   buscarKpis, buscarEstoque, buscarGrafico,
-  buscarTopProdutos, buscarTopClientes, buscarTopVendedoras,
+  buscarTopVendedoras,
   buscarPecasParadas, buscarContasVencer, buscarAniversariantes,
+  buscarVendasPorCategoria, buscarEvolucaoVendas,
   type StoreOption, type DashboardSettings, type DashboardKpis,
-  type DashboardStock, type MonthChartData, type TopProduto,
-  type TopCliente, type TopVendedora, type AlertPecaParada,
+  type DashboardStock, type MonthChartData,
+  type TopVendedora, type AlertPecaParada,
   type AlertConta, type AlertAniversariante,
+  type CategoryChartData, type EvolucaoChartData,
 } from './actions'
 import styles from './DashboardClient.module.css'
 
@@ -142,12 +145,12 @@ interface Props {
   initialKpis: DashboardKpis
   initialEstoque: DashboardStock
   initialGrafico: MonthChartData[]
-  initialTopProdutos: TopProduto[]
-  initialTopClientes: TopCliente[]
   initialTopVendedoras: TopVendedora[]
   initialPecasParadas: AlertPecaParada[]
   initialContasVencer: AlertConta[]
   initialAniversariantes: AlertAniversariante[]
+  initialCategorias: CategoryChartData[]
+  initialEvolucao: EvolucaoChartData[]
   initialMonth: number
   initialYear: number
 }
@@ -157,8 +160,9 @@ interface Props {
 export default function DashboardClient({
   isAdmin, initialStoreId, lojas, settings, inactiveDays,
   initialKpis, initialEstoque, initialGrafico,
-  initialTopProdutos, initialTopClientes, initialTopVendedoras,
+  initialTopVendedoras,
   initialPecasParadas, initialContasVencer, initialAniversariantes,
+  initialCategorias, initialEvolucao,
   initialMonth, initialYear,
 }: Props) {
   const [storeId, setStoreId]       = useState<string | null>(initialStoreId)
@@ -169,44 +173,41 @@ export default function DashboardClient({
   const [kpis, setKpis]             = useState(initialKpis)
   const [estoque, setEstoque]       = useState(initialEstoque)
   const [grafico, setGrafico]       = useState(initialGrafico)
-  const [topProdutos, setTopProdutos] = useState(initialTopProdutos)
-  const [topClientes, setTopClientes] = useState(initialTopClientes)
   const [topVendedoras, setTopVendedoras] = useState(initialTopVendedoras)
   const [pecasParadas, setPecasParadas]   = useState(initialPecasParadas)
   const [contasVencer, setContasVencer]   = useState(initialContasVencer)
   const [aniversariantes, setAniversariantes] = useState(initialAniversariantes)
+  const [categorias, setCategorias]   = useState(initialCategorias)
+  const [evolucao, setEvolucao]       = useState(initialEvolucao)
 
-  const [rankTab, setRankTab]       = useState<'produtos' | 'clientes' | 'vendedoras'>('produtos')
   const [grafMeses, setGrafMeses]   = useState(6)
 
   // Modais
-  const [produtoModal, setProdutoModal]       = useState<TopProduto | null>(null)
-  const [clienteModal, setClienteModal]       = useState<TopCliente | null>(null)
-  const [vendedoraModal, setVendedoraModal]   = useState<TopVendedora | null>(null)
+  const [vendedoraModal, setVendedoraModal] = useState<TopVendedora | null>(null)
 
   const reload = useCallback(async (sid: string | null, m: number, y: number, meses: number) => {
     setLoading(true)
-    const [newKpis, newEstoque, newGrafico, newProdutos, newClientes, newVendedoras, newParadas, newContas, newAniv] =
+    const [newKpis, newEstoque, newGrafico, newVendedoras, newParadas, newContas, newAniv, newCats, newEvol] =
       await Promise.all([
         buscarKpis(sid, m, y, settings.purchaseReservePct),
         buscarEstoque(sid, settings.staleDays),
         buscarGrafico(sid, meses),
-        buscarTopProdutos(sid, m, y),
-        buscarTopClientes(sid),
         buscarTopVendedoras(sid, m, y),
         buscarPecasParadas(sid, settings.staleDays),
         buscarContasVencer(sid),
         buscarAniversariantes(sid),
+        buscarVendasPorCategoria(sid, m, y),
+        buscarEvolucaoVendas(sid, meses),
       ])
     setKpis(newKpis)
     setEstoque(newEstoque)
     setGrafico(newGrafico)
-    setTopProdutos(newProdutos)
-    setTopClientes(newClientes)
     setTopVendedoras(newVendedoras)
     setPecasParadas(newParadas)
     setContasVencer(newContas)
     setAniversariantes(newAniv)
+    setCategorias(newCats)
+    setEvolucao(newEvol)
     setLoading(false)
   }, [settings])
 
@@ -401,75 +402,83 @@ export default function DashboardClient({
         </div>
       </div>
 
-      {/* ── Seção 4: Rankings ─────────────────────────────────────────────── */}
-      <div className={styles.rankPanel}>
-        <div className={styles.panelHeader}>
-          <Award size={15} className={styles.panelIcon} />
-          <span className={styles.panelTitle}>Rankings do mês</span>
-          <div className={styles.tabs}>
-            {(['produtos','clientes','vendedoras'] as const).map(t => (
-              <button
-                key={t}
-                className={`${styles.tab} ${rankTab === t ? styles.tabActive : ''}`}
-                onClick={() => setRankTab(t)}
-              >
-                {t === 'produtos' ? 'Produtos' : t === 'clientes' ? 'Clientes' : 'Vendedoras'}
-              </button>
-            ))}
+      {/* ── Seção 4: Gráficos de desempenho + Ranking vendedoras ────────── */}
+      <div className={styles.perfRow}>
+
+        {/* Vendas por Categoria */}
+        <div className={styles.perfPanel}>
+          <div className={styles.panelHeader}>
+            <Award size={15} className={styles.panelIcon} />
+            <span className={styles.panelTitle}>Vendas por Categoria</span>
+            <span className={styles.panelSub}>{MONTHS_PT[month - 1]}</span>
+          </div>
+          {categorias.length === 0 ? (
+            <div className={styles.chartEmpty}>Nenhuma venda no período</div>
+          ) : (
+            <div className={styles.chartWrapSm}>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={categorias} layout="vertical" margin={{ top: 2, right: 48, left: 4, bottom: 2 }} barSize={10}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                  <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
+                    tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
+                  <YAxis type="category" dataKey="category" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} width={72} />
+                  <Tooltip
+                    formatter={(v: any) => [fmt(Number(v)), 'Receita']}
+                    contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
+                    labelStyle={{ color: 'var(--text-primary)' }}
+                  />
+                  <Bar dataKey="receita" fill="#C9A84C" radius={[0,3,3,0]} label={{ position: 'right', fill: 'var(--text-muted)', fontSize: 10, formatter: (v: any) => fmt(Number(v)) }} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Evolução de Vendas */}
+        <div className={styles.perfPanel}>
+          <div className={styles.panelHeader}>
+            <TrendingUp size={15} className={styles.panelIcon} />
+            <span className={styles.panelTitle}>Evolução de Vendas</span>
+            <span className={styles.panelSub}>Últimos {grafMeses} meses</span>
+          </div>
+          <div className={styles.chartWrapSm}>
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={evolucao} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="evolGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#C9A84C" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#C9A84C" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
+                  tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} width={38} />
+                <Tooltip
+                  formatter={(v: any) => [fmt(Number(v)), 'Faturamento']}
+                  contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
+                  labelStyle={{ color: 'var(--text-primary)' }}
+                />
+                <Area dataKey="receita" name="Faturamento" stroke="#C9A84C" strokeWidth={2} fill="url(#evolGrad)" dot={{ fill: '#C9A84C', r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
-        {rankTab === 'produtos' && (
+        {/* Ranking Vendedoras */}
+        <div className={styles.perfPanel}>
+          <div className={styles.panelHeader}>
+            <Users size={15} className={styles.panelIcon} />
+            <span className={styles.panelTitle}>Vendedoras</span>
+            <span className={styles.panelSub}>{MONTHS_PT[month - 1]}</span>
+          </div>
           <RankTable
-            headers={['#','Produto','Categoria','Qtd. Vendida','Receita','']}
-            rows={topProdutos.map((p, i) => ({
-              cells: [
-                <RankPos key="pos" n={i+1} />,
-                <span key="name" className={styles.rankName}>{p.name}</span>,
-                <span key="cat"  className={styles.rankMuted}>{p.category}</span>,
-                <span key="qtd"  className={styles.rankBold}>{p.qtdVendida}</span>,
-                <span key="rec"  className={styles.rankAccent}>{fmt(p.receita)}</span>,
-                <ArrowRight key="arr" size={14} className={styles.rankArrow} />,
-              ],
-              onClick: () => setProdutoModal(p),
-            }))}
-            empty="Nenhuma venda no período"
-          />
-        )}
-
-        {rankTab === 'clientes' && (
-          <RankTable
-            headers={['#','Cliente','Visitas','Total Gasto','Última compra','']}
-            rows={topClientes.map((c, i) => ({
-              cells: [
-                <RankPos key="pos" n={i+1} />,
-                <div key="name" className={styles.rankAvatarRow}>
-                  <div className={styles.rankAvatar} style={{ background: getAvatarColor(c.id) }}>
-                    {getInitials(c.name)}
-                  </div>
-                  <span className={styles.rankName}>{c.name}</span>
-                </div>,
-                <span key="vis"  className={styles.rankBold}>{c.total_sales}×</span>,
-                <span key="tot"  className={styles.rankAccent}>{fmt(c.total_spent)}</span>,
-                <span key="last" className={styles.rankMuted}>{fmtDate(c.last_sale_date)}</span>,
-                <ArrowRight key="arr" size={14} className={styles.rankArrow} />,
-              ],
-              onClick: () => setClienteModal(c),
-            }))}
-            empty="Nenhuma venda com cliente vinculado"
-          />
-        )}
-
-        {rankTab === 'vendedoras' && (
-          <RankTable
-            headers={['#','Vendedora','Loja','Nº Vendas','Total Vendido','']}
+            headers={['#','Vendedora','Loja','Vendas','Total','']}
             rows={topVendedoras.map((v, i) => ({
               cells: [
                 <RankPos key="pos" n={i+1} />,
                 <div key="name" className={styles.rankAvatarRow}>
-                  <div className={styles.rankAvatar} style={{ background: getAvatarColor(v.id) }}>
-                    {getInitials(v.name)}
-                  </div>
+                  <div className={styles.rankAvatar} style={{ background: getAvatarColor(v.id) }}>{getInitials(v.name)}</div>
                   <span className={styles.rankName}>{v.name}</span>
                 </div>,
                 <span key="loja" className={styles.rankMuted}>{v.store_name ?? '—'}</span>,
@@ -481,7 +490,8 @@ export default function DashboardClient({
             }))}
             empty="Nenhuma venda no período"
           />
-        )}
+        </div>
+
       </div>
 
       {/* ── Seção 5: Alertas ──────────────────────────────────────────────── */}
@@ -500,7 +510,7 @@ export default function DashboardClient({
             {pecasParadas.length === 0 ? (
               <div className={styles.alertEmpty}>Nenhuma peça parada</div>
             ) : pecasParadas.map(p => (
-              <div key={p.id} className={styles.alertRow} onClick={() => setProdutoModal(p as any)}>
+              <div key={p.id} className={styles.alertRow}>
                 <div className={styles.alertRowInfo}>
                   <span className={styles.alertRowName}>{p.name}</span>
                   <span className={styles.alertRowSub}>{p.category} · {p.code}</span>
@@ -549,7 +559,7 @@ export default function DashboardClient({
             {aniversariantes.length === 0 ? (
               <div className={styles.alertEmpty}>Nenhuma aniversariante</div>
             ) : aniversariantes.map(a => (
-              <div key={a.id} className={styles.alertRow} onClick={() => setClienteModal(a as any)}>
+              <div key={a.id} className={styles.alertRow}>
                 <div className={styles.alertRowInfo}>
                   <span className={styles.alertRowName}>{a.name}</span>
                   <span className={styles.alertRowSub}>{a.phone} · {fmtBirthday(a.birthday)}</span>
@@ -565,22 +575,6 @@ export default function DashboardClient({
       </div>
 
       {/* ── Modais ─────────────────────────────────────────────────────────── */}
-      {produtoModal && (
-        <ProdutoDetalheModal
-          produto={produtoModal}
-          isAdmin={isAdmin}
-          onClose={() => setProdutoModal(null)}
-          onEdit={() => {}}
-        />
-      )}
-      {clienteModal && (
-        <ClienteDetalheModal
-          customer={clienteModal as any}
-          inactiveDays={inactiveDays}
-          onClose={() => setClienteModal(null)}
-          onEdit={() => {}}
-        />
-      )}
       {vendedoraModal && (
         <VendedoraDetalheModal
           vendedora={vendedoraModal}

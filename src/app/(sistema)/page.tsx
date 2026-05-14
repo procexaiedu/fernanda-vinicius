@@ -5,8 +5,9 @@ import DashboardClient from './DashboardClient'
 import {
   buscarLojas, buscarDashboardSettings,
   buscarKpis, buscarEstoque, buscarGrafico,
-  buscarTopProdutos, buscarTopClientes, buscarTopVendedoras,
+  buscarTopVendedoras,
   buscarPecasParadas, buscarContasVencer, buscarAniversariantes,
+  buscarVendasPorCategoria, buscarEvolucaoVendas,
 } from './actions'
 
 export default async function DashboardPage() {
@@ -36,17 +37,17 @@ export default async function DashboardPage() {
   ])
   const inactiveDays = Number(inactiveSetting.data?.value ?? 180)
 
-  const [kpis, estoque, grafico, topProdutos, topClientes, topVendedoras, pecasParadas, contasVencer, aniversariantes] =
+  const [kpis, estoque, grafico, topVendedoras, pecasParadas, contasVencer, aniversariantes, categorias, evolucao] =
     await Promise.all([
       buscarKpis(storeId, month, year, settings.purchaseReservePct),
       buscarEstoque(storeId, settings.staleDays),
       buscarGrafico(storeId, 6),
-      buscarTopProdutos(storeId, month, year),
-      buscarTopClientes(storeId),
       buscarTopVendedoras(storeId, month, year),
       buscarPecasParadas(storeId, settings.staleDays),
       buscarContasVencer(storeId),
       buscarAniversariantes(storeId),
+      buscarVendasPorCategoria(storeId, month, year),
+      buscarEvolucaoVendas(storeId, 6),
     ])
 
   return (
@@ -59,12 +60,12 @@ export default async function DashboardPage() {
       initialKpis={kpis}
       initialEstoque={estoque}
       initialGrafico={grafico}
-      initialTopProdutos={topProdutos}
-      initialTopClientes={topClientes}
       initialTopVendedoras={topVendedoras}
       initialPecasParadas={pecasParadas}
       initialContasVencer={contasVencer}
       initialAniversariantes={aniversariantes}
+      initialCategorias={categorias}
+      initialEvolucao={evolucao}
       initialMonth={month}
       initialYear={year}
     />

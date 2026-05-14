@@ -308,7 +308,7 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
       store_id:         null,
       type:             'expense',
       amount:           payment.totalAmount,
-      category:         'compra',
+      category:         'compra_fornecedor',
       description:      desc,
       reference_type:   'purchase',
       reference_id:     purchase.id,
