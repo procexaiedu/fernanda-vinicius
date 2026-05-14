@@ -283,51 +283,61 @@ export default function DashboardClient({
           icon={<TrendingUp size={16} />}
           color="accent"
         />
-        <KpiCard
-          label="Custo (CMV)"
-          value={fmt(kpis.cmv)}
-          icon={<ShoppingCart size={16} />}
-          color="danger"
-          hint="Custo dos produtos vendidos"
-        />
-        <KpiCard
-          label="Lucro Bruto"
-          value={fmt(kpis.lucroBruto)}
-          icon={<DollarSign size={16} />}
-          color={kpis.lucroBruto >= 0 ? 'info' : 'danger'}
-          hint={`${kpis.receitaBruta > 0 ? ((kpis.lucroBruto / kpis.receitaBruta) * 100).toFixed(1) : '0'}% da receita`}
-        />
-        <KpiCard
-          label="Despesas Op."
-          value={fmt(kpis.despesasOp)}
-          icon={<TrendingDown size={16} />}
-          color="warning"
-          hint="Despesas pagas no mês"
-        />
-        <KpiCard
-          label="Lucro Líquido"
-          value={fmt(kpis.lucroLiquido)}
-          icon={<Award size={16} />}
-          color={kpis.lucroLiquido >= 0 ? 'success' : 'danger'}
-          hint={`${kpis.receitaBruta > 0 ? ((kpis.lucroLiquido / kpis.receitaBruta) * 100).toFixed(1) : '0'}% da receita`}
-        />
+        {isAdmin && (
+          <KpiCard
+            label="Custo (CMV)"
+            value={fmt(kpis.cmv)}
+            icon={<ShoppingCart size={16} />}
+            color="danger"
+            hint="Custo dos produtos vendidos"
+          />
+        )}
+        {isAdmin && (
+          <KpiCard
+            label="Lucro Bruto"
+            value={fmt(kpis.lucroBruto)}
+            icon={<DollarSign size={16} />}
+            color={kpis.lucroBruto >= 0 ? 'info' : 'danger'}
+            hint={`${kpis.receitaBruta > 0 ? ((kpis.lucroBruto / kpis.receitaBruta) * 100).toFixed(1) : '0'}% da receita`}
+          />
+        )}
+        {isAdmin && (
+          <KpiCard
+            label="Despesas Op."
+            value={fmt(kpis.despesasOp)}
+            icon={<TrendingDown size={16} />}
+            color="warning"
+            hint="Despesas pagas no mês"
+          />
+        )}
+        {isAdmin && (
+          <KpiCard
+            label="Lucro Líquido"
+            value={fmt(kpis.lucroLiquido)}
+            icon={<Award size={16} />}
+            color={kpis.lucroLiquido >= 0 ? 'success' : 'danger'}
+            hint={`${kpis.receitaBruta > 0 ? ((kpis.lucroLiquido / kpis.receitaBruta) * 100).toFixed(1) : '0'}% da receita`}
+          />
+        )}
       </div>
 
       {/* ── Card de Disponível para Compra ─────────────────────────────────── */}
-      <div className={styles.disponivelCard}>
-        <div className={styles.disponivelIcon}><Gem size={20} /></div>
-        <div className={styles.disponivelContent}>
-          <div className={styles.disponivelTitle}>Disponível para Compra</div>
-          <div className={styles.disponivelBreakdown}>
-            <span>Lucro Líquido: <strong>{fmt(kpis.lucroLiquido)}</strong></span>
-            <span className={styles.disponivelMinus}>−</span>
-            <span>Reserva ({kpis.reservePct}%): <strong>{fmt(kpis.lucroLiquido * kpis.reservePct / 100)}</strong></span>
+      {isAdmin && (
+        <div className={styles.disponivelCard}>
+          <div className={styles.disponivelIcon}><Gem size={20} /></div>
+          <div className={styles.disponivelContent}>
+            <div className={styles.disponivelTitle}>Disponível para Compra</div>
+            <div className={styles.disponivelBreakdown}>
+              <span>Lucro Líquido: <strong>{fmt(kpis.lucroLiquido)}</strong></span>
+              <span className={styles.disponivelMinus}>−</span>
+              <span>Reserva ({kpis.reservePct}%): <strong>{fmt(kpis.lucroLiquido * kpis.reservePct / 100)}</strong></span>
+            </div>
+          </div>
+          <div className={`${styles.disponivelValue} ${kpis.disponivelCompra < 0 ? styles.disponivelNeg : ''}`}>
+            {fmt(Math.max(0, kpis.disponivelCompra))}
           </div>
         </div>
-        <div className={`${styles.disponivelValue} ${kpis.disponivelCompra < 0 ? styles.disponivelNeg : ''}`}>
-          {fmt(Math.max(0, kpis.disponivelCompra))}
-        </div>
-      </div>
+      )}
 
       {/* ── Seções 2+3: Estoque + Gráfico ─────────────────────────────────── */}
       <div className={styles.midRow}>
@@ -357,40 +367,42 @@ export default function DashboardClient({
         </div>
 
         {/* Gráfico */}
-        <div className={styles.chartPanel}>
-          <div className={styles.panelHeader}>
-            <TrendingUp size={15} className={styles.panelIcon} />
-            <span className={styles.panelTitle}>Vendas × Compras</span>
-            <div className={styles.chartControls}>
-              <FilterDropdown
-                label="Período"
-                value={String(grafMeses)}
-                options={[
-                  { value: '3', label: 'Últimos 3 meses' },
-                  { value: '6', label: 'Últimos 6 meses' },
-                  { value: '12', label: 'Últimos 12 meses' },
-                ]}
-                onChange={changeMeses}
-              />
+        {isAdmin && (
+          <div className={styles.chartPanel}>
+            <div className={styles.panelHeader}>
+              <TrendingUp size={15} className={styles.panelIcon} />
+              <span className={styles.panelTitle}>Vendas × Compras</span>
+              <div className={styles.chartControls}>
+                <FilterDropdown
+                  label="Período"
+                  value={String(grafMeses)}
+                  options={[
+                    { value: '3', label: 'Últimos 3 meses' },
+                    { value: '6', label: 'Últimos 6 meses' },
+                    { value: '12', label: 'Últimos 12 meses' },
+                  ]}
+                  onChange={changeMeses}
+                />
+              </div>
+            </div>
+            <div className={styles.chartWrap}>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={grafico} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
+                    tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v < -1000 ? `-${(Math.abs(v)/1000).toFixed(0)}k` : String(v)} width={42} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
+                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                  <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 2" />
+                  <Line dataKey="faturamento"  name="Faturamento"   stroke="#C9A84C" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#C9A84C' }} type="monotone" />
+                  <Line dataKey="custoCompras" name="Custo Compras" stroke="#E05252" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#E05252' }} type="monotone" />
+                  <Line dataKey="lucroLiquido" name="Lucro Líquido" stroke="#4CAF7D" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: '#4CAF7D' }} type="monotone" />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
-          <div className={styles.chartWrap}>
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={grafico} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
-                  tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v < -1000 ? `-${(Math.abs(v)/1000).toFixed(0)}k` : String(v)} width={42} />
-                <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 2" />
-                <Line dataKey="faturamento"  name="Faturamento"   stroke="#C9A84C" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#C9A84C' }} type="monotone" />
-                <Line dataKey="custoCompras" name="Custo Compras" stroke="#E05252" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#E05252' }} type="monotone" />
-                <Line dataKey="lucroLiquido" name="Lucro Líquido" stroke="#4CAF7D" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: '#4CAF7D' }} type="monotone" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* ── Seção 4: Gráficos de desempenho + Ranking vendedoras ────────── */}
@@ -571,6 +583,7 @@ export default function DashboardClient({
           vendedora={vendedoraModal}
           month={month}
           year={year}
+          isAdmin={isAdmin}
           onClose={() => setVendedoraModal(null)}
         />
       )}

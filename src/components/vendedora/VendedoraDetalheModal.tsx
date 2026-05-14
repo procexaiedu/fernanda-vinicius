@@ -30,10 +30,11 @@ interface Props {
   vendedora: TopVendedora
   month: number
   year: number
+  isAdmin?: boolean
   onClose: () => void
 }
 
-export default function VendedoraDetalheModal({ vendedora, month, year, onClose }: Props) {
+export default function VendedoraDetalheModal({ vendedora, month, year, isAdmin = false, onClose }: Props) {
   const [sales, setSales]     = useState<SaleRow[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -103,11 +104,13 @@ export default function VendedoraDetalheModal({ vendedora, month, year, onClose 
           <div className={styles.statValue}>{fmt(vendedora.totalVendido)}</div>
           <div className={styles.statLabel}>Total vendido</div>
         </div>
-        <div className={styles.statCard}>
-          <Award size={14} className={styles.statIcon} />
-          <div className={styles.statValue}>{margem.toFixed(1)}%</div>
-          <div className={styles.statLabel}>Margem bruta</div>
-        </div>
+        {isAdmin && (
+          <div className={styles.statCard}>
+            <Award size={14} className={styles.statIcon} />
+            <div className={styles.statValue}>{margem.toFixed(1)}%</div>
+            <div className={styles.statLabel}>Margem bruta</div>
+          </div>
+        )}
       </div>
 
       <div className={styles.section}>

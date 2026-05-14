@@ -123,13 +123,14 @@ function Skeleton({ width, height = 16 }: { width?: string; height?: number }) {
 interface Props {
   customer:    CustomerWithStats
   inactiveDays: number
+  isAdmin?:    boolean
   onClose:     () => void
   onEdit:      (c: CustomerWithStats) => void
 }
 
 // ─── Componente ──────────────────────────────────────────────────────────────
 
-export default function ClienteDetalheModal({ customer, inactiveDays, onClose, onEdit }: Props) {
+export default function ClienteDetalheModal({ customer, inactiveDays, isAdmin = false, onClose, onEdit }: Props) {
   const [loading, setLoading]       = useState(true)
   const [data, setData]             = useState<CustomerData | null>(null)
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null)
@@ -369,7 +370,7 @@ export default function ClienteDetalheModal({ customer, inactiveDays, onClose, o
                                 <th>Código</th>
                                 <th>Produto</th>
                                 <th className={styles.numCol}>Qtd</th>
-                                <th className={styles.numCol}>Custo unit.</th>
+                                {isAdmin && <th className={styles.numCol}>Custo unit.</th>}
                                 <th className={styles.numCol}>Preço unit.</th>
                                 <th className={styles.numCol}>Subtotal</th>
                               </tr>
@@ -380,7 +381,7 @@ export default function ClienteDetalheModal({ customer, inactiveDays, onClose, o
                                   <td className={styles.codeCell}>{item.product_code}</td>
                                   <td>{item.product_name}</td>
                                   <td className={styles.numCol}>{item.quantity}</td>
-                                  <td className={styles.numCol}>{formatCurrency(item.unit_cost)}</td>
+                                  {isAdmin && <td className={styles.numCol}>{formatCurrency(item.unit_cost)}</td>}
                                   <td className={styles.numCol}>{formatCurrency(item.unit_price)}</td>
                                   <td className={`${styles.numCol} ${styles.subtotalCell}`}>{formatCurrency(item.subtotal)}</td>
                                 </tr>
@@ -406,18 +407,24 @@ export default function ClienteDetalheModal({ customer, inactiveDays, onClose, o
                             />
                           )}
                           <FinRow label="Total cobrado" value={formatCurrency(sale.total)} bold />
-                          <FinRow label="Custo total" value={formatCurrency(sale.total_cost)} color="var(--text-muted)" />
-                          <FinRow
-                            label="Lucro bruto"
-                            value={formatCurrency(profit)}
-                            color="var(--success)"
-                            bold
-                          />
-                          <FinRow
-                            label="Margem"
-                            value={`${margin.toFixed(1)}%`}
-                            color={margin >= 30 ? 'var(--success)' : margin >= 10 ? 'var(--warning)' : 'var(--danger)'}
-                          />
+                          {isAdmin && (
+                            <FinRow label="Custo total" value={formatCurrency(sale.total_cost)} color="var(--text-muted)" />
+                          )}
+                          {isAdmin && (
+                            <FinRow
+                              label="Lucro bruto"
+                              value={formatCurrency(profit)}
+                              color="var(--success)"
+                              bold
+                            />
+                          )}
+                          {isAdmin && (
+                            <FinRow
+                              label="Margem"
+                              value={`${margin.toFixed(1)}%`}
+                              color={margin >= 30 ? 'var(--success)' : margin >= 10 ? 'var(--warning)' : 'var(--danger)'}
+                            />
+                          )}
                         </div>
                       </div>
                     </div>

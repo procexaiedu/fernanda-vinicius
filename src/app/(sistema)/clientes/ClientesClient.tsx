@@ -377,6 +377,7 @@ export default function ClientesClient({
         <ClienteDetalheModal
           customer={detalhe}
           inactiveDays={inactiveDays}
+          isAdmin={currentUserRole === 'admin'}
           onClose={() => setDetalhe(null)}
           onEdit={c => { setDetalhe(null); setEditing(c); setFormOpen(true) }}
         />

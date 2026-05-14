@@ -29,11 +29,11 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard',    href: '/',              icon: <LayoutDashboard size={18} /> },
   { label: 'Vendas',       href: '/vendas',        icon: <ShoppingCart size={18} /> },
-  { label: 'Produtos',     href: '/produtos',      icon: <Package size={18} /> },
+  { label: 'Produtos',     href: '/produtos',      icon: <Package size={18} />,    adminOnly: true },
   { label: 'Estoque',      href: '/estoque',       icon: <Warehouse size={18} /> },
   { label: 'Clientes',     href: '/clientes',      icon: <Users size={18} /> },
-  { label: 'Compras',      href: '/compras',       icon: <ShoppingBag size={18} /> },
-  { label: 'Financeiro',   href: '/financeiro',    icon: <BarChart2 size={18} /> },
+  { label: 'Compras',      href: '/compras',       icon: <ShoppingBag size={18} />, adminOnly: true },
+  { label: 'Financeiro',   href: '/financeiro',    icon: <BarChart2 size={18} />,   adminOnly: true },
   { label: 'Fornecedores', href: '/fornecedores',  icon: <Truck size={18} />, adminOnly: true },
   { label: 'Configurações',href: '/configuracoes', icon: <Settings size={18} />, adminOnly: true },
 ]
