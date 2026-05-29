@@ -1,0 +1,68 @@
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  max-width: 460px;
+}
+
+.card.reached {
+  border-left-color: var(--success);
+  background: var(--success-subtle);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.pct {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.pctReached { color: var(--success); }
+
+.values {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.realized { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+.target { font-size: 13px; color: var(--text-muted); }
+
+.track {
+  height: 8px;
+  background: var(--bg-elevated);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width var(--transition-base);
+}
+.fillReached { background: var(--success); }
+
+.footer { font-size: 13px; }
+.success { color: var(--success); font-weight: 500; }
+.success strong { font-weight: 700; }
+.muted { color: var(--text-secondary); }
+.muted strong { color: var(--text-primary); font-weight: 600; }

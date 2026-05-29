@@ -1,101 +1,115 @@
-# Implementation Plan — Responsividade (notebooks/desktops)
+# Implementation Plan — Metas de Vendas por Vendedora + Comissão
 
-> **Módulo:** Responsividade sistemática do sistema inteiro.
+> **Módulo:** Metas mensais de faturamento por vendedora, com progresso e comissão.
 > **Status:** Aguardando aprovação.
-> **Última atualização:** 2026-05-28
+> **Última atualização:** 2026-05-29
 
 ---
 
 ## 1. Contexto
 
-O front foi construído e validado num monitor grande. Em notebooks (ex: o da loja, ~1366×768) vários módulos renderizam mal — começando por Produtos. Hoje o sistema é desktop-first **sem nenhum tratamento responsivo** (só o Dashboard tem `@media`).
+A dona quer definir metas mensais de faturamento por vendedora, acompanhar o progresso (realizado vs meta) e pagar comissão quando a meta é batida. Hoje não existe conceito de meta/comissão no schema.
 
-**Decisões alinhadas:**
-- **Alcance:** só notebooks/desktops. Piso garantido: **1366×768**. (Sem celular/tablet.)
-- **Abordagem:** varredura sistemática — base fluida + tokens, aplicada módulo a módulo.
-- **Tabelas no aperto:** reduzir densidade + esconder colunas menos importantes (detalhe completo continua no modal).
-- **Sidebar:** recolhe automaticamente em telas menores (continua expansível manual em telas grandes).
+## 2. Decisões alinhadas
 
-## 2. Causas-raiz (diagnóstico)
+| Tema | Decisão |
+|---|---|
+| Base da meta | **Faturamento em R$** por vendedora/mês |
+| Atribuição do realizado | **`seller_id`** (vendedora real) — vendas `status='completed'`, por `sale_date` no mês |
+| Recorrência | Meta **padrão recorrente** + **override por mês** (mantém histórico) |
+| Comissão | **% por vendedora**, incide sobre **todo o faturamento do mês** quando atinge **≥100%** da meta |
+| Visibilidade | Admin define e vê todas; operadora vê **só a dela** |
+| Financeiro | Comissão **gera despesa** (transação) no ledger |
+| Consistência | Alinhar a tela de Usuários pra contar por `seller_id` também |
 
-| # | Problema | Arquivo |
+### Achado importante (do schema ao vivo)
+`sales` grava `user_id` (quem registrou) **e** `seller_id` (vendedora escolhida, default = quem registrou). A tela de Usuários hoje agrega por `user_id` — será corrigida para `seller_id` para bater com as metas.
+
+## 3. Modelo de dados (migration nova)
+
+### Tabela `fv.seller_goals`
+| Coluna | Tipo | Notas |
 |---|---|---|
-| 1 | Sidebar fixa 240px, não recolhe sozinha | `layout-client.tsx`, `layout.module.css`, `Sidebar.module.css` |
-| 2 | Tabelas largas (Produtos: 11 colunas) + `overflow-x: auto` cru | módulos `*Client.module.css` |
-| 3 | Tudo em px fixo (fontes, paddings 28px, alturas) | global + todos os módulos |
-| 4 | Sem tokens de espaçamento/tipografia fluida | `globals.css` |
-| 5 | Alturas com número mágico (`100vh - 260px`) | módulos com tabela |
-| 6 | Zero breakpoints (exceto Dashboard) | global |
+| id | uuid PK | |
+| user_id | uuid NOT NULL FK users(id) | a vendedora |
+| month | date NULL | **NULL = meta padrão recorrente**; 1º dia do mês = override daquele mês |
+| target_amount | numeric(12,2) NOT NULL | meta de faturamento |
+| commission_pct | numeric(5,2) NOT NULL default 0 | % de comissão da vendedora |
+| created_at / updated_at | timestamptz | |
 
-## 3. Estratégia técnica
+**Unicidade:**
+- índice único parcial `(user_id) where month is null` (uma meta padrão por vendedora)
+- único `(user_id, month) where month is not null` (um override por mês)
 
-### Breakpoints (convenção — px literais, pois `@media` não aceita `var()`)
-- **≤ 1440px** — leve: reduz padding de página.
-- **≤ 1366px** ("compacto") — sidebar auto-recolhe; densidade de tabela menor; oculta colunas **terciárias**.
-- **≤ 1180px** ("apertado", ex: janela não-maximizada / notebook menor) — oculta também colunas **secundárias**; densidade mínima.
+**Resolução da meta efetiva do mês M:** `override(user,M) ?? default(user)`. Sem nenhuma → vendedora sem meta (não entra em comissão).
 
-### Fundações (globais — alto impacto, baixo risco)
-1. `globals.css`: escala de espaçamento (`--space-1..8`), padding de página fluido (`clamp`), e tokens de densidade de tabela (`--table-cell-py/px/fs`) que encolhem por breakpoint.
-2. Tipografia: tokens fluidos para títulos/labels via `clamp()` (corpo permanece 14px, encolhe levemente no compacto).
-3. **Classes utilitárias globais de prioridade de coluna**: `.colTertiary` (some ≤1366), `.colSecondary` (some ≤1180) — aplicadas em `<th>` e `<td>`.
-4. Cap de largura opcional pra leitura em monitores gigantes (a avaliar; data-density geralmente quer largura total).
+**RLS:** admin total; operadora `SELECT` só onde `user_id = auth.uid()`.
 
-### Shell
-5. Sidebar auto-recolhe: `matchMedia('(max-width: 1366px)')` no `layout-client.tsx` força colapsado em tela pequena; restaura preferência salva em tela grande. Botão manual continua valendo em telas grandes.
-6. `.content` padding fluido; `.main` margin-left acompanha o estado da sidebar.
+### Comissão → `fv.transactions`
+Gerada por ação do admin (idempotente). Para cada vendedora com realizado ≥ meta:
+- `type='expense'`, `category='Comissão'`, `amount = realizado * commission_pct/100`
+- `status='pending'` (a pagar), `transaction_date` = 1º dia do mês seguinte, `due_date` idem
+- `user_id` = vendedora, `store_id` = loja da vendedora
+- `reference_type='seller_commission'`, `reference_id` = id da `seller_goals` efetiva (ou null), `description` = "Comissão {nome} — {MM/AAAA}"
+- **Idempotência:** se já existe transação `seller_commission` da vendedora naquele mês → atualiza o `amount`; senão cria.
 
-### Padrão de tabela responsiva (reutilizável)
-7. Densidade controlada por tokens globais (padding/fonte da célula encolhem por breakpoint).
-8. Prioridade de colunas por módulo: marcar quais são terciárias/secundárias com as classes utilitárias. Essenciais nunca somem.
-9. `max-height` das tabelas: trocar número mágico por cálculo robusto (ou `flex` + min-height) que respeita telas baixas (768px).
+## 4. UI
 
-### Modais
-10. `Modal.tsx`/`*.module.css`: `max-height: min(90vh, ...)`, scroll interno, padding fluido — pra caber em 768px de altura.
+### a) Definição — aba "Metas" em Configurações (admin)
+- Lista de vendedoras (users role operator + admin que vende) com: meta padrão (R$), % comissão, e meta do mês selecionado (override opcional).
+- Seletor de mês no topo. Editar meta padrão e/ou override do mês inline.
+- Botão **"Gerar/atualizar comissões do mês"** (idempotente) → cria as despesas no Financeiro para quem bateu.
 
-## 4. Sequência de entrega
+### b) Acompanhamento (admin)
+- Tela de Usuários: adicionar **barra de progresso** (realizado/meta, % atingido) e comissão projetada por vendedora.
+- `FuncionariaDetalheModal`: seção de meta/progresso/comissão do mês.
 
-### Bloco 1 — Fundações (base fluida + tokens + shell)
-- 1.1 Tokens (espaçamento, densidade, tipografia fluida) + utilitários de coluna em `globals.css`
-- 1.2 Shell: sidebar auto-collapse + paddings fluidos (`layout-client.tsx`, `layout.module.css`)
-- 1.3 Modal base responsivo
+### c) Operadora — "Minha meta do mês"
+- Como Configurações é admin-only, a operadora vê a própria meta num **card na página de Vendas** (realizado, meta, % atingido, comissão projetada).
 
-### Bloco 2 — Piloto: Produtos (estabelece o padrão de tabela)
-- 2.1 Aplicar densidade + prioridade de colunas (terciárias: Material, Loja, Promo; secundárias: Fornecedor, Custo — a confirmar) na tabela
-- 2.2 Toolbar de filtros: wrap limpo, inputs flexíveis
-- 2.3 Validar em 1920/1440/1366/1280
+## 5. Sequência de entrega
 
-### Bloco 3 — Varredura módulo a módulo (ordem por uso/severidade)
-- 3.1 Vendas (PDV `/vendas/nova` — crítico p/ operadoras) + listagem
-- 3.2 Compras + `/compras/nova` (grid de itens é largo)
-- 3.3 Estoque + transferências
-- 3.4 Clientes
-- 3.5 Financeiro
-- 3.6 Configurações (lojas/usuários/negócio/impressão)
-- 3.7 Dashboard (refinar os `@media` existentes p/ a nova convenção)
-- 3.8 Modais de detalhe (produto, venda, compra, fornecedor, vendedora, cliente)
+### Bloco 1 — Migration
+- 1.1 `seller_goals` + índices únicos parciais + RLS (via Supabase MCP `apply_migration`)
 
-### Bloco 4 — Validação + ajustes
-- 4.1 Varredura automatizada via **Chrome DevTools MCP** (resize 1920×1080 / 1440×900 / 1366×768 / 1280×720 + screenshots por tela). *Obs: o MCP do Chrome DevTools está desconectado agora — reconectar pra eu automatizar os testes.*
-- 4.2 Ajustes finos onde quebrar
+### Bloco 2 — Server actions (`metas/actions.ts`)
+- 2.1 `getMetasDoMes(month)` — vendedoras + meta efetiva + realizado(seller_id) + progresso + comissão projetada
+- 2.2 `upsertMetaPadrao(userId, target, pct)` e `upsertMetaMes(userId, month, target, pct)`
+- 2.3 `gerarComissoesDoMes(month)` — idempotente, grava despesas no ledger
+- 2.4 `getMinhaMetaDoMes()` — para a operadora (própria)
 
-## 5. Princípios (pra não virar gambiarra)
-- Mudanças primeiro nos **tokens globais** (efeito em cascata), depois ajustes pontuais por módulo.
-- **Nada de quebrar o visual no monitor grande** — o desktop continua igual ou melhor; o compacto é que ganha adaptação.
-- Reaproveitar os utilitários globais (densidade, prioridade de coluna) em vez de CSS ad-hoc por módulo.
-- Cada módulo validado em 1366×768 antes de marcar como pronto.
+### Bloco 3 — UI definição
+- 3.1 Aba "Metas" no `ConfigNavTabs` + página `/configuracoes/metas` + client
 
-## 6. Riscos
+### Bloco 4 — UI acompanhamento
+- 4.1 Progresso na tela de Usuários
+- 4.2 Seção de meta no `FuncionariaDetalheModal`
+- 4.3 Card "Minha meta" na página de Vendas (operadora)
+
+### Bloco 5 — Consistência de atribuição
+- 5.1 Trocar agregação `user_id` → `seller_id` em `configuracoes/usuarios/page.tsx` e `FuncionariaDetalheModal`
+
+### Bloco 6 — Docs
+- 6.1 `schema_database.md` (nova tabela) + `roadmap_desenvolvimento.md`
+
+## 6. Pontos a confirmar na aprovação
+- **Geração da comissão:** proponho **manual** (botão "Gerar comissões do mês"), idempotente — admin controla quando o mês fechou. (Alternativa: cron automático no fim do mês — exige infra de agendamento.)
+- **Operadora vê a meta na página de Vendas** (card "Minha meta") — ok?
+- **Trocas/devoluções:** v1 considera só `sales.total` (completed); trocas não abatem o realizado. Refinar depois se necessário.
+
+## 7. Riscos
 | Risco | Mitigação |
 |---|---|
-| Auto-collapse da sidebar conflitar com toggle manual | matchMedia controla só o piso; preferência salva volta em tela grande |
-| Esconder coluna esconder info crítica | Essenciais nunca somem; detalhe completo no modal; prioridades revisadas com você |
-| Regressão visual no desktop grande | Mudanças são "tightening" por max-width; desktop fica como está |
-| `clamp()`/container queries em navegador antigo | Alvos são Chrome/Edge atuais (já exigidos pelo agente) — suporte total |
+| Comissão recalcula se vendas mudam após gerar | Geração idempotente atualiza o valor; admin regenera antes de pagar |
+| Inconsistência seller_id vs user_id em dados antigos | seller_id tem default=user_id, então sempre preenchido; alinhamento cobre as telas |
+| Meta efetiva ambígua (override vs padrão) | Regra clara: override do mês vence; senão padrão; senão sem meta |
+| Duplicar despesa de comissão | Idempotência por (reference_type, user, mês) |
 
-## 7. Critérios de aceite
-- [ ] Todos os módulos usáveis e bem renderizados em **1366×768** (e até ~1180 de janela)
-- [ ] Sidebar recolhe sozinha no compacto; expansível no grande
-- [ ] Tabelas: densidade adaptativa + colunas priorizadas; sem scroll horizontal sofrível nas essenciais
-- [ ] Modais cabem em 768px de altura (scroll interno)
-- [ ] Desktop grande sem regressão visual
-- [ ] Tokens/utilitários globais reaproveitados (não CSS duplicado por módulo)
+## 8. Critérios de aceite
+- [ ] Admin define meta padrão e override mensal + % comissão por vendedora
+- [ ] Realizado medido por `seller_id` (vendas completed do mês)
+- [ ] Progresso (barra + %) na tela de Usuários e no detalhe da vendedora
+- [ ] Operadora vê só a própria meta/progresso
+- [ ] "Gerar comissões do mês" cria despesas corretas e idempotentes no Financeiro
+- [ ] Tela de Usuários alinhada para `seller_id`
+- [ ] schema_database.md + roadmap atualizados

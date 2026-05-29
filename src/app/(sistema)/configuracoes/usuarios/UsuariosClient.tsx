@@ -250,7 +250,16 @@ export default function UsuariosClient({ users: initialUsers, stores, currentUse
                     {u.role === 'operator' ? (
                       <div className={styles.metricCell}>
                         <span className={styles.metricValue}>{formatCurrency(u.month_revenue)}</span>
-                        <span className={styles.metricLabel}>este mês</span>
+                        {u.meta_target > 0 ? (
+                          <span
+                            className={styles.metricLabel}
+                            style={{ color: u.meta_reached ? 'var(--success)' : 'var(--text-muted)', fontWeight: u.meta_reached ? 600 : 400 }}
+                          >
+                            {Math.round(u.meta_pct)}% da meta
+                          </span>
+                        ) : (
+                          <span className={styles.metricLabel}>este mês</span>
+                        )}
                       </div>
                     ) : (
                       <span className={styles.mutedCell}>—</span>

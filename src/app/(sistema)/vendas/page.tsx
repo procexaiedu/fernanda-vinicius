@@ -2,6 +2,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import VendasClient from './VendasClient'
+import MinhaMetaCard from './MinhaMetaCard'
+import { getUserProgress } from '@/lib/metas/server'
+import { currentMonthKey, monthLabel, type MetaProgress } from '@/lib/metas/compute'
 
 export interface SaleRow {
   id: string
@@ -103,8 +106,16 @@ export default async function VendasPage() {
   const stores = storesRes.data ?? []
   const sellers = usersRes.data ?? []
 
+  // Operadora vê a própria meta do mês
+  const monthKey = currentMonthKey(new Date())
+  let minhaMeta: MetaProgress | null = null
+  if (profile.role === 'operator') {
+    minhaMeta = await getUserProgress(user.id, monthKey)
+  }
+
   return (
     <div style={{ padding: '24px 32px' }}>
+      {minhaMeta && <MinhaMetaCard progress={minhaMeta} monthLabel={monthLabel(monthKey)} />}
       <VendasClient sales={sales} stores={stores} sellers={sellers} userRole={profile.role} />
     </div>
   )

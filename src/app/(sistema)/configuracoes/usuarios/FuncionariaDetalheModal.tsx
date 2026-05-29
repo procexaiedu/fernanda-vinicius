@@ -127,11 +127,11 @@ export default function FuncionariaDetalheModal({ user, onClose, onEdit }: Props
     Promise.all([
       supabase.from('sales')
         .select('total, total_cost, discount_amount, sale_date, status, customer_id')
-        .eq('user_id', user.id),
+        .eq('seller_id', user.id),
 
       supabase.from('sales')
         .select('id, sale_date, total, discount_amount, payment_summary, status, customers(name)')
-        .eq('user_id', user.id)
+        .eq('seller_id', user.id)
         .order('sale_date', { ascending: false })
         .limit(10),
 

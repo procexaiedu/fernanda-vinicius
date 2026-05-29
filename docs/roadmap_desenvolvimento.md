@@ -57,8 +57,19 @@ Para que o desenvolvimento seja fluido, construiremos de baixo para cima (bottom
 - [x] Componente compartilhado `<EtiquetasPrinter>` com fluxo "Imprimir A → trocar rolo → Imprimir B"
 - [x] Integração nos 3 pontos: pós-compra, listagem de produtos (multi-select), detalhe do produto
 - [x] Tela `/configuracoes/impressao` (endereço do agente, token, impressora padrão, tutorial)
-- [ ] Build do `.exe` single-file via pkg/ncc (rodar `npm run build:exe` no diretório `agent/`)
-- [ ] Validação física na Argox OS-214 Plus da Fernanda
+- [x] Build do `.exe` single-file via pkg + tray (trayicon .NET), instalador `instalar.bat` com autostart oculto
+- [x] Validação física na Argox OS-214 Plus (loja) — impressão A/B, acentos (CP850), maiúsculo, scanner PDV por `barcode_number`
+- [x] Deploy em produção + Chrome Local Network Access resolvido (targetAddressSpace + header PNA + política de navegador)
+
+## Fase 2.6: Metas de Vendas por Vendedora + Comissão
+**Objetivo:** Definir metas mensais de faturamento por vendedora, acompanhar progresso e pagar comissão ao bater.
+
+- [x] Tabela `seller_goals` (meta padrão + override por mês, % comissão por vendedora) + RLS
+- [x] Realizado medido por `sales.seller_id` (alinhada a tela de Usuários)
+- [x] Tela Configurações › Metas (definir meta/% + gerar comissões do mês, idempotente)
+- [x] Comissão gera despesa no Financeiro (`seller_commission`, variable, pending)
+- [x] Progresso na tela de Usuários; card "Minha meta" na página de Vendas (operadora)
+- [ ] (opcional) Seção de meta no detalhe da vendedora; comissão automática via cron
 
 ## Fase 3: Módulo de Clientes
 **Objetivo:** Base de CRM para permitir vínculos em vendas futuras.

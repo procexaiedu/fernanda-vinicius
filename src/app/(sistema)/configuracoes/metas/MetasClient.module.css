@@ -1,0 +1,232 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Barra de contexto */
+.contextBar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.modeToggle {
+  display: inline-flex;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 2px;
+}
+
+.modeBtn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.modeBtn:hover { color: var(--text-primary); }
+.modeActive {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.monthNav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.navBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.navBtn:hover { border-color: var(--accent); color: var(--accent); }
+
+.monthLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 130px;
+  text-align: center;
+}
+
+.gerarBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: filter var(--transition-fast);
+}
+.gerarBtn:hover:not(:disabled) { filter: brightness(1.08); }
+.gerarBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.hint {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+.hint strong { color: var(--text-secondary); }
+
+.genMsg {
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--success-subtle);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+/* Tabela */
+.tableWrapper {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-fs);
+}
+
+.table thead th {
+  background: var(--bg-elevated);
+  padding: var(--table-cell-py) var(--table-cell-px);
+  text-align: left;
+  font-size: var(--table-head-fs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: var(--table-cell-py) var(--table-cell-px);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+.table tbody tr:last-child td { border-bottom: none; }
+
+.numCol { text-align: right; white-space: nowrap; }
+.progressCol { width: 180px; }
+.actionsCol { width: 70px; }
+
+.sellerCell { display: flex; flex-direction: column; gap: 1px; }
+.sellerName { font-weight: 600; }
+.sellerStore { font-size: 11px; color: var(--text-muted); }
+.overrideBadge {
+  align-self: flex-start;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.realized { display: block; font-weight: 600; }
+.salesCount { display: block; font-size: 11px; color: var(--text-muted); }
+
+.progressWrap { display: flex; align-items: center; gap: 8px; }
+.progressTrack {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-elevated);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progressFill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width var(--transition-base);
+}
+.progressReached { background: var(--success); }
+.progressPct { font-size: 12px; font-weight: 600; color: var(--text-secondary); min-width: 36px; text-align: right; }
+.pctReached { color: var(--success); }
+.noGoal { color: var(--text-disabled); font-size: 12px; }
+
+.input {
+  width: 110px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: right;
+  outline: none;
+  font-family: inherit;
+  transition: border-color var(--transition-fast);
+}
+.input:focus { border-color: var(--accent); }
+.inputSmall { width: 70px; }
+
+.commission {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--success);
+}
+.commissionPaid { color: var(--text-secondary); }
+
+.rowActions { display: flex; gap: 4px; justify-content: flex-end; }
+
+.saveBtn, .resetBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: filter var(--transition-fast), background var(--transition-fast);
+}
+.saveBtn { background: var(--accent); color: #000; }
+.saveBtn:hover:not(:disabled) { filter: brightness(1.08); }
+.resetBtn { background: var(--bg-elevated); color: var(--text-muted); }
+.resetBtn:hover:not(:disabled) { color: var(--text-primary); }
+.saveBtn:disabled, .resetBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.empty { text-align: center; padding: 32px; color: var(--text-muted); }
+
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

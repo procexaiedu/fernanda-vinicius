@@ -254,6 +254,9 @@ export default function UsuarioFormModal({ user, stores, onClose, onSaved }: Pro
       created_at: new Date().toISOString(),
       month_sales: 0,
       month_revenue: 0,
+      meta_target: 0,
+      meta_pct: 0,
+      meta_reached: false,
     })
   }
 

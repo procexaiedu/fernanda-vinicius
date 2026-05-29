@@ -66,6 +66,22 @@ erDiagram
 | created_at | timestamptz | NOT NULL, default now() | |
 | updated_at | timestamptz | NOT NULL, default now() | |
 
+### `seller_goals` (metas de vendas por vendedora)
+
+> Meta mensal de faturamento por vendedora + % de comissão. `month` NULL = meta padrão recorrente; `month` (1º dia do mês) = override daquele mês. Meta efetiva de um mês = override ?? padrão. Realizado é medido por `sales.seller_id` (vendas não-canceladas do mês). Quando o realizado ≥ meta, comissão = faturamento × `commission_pct`, gerada como transação de despesa (`reference_type='seller_commission'`, `cost_type='variable'`, `category='Comissão'`, `status='pending'`).
+
+| Coluna | Tipo | Constraints | Descrição |
+|--------|------|-------------|-----------|
+| id | uuid | PK, default gen_random_uuid() | |
+| user_id | uuid | NOT NULL, FK → users(id) ON DELETE CASCADE | A vendedora |
+| month | date | NULL | NULL = meta padrão; 1º dia do mês = override (CHECK month = date_trunc) |
+| target_amount | numeric(12,2) | NOT NULL default 0, CHECK ≥ 0 | Meta de faturamento |
+| commission_pct | numeric(5,2) | NOT NULL default 0, CHECK 0–100 | % de comissão da vendedora |
+| created_at / updated_at | timestamptz | NOT NULL, default now() | |
+
+**Índices:** único parcial `(user_id) where month is null`; único `(user_id, month) where month is not null`; `(user_id)`.
+**RLS:** admin total (`fv.is_admin()`); operadora `SELECT` só onde `user_id = auth.uid()`.
+
 ### `settings` (configurações do sistema)
 
 | Coluna | Tipo | Constraints | Descrição |
