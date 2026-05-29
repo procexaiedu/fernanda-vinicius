@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Pencil, Gem } from 'lucide-react'
+import { X, Pencil, Gem, Printer } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { buscarHistoricoVendas, type SaleHistoryItem } from '@/app/(sistema)/produtos/actions'
 import styles from './ProdutoDetalheModal.module.css'
@@ -28,6 +29,9 @@ export interface ProdutoParaDetalhe {
   photo_url: string | null
   is_active: boolean
   created_at: string
+  supplier_reference?: string | null
+  label_format?: 'A' | 'B'
+  barcode_number?: string
   suppliers?: { id: string; name: string; initials: string } | null
   stores?: { id: string; name: string } | null
 }
@@ -68,6 +72,20 @@ export default function ProdutoDetalheModal({ produto, isAdmin, onClose, onEdit 
   const [transfers, setTransfers] = useState<Transfer[] | null>(null)
   const [loadingSales, setLoadingSales] = useState(false)
   const [loadingTransfers, setLoadingTransfers] = useState(false)
+  const [printerOpen, setPrinterOpen] = useState(false)
+
+  const printerItem: EtiquetasPrinterItem | null = produto.barcode_number && produto.label_format
+    ? {
+        id: produto.id,
+        name: produto.name,
+        // A 2ª linha da etiqueta (referência interna) usa o code do produto
+        supplier_reference: produto.code,
+        sale_price: produto.promotional_price ?? produto.sale_price,
+        barcode_number: produto.barcode_number,
+        label_format: produto.label_format,
+        quantity: 1,
+      }
+    : null
 
   const margem = isAdmin && produto.cost_price > 0
     ? ((produto.sale_price - produto.cost_price) / produto.cost_price) * 100
@@ -127,6 +145,11 @@ export default function ProdutoDetalheModal({ produto, isAdmin, onClose, onEdit 
             <div className={styles.headerActions}>
               {produto.is_active ? <Badge variant="success">Ativo</Badge> : <Badge variant="muted">Inativo</Badge>}
               {produto.ownership_type === 'consignment' && <Badge variant="accent">Consignação</Badge>}
+              {printerItem && (
+                <Button size="sm" variant="ghost" onClick={() => setPrinterOpen(true)}>
+                  <Printer size={13} /> Imprimir etiqueta
+                </Button>
+              )}
               {onEdit && (
                 <Button size="sm" variant="ghost" onClick={() => onEdit(produto)}>
                   <Pencil size={13} /> Editar
@@ -263,6 +286,15 @@ export default function ProdutoDetalheModal({ produto, isAdmin, onClose, onEdit 
               )
         )}
       </div>
+
+      {printerItem && (
+        <EtiquetasPrinter
+          isOpen={printerOpen}
+          onClose={() => setPrinterOpen(false)}
+          initialItems={[printerItem]}
+          title="Reimprimir etiqueta"
+        />
+      )}
     </Modal>
   )
 }

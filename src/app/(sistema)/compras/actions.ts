@@ -447,3 +447,60 @@ export async function deletarCompra(purchaseId: string): Promise<ActionResult> {
   revalidatePath('/estoque')
   return { success: true }
 }
+
+// ─── Buscar itens de uma compra para impressão de etiquetas ──────────────────
+
+export interface ItemParaEtiqueta {
+  id: string
+  name: string
+  supplier_reference: string | null
+  sale_price: number
+  barcode_number: string
+  label_format: 'A' | 'B'
+  quantity: number
+}
+
+export async function getItensCompraParaEtiquetas(purchaseId: string): Promise<ItemParaEtiqueta[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('purchase_items')
+    .select(`
+      quantity,
+      label_format,
+      products!inner (
+        id,
+        name,
+        code,
+        sale_price,
+        promotional_price,
+        barcode_number,
+        label_format
+      )
+    `)
+    .eq('purchase_id', purchaseId)
+
+  if (error || !data) return []
+
+  return data.map((row) => {
+    const p = row.products as unknown as {
+      id: string
+      name: string
+      code: string
+      sale_price: number
+      promotional_price: number | null
+      barcode_number: string
+      label_format: 'A' | 'B'
+    }
+    return {
+      id: p.id,
+      name: p.name,
+      // A 2ª linha da etiqueta (referência interna) usa o code do produto (ex: FGS0545000)
+      supplier_reference: p.code,
+      sale_price: p.promotional_price ?? p.sale_price,
+      barcode_number: p.barcode_number,
+      // Preferência: label_format do item da compra; fallback no produto
+      label_format: (row.label_format as 'A' | 'B') ?? p.label_format,
+      quantity: row.quantity ?? 1,
+    }
+  })
+}

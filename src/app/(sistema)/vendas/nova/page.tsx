@@ -17,7 +17,7 @@ export default async function NovaVendaPage() {
   const [storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
     admin.from('stores').select('id, name, city').eq('is_active', true).order('name'),
     admin.from('products')
-      .select('id, name, code, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock')
+      .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock')
       .eq('is_active', true)
       .order('name'),
     admin.from('customers').select('id, name, phone, cpf, birthday').order('name'),

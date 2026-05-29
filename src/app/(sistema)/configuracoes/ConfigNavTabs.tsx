@@ -5,9 +5,10 @@ import { usePathname } from 'next/navigation'
 import styles from './ConfigNavTabs.module.css'
 
 const tabs = [
-  { label: 'Lojas',    href: '/configuracoes/lojas' },
-  { label: 'Usuários', href: '/configuracoes/usuarios' },
-  { label: 'Negócio',  href: '/configuracoes/negocio' },
+  { label: 'Lojas',     href: '/configuracoes/lojas' },
+  { label: 'Usuários',  href: '/configuracoes/usuarios' },
+  { label: 'Negócio',   href: '/configuracoes/negocio' },
+  { label: 'Impressão', href: '/configuracoes/impressao' },
 ]
 
 export default function ConfigNavTabs() {

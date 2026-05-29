@@ -25,6 +25,9 @@ export interface ProductWithRelations {
   is_active: boolean
   created_at: string
   updated_at: string
+  supplier_reference: string | null
+  label_format: 'A' | 'B'
+  barcode_number: string
   suppliers: { id: string; name: string; initials: string } | null
   stores: { id: string; name: string } | null
 }

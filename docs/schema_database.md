@@ -137,6 +137,13 @@ erDiagram
 | is_active | boolean | NOT NULL, default true | |
 | created_at | timestamptz | NOT NULL, default now() | |
 | updated_at | timestamptz | NOT NULL, default now() | |
+| promotional_active | boolean | NOT NULL, default false | Flag de promoção ativa |
+| supplier_reference | text | | Referência interna do fornecedor (ex: FSO05429). Vai na 2ª linha da etiqueta |
+| label_format | text | NOT NULL, default 'B', check in ('A','B') | Formato da etiqueta. A=90×13mm, B=30×18mm |
+| barcode_number | text | NOT NULL, UNIQUE, default `lpad(nextval('fv.products_barcode_seq'), 5, '0')` | Conteúdo do barcode Code128 nas etiquetas. Sequencial puramente numérico para máxima compatibilidade com leitores |
+
+**Sequence:**
+- `fv.products_barcode_seq` — start 10000, usada como default de `barcode_number`
 
 **Índices:**
 - `idx_products_store` em (store_id, is_active)
@@ -145,6 +152,7 @@ erDiagram
 - `idx_products_supplier` em (supplier_id)
 - `idx_products_code` em (code)
 - `idx_products_ownership` em (ownership_type) WHERE ownership_type = 'consignment'
+- UNIQUE em `barcode_number`
 
 ---
 

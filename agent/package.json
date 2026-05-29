@@ -1,0 +1,33 @@
+{
+  "name": "fv-print-agent",
+  "version": "0.1.0",
+  "description": "Agente local de impressão para o sistema Fernanda Vinícius — envia bytes PPLA brutos ao spooler Windows (winspool.drv RAW).",
+  "private": true,
+  "main": "dist/index.cjs",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc",
+    "build:exe": "tsc && pkg dist/index.js --config package.json --targets node18-win-x64 --output dist/fv-print-agent.exe && node -e \"const fs=require('fs');fs.copyFileSync('instalar.bat','dist/instalar.bat');fs.copyFileSync('desinstalar.bat','dist/desinstalar.bat')\""
+  },
+  "dependencies": {
+    "@fastify/cors": "^8.5.0",
+    "fastify": "^4.29.1",
+    "trayicon": "^1.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "pkg": "^5.8.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/trayicon/rsrcs/**/*"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
+  }
+}

@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Plus, Trash2, AlertTriangle, Upload, ChevronDown } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import DatePicker from '@/components/ui/DatePicker'
-import { salvarCompra } from '../actions'
+import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
+import { salvarCompra, getItensCompraParaEtiquetas } from '../actions'
 import type { GridRow, PaymentRow } from '../actions'
 import styles from './NovaCompraForm.module.css'
 
@@ -348,6 +349,8 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
   // Estado
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState('')
+  const [printerOpen, setPrinterOpen] = useState(false)
+  const [printerItems, setPrinterItems] = useState<EtiquetasPrinterItem[]>([])
   const nfInputRef = useRef<HTMLInputElement>(null)
 
   const purchaseMonth = parseInt(purchaseDate.slice(5, 7)) || new Date().getMonth() + 1
@@ -521,6 +524,32 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
     setSaving(false)
 
     if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
+
+    // Compra criada — oferece imprimir etiquetas antes de redirecionar.
+    // Consignação (sem purchaseId) pula direto pro redirect.
+    if (result.purchaseId) {
+      const itens = await getItensCompraParaEtiquetas(result.purchaseId)
+      if (itens.length > 0) {
+        setPrinterItems(itens.map(it => ({
+          id: it.id,
+          name: it.name,
+          supplier_reference: it.supplier_reference,
+          sale_price: it.sale_price,
+          barcode_number: it.barcode_number,
+          label_format: it.label_format,
+          quantity: it.quantity,
+        })))
+        setPrinterOpen(true)
+        return // Não redireciona ainda; aguarda fechar o modal
+      }
+    }
+
+    router.push('/compras')
+    router.refresh()
+  }
+
+  function handleFecharImpressao() {
+    setPrinterOpen(false)
     router.push('/compras')
     router.refresh()
   }
@@ -917,6 +946,13 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
           {isConsignment ? 'Salvar Consignação' : 'Salvar Compra'} →
         </Button>
       </div>
+
+      <EtiquetasPrinter
+        isOpen={printerOpen}
+        onClose={handleFecharImpressao}
+        initialItems={printerItems}
+        title="Compra salva — imprimir etiquetas dos produtos"
+      />
     </div>
   )
 }

@@ -42,3 +42,17 @@ next-env.d.ts
 
 # DevContext
 .devcontext
+
+# Artefatos da engenharia reversa de etiquetas (experimentos locais, não versionar)
+*.ps1
+tmp_img/
+mockup-*.html
+preview-*.png
+expectativa.png
+realidade.jpeg
+Screenshot_*.png
+WhatsApp Image*.jpeg
+
+# Agente local — dependências e build
+agent/node_modules/
+agent/dist/

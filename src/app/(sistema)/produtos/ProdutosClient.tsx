@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useCallback, useTransition } from 'react'
+import { useState, useCallback, useMemo, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Pencil, Power, Plus, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Gem } from 'lucide-react'
+import { Pencil, Power, Plus, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Gem, Printer } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import ProdutoFormModal from './ProdutoFormModal'
 import ProdutoDetalheModal from '@/components/produto/ProdutoDetalheModal'
+import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { toggleProductStatus } from './actions'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import type { ProductWithRelations, StoreOption, SupplierOption } from './page'
@@ -78,6 +79,41 @@ export default function ProdutosClient({
   const [detalhe, setDetalhe] = useState<ProductWithRelations | null>(null)
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [printerOpen, setPrinterOpen] = useState(false)
+
+  const toggleSelect = useCallback((id: string, e: React.MouseEvent | React.ChangeEvent) => {
+    e.stopPropagation()
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds(prev => {
+      if (prev.size === products.length) return new Set()
+      return new Set(products.map(p => p.id))
+    })
+  }, [products])
+
+  const printerItems = useMemo<EtiquetasPrinterItem[]>(
+    () => products
+      .filter(p => selectedIds.has(p.id))
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        // A 2ª linha da etiqueta (referência interna) usa o code do produto
+        supplier_reference: p.code,
+        sale_price: p.promotional_price ?? p.sale_price,
+        barcode_number: p.barcode_number,
+        label_format: p.label_format,
+        quantity: 1,
+      })),
+    [products, selectedIds],
+  )
 
   const totalPages = Math.ceil(total / perPage)
   const from = Math.min((page - 1) * perPage + 1, total)
@@ -180,6 +216,12 @@ export default function ProdutosClient({
           <span className={styles.counter}>{total} produto{total !== 1 ? 's' : ''}</span>
         </div>
         <div className={styles.toolbarRight}>
+          {selectedIds.size > 0 && (
+            <Button size="sm" variant="ghost" onClick={() => setPrinterOpen(true)}>
+              <Printer size={14} />
+              Imprimir etiquetas ({selectedIds.size})
+            </Button>
+          )}
           {isAdmin && (
             <Button size="sm" onClick={openCreate}>
               <Plus size={14} />
@@ -202,6 +244,17 @@ export default function ProdutosClient({
           <table className={styles.table}>
             <thead>
               <tr>
+                <th style={{ width: 36 }}>
+                  <input
+                    type="checkbox"
+                    checked={products.length > 0 && selectedIds.size === products.length}
+                    ref={el => {
+                      if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < products.length
+                    }}
+                    onChange={toggleSelectAll}
+                    title="Selecionar todos da página"
+                  />
+                </th>
                 <th>Produto</th>
                 <th>Código</th>
                 <th>Material</th>
@@ -225,6 +278,13 @@ export default function ProdutosClient({
                     onClick={() => setDetalhe(prod)}
                     title="Clique para ver detalhes"
                   >
+                    <td onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(prod.id)}
+                        onChange={e => toggleSelect(prod.id, e)}
+                      />
+                    </td>
                     <td>
                       <div className={styles.productCell}>
                         {prod.photo_url ? (
@@ -376,6 +436,13 @@ export default function ProdutosClient({
           onEdit={isAdmin ? (p) => { setDetalhe(null); setEditing(p as ProductWithRelations); setFormOpen(true) } : undefined}
         />
       )}
+
+      <EtiquetasPrinter
+        isOpen={printerOpen}
+        onClose={() => setPrinterOpen(false)}
+        initialItems={printerItems}
+        title={`Imprimir etiquetas (${selectedIds.size})`}
+      />
     </>
   )
 }

@@ -47,6 +47,19 @@ Para que o desenvolvimento seja fluido, construiremos de baixo para cima (bottom
 - [ ] Gestão de Estoque Básica (Listagem, busca, filtros por loja)
 - [ ] Tela de **Transferências de Estoque (`stock_transfers`)** entre lojas
 
+## Fase 2.5: Impressão de Etiquetas Térmicas (Argox OS-214 Plus)
+**Objetivo:** Imprimir etiquetas físicas (A 90×13mm e B 30×18mm) diretamente do sistema, replicando bit-a-bit o stream PPLA validado no Hiper Loja antigo.
+
+- [x] Gerador PPLA (`src/lib/etiquetas/ppla.ts`) — produz bytes idênticos aos Apêndices A e B do `IMPRESSAO_ETIQUETAS.md`
+- [x] Testes com fixtures bit-a-bit (12/12 passando)
+- [x] Agente local `fv-print-agent` (Node + fastify + `@thiagoelg/node-printer` em modo RAW via `winspool.drv`)
+- [x] Cliente HTTP + hook `useLocalPrintAgent()`
+- [x] Componente compartilhado `<EtiquetasPrinter>` com fluxo "Imprimir A → trocar rolo → Imprimir B"
+- [x] Integração nos 3 pontos: pós-compra, listagem de produtos (multi-select), detalhe do produto
+- [x] Tela `/configuracoes/impressao` (endereço do agente, token, impressora padrão, tutorial)
+- [ ] Build do `.exe` single-file via pkg/ncc (rodar `npm run build:exe` no diretório `agent/`)
+- [ ] Validação física na Argox OS-214 Plus da Fernanda
+
 ## Fase 3: Módulo de Clientes
 **Objetivo:** Base de CRM para permitir vínculos em vendas futuras.
 

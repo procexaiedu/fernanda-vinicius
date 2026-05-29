@@ -190,3 +190,87 @@
   color: var(--color-text-primary);
   font-weight: 600;
 }
+
+.agentBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text-secondary);
+  margin-top: 12px;
+}
+
+.agentBadge code {
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.agentOnline {
+  background: rgba(72, 165, 110, 0.1);
+  border-color: rgba(72, 165, 110, 0.35);
+  color: #6fcf9a;
+}
+
+.agentOnline strong { color: #b8e6c8; }
+
+.agentOffline {
+  background: rgba(220, 110, 110, 0.1);
+  border-color: rgba(220, 110, 110, 0.35);
+  color: #e89a9a;
+}
+
+.btnSecondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.12));
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.btnSecondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.successMsg {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(72, 165, 110, 0.1);
+  border: 1px solid rgba(72, 165, 110, 0.35);
+  color: #6fcf9a;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.errorMsg {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(220, 110, 110, 0.1);
+  border: 1px solid rgba(220, 110, 110, 0.35);
+  color: #e89a9a;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.hexBlock {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  overflow-x: auto;
+  color: var(--color-text-secondary);
+}

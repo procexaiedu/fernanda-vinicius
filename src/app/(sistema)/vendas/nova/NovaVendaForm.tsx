@@ -19,7 +19,7 @@ import styles from './NovaVendaForm.module.css'
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface ProductOption {
-  id: string; name: string; code: string; category: string; store_id: string
+  id: string; name: string; code: string; barcode_number: string; category: string; store_id: string
   sale_price: number; promotional_price: number | null; promotional_active: boolean
   cost_price: number; quantity_in_stock: number
 }
@@ -417,7 +417,10 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
         if (nChars < 3 || (nChars > 1 && elapsed / nChars > 80)) return
 
         const storeProds = scanProducts.current.filter(p => p.store_id === scanStoreId.current)
-        const match      = storeProds.find(p => p.code.toUpperCase() === code.toUpperCase())
+        // O leitor lê o barcode_number impresso na etiqueta (ex: 10100).
+        // Fallback no code (FV-MJ-C304) para entrada manual/digitada.
+        const match      = storeProds.find(p => p.barcode_number === code)
+                        ?? storeProds.find(p => p.code.toUpperCase() === code.toUpperCase())
 
         if (match) {
           const price = match.promotional_active && match.promotional_price
