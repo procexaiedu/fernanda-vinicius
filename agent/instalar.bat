@@ -46,6 +46,22 @@ powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $lnk 
 echo  Atalho de inicializacao criado.
 echo.
 
+REM --- Politica de navegador: pre-autoriza o site a acessar a rede local ---
+REM  Chrome 142+ (Local Network Access) bloqueia site HTTPS -> localhost sem isso.
+REM  Seta para Chrome e Edge, no usuario atual (HKCU, sem admin).
+set "SITE=https://fevinicius.procexai.tech"
+
+REM Chrome - politica nova (LNA) e antiga (PNA)
+reg add "HKCU\Software\Policies\Google\Chrome\LocalNetworkAccessAllowedForUrls" /v 1 /t REG_SZ /d "%SITE%" /f >nul 2>&1
+reg add "HKCU\Software\Policies\Google\Chrome\InsecurePrivateNetworkRequestsAllowedForUrls" /v 1 /t REG_SZ /d "%SITE%" /f >nul 2>&1
+REM Edge - mesmas politicas
+reg add "HKCU\Software\Policies\Microsoft\Edge\LocalNetworkAccessAllowedForUrls" /v 1 /t REG_SZ /d "%SITE%" /f >nul 2>&1
+reg add "HKCU\Software\Policies\Microsoft\Edge\InsecurePrivateNetworkRequestsAllowedForUrls" /v 1 /t REG_SZ /d "%SITE%" /f >nul 2>&1
+
+echo  Politica de rede local configurada (Chrome/Edge).
+echo  IMPORTANTE: feche e reabra o navegador completamente para aplicar.
+echo.
+
 REM --- Inicia agora (oculto) ---
 start "" wscript.exe "%DESTDIR%\%VBS%"
 

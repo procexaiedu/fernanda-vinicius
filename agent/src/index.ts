@@ -22,6 +22,15 @@ async function main() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 
+  // Private Network Access (Chrome/Edge): um site HTTPS público acessando
+  // localhost (loopback) exige este header, senão o navegador bloqueia com
+  // "Permission was denied ... loopback address space". Adicionamos em TODAS
+  // as respostas (inclusive no preflight OPTIONS do @fastify/cors).
+  app.addHook('onSend', async (_req, reply, payload) => {
+    reply.header('Access-Control-Allow-Private-Network', 'true')
+    return payload
+  })
+
   app.addHook('onRequest', async (req, reply) => {
     if (!config.token) return
     if (req.method === 'OPTIONS') return

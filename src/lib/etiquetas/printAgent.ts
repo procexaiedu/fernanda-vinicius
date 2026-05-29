@@ -62,8 +62,34 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+/**
+ * Chrome 142+ ("Local Network Access") bloqueia requests de um site HTTPS para
+ * localhost a menos que o fetch sinalize o espaço de endereço alvo. A flag
+ * `targetAddressSpace` é específica do Chrome; outros navegadores ignoram.
+ * O nome do valor variou entre versões ('local' / 'loopback'), então tentamos
+ * em ordem e caímos para o fetch normal se a opção não for suportada.
+ */
+async function lnaFetch(url: string, init: RequestInit): Promise<Response> {
+  const candidates = ['loopback', 'local']
+  for (const space of candidates) {
+    try {
+      return await fetch(url, { ...init, targetAddressSpace: space } as RequestInit)
+    } catch (err) {
+      // TypeError com valor inválido → tenta o próximo candidato.
+      // AbortError ou erro de rede real → propaga.
+      if (err instanceof DOMException && err.name === 'AbortError') throw err
+      const msg = err instanceof Error ? err.message : ''
+      if (!/targetAddressSpace|address space|invalid/i.test(msg)) {
+        // Não é erro da flag — pode ser a 1ª tentativa de rede; tenta fetch normal.
+        break
+      }
+    }
+  }
+  return fetch(url, init)
+}
+
 export async function getHealth(signal?: AbortSignal): Promise<AgentHealth> {
-  const res = await fetch(`${getAgentBaseUrl()}/health`, {
+  const res = await lnaFetch(`${getAgentBaseUrl()}/health`, {
     signal,
     headers: authHeaders(),
   })
@@ -72,7 +98,7 @@ export async function getHealth(signal?: AbortSignal): Promise<AgentHealth> {
 }
 
 export async function listPrinters(signal?: AbortSignal): Promise<PrinterInfo[]> {
-  const res = await fetch(`${getAgentBaseUrl()}/printers`, {
+  const res = await lnaFetch(`${getAgentBaseUrl()}/printers`, {
     signal,
     headers: authHeaders(),
   })
@@ -103,7 +129,7 @@ export async function printJob(printerName: string, jobBytes: Uint8Array, docNam
     jobBase64: bytesToBase64(jobBytes),
     docName,
   }
-  const res = await fetch(`${getAgentBaseUrl()}/print`, {
+  const res = await lnaFetch(`${getAgentBaseUrl()}/print`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),

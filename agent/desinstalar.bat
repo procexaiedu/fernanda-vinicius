@@ -18,6 +18,12 @@ taskkill /IM tray_windows_release.exe /F >nul 2>&1
 echo  Removendo atalho de inicializacao...
 if exist "%LNK%" del /F /Q "%LNK%"
 
+echo  Removendo politicas de navegador...
+reg delete "HKCU\Software\Policies\Google\Chrome\LocalNetworkAccessAllowedForUrls" /f >nul 2>&1
+reg delete "HKCU\Software\Policies\Google\Chrome\InsecurePrivateNetworkRequestsAllowedForUrls" /f >nul 2>&1
+reg delete "HKCU\Software\Policies\Microsoft\Edge\LocalNetworkAccessAllowedForUrls" /f >nul 2>&1
+reg delete "HKCU\Software\Policies\Microsoft\Edge\InsecurePrivateNetworkRequestsAllowedForUrls" /f >nul 2>&1
+
 echo  Removendo arquivos...
 if exist "%DESTDIR%" rmdir /S /Q "%DESTDIR%"
 
