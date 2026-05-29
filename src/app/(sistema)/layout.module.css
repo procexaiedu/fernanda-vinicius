@@ -19,6 +19,7 @@
 
 .content {
   margin-top: var(--header-height);
-  padding: 28px;
+  padding: var(--page-padding);
   flex: 1;
+  min-width: 0;
 }

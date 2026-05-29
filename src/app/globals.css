@@ -41,6 +41,50 @@
   /* Transitions */
   --transition-fast: 150ms ease;
   --transition-base: 250ms ease;
+
+  /* ─── Escala de espaçamento ──────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ─── Responsividade ─────────────────────────────────────────── */
+  /* Padding da área de conteúdo — fluido entre notebook e monitor grande */
+  --page-padding: clamp(16px, 2.4vw, 28px);
+
+  /* Densidade de tabela (encolhe nos breakpoints abaixo, via redefinição no :root) */
+  --table-cell-py: 11px;
+  --table-cell-px: 14px;
+  --table-fs:      13px;
+  --table-head-fs: 11px;
+
+  /* Tipografia fluida de títulos/seções (corpo continua 14px) */
+  --fs-page-title: clamp(18px, 0.6vw + 14px, 22px);
+  --fs-section:    clamp(15px, 0.4vw + 12px, 18px);
+}
+
+/* ─── Breakpoints: redensifica tokens conforme a tela aperta ───── */
+/* Compacto — notebooks ~1366px: tabelas mais densas */
+@media (max-width: 1366px) {
+  :root {
+    --table-cell-py: 8px;
+    --table-cell-px: 11px;
+    --table-fs:      12.5px;
+    --table-head-fs: 10.5px;
+  }
+}
+
+/* Apertado — janela não-maximizada / notebooks menores */
+@media (max-width: 1180px) {
+  :root {
+    --table-cell-py: 7px;
+    --table-cell-px: 9px;
+    --table-fs:      12px;
+    --table-head-fs: 10px;
+  }
 }
 
 /* ─── Modo Claro ─────────────────────────────────────────────── */
@@ -142,4 +186,16 @@ input, textarea, select {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+/* ─── Prioridade de colunas de tabela (responsivo) ───────────────
+   Aplicar a <th> E <td> da coluna. Essenciais nunca recebem classe.
+   .col-tertiary  → some em telas compactas (≤1366)
+   .col-secondary → some em telas apertadas (≤1180)
+   Classes GLOBAIS — usar como string literal no className (não via CSS Module). */
+@media (max-width: 1366px) {
+  .col-tertiary { display: none !important; }
+}
+@media (max-width: 1180px) {
+  .col-secondary { display: none !important; }
 }

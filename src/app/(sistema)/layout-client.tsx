@@ -22,22 +22,29 @@ export default function SistemaLayoutClient({
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
   useEffect(() => {
-    // Sidebar
-    const stored = localStorage.getItem('fv-sidebar-collapsed')
-    if (stored !== null) setCollapsed(stored === 'true')
-
-    const handler = () => {
-      const val = localStorage.getItem('fv-sidebar-collapsed')
-      setCollapsed(val === 'true')
-    }
-    window.addEventListener('storage', handler)
+    // Sidebar: em telas compactas (≤1366) recolhe sozinha; em telas grandes
+    // usa a preferência salva. matchMedia dispara só ao cruzar o breakpoint.
+    const mq = window.matchMedia('(max-width: 1366px)')
+    const savedPref = () => localStorage.getItem('fv-sidebar-collapsed') === 'true'
+    const apply = () => setCollapsed(mq.matches ? true : savedPref())
+    apply()
+    mq.addEventListener('change', apply)
 
     // Tema — sincroniza com o que o anti-flash script já aplicou
     const savedTheme = localStorage.getItem('fv-theme')
     if (savedTheme === 'light') setTheme('light')
 
-    return () => window.removeEventListener('storage', handler)
+    return () => mq.removeEventListener('change', apply)
   }, [])
+
+  // Toggle manual — funciona em qualquer tela e persiste a preferência.
+  function toggleSidebar() {
+    setCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem('fv-sidebar-collapsed', String(next))
+      return next
+    })
+  }
 
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark'
@@ -52,7 +59,7 @@ export default function SistemaLayoutClient({
 
   return (
     <div className={styles.root}>
-      <Sidebar userRole={userRole} />
+      <Sidebar userRole={userRole} collapsed={collapsed} onToggle={toggleSidebar} />
       <div className={`${styles.main} ${collapsed ? styles.mainCollapsed : ''}`}>
         <Header
           userName={userName}

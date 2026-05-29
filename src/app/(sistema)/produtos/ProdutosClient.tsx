@@ -257,12 +257,12 @@ export default function ProdutosClient({
                 </th>
                 <th>Produto</th>
                 <th>Código</th>
-                <th>Material</th>
-                {isAdmin && <th>Fornecedor</th>}
-                {isAdmin && <th>Loja</th>}
-                {isAdmin && <th>Custo</th>}
+                <th className="col-tertiary">Material</th>
+                {isAdmin && <th className="col-secondary">Fornecedor</th>}
+                {isAdmin && <th className="col-tertiary">Loja</th>}
+                {isAdmin && <th className="col-secondary">Custo</th>}
                 <th>Venda</th>
-                <th>Promo</th>
+                <th className="col-tertiary">Promo</th>
                 <th>Qtd.</th>
                 <th>Status</th>
                 {isAdmin && <th className={styles.actionsCol}>Ações</th>}
@@ -307,20 +307,20 @@ export default function ProdutosClient({
                       </span>
                     </td>
 
-                    <td className={styles.mutedCell}>
+                    <td className={`${styles.mutedCell} col-tertiary`}>
                       <Badge variant="muted">{prod.material}</Badge>
                     </td>
 
                     {isAdmin && (
-                      <td className={styles.mutedCell}>{prod.suppliers?.name ?? '—'}</td>
+                      <td className={`${styles.mutedCell} col-secondary`}>{prod.suppliers?.name ?? '—'}</td>
                     )}
 
                     {isAdmin && (
-                      <td className={styles.mutedCell}>{prod.stores?.name ?? '—'}</td>
+                      <td className={`${styles.mutedCell} col-tertiary`}>{prod.stores?.name ?? '—'}</td>
                     )}
 
                     {isAdmin && (
-                      <td>
+                      <td className="col-secondary">
                         <span className={styles.costPrice}>{formatCurrency(prod.cost_price)}</span>
                       </td>
                     )}
@@ -329,7 +329,7 @@ export default function ProdutosClient({
                       <span className={styles.salePrice}>{formatCurrency(prod.sale_price)}</span>
                     </td>
 
-                    <td>
+                    <td className="col-tertiary">
                       {prod.promotional_price
                         ? <span className={styles.promoPrice}>{formatCurrency(prod.promotional_price)}</span>
                         : <span className={styles.mutedCell}>—</span>}

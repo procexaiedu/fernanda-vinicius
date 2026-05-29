@@ -29,7 +29,9 @@
   background: var(--bg-surface);
   color: var(--text-primary);
   font-size: 13px;
-  width: 220px;
+  flex: 1 1 180px;
+  min-width: 160px;
+  max-width: 260px;
   outline: none;
   transition: border-color 0.15s;
 }
@@ -89,7 +91,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--table-fs);
 }
 
 .table thead th {
@@ -97,9 +99,9 @@
   top: 0;
   z-index: 2;
   background: var(--bg-elevated);
-  padding: 10px 14px;
+  padding: var(--table-cell-py) var(--table-cell-px);
   text-align: left;
-  font-size: 11px;
+  font-size: var(--table-head-fs);
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -118,7 +120,7 @@
 .sortIconInactive { color: var(--text-muted); opacity: 0.4; margin-left: 4px; vertical-align: middle; }
 
 .table tbody td {
-  padding: 11px 14px;
+  padding: var(--table-cell-py) var(--table-cell-px);
   border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.05));
   color: var(--text-primary);
   vertical-align: middle;
@@ -171,11 +173,11 @@
 .productName {
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--table-fs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 220px;
+  max-width: clamp(120px, 14vw, 220px);
 }
 
 .productCategory {

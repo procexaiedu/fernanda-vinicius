@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -40,22 +39,13 @@ const NAV_ITEMS: NavItem[] = [
 
 interface SidebarProps {
   userRole?: 'admin' | 'operator'
+  /** Estado controlado pelo layout (fonte única — habilita auto-collapse). */
+  collapsed: boolean
+  onToggle: () => void
 }
 
-export default function Sidebar({ userRole = 'operator' }: SidebarProps) {
+export default function Sidebar({ userRole = 'operator', collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(false)
-
-  useEffect(() => {
-    const stored = localStorage.getItem('fv-sidebar-collapsed')
-    if (stored !== null) setCollapsed(stored === 'true')
-  }, [])
-
-  const toggle = () => {
-    const next = !collapsed
-    setCollapsed(next)
-    localStorage.setItem('fv-sidebar-collapsed', String(next))
-  }
 
   const visibleItems = NAV_ITEMS.filter(
     (item) => !item.adminOnly || userRole === 'admin'
@@ -92,7 +82,7 @@ export default function Sidebar({ userRole = 'operator' }: SidebarProps) {
       </nav>
 
       {/* Botão colapsar */}
-      <button className={styles.collapseBtn} onClick={toggle} title={collapsed ? 'Expandir' : 'Recolher'}>
+      <button className={styles.collapseBtn} onClick={onToggle} title={collapsed ? 'Expandir' : 'Recolher'}>
         {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
     </aside>

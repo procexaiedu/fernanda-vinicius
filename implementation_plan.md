@@ -1,199 +1,101 @@
-# Implementation Plan — Impressão de Etiquetas Térmicas (v2 — PPLA RAW)
+# Implementation Plan — Responsividade (notebooks/desktops)
 
-> **Módulo:** Fase 2.5 (entre Produtos e Clientes).
-> **Status:** v2 — aguardando aprovação para implementar.
-> **Última atualização:** 2026-05-27
+> **Módulo:** Responsividade sistemática do sistema inteiro.
+> **Status:** Aguardando aprovação.
+> **Última atualização:** 2026-05-28
 
 ---
 
 ## 1. Contexto
 
-A Fernanda hoje, pós-viagem a São Paulo, importa produtos no Hiper Gestão (desktop) e imprime 2 modelos físicos de etiqueta:
-- **A — 90×13mm** (tag comprida): anel, colar, pulseira, broche, tornozeleira
-- **B — 30×18mm** (etiqueta pequena, rolo 3 colunas): brinco, bolsa, conjunto, piercing
+O front foi construído e validado num monitor grande. Em notebooks (ex: o da loja, ~1366×768) vários módulos renderizam mal — começando por Produtos. Hoje o sistema é desktop-first **sem nenhum tratamento responsivo** (só o Dashboard tem `@media`).
 
-Cada etiqueta carrega **4 campos**: nome, referência do fornecedor, preço, barcode Code128.
+**Decisões alinhadas:**
+- **Alcance:** só notebooks/desktops. Piso garantido: **1366×768**. (Sem celular/tablet.)
+- **Abordagem:** varredura sistemática — base fluida + tokens, aplicada módulo a módulo.
+- **Tabelas no aperto:** reduzir densidade + esconder colunas menos importantes (detalhe completo continua no modal).
+- **Sidebar:** recolhe automaticamente em telas menores (continua expansível manual em telas grandes).
 
-> **Mudança de abordagem (2026-05-27):** a engenharia reversa do Hiper no notebook antigo (documentada em `IMPRESSAO_ETIQUETAS.md`) revelou que o sistema antigo **não usa PDF nem renderiza graficamente** — ele envia **bytes PPLA brutos** diretamente ao spooler do Windows em modo RAW. A saída foi validada bit-a-bit em impressora física Argox OS-214 plus. Os hex dumps completos dos jobs estão nos apêndices A e B do doc.
+## 2. Causas-raiz (diagnóstico)
 
-Objetivo: replicar exatamente esse comportamento. Cortar Hiper e BarTender.
-
----
-
-## 2. Arquitetura técnica (v2)
-
-### Stack do transporte
-```
-Sistema web (Next.js)
-   ↓ gera jobText PPLA (strings + cp1252)
-   ↓ POST http://localhost:17777/print
-Agente local (Node single-file .exe)
-   ↓ winspool.drv → StartDocPrinter(RAW) → WritePrinter
-Argox OS-214 plus (USB)
-```
-
-### Por que essa arquitetura (e não PDF)
-- O PDF (POC anterior) força o driver Argox a renderizar via GDI — perde fidelidade.
-- O Hiper original valida que mandar bytes PPLA brutos é o caminho correto.
-- WebUSB conflita com o driver Argox já instalado (`Access denied`) e quebra outros softwares na máquina.
-- Agente local é a única ponte viável entre browser e `winspool.drv` em modo RAW.
-
-### Pré-requisito no PC da operadora (one-time)
-1. Instalar `fv-print-agent.exe` (1 clique, ~15 MB, autostart no tray)
-2. Driver Argox já existente continua intacto — nada para configurar.
-
----
-
-## 3. Modelo de dados
-
-**Sem alterações no schema.** As colunas necessárias já existem em `fv.products`:
-
-| Coluna | Tipo | Uso |
+| # | Problema | Arquivo |
 |---|---|---|
-| `code` | text NOT NULL | Código humano-legível (F+iniciais+...). **NÃO usado no barcode** |
-| `name` | text NOT NULL | Linha 1 da etiqueta |
-| `supplier_reference` | text NULL | Linha 2 da etiqueta (referência do fornecedor) |
-| `sale_price` | numeric NOT NULL | Linha 3 (formatado pt-BR, sem "R$" — vem do template) |
-| `barcode_number` | text NOT NULL UNIQUE | **Conteúdo do barcode em ambos os layouts (A=tipo B, B=tipo C)** |
-| `label_format` | text NOT NULL DEFAULT 'B' | Escolhe A ou B |
+| 1 | Sidebar fixa 240px, não recolhe sozinha | `layout-client.tsx`, `layout.module.css`, `Sidebar.module.css` |
+| 2 | Tabelas largas (Produtos: 11 colunas) + `overflow-x: auto` cru | módulos `*Client.module.css` |
+| 3 | Tudo em px fixo (fontes, paddings 28px, alturas) | global + todos os módulos |
+| 4 | Sem tokens de espaçamento/tipografia fluida | `globals.css` |
+| 5 | Alturas com número mágico (`100vh - 260px`) | módulos com tabela |
+| 6 | Zero breakpoints (exceto Dashboard) | global |
 
-`supplier_reference` `NULL` ou `''` → linha em branco (não quebra PPLA).
+## 3. Estratégia técnica
 
----
+### Breakpoints (convenção — px literais, pois `@media` não aceita `var()`)
+- **≤ 1440px** — leve: reduz padding de página.
+- **≤ 1366px** ("compacto") — sidebar auto-recolhe; densidade de tabela menor; oculta colunas **terciárias**.
+- **≤ 1180px** ("apertado", ex: janela não-maximizada / notebook menor) — oculta também colunas **secundárias**; densidade mínima.
 
-## 4. UX — 3 pontos de entrada
+### Fundações (globais — alto impacto, baixo risco)
+1. `globals.css`: escala de espaçamento (`--space-1..8`), padding de página fluido (`clamp`), e tokens de densidade de tabela (`--table-cell-py/px/fs`) que encolhem por breakpoint.
+2. Tipografia: tokens fluidos para títulos/labels via `clamp()` (corpo permanece 14px, encolhe levemente no compacto).
+3. **Classes utilitárias globais de prioridade de coluna**: `.colTertiary` (some ≤1366), `.colSecondary` (some ≤1180) — aplicadas em `<th>` e `<td>`.
+4. Cap de largura opcional pra leitura em monitores gigantes (a avaliar; data-density geralmente quer largura total).
 
-### a) Após salvar uma Compra (fluxo pós-SP)
-- Toast/modal: "Compra registrada com sucesso. Imprimir etiquetas? [Imprimir agora / Depois]"
-- Abre `<EtiquetasPrinter>` filtrado nos itens da compra recém-criada.
+### Shell
+5. Sidebar auto-recolhe: `matchMedia('(max-width: 1366px)')` no `layout-client.tsx` força colapsado em tela pequena; restaura preferência salva em tela grande. Botão manual continua valendo em telas grandes.
+6. `.content` padding fluido; `.main` margin-left acompanha o estado da sidebar.
 
-### b) Listagem de Produtos
-- Checkbox de seleção múltipla (já existente na listagem).
-- Botão "Imprimir etiquetas" aparece na toolbar quando há ≥1 selecionado.
+### Padrão de tabela responsiva (reutilizável)
+7. Densidade controlada por tokens globais (padding/fonte da célula encolhem por breakpoint).
+8. Prioridade de colunas por módulo: marcar quais são terciárias/secundárias com as classes utilitárias. Essenciais nunca somem.
+9. `max-height` das tabelas: trocar número mágico por cálculo robusto (ou `flex` + min-height) que respeita telas baixas (768px).
 
-### c) Detalhe individual do produto
-- Botão "Reimprimir etiqueta" no modal de detalhe. Quantidade padrão = 1.
+### Modais
+10. `Modal.tsx`/`*.module.css`: `max-height: min(90vh, ...)`, scroll interno, padding fluido — pra caber em 768px de altura.
 
----
+## 4. Sequência de entrega
 
-## 5. Componente `<EtiquetasPrinter>` (compartilhado)
+### Bloco 1 — Fundações (base fluida + tokens + shell)
+- 1.1 Tokens (espaçamento, densidade, tipografia fluida) + utilitários de coluna em `globals.css`
+- 1.2 Shell: sidebar auto-collapse + paddings fluidos (`layout-client.tsx`, `layout.module.css`)
+- 1.3 Modal base responsivo
 
-Modal/drawer com:
-- **Tabela editável**: nome | referência | preço | A/B (toggle) | qty
-- **Quantidade inteligente**:
-  - Origem "Compra" → `purchase_items.quantity`
-  - Origem "Listagem" → `products.quantity_in_stock`
-  - Origem "Detalhe" → 1
-- **Indicador do agente**: badge verde "Agente conectado" ou vermelho "Agente offline → Instalar"
-- **Resumo**: "X etiquetas A | Y etiquetas B"
-- **Botão "Imprimir"** (só habilita com agente online):
-  1. Monta `jobText` PPLA para todos com `label_format='A'`
-  2. POST /print → modal "✓ A enviadas. Troque o rolo. [Já troquei / Pular B]"
-  3. Monta `jobText` para os de `label_format='B'`
-  4. POST /print → "✓ Concluído"
+### Bloco 2 — Piloto: Produtos (estabelece o padrão de tabela)
+- 2.1 Aplicar densidade + prioridade de colunas (terciárias: Material, Loja, Promo; secundárias: Fornecedor, Custo — a confirmar) na tabela
+- 2.2 Toolbar de filtros: wrap limpo, inputs flexíveis
+- 2.3 Validar em 1920/1440/1366/1280
 
-Pula etapa se lote tem só A ou só B.
+### Bloco 3 — Varredura módulo a módulo (ordem por uso/severidade)
+- 3.1 Vendas (PDV `/vendas/nova` — crítico p/ operadoras) + listagem
+- 3.2 Compras + `/compras/nova` (grid de itens é largo)
+- 3.3 Estoque + transferências
+- 3.4 Clientes
+- 3.5 Financeiro
+- 3.6 Configurações (lojas/usuários/negócio/impressão)
+- 3.7 Dashboard (refinar os `@media` existentes p/ a nova convenção)
+- 3.8 Modais de detalhe (produto, venda, compra, fornecedor, vendedora, cliente)
 
----
+### Bloco 4 — Validação + ajustes
+- 4.1 Varredura automatizada via **Chrome DevTools MCP** (resize 1920×1080 / 1440×900 / 1366×768 / 1280×720 + screenshots por tela). *Obs: o MCP do Chrome DevTools está desconectado agora — reconectar pra eu automatizar os testes.*
+- 4.2 Ajustes finos onde quebrar
 
-## 6. Layout das etiquetas (replica fiel)
+## 5. Princípios (pra não virar gambiarra)
+- Mudanças primeiro nos **tokens globais** (efeito em cascata), depois ajustes pontuais por módulo.
+- **Nada de quebrar o visual no monitor grande** — o desktop continua igual ou melhor; o compacto é que ganha adaptação.
+- Reaproveitar os utilitários globais (densidade, prioridade de coluna) em vez de CSS ad-hoc por módulo.
+- Cada módulo validado em 1366×768 antes de marcar como pronto.
 
-### A — 90x13mm (1 por página)
-```
-┌──────────────────────────────────────────────────┐
-│ NOME DO PRODUTO          │                       │
-│ REFERÊNCIA               │  ▮▮▮▮ Code128 ▮▮▮▮    │
-│ R$ XX,XX (bold)          │     barcode_number    │
-└──────────────────────────────────────────────────┘
-```
-Texto vertical (rotação 90°), barcode à direita.
-
-### B — 30x18mm (3 por página)
-```
-┌──────────┐ ┌──────────┐ ┌──────────┐
-│NOME      │ │NOME      │ │NOME      │
-│REFER     │ │REFER     │ │REFER     │
-│R$ XX,XX  │ │R$ XX,XX  │ │R$ XX,XX  │
-│▮Code128▮ │ │▮Code128▮ │ │▮Code128▮ │
-└──────────┘ └──────────┘ └──────────┘
-```
-
----
-
-## 7. Sequência de entrega (v2)
-
-### Bloco 1 — Limpeza + gerador PPLA (sistema web)
-| # | Entregável | Tempo |
-|---|---|---|
-| 1.1 | Apagar `src/lib/etiquetas/generator.ts` e deps `pdf-lib`, `bwip-js` | 5min |
-| 1.2 | `src/lib/etiquetas/ppla.ts` (gerador) | 1h |
-| 1.3 | `src/lib/etiquetas/ppla.test.ts` com fixtures dos Apêndices A e B | 1h |
-| 1.4 | Reescrever `src/app/(sistema)/etiquetas/poc/page.tsx` para exercitar gerador | 30min |
-
-### Bloco 2 — Agente local (repo separado `fv-print-agent`)
-| # | Entregável | Tempo |
-|---|---|---|
-| 2.1 | Setup Node 20 + TS + fastify | 30min |
-| 2.2 | GET /health + GET /printers + POST /print (winspool RAW via `@thiagoelg/node-printer`) | 1h |
-| 2.3 | CORS + token opcional | 30min |
-| 2.4 | Build single-file `.exe` via `@vercel/ncc` + `pkg` | 1h |
-| 2.5 | Tray icon + autostart | 1h |
-| 2.6 | Tutorial de instalação (markdown + prints) | 30min |
-
-### Bloco 3 — Integração no sistema web
-| # | Entregável | Tempo |
-|---|---|---|
-| 3.1 | `printAgent.ts` + `useLocalPrintAgent()` hook | 1h |
-| 3.2 | `<EtiquetasPrinter>` modal compartilhado | 2h |
-| 3.3 | Card "Instalar agente" para estado offline | 30min |
-| 3.4 | Integrar nos 3 pontos: pós-compra, listagem produtos, detalhe | 1h |
-| 3.5 | Tela `/configuracoes/impressao` (endereço + impressora padrão) | 1h |
-
-### Bloco 4 — Documentação
-| # | Entregável | Tempo |
-|---|---|---|
-| 4.1 | Atualizar `schema_database.md` + `roadmap_desenvolvimento.md` | 15min |
-| 4.2 | Vault: registrar achados sobre PPLA + agente local | 20min |
-
-**Tempo total estimado: ~14h** (mais alto que v1 por causa do agente, mas com bem menos risco).
-
----
-
-## 8. Decisões registradas (v2)
-
-| # | Decisão | Razão |
-|---|---|---|
-| 1 | **PPLA bruto + agente local** (não PDF, não WebUSB) | Fidelidade idêntica ao Hiper (validada); WebUSB conflita com driver Argox |
-| 2 | Reusar `barcode_number` em ambos layouts | Já existe, único, numérico (formato compatível com Hiper); escaneável no PDV |
-| 3 | `label_format` em `products` | Permite reimpressão sem depender da compra original |
-| 4 | Agente em **Node single-file `.exe`** | Compartilha stack TS com o sistema web; auto-update simples |
-| 5 | Sem logo nas etiquetas | Confirmado pelas fotos das etiquetas atuais |
-| 6 | Encoding **Windows-1252**, LF (não CRLF), sem STX inicial | Validado no doc; Argox tolera ambos no STX, simplificamos |
-
----
-
-## 9. Riscos e mitigações
-
+## 6. Riscos
 | Risco | Mitigação |
 |---|---|
-| Fixture dos apêndices não bate bit a bit | Diff em hex no test runner; consertar o gerador antes de testar na impressora |
-| Agente bloqueado por Windows Defender / SmartScreen | Code-signing futuro; instruções claras de 1ª execução |
-| CORS do agente local | Whitelist explícita de origins (localhost + domínio prod) |
-| Múltiplas impressoras instaladas | GET /printers lista tudo; user escolhe na config |
-| Sequência barcode estoura 5 dígitos (90k+ produtos) | Aceita 6 dígitos depois; PPLA não limita |
-| Agente offline quebra o resto do sistema | Hook isolado; só o botão "Imprimir" desabilita, demais features intactas |
+| Auto-collapse da sidebar conflitar com toggle manual | matchMedia controla só o piso; preferência salva volta em tela grande |
+| Esconder coluna esconder info crítica | Essenciais nunca somem; detalhe completo no modal; prioridades revisadas com você |
+| Regressão visual no desktop grande | Mudanças são "tightening" por max-width; desktop fica como está |
+| `clamp()`/container queries em navegador antigo | Alvos são Chrome/Edge atuais (já exigidos pelo agente) — suporte total |
 
----
-
-## 10. Critérios de aceite
-
-- [ ] `src/lib/etiquetas/ppla.ts` gera bytes idênticos aos Apêndices A e B do doc
-- [ ] Testes unitários comparam hex byte a byte e passam
-- [ ] Agente `fv-print-agent.exe` builda e responde em localhost:17777
-- [ ] Etiqueta A e B saem na Argox física idênticas ao Hiper (validação Fernanda)
-- [ ] Fluxo "Imprimir A → trocar rolo → Imprimir B" em lote
-- [ ] Cadastro de produto permite editar `supplier_reference` e override de `label_format`
-- [ ] Tela `/configuracoes/impressao` funcional
-- [ ] Estado offline mostra CTA de instalar agente sem quebrar o resto
-- [ ] `schema_database.md` e `roadmap_desenvolvimento.md` atualizados
-- [ ] POC PDF (`generator.ts`, deps pdf-lib/bwip-js) removidos do branch
+## 7. Critérios de aceite
+- [ ] Todos os módulos usáveis e bem renderizados em **1366×768** (e até ~1180 de janela)
+- [ ] Sidebar recolhe sozinha no compacto; expansível no grande
+- [ ] Tabelas: densidade adaptativa + colunas priorizadas; sem scroll horizontal sofrível nas essenciais
+- [ ] Modais cabem em 768px de altura (scroll interno)
+- [ ] Desktop grande sem regressão visual
+- [ ] Tokens/utilitários globais reaproveitados (não CSS duplicado por módulo)
