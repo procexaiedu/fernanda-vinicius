@@ -152,12 +152,12 @@ export default function EstoqueClient({
               <tr>
                 <th>Produto</th>
                 <th>Código</th>
-                {isAdmin && <th>Fornecedor</th>}
-                {isAdmin && <th>Loja</th>}
+                {isAdmin && <th className="col-secondary">Fornecedor</th>}
+                {isAdmin && <th className="col-tertiary">Loja</th>}
                 <th>Qtd.</th>
                 <th>Venda</th>
-                <th>Promo</th>
-                <th>Última venda</th>
+                <th className="col-tertiary">Promo</th>
+                <th className="col-tertiary">Última venda</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -189,8 +189,8 @@ export default function EstoqueClient({
                       <span className={styles.code}>{prod.code}</span>
                     </td>
 
-                    {isAdmin && <td className={styles.mutedCell}>{prod.suppliers?.name ?? '—'}</td>}
-                    {isAdmin && <td className={styles.mutedCell}>{prod.stores?.name ?? '—'}</td>}
+                    {isAdmin && <td className={`${styles.mutedCell} col-secondary`}>{prod.suppliers?.name ?? '—'}</td>}
+                    {isAdmin && <td className={`${styles.mutedCell} col-tertiary`}>{prod.stores?.name ?? '—'}</td>}
 
                     <td>
                       <span className={`${styles.qty} ${prod.quantity_in_stock <= 1 ? styles.qtyLow : ''}`}>
@@ -200,13 +200,13 @@ export default function EstoqueClient({
 
                     <td><span className={styles.salePrice}>{fmt(prod.sale_price)}</span></td>
 
-                    <td>
+                    <td className="col-tertiary">
                       {prod.promotional_price
                         ? <span className={styles.promoPrice}>{fmt(prod.promotional_price)}</span>
                         : <span className={styles.mutedCell}>—</span>}
                     </td>
 
-                    <td className={styles.mutedCell}>{fmtDate(prod.last_sale_date)}</td>
+                    <td className={`${styles.mutedCell} col-tertiary`}>{fmtDate(prod.last_sale_date)}</td>
 
                     <td>
                       {statusVenda === 'parado' && <span className={styles.statusParado}>Parado</span>}

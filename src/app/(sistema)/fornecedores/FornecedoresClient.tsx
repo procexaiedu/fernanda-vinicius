@@ -218,8 +218,8 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
                 <th className={styles.thSortable} onClick={() => toggleSort('name')}>
                   Fornecedor <SortIcon col="name" />
                 </th>
-                <th>Responsável</th>
-                <th>WhatsApp</th>
+                <th className="col-tertiary">Responsável</th>
+                <th className="col-tertiary">WhatsApp</th>
                 <th className={styles.thSortable} onClick={() => toggleSort('products')}>
                   Produtos <SortIcon col="products" />
                 </th>
@@ -229,7 +229,7 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
                 <th className={styles.thSortable} onClick={() => toggleSort('pending')}>
                   Em aberto <SortIcon col="pending" />
                 </th>
-                <th className={styles.thSortable} onClick={() => toggleSort('last_purchase')}>
+                <th className={`${styles.thSortable} col-tertiary`} onClick={() => toggleSort('last_purchase')}>
                   Última compra <SortIcon col="last_purchase" />
                 </th>
                 <th>Status</th>
@@ -266,9 +266,9 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
                       </div>
                     </td>
 
-                    <td className={styles.mutedCell}>{s.contact_name || '—'}</td>
+                    <td className={`${styles.mutedCell} col-tertiary`}>{s.contact_name || '—'}</td>
 
-                    <td className={styles.mutedCell}>
+                    <td className={`${styles.mutedCell} col-tertiary`}>
                       {(() => {
                         const waNum = getWhatsAppNumber(s.phones)
                         if (!waNum) return '—'
@@ -303,7 +303,7 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
                         : <span>—</span>}
                     </td>
 
-                    <td className={styles.mutedCell}>
+                    <td className={`${styles.mutedCell} col-tertiary`}>
                       {s.last_purchase_date ? formatPurchaseDate(s.last_purchase_date) : '—'}
                     </td>
 
