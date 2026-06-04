@@ -50,9 +50,13 @@ function today() {
   return new Date().toISOString().slice(0, 10)
 }
 
+// ─── Tipo local que permite quantity vazio durante digitação ──────────────────
+
+type FormRow = Omit<GridRow, 'quantity'> & { quantity: number | '' }
+
 // ─── Row inicial ───────────────────────────────────────────────────────────────
 
-function emptyRow(defaultStoreId: string): GridRow {
+function emptyRow(defaultStoreId: string): FormRow {
   return {
     productId: null,
     productName: '',
@@ -373,7 +377,7 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
   const [minPurchasePct, setMinPurchasePct] = useState('')
 
   // Grid de itens
-  const [rows, setRows] = useState<GridRow[]>([emptyRow(defaultStoreId)])
+  const [rows, setRows] = useState<FormRow[]>([emptyRow(defaultStoreId)])
 
   // Grupos de fornecedor derivados dos itens
   const supplierGroups = useMemo(() => {
@@ -438,7 +442,7 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
 
   // ── Grid helpers ──────────────────────────────────────────────────────────
 
-  function updateRow(index: number, patch: Partial<GridRow>) {
+  function updateRow(index: number, patch: Partial<FormRow>) {
     setRows(prev => prev.map((r, i) => i === index ? { ...r, ...patch } : r))
   }
 
@@ -572,7 +576,9 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
 
   // ── Totais ────────────────────────────────────────────────────────────────
 
-  const validRows = rows.filter(r => r.productName.trim())
+  const validRows: GridRow[] = rows
+    .filter(r => r.productName.trim())
+    .map(r => ({ ...r, quantity: Number(r.quantity) || 1 }))
   const totalCost = validRows.reduce((s, r) => s + (r.costPrice || 0) * (r.quantity || 1), 0)
 
   // ── Validação e submit ────────────────────────────────────────────────────
@@ -900,7 +906,8 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                         type="number" min="1" step="1"
                         className={styles.cell}
                         value={row.quantity}
-                        onChange={e => updateRow(i, { quantity: parseInt(e.target.value) || 1 })}
+                        onChange={e => updateRow(i, { quantity: e.target.value === '' ? '' : parseInt(e.target.value) || 1 })}
+                        onFocus={e => e.target.select()}
                         data-row={i}
                         data-col={8}
                         onKeyDown={nav(8)}

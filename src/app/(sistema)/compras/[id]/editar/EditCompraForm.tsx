@@ -24,6 +24,9 @@ const METHOD_LABELS: Record<string, string> = {
   cash: 'Dinheiro', pix: 'PIX', transfer: 'Transferência', credit: 'Crédito',
 }
 
+// Permite quantity vazio durante digitação sem forçar 0 imediatamente
+type FormItem = Omit<EditItemData, 'quantity'> & { quantity: number | '' }
+
 export default function EditCompraForm({ compra }: Props) {
   const router = useRouter()
 
@@ -33,7 +36,7 @@ export default function EditCompraForm({ compra }: Props) {
   const [nfNumber,     setNfNumber]     = useState(compra.nfNumber)
 
   // ── Estado: itens ────────────────────────────────────────────────────────
-  const [items, setItems] = useState<EditItemData[]>(
+  const [items, setItems] = useState<FormItem[]>(
     compra.items.map(i => ({
       purchaseItemId: i.purchaseItemId,
       productId:      i.productId,
@@ -60,7 +63,7 @@ export default function EditCompraForm({ compra }: Props) {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  function updateItem<K extends keyof EditItemData>(idx: number, key: K, val: EditItemData[K]) {
+  function updateItem<K extends keyof FormItem>(idx: number, key: K, val: FormItem[K]) {
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, [key]: val } : it))
   }
 
@@ -78,7 +81,7 @@ export default function EditCompraForm({ compra }: Props) {
       purchaseDate,
       notes,
       nfNumber,
-      items,
+      items: items.map(it => ({ ...it, quantity: Number(it.quantity) || 1 })),
       payments,
     })
     setSaving(false)
@@ -92,7 +95,7 @@ export default function EditCompraForm({ compra }: Props) {
 
   // ── Render ───────────────────────────────────────────────────────────────
 
-  const totalCost = items.reduce((s, i) => s + i.costPrice * i.quantity, 0)
+  const totalCost = items.reduce((s, i) => s + i.costPrice * (Number(i.quantity) || 0), 0)
 
   return (
     <div className={styles.wrapper}>
@@ -265,9 +268,10 @@ export default function EditCompraForm({ compra }: Props) {
                         min={unitsSold}
                         step={1}
                         onChange={e => {
-                          const v = parseInt(e.target.value) || 0
-                          updateItem(idx, 'quantity', Math.max(unitsSold, v))
+                          const v = e.target.value === '' ? '' : Math.max(unitsSold, parseInt(e.target.value) || 0)
+                          updateItem(idx, 'quantity', v)
                         }}
+                        onFocus={e => e.target.select()}
                         title={hasSales ? `Mínimo: ${unitsSold} (unidades vendidas)` : undefined}
                       />
                     </td>

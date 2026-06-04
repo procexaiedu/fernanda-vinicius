@@ -45,12 +45,14 @@ export default function EtiquetasPrinter({ isOpen, onClose, initialItems, title 
   const [items, setItems] = useState<EtiquetasPrinterItem[]>(initialItems)
   const [stateA, setStateA] = useState<FormatState>(INITIAL_FORMAT_STATE)
   const [stateB, setStateB] = useState<FormatState>(INITIAL_FORMAT_STATE)
+  const [displayQty, setDisplayQty] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (isOpen) {
       setItems(initialItems)
       setStateA(INITIAL_FORMAT_STATE)
       setStateB(INITIAL_FORMAT_STATE)
+      setDisplayQty({})
     }
   }, [isOpen, initialItems])
 
@@ -142,8 +144,17 @@ export default function EtiquetasPrinter({ isOpen, onClose, initialItems, title 
                         <input
                           type="number"
                           min={0}
-                          value={it.quantity}
-                          onChange={e => updateQty(it.id, parseInt(e.target.value || '0', 10))}
+                          value={displayQty[it.id] ?? String(it.quantity)}
+                          onChange={e => {
+                            setDisplayQty(prev => ({ ...prev, [it.id]: e.target.value }))
+                            const n = parseInt(e.target.value, 10)
+                            if (!isNaN(n)) updateQty(it.id, Math.max(0, n))
+                          }}
+                          onBlur={e => {
+                            setDisplayQty(prev => { const next = { ...prev }; delete next[it.id]; return next })
+                            if (e.target.value === '' || isNaN(parseInt(e.target.value, 10))) updateQty(it.id, 0)
+                          }}
+                          onFocus={e => e.target.select()}
                           className={styles.qtyInput}
                         />
                       </td>
