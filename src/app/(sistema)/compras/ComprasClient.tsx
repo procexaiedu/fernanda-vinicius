@@ -2,9 +2,11 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, ExternalLink, AlertTriangle, RefreshCw, CheckCircle, Clock } from 'lucide-react'
+import { Plus, ExternalLink, AlertTriangle, RefreshCw, CheckCircle, Clock, Printer } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import CompraDetalheModal from '@/components/compra/CompraDetalheModal'
+import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
+import { getItensCompraParaEtiquetas } from './actions'
 import styles from './ComprasClient.module.css'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -19,6 +21,7 @@ interface Purchase {
   notes: string | null
   created_at: string
   suppliers: string[]
+  supplierInitials: string[]
   storeNames: string[]
   paymentStatus: 'paid' | 'pending'
   type: 'purchase'
@@ -60,6 +63,15 @@ export default function ComprasClient({ purchases, consignments }: Props) {
   const [typeFilter, setTypeFilter] = useState<'all' | 'purchase' | 'consignment'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending' | 'active'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [reprintOpen, setReprintOpen]   = useState(false)
+  const [reprintItems, setReprintItems] = useState<EtiquetasPrinterItem[]>([])
+
+  async function openReprint(e: React.MouseEvent, purchaseId: string) {
+    e.stopPropagation()
+    const items = await getItensCompraParaEtiquetas(purchaseId)
+    setReprintItems(items.map(it => ({ ...it, quantity: 0 })))
+    setReprintOpen(true)
+  }
 
   type Row = (Purchase | Consignment)
 
@@ -170,6 +182,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                 <th style={{ textAlign: 'right' }}>Custo total</th>
                 <th>Status</th>
                 <th>Prazo devolução</th>
+                <th style={{ width: 36 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -186,7 +199,9 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                       <td><span className={styles.badgeMuted}>Própria</span></td>
                       <td className={styles.suppliers}>
                         {row.suppliers.length > 0
-                          ? row.suppliers.join(', ')
+                          ? row.suppliers.length === 1
+                            ? row.suppliers[0]
+                            : row.supplierInitials.join(' · ')
                           : <span className={styles.muted}>—</span>}
                       </td>
                       <td className={styles.muted}>
@@ -212,6 +227,15 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                           : <span className={styles.statusPending}><Clock size={12} /> Pendente</span>}
                       </td>
                       <td className={styles.muted}>—</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          className={styles.reprintBtn}
+                          title="Reimprimir etiquetas"
+                          onClick={e => openReprint(e, row.id)}
+                        >
+                          <Printer size={14} />
+                        </button>
+                      </td>
                     </tr>
                   )
                 } else {
@@ -240,6 +264,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                             </span>
                           : <span className={styles.muted}>—</span>}
                       </td>
+                      <td></td>
                     </tr>
                   )
                 }
@@ -257,6 +282,14 @@ export default function ComprasClient({ purchases, consignments }: Props) {
           onDeleted={() => router.refresh()}
         />
       )}
+
+      {/* Modal de reimpressão de etiquetas */}
+      <EtiquetasPrinter
+        isOpen={reprintOpen}
+        onClose={() => setReprintOpen(false)}
+        initialItems={reprintItems}
+        title="Reimprimir etiquetas da compra"
+      />
     </div>
   )
 }

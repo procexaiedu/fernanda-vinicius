@@ -249,6 +249,28 @@
   border: 1px solid rgba(201, 168, 76, 0.3);
 }
 
+/* ── Botão reimprimir etiquetas ──────────────────────────────────────────── */
+
+.reprintBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin: 0 auto;
+}
+
+.reprintBtn:hover {
+  background: rgba(201, 168, 76, 0.1);
+  color: var(--accent);
+}
+
 /* ── Modal overlay ───────────────────────────────────────────────────────── */
 
 .overlay {

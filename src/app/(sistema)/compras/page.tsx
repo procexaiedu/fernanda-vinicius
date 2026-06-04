@@ -31,28 +31,33 @@ export default async function ComprasPage() {
   const consignments = consignmentsRes.data ?? []
   const stores       = storesRes.data ?? []
 
-  // Fornecedores e lojas dos produtos de cada compra via purchase_items
-  const purchaseItemsRes = await admin
-    .from('purchase_items')
-    .select('purchase_id, products(supplier_id, store_id, suppliers(name), stores(name))')
-    .in('purchase_id', purchases.map(p => p.id).concat(['_']))
+  // Fornecedores e lojas via products.purchase_id (FK direta, sem join aninhado)
+  const productsForPurchases = purchases.length > 0
+    ? (await admin
+        .from('products')
+        .select('purchase_id, suppliers!supplier_id(name, initials), stores!store_id(name)')
+        .in('purchase_id', purchases.map(p => p.id))
+        .not('purchase_id', 'is', null)).data ?? []
+    : []
 
-  const purchaseItems = (purchaseItemsRes.data ?? []) as unknown as Array<{
+  type ProductRow = {
     purchase_id: string
-    products: { suppliers: { name: string } | null; stores: { name: string } | null } | null
-  }>
+    suppliers: { name: string; initials: string } | null
+    stores: { name: string } | null
+  }
 
-  const suppliersByPurchase = new Map<string, Set<string>>()
-  const storesByPurchase    = new Map<string, Set<string>>()
+  const suppliersByPurchase   = new Map<string, Set<string>>()
+  const initialssByPurchase   = new Map<string, Set<string>>()
+  const storesByPurchase      = new Map<string, Set<string>>()
 
-  for (const item of purchaseItems) {
-    const pid = item.purchase_id
-    if (!suppliersByPurchase.has(pid)) suppliersByPurchase.set(pid, new Set())
-    if (!storesByPurchase.has(pid))    storesByPurchase.set(pid, new Set())
-    const sup   = item.products?.suppliers?.name
-    const store = item.products?.stores?.name
-    if (sup)   suppliersByPurchase.get(pid)!.add(sup)
-    if (store) storesByPurchase.get(pid)!.add(store)
+  for (const row of productsForPurchases as unknown as ProductRow[]) {
+    const pid = row.purchase_id
+    if (!suppliersByPurchase.has(pid))  suppliersByPurchase.set(pid, new Set())
+    if (!initialssByPurchase.has(pid))  initialssByPurchase.set(pid, new Set())
+    if (!storesByPurchase.has(pid))     storesByPurchase.set(pid, new Set())
+    if (row.suppliers?.name)     suppliersByPurchase.get(pid)!.add(row.suppliers.name)
+    if (row.suppliers?.initials) initialssByPurchase.get(pid)!.add(row.suppliers.initials)
+    if (row.stores?.name)        storesByPurchase.get(pid)!.add(row.stores.name)
   }
 
   const paymentsByPurchase = new Map<string, typeof payments>()
@@ -63,8 +68,9 @@ export default async function ComprasPage() {
 
   const purchasesWithMeta = purchases.map(p => ({
     ...p,
-    suppliers:     [...(suppliersByPurchase.get(p.id) ?? [])],
-    storeNames:    [...(storesByPurchase.get(p.id) ?? [])],
+    suppliers:         [...(suppliersByPurchase.get(p.id) ?? [])],
+    supplierInitials:  [...(initialssByPurchase.get(p.id) ?? [])],
+    storeNames:        [...(storesByPurchase.get(p.id) ?? [])],
     paymentStatus: (paymentsByPurchase.has(p.id)
       ? paymentsByPurchase.get(p.id)!.every(x => x.status === 'completed') ? 'paid' : 'pending'
       : 'pending') as 'paid' | 'pending',
