@@ -38,7 +38,7 @@ export default async function ImpressaoConfigPage() {
           Configure o agente local de impressão (<code>fv-print-agent</code>) que envia os jobs PPLA à impressora térmica Argox.
         </p>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 480px', gap: 24, alignItems: 'start' }}>
         <ImpressaoClient />
         {isAdmin && <CategoryMappingPanel initialMappings={mappings} />}
       </div>
