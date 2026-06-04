@@ -454,6 +454,323 @@ export async function deletarCompra(purchaseId: string): Promise<ActionResult> {
   return { success: true }
 }
 
+// ─── Tipos para edição de compra ─────────────────────────────────────────────
+
+export interface CompraItemParaEdicao {
+  purchaseItemId: string
+  productId: string
+  name: string
+  category: string
+  material: string
+  costPrice: number
+  salePrice: number
+  promoPrice: number | null
+  labelFormat: 'A' | 'B'
+  quantity: number
+  unitsSold: number
+  currentStock: number
+  storeId: string
+  storeName: string
+  supplierId: string
+  supplierName: string
+}
+
+export interface CompraParaEdicao {
+  id: string
+  purchaseDate: string
+  notes: string
+  nfNumber: string
+  items: CompraItemParaEdicao[]
+  payments: Array<{
+    id: string
+    paymentMethod: string
+    amount: number
+    installmentNumber: number | null
+    dueDate: string
+    status: 'completed' | 'pending'
+  }>
+  stores: Array<{ id: string; name: string; city: string }>
+  suppliers: Array<{ id: string; name: string; initials: string }>
+  hasAnySale: boolean
+}
+
+export interface EditItemData {
+  purchaseItemId: string
+  productId: string
+  name: string
+  category: string
+  material: string
+  costPrice: number
+  salePrice: number
+  promoPrice: number | null
+  labelFormat: 'A' | 'B'
+  quantity: number
+  storeId: string
+  supplierId: string
+}
+
+export interface EditPaymentData {
+  id: string
+  paymentMethod: string
+  amount: number
+  dueDate: string
+  installmentNumber: number | null
+  status: 'completed' | 'pending'
+}
+
+export interface EditCompraPayload {
+  purchaseId: string
+  purchaseDate: string
+  notes: string
+  nfNumber: string
+  items: EditItemData[]
+  payments: EditPaymentData[]
+}
+
+// ─── Action: buscar compra para edição ────────────────────────────────────────
+
+export async function buscarCompraParaEdicao(
+  purchaseId: string
+): Promise<{ data: CompraParaEdicao | null; error?: string }> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { data: null, error: authErr }
+
+  const admin = createAdminClient()
+
+  const { data: purchase } = await admin
+    .from('purchases')
+    .select('id, purchase_date, notes, nf_number')
+    .eq('id', purchaseId)
+    .single()
+
+  if (!purchase) return { data: null, error: 'Compra não encontrada.' }
+
+  const { data: rawItems } = await admin
+    .from('purchase_items')
+    .select(`
+      id, quantity, unit_cost, label_format,
+      products!inner (
+        id, name, category, material,
+        cost_price, sale_price, promotional_price,
+        label_format, quantity_in_stock, store_id, supplier_id,
+        suppliers!supplier_id(name, initials),
+        stores!store_id(name)
+      )
+    `)
+    .eq('purchase_id', purchaseId)
+
+  const items = (rawItems ?? []) as unknown as Array<{
+    id: string; quantity: number; unit_cost: number; label_format: string | null
+    products: {
+      id: string; name: string; category: string; material: string
+      cost_price: number; sale_price: number; promotional_price: number | null
+      label_format: string; quantity_in_stock: number; store_id: string; supplier_id: string
+      suppliers: { name: string; initials: string } | null
+      stores: { name: string } | null
+    }
+  }>
+
+  const productIds = items.map(i => i.products.id)
+  const soldCounts = new Map<string, number>()
+
+  if (productIds.length > 0) {
+    const { data: soldData } = await admin
+      .from('sale_items')
+      .select('product_id, quantity')
+      .in('product_id', productIds)
+    for (const row of (soldData ?? []) as Array<{ product_id: string; quantity: number }>) {
+      soldCounts.set(row.product_id, (soldCounts.get(row.product_id) ?? 0) + row.quantity)
+    }
+  }
+
+  const { data: payments } = await admin
+    .from('purchase_payments')
+    .select('id, payment_method, amount, installment_number, due_date, status')
+    .eq('purchase_id', purchaseId)
+    .order('due_date', { ascending: true })
+
+  const [storesRes, suppliersRes] = await Promise.all([
+    admin.from('stores').select('id, name, city').eq('is_active', true),
+    admin.from('suppliers').select('id, name, initials').eq('is_active', true).order('name'),
+  ])
+
+  const hasAnySale = productIds.some(pid => (soldCounts.get(pid) ?? 0) > 0)
+
+  return {
+    data: {
+      id: purchase.id,
+      purchaseDate: purchase.purchase_date,
+      notes: purchase.notes ?? '',
+      nfNumber: purchase.nf_number ?? '',
+      items: items.map(item => {
+        const p = item.products
+        return {
+          purchaseItemId: item.id,
+          productId:      p.id,
+          name:           p.name,
+          category:       p.category,
+          material:       p.material,
+          costPrice:      p.cost_price,
+          salePrice:      p.sale_price,
+          promoPrice:     p.promotional_price ?? null,
+          labelFormat:    ((item.label_format ?? p.label_format) as 'A' | 'B') || 'B',
+          quantity:       item.quantity,
+          unitsSold:      soldCounts.get(p.id) ?? 0,
+          currentStock:   p.quantity_in_stock,
+          storeId:        p.store_id,
+          storeName:      p.stores?.name ?? '—',
+          supplierId:     p.supplier_id,
+          supplierName:   p.suppliers?.name ?? '—',
+        }
+      }),
+      payments: (payments ?? []).map(p => ({
+        id:                p.id,
+        paymentMethod:     p.payment_method,
+        amount:            p.amount,
+        installmentNumber: p.installment_number,
+        dueDate:           p.due_date ?? '',
+        status:            p.status as 'completed' | 'pending',
+      })),
+      stores:    (storesRes.data    ?? []) as Array<{ id: string; name: string; city: string }>,
+      suppliers: (suppliersRes.data ?? []) as Array<{ id: string; name: string; initials: string }>,
+      hasAnySale,
+    }
+  }
+}
+
+// ─── Action: salvar edição de compra ─────────────────────────────────────────
+
+export async function editarCompra(payload: EditCompraPayload): Promise<ActionResult> {
+  const { userId, error: authErr } = await verifyAdmin()
+  if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
+
+  const admin = createAdminClient()
+
+  // Qtds originais (para calcular delta de estoque)
+  const { data: originalItems } = await admin
+    .from('purchase_items')
+    .select('id, quantity')
+    .eq('purchase_id', payload.purchaseId)
+
+  const originalQtyMap = new Map<string, number>()
+  for (const item of (originalItems ?? []) as Array<{ id: string; quantity: number }>) {
+    originalQtyMap.set(item.id, item.quantity)
+  }
+
+  // Contagem de vendas para validação
+  const productIds = payload.items.map(i => i.productId)
+  const soldCounts = new Map<string, number>()
+  if (productIds.length > 0) {
+    const { data: soldData } = await admin
+      .from('sale_items').select('product_id, quantity').in('product_id', productIds)
+    for (const row of (soldData ?? []) as Array<{ product_id: string; quantity: number }>) {
+      soldCounts.set(row.product_id, (soldCounts.get(row.product_id) ?? 0) + row.quantity)
+    }
+  }
+
+  // Atualizar cada item
+  for (const item of payload.items) {
+    const unitsSold = soldCounts.get(item.productId) ?? 0
+    if (item.quantity < unitsSold) {
+      return {
+        success: false,
+        error: `"${item.name}": quantidade (${item.quantity}) não pode ser menor que unidades já vendidas (${unitsSold}).`
+      }
+    }
+
+    const { data: prod } = await admin
+      .from('products').select('store_id, quantity_in_stock').eq('id', item.productId).single()
+
+    if (prod && prod.store_id !== item.storeId && unitsSold > 0) {
+      return { success: false, error: `"${item.name}": não é possível mudar de loja pois já possui vendas registradas.` }
+    }
+
+    const originalQty = originalQtyMap.get(item.purchaseItemId) ?? item.quantity
+    const delta       = item.quantity - originalQty
+    const newStock    = (prod?.quantity_in_stock ?? 0) + delta
+
+    await admin.from('products').update({
+      name:              item.name.trim(),
+      category:          item.category.trim().toLowerCase(),
+      material:          item.material.trim().toLowerCase(),
+      cost_price:        item.costPrice,
+      sale_price:        item.salePrice,
+      promotional_price: item.promoPrice ?? null,
+      label_format:      item.labelFormat,
+      supplier_id:       item.supplierId,
+      store_id:          item.storeId,
+      quantity_in_stock: newStock,
+      updated_at:        new Date().toISOString(),
+    }).eq('id', item.productId)
+
+    await admin.from('purchase_items').update({
+      quantity:     item.quantity,
+      unit_cost:    item.costPrice,
+      subtotal:     item.costPrice * item.quantity,
+      label_format: item.labelFormat,
+    }).eq('id', item.purchaseItemId)
+  }
+
+  // Atualizar pagamentos pendentes: apaga e recria para não ter inconsistências
+  const pendingPayments = payload.payments.filter(p => p.status === 'pending')
+
+  await admin.from('transactions')
+    .delete()
+    .eq('reference_id', payload.purchaseId)
+    .eq('reference_type', 'purchase')
+    .eq('status', 'pending')
+
+  await admin.from('purchase_payments')
+    .delete()
+    .eq('purchase_id', payload.purchaseId)
+    .eq('status', 'pending')
+
+  for (const pay of pendingPayments) {
+    await admin.from('purchase_payments').insert({
+      purchase_id:        payload.purchaseId,
+      payment_method:     pay.paymentMethod,
+      amount:             pay.amount,
+      installment_number: pay.installmentNumber,
+      due_date:           pay.dueDate || null,
+      status:             'pending',
+    })
+
+    await admin.from('transactions').insert({
+      store_id:         null,
+      type:             'expense',
+      amount:           pay.amount,
+      category:         'compra_fornecedor',
+      description:      'Compra (parcela editada)',
+      reference_type:   'purchase',
+      reference_id:     payload.purchaseId,
+      user_id:          userId,
+      payment_method:   pay.paymentMethod,
+      transaction_date: payload.purchaseDate,
+      due_date:         pay.dueDate || null,
+      status:           'pending',
+    })
+  }
+
+  // Recalcular totais da compra
+  const newTotalCost  = payload.items.reduce((s, i) => s + i.costPrice * i.quantity, 0)
+  const newTotalItems = payload.items.reduce((s, i) => s + i.quantity, 0)
+
+  await admin.from('purchases').update({
+    purchase_date: payload.purchaseDate,
+    notes:         payload.notes || null,
+    nf_number:     payload.nfNumber || null,
+    total_cost:    newTotalCost,
+    total_items:   newTotalItems,
+    updated_at:    new Date().toISOString(),
+  }).eq('id', payload.purchaseId)
+
+  revalidatePath('/compras')
+  revalidatePath('/produtos')
+  revalidatePath('/estoque')
+  revalidatePath('/financeiro')
+  return { success: true }
+}
+
 // ─── Buscar itens de uma compra para impressão de etiquetas ──────────────────
 
 export interface ItemParaEtiqueta {

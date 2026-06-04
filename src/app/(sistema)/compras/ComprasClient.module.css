@@ -417,6 +417,26 @@
   border-top: 1px solid var(--border);
 }
 
+.editBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(201, 168, 76, 0.08);
+  border: 1px solid rgba(201, 168, 76, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.editBtn:hover {
+  background: rgba(201, 168, 76, 0.15);
+  border-color: var(--accent);
+}
+
 .deleteBtn {
   display: inline-flex;
   align-items: center;

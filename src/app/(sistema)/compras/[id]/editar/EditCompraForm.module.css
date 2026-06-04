@@ -1,0 +1,311 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-bottom: 48px;
+}
+
+/* ── Seções ─────────────────────────────────────────────────────────────── */
+
+.section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+/* ── Cabeçalho ──────────────────────────────────────────────────────────── */
+
+.headerGrid {
+  display: grid;
+  grid-template-columns: 180px 260px 160px;
+  gap: 12px 16px;
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.input {
+  height: 34px;
+  padding: 0 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color var(--transition-fast);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.textarea {
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Tabela de itens ────────────────────────────────────────────────────── */
+
+.tableWrapper {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1100px;
+}
+
+.table thead th {
+  background: var(--bg-elevated);
+  padding: 8px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.table tbody td {
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: rgba(201, 168, 76, 0.02);
+}
+
+/* ── Células editáveis ──────────────────────────────────────────────────── */
+
+.cell {
+  width: 100%;
+  height: 30px;
+  padding: 0 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.cell:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+}
+
+.cell:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cell option {
+  background: var(--bg-elevated);
+}
+
+/* ── Badge "vendidos" ───────────────────────────────────────────────────── */
+
+.soldBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 20px;
+  background: rgba(224, 163, 82, 0.12);
+  color: var(--warning);
+  white-space: nowrap;
+  margin-left: 4px;
+}
+
+/* ── Toggle etiqueta A/B ────────────────────────────────────────────────── */
+
+.labelToggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+}
+
+.labelBtn {
+  flex: 1;
+  height: 26px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-width: 28px;
+}
+
+.labelBtnActive {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+
+/* ── Pagamentos ─────────────────────────────────────────────────────────── */
+
+.payTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.payTable th {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.payTable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.payTable tr:last-child td {
+  border-bottom: none;
+}
+
+.payInput {
+  height: 30px;
+  padding: 0 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color var(--transition-fast);
+}
+
+.payInput:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.statusPaid {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--success, #4caf82);
+  background: rgba(76, 175, 130, 0.1);
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+
+.statusPending {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--warning);
+  background: rgba(224, 163, 82, 0.1);
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+
+.readOnly {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* ── Aviso de loja bloqueada ────────────────────────────────────────────── */
+
+.storeWarning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(224, 163, 82, 0.08);
+  border: 1px solid rgba(224, 163, 82, 0.25);
+  border-radius: var(--radius-md);
+  color: var(--warning);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+/* ── Erro e ações ───────────────────────────────────────────────────────── */
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(224, 82, 82, 0.1);
+  border: 1px solid rgba(224, 82, 82, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 12px;
+}

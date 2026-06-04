@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ExternalLink, AlertTriangle, CheckCircle, Clock, Trash2, X, Package, CreditCard } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ExternalLink, AlertTriangle, CheckCircle, Clock, Trash2, X, Package, CreditCard, Pencil } from 'lucide-react'
 import { buscarDetalheCompra, deletarCompra, type PurchaseDetail } from '@/app/(sistema)/compras/actions'
 import styles from '@/app/(sistema)/compras/ComprasClient.module.css'
 
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, canDelete = true }: Props) {
+  const router = useRouter()
   const [detail, setDetail]               = useState<PurchaseDetail | null>(null)
   const [loading, setLoading]             = useState(true)
   const [deleting, setDeleting]           = useState(false)
@@ -149,24 +151,33 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
               </div>
             )}
 
-            {canDelete && (
-              <div className={styles.modalActions}>
-                {!confirmDelete ? (
-                  <button className={styles.deleteBtn} onClick={() => setConfirmDelete(true)}>
-                    <Trash2 size={13} /> Excluir compra
-                  </button>
-                ) : (
-                  <div className={styles.confirmDelete}>
-                    <AlertTriangle size={13} />
-                    <span>Excluir também reverte o estoque. Confirma?</span>
-                    <button className={styles.deleteBtnConfirm} onClick={handleDelete} disabled={deleting}>
-                      {deleting ? 'Excluindo...' : 'Sim, excluir'}
+            <div className={styles.modalActions}>
+              <button
+                className={styles.editBtn}
+                onClick={() => { onClose(); router.push(`/compras/${purchaseId}/editar`) }}
+              >
+                <Pencil size={13} /> Editar compra
+              </button>
+
+              {canDelete && (
+                <>
+                  {!confirmDelete ? (
+                    <button className={styles.deleteBtn} onClick={() => setConfirmDelete(true)}>
+                      <Trash2 size={13} /> Excluir compra
                     </button>
-                    <button className={styles.cancelBtn} onClick={() => setConfirmDelete(false)}>Cancelar</button>
-                  </div>
-                )}
-              </div>
-            )}
+                  ) : (
+                    <div className={styles.confirmDelete}>
+                      <AlertTriangle size={13} />
+                      <span>Excluir também reverte o estoque. Confirma?</span>
+                      <button className={styles.deleteBtnConfirm} onClick={handleDelete} disabled={deleting}>
+                        {deleting ? 'Excluindo...' : 'Sim, excluir'}
+                      </button>
+                      <button className={styles.cancelBtn} onClick={() => setConfirmDelete(false)}>Cancelar</button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
