@@ -232,6 +232,105 @@ export async function deletarDespesaManual(id: string): Promise<ActionResult> {
   return { success: true }
 }
 
+// ─── Detalhe de Comissão ──────────────────────────────────────────────────────
+
+export interface ComissaoSale {
+  id: string
+  sale_date: string
+  client_name: string | null
+  total: number
+  total_cost: number
+  profit: number
+  store_name: string | null
+}
+
+export interface ComissaoDetail {
+  transaction_id: string
+  description: string
+  seller_name: string
+  month: string        // "YYYY-MM"
+  commission_amount: number
+  total_vendas: number
+  total_custo: number
+  lucro: number
+  sales: ComissaoSale[]
+}
+
+export async function buscarDetalheComissao(transactionId: string): Promise<{ data: ComissaoDetail | null; error?: string }> {
+  const admin = createAdminClient()
+
+  const { data: tx, error: txErr } = await admin
+    .from('transactions')
+    .select('id, description, amount, transaction_date, user_id, users(full_name)')
+    .eq('id', transactionId)
+    .eq('reference_type', 'seller_commission')
+    .single()
+
+  if (txErr || !tx) return { data: null, error: 'Comissão não encontrada.' }
+
+  const month = (tx.transaction_date as string).slice(0, 7) // "YYYY-MM"
+  const dateFrom = `${month}-01`
+  const lastDay  = new Date(parseInt(month.slice(0, 4)), parseInt(month.slice(5, 7)), 0).getDate()
+  const dateTo   = `${month}-${String(lastDay).padStart(2, '0')}`
+
+  const { data: salesRaw } = await admin
+    .from('sales')
+    .select('id, sale_date, total, total_cost, client_id, store_id, clients(name), stores(name), status')
+    .eq('user_id', (tx as any).user_id)
+    .gte('sale_date', dateFrom)
+    .lte('sale_date', dateTo)
+    .eq('status', 'completed')
+    .order('sale_date', { ascending: true })
+
+  const sales: ComissaoSale[] = (salesRaw ?? []).map((s: any) => ({
+    id: s.id,
+    sale_date: s.sale_date,
+    client_name: s.clients?.name ?? null,
+    total: s.total,
+    total_cost: s.total_cost ?? 0,
+    profit: (s.total ?? 0) - (s.total_cost ?? 0),
+    store_name: s.stores?.name ?? null,
+  }))
+
+  const total_vendas = sales.reduce((sum, s) => sum + s.total, 0)
+  const total_custo  = sales.reduce((sum, s) => sum + s.total_cost, 0)
+
+  return {
+    data: {
+      transaction_id: tx.id,
+      description: (tx as any).description,
+      seller_name: (tx as any).users?.full_name ?? 'Vendedora',
+      month,
+      commission_amount: (tx as any).amount,
+      total_vendas,
+      total_custo,
+      lucro: total_vendas - total_custo,
+      sales,
+    }
+  }
+}
+
+export async function deletarComissao(transactionId: string): Promise<ActionResult> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { success: false, error: authErr }
+
+  const admin = createAdminClient()
+  const { data: tx } = await admin
+    .from('transactions')
+    .select('reference_type')
+    .eq('id', transactionId)
+    .single()
+
+  if (tx?.reference_type !== 'seller_commission') {
+    return { success: false, error: 'Só é possível deletar transações de comissão por aqui.' }
+  }
+
+  const { error } = await admin.from('transactions').delete().eq('id', transactionId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/financeiro')
+  return { success: true }
+}
+
 // ─── P&L ─────────────────────────────────────────────────────────────────────
 
 export async function buscarPnl(storeId: string | null, month: number, year: number): Promise<{ data: PnlData | null; error?: string }> {

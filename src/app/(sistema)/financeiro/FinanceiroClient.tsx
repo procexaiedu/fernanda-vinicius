@@ -8,6 +8,7 @@ import {
 import DatePicker from '@/components/ui/DatePicker'
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
 import CompraDetalheModal from '@/components/compra/CompraDetalheModal'
+import ComissaoDetalheModal from '@/components/comissao/ComissaoDetalheModal'
 import styles from './FinanceiroClient.module.css'
 import {
   buscarTransacoes, marcarComoPago, criarDespesaManual, editarDespesaManual,
@@ -327,15 +328,18 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
   const [editingTx, setEditingTx]       = useState<TransactionRow | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
-  // Modais de detalhe de venda/compra (quando linha referencia uma origem)
-  const [vendaModalId,  setVendaModalId]  = useState<string | null>(null)
-  const [compraModalId, setCompraModalId] = useState<string | null>(null)
+  // Modais de detalhe de venda/compra/comissão (quando linha referencia uma origem)
+  const [vendaModalId,     setVendaModalId]     = useState<string | null>(null)
+  const [compraModalId,    setCompraModalId]    = useState<string | null>(null)
+  const [comissaoModalTxId, setComissaoModalTxId] = useState<string | null>(null)
 
   function handleRowClick(tx: TransactionRow) {
     if (tx.reference_type === 'sale' && tx.reference_id) {
       setVendaModalId(tx.reference_id)
     } else if (tx.reference_type === 'purchase' && tx.reference_id) {
       setCompraModalId(tx.reference_id)
+    } else if (tx.reference_type === 'seller_commission') {
+      setComissaoModalTxId(tx.id)
     }
   }
 
@@ -476,14 +480,16 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
               </tr>
             )}
             {transactions.map(tx => {
-              const isClickable = (tx.reference_type === 'sale' || tx.reference_type === 'purchase') && !!tx.reference_id
+              const isClickable = (
+                (tx.reference_type === 'sale' || tx.reference_type === 'purchase') && !!tx.reference_id
+              ) || tx.reference_type === 'seller_commission'
               return (
               <tr
                 key={tx.id}
                 className={styles.row}
                 onClick={() => isClickable && handleRowClick(tx)}
                 style={{ cursor: isClickable ? 'pointer' : 'default' }}
-                title={isClickable ? `Ver detalhe da ${tx.reference_type === 'sale' ? 'venda' : 'compra'}` : undefined}
+                title={isClickable ? `Ver detalhe ${tx.reference_type === 'sale' ? 'da venda' : tx.reference_type === 'purchase' ? 'da compra' : 'da comissão'}` : undefined}
               >
                 <td className={styles.dateCell}>{fmtDate(tx.transaction_date)}</td>
                 <td className={styles.dateCell}>{fmtDate(tx.due_date)}</td>
@@ -587,6 +593,18 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
           onDeleted={() => {
             setTransactions(prev => prev.filter(t => !(t.reference_type === 'purchase' && t.reference_id === compraModalId)))
             setCompraModalId(null)
+          }}
+        />
+      )}
+
+      {/* Modal detalhe da comissão (linha clicada) */}
+      {comissaoModalTxId && (
+        <ComissaoDetalheModal
+          transactionId={comissaoModalTxId}
+          onClose={() => setComissaoModalTxId(null)}
+          onDeleted={() => {
+            setTransactions(prev => prev.filter(t => t.id !== comissaoModalTxId))
+            setComissaoModalTxId(null)
           }}
         />
       )}
