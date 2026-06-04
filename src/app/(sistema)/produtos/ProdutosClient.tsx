@@ -62,13 +62,14 @@ interface Props {
   suppliers: SupplierOption[]
   categories: string[]
   materials: string[]
+  categoryLabelMap: Record<string, 'A' | 'B'>
   filters: Filters
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export default function ProdutosClient({
-  products, total, page, perPage, isAdmin, stores, suppliers, categories, materials, filters,
+  products, total, page, perPage, isAdmin, stores, suppliers, categories, materials, categoryLabelMap, filters,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -109,10 +110,10 @@ export default function ProdutosClient({
         supplier_reference: p.code,
         sale_price: p.promotional_price ?? p.sale_price,
         barcode_number: p.barcode_number,
-        label_format: p.label_format,
+        label_format: categoryLabelMap[p.category] ?? p.label_format,
         quantity: 1,
       })),
-    [products, selectedIds],
+    [products, selectedIds, categoryLabelMap],
   )
 
   const totalPages = Math.ceil(total / perPage)

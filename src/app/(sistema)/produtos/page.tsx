@@ -90,12 +90,13 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
     query = query.eq('is_active', true)
   }
 
-  const [productsRes, categoriesRes, materialsRes, storesRes, suppliersRes] = await Promise.all([
+  const [productsRes, categoriesRes, materialsRes, storesRes, suppliersRes, categoryMappingsRes] = await Promise.all([
     query,
     admin.from('products').select('category').not('category', 'is', null),
     admin.from('products').select('material').not('material', 'is', null),
     isAdmin ? admin.from('stores').select('id, name').order('name') : Promise.resolve({ data: [] }),
     isAdmin ? admin.from('suppliers').select('id, name, initials').eq('is_active', true).order('name') : Promise.resolve({ data: [] }),
+    admin.from('category_label_mapping').select('category, label_format'),
   ])
 
   const products = (productsRes.data ?? []) as ProductWithRelations[]
@@ -105,6 +106,9 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
   const materials  = [...new Set((materialsRes.data ?? []).map(r => r.material as string))].filter(Boolean).sort()
   const stores     = (storesRes.data ?? []) as StoreOption[]
   const suppliers  = (suppliersRes.data ?? []) as SupplierOption[]
+  const categoryLabelMap = Object.fromEntries(
+    (categoryMappingsRes.data ?? []).map(r => [r.category, r.label_format as 'A' | 'B'])
+  )
 
   return (
     <div>
@@ -128,6 +132,7 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
         suppliers={suppliers}
         categories={categories}
         materials={materials}
+        categoryLabelMap={categoryLabelMap}
         filters={{
           q: params.q ?? '',
           store_id: params.store_id ?? '',

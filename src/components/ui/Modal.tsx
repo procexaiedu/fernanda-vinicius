@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import styles from './Modal.module.css'
@@ -17,6 +17,7 @@ interface ModalProps {
 
 export default function Modal({ isOpen, onClose, title, children, size = 'md', hideHeader = false }: ModalProps) {
   const [mounted, setMounted] = useState(false)
+  const didMouseDownOnBackdrop = useRef(false)
 
   useEffect(() => {
     setMounted(true)
@@ -38,7 +39,12 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', h
   if (!mounted || !isOpen) return null
 
   return createPortal(
-    <div className={styles.backdrop} onClick={onClose} role="presentation">
+    <div
+      className={styles.backdrop}
+      role="presentation"
+      onMouseDown={(e) => { didMouseDownOnBackdrop.current = e.target === e.currentTarget }}
+      onClick={() => { if (didMouseDownOnBackdrop.current) onClose() }}
+    >
       <div
         className={`${styles.dialog} ${styles[size]}`}
         role="dialog"

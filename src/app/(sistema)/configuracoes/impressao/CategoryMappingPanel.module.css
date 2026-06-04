@@ -1,0 +1,216 @@
+.panel {
+  background: var(--color-bg-secondary, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+  border-radius: 14px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panelHeader h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--color-text-primary);
+}
+
+.panelHeader p {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.error {
+  font-size: 12.5px;
+  color: #e89a9a;
+  background: rgba(220, 110, 110, 0.08);
+  border: 1px solid rgba(220, 110, 110, 0.25);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 8px 8px;
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.07));
+}
+
+.table thead th:last-child {
+  width: 60px;
+}
+
+.table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.1s ease;
+}
+
+.table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.table tbody td {
+  padding: 9px 8px;
+  vertical-align: middle;
+}
+
+.rowEditing {
+  background: rgba(181, 148, 112, 0.04) !important;
+}
+
+.categoryName {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.formatBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.formatBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: filter 0.15s ease;
+}
+
+.formatBtn:hover {
+  filter: brightness(1.15);
+}
+
+.formatA {
+  background: rgba(252, 211, 77, 0.15);
+  color: #fcd34d;
+}
+
+.formatB {
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.actionBtn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--color-text-primary);
+}
+
+.actionBtnSave {
+  color: #6fcf9a;
+}
+
+.actionBtnSave:hover {
+  background: rgba(72, 165, 110, 0.12);
+  color: #6fcf9a;
+}
+
+.actionBtnDanger {
+  color: var(--color-text-secondary);
+}
+
+.actionBtnDanger:hover {
+  background: rgba(220, 110, 110, 0.12);
+  color: #e89a9a;
+}
+
+.editInput {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--color-accent, #b59470);
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  width: 100%;
+  outline: none;
+}
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 0;
+}
+
+.addRow .editInput {
+  flex: 1;
+}
+
+.empty {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+  padding: 12px 8px;
+}
+
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  color: var(--color-text-secondary);
+  padding: 7px 12px;
+  font-size: 12.5px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  align-self: flex-start;
+}
+
+.addBtn:hover {
+  border-color: var(--color-accent, #b59470);
+  color: var(--color-accent, #b59470);
+  background: rgba(181, 148, 112, 0.05);
+}
