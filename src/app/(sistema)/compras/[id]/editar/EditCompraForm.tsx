@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, CheckCircle, Clock, ShoppingBag } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Clock, ShoppingBag, ChevronDown, RefreshCw } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import {
   editarCompra,
@@ -27,15 +27,69 @@ const METHOD_LABELS: Record<string, string> = {
 // Permite quantity vazio durante digitação sem forçar 0 imediatamente
 type FormItem = Omit<EditItemData, 'quantity'> & { quantity: number | '' }
 
+// ── Componente: select customizado (sem dropdown nativo do OS) ────────────────
+
+interface SelectOption { value: string; label: string }
+
+function SelectField({ value, onChange, options, disabled, wide }: {
+  value: string
+  onChange: (v: string) => void
+  options: SelectOption[]
+  disabled?: boolean
+  wide?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const label = options.find(o => o.value === value)?.label ?? value
+
+  return (
+    <div ref={ref} className={styles.selectWrap}>
+      <button
+        type="button"
+        className={`${styles.selectTrigger} ${wide ? styles.selectTriggerWide : ''}`}
+        onClick={() => !disabled && setOpen(o => !o)}
+        disabled={disabled}
+        title={disabled ? 'Produto com vendas — loja bloqueada' : undefined}
+      >
+        <span className={styles.selectLabel}>{label}</span>
+        <ChevronDown size={11} className={`${styles.selectChevron} ${open ? styles.selectChevronOpen : ''}`} />
+      </button>
+      {open && (
+        <div className={styles.selectDropdown}>
+          {options.map(opt => (
+            <div
+              key={opt.value}
+              className={`${styles.selectOption} ${opt.value === value ? styles.selectOptionActive : ''}`}
+              onMouseDown={() => { onChange(opt.value); setOpen(false) }}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
+
 export default function EditCompraForm({ compra }: Props) {
   const router = useRouter()
 
-  // ── Estado: campos do cabeçalho ──────────────────────────────────────────
   const [purchaseDate, setPurchaseDate] = useState(compra.purchaseDate)
   const [notes,        setNotes]        = useState(compra.notes)
   const [nfNumber,     setNfNumber]     = useState(compra.nfNumber)
 
-  // ── Estado: itens ────────────────────────────────────────────────────────
   const [items, setItems] = useState<FormItem[]>(
     compra.items.map(i => ({
       purchaseItemId: i.purchaseItemId,
@@ -53,7 +107,6 @@ export default function EditCompraForm({ compra }: Props) {
     }))
   )
 
-  // ── Estado: pagamentos ───────────────────────────────────────────────────
   const [payments, setPayments] = useState<EditPaymentData[]>(
     compra.payments.map(p => ({ ...p }))
   )
@@ -61,7 +114,43 @@ export default function EditCompraForm({ compra }: Props) {
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState<string | null>(null)
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Subtotais por fornecedor (calculado ao vivo) ──────────────────────────
+
+  const supplierSubtotals = useMemo(() => {
+    const map = new Map<string, { name: string; total: number }>()
+    items.forEach((item, idx) => {
+      const origName = compra.items[idx]?.supplierName ?? '—'
+      const sup = compra.suppliers.find(s => s.id === item.supplierId)
+      const name = sup?.name ?? origName
+      const prev = map.get(item.supplierId) ?? { name, total: 0 }
+      map.set(item.supplierId, { name, total: prev.total + item.costPrice * (Number(item.quantity) || 0) })
+    })
+    return [...map.values()]
+  }, [items, compra.items, compra.suppliers])
+
+  const totalCost     = items.reduce((s, i) => s + i.costPrice * (Number(i.quantity) || 0), 0)
+  const totalPayments = payments.reduce((s, p) => s + p.amount, 0)
+  const paymentsDiff  = Math.abs(totalCost - totalPayments)
+  const hasPaymentMismatch = paymentsDiff > 0.01
+
+  // ── Redistribuir pagamentos proporcionalmente ao novo custo ──────────────
+
+  function redistributePayments() {
+    if (payments.length === 0 || totalCost === 0) return
+    if (totalPayments > 0.01) {
+      // Proporcional ao que já existe
+      setPayments(prev => prev.map(p => ({
+        ...p,
+        amount: Math.round((p.amount / totalPayments) * totalCost * 100) / 100,
+      })))
+    } else {
+      // Distribuição igual
+      const each = Math.round((totalCost / payments.length) * 100) / 100
+      setPayments(prev => prev.map(p => ({ ...p, amount: each })))
+    }
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   function updateItem<K extends keyof FormItem>(idx: number, key: K, val: FormItem[K]) {
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, [key]: val } : it))
@@ -71,7 +160,7 @@ export default function EditCompraForm({ compra }: Props) {
     setPayments(prev => prev.map((p, i) => i === idx ? { ...p, [key]: val } : p))
   }
 
-  // ── Submit ───────────────────────────────────────────────────────────────
+  // ── Submit ────────────────────────────────────────────────────────────────
 
   async function handleSave() {
     setSaving(true)
@@ -93,9 +182,18 @@ export default function EditCompraForm({ compra }: Props) {
     }
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Options ───────────────────────────────────────────────────────────────
 
-  const totalCost = items.reduce((s, i) => s + i.costPrice * (Number(i.quantity) || 0), 0)
+  const supplierOptions = compra.suppliers.map(s => ({ value: s.id, label: s.name }))
+  const storeOptions    = compra.stores.map(s => ({ value: s.id, label: s.name }))
+  const methodOptions   = [
+    { value: 'cash',     label: 'Dinheiro' },
+    { value: 'pix',      label: 'PIX' },
+    { value: 'transfer', label: 'Transferência' },
+    { value: 'credit',   label: 'Crédito' },
+  ]
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className={styles.wrapper}>
@@ -156,7 +254,7 @@ export default function EditCompraForm({ compra }: Props) {
                 <th style={{ minWidth: 160 }}>Produto</th>
                 <th style={{ width: 110 }}>Categoria</th>
                 <th style={{ width: 110 }}>Material</th>
-                <th style={{ width: 150 }}>Fornecedor</th>
+                <th style={{ width: 160 }}>Fornecedor</th>
                 <th style={{ width: 130 }}>Loja</th>
                 <th style={{ width: 90 }}>Custo unit.</th>
                 <th style={{ width: 90 }}>Preço venda</th>
@@ -166,10 +264,9 @@ export default function EditCompraForm({ compra }: Props) {
             </thead>
             <tbody>
               {items.map((item, idx) => {
-                const original   = compra.items[idx]
-                const unitsSold  = original.unitsSold
-                const hasSales   = unitsSold > 0
-                const storeBlocked = hasSales
+                const original  = compra.items[idx]
+                const unitsSold = original.unitsSold
+                const hasSales  = unitsSold > 0
 
                 return (
                   <tr key={item.purchaseItemId}>
@@ -209,30 +306,22 @@ export default function EditCompraForm({ compra }: Props) {
 
                     {/* Fornecedor */}
                     <td>
-                      <select
-                        className={styles.cell}
+                      <SelectField
                         value={item.supplierId}
-                        onChange={e => updateItem(idx, 'supplierId', e.target.value)}
-                      >
-                        {compra.suppliers.map(s => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
+                        onChange={v => updateItem(idx, 'supplierId', v)}
+                        options={supplierOptions}
+                        wide
+                      />
                     </td>
 
                     {/* Loja */}
                     <td>
-                      <select
-                        className={styles.cell}
+                      <SelectField
                         value={item.storeId}
-                        onChange={e => updateItem(idx, 'storeId', e.target.value)}
-                        disabled={storeBlocked}
-                        title={storeBlocked ? 'Produto com vendas — loja bloqueada' : undefined}
-                      >
-                        {compra.stores.map(s => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
+                        onChange={v => updateItem(idx, 'storeId', v)}
+                        options={storeOptions}
+                        disabled={hasSales}
+                      />
                     </td>
 
                     {/* Custo unit */}
@@ -270,7 +359,7 @@ export default function EditCompraForm({ compra }: Props) {
                           const raw = e.target.value.replace(/[^0-9]/g, '')
                           updateItem(idx, 'quantity', raw === '' ? '' : parseInt(raw))
                         }}
-                        onBlur={e => {
+                        onBlur={() => {
                           const v = Number(item.quantity) || 0
                           updateItem(idx, 'quantity', Math.max(unitsSold, v))
                         }}
@@ -282,14 +371,14 @@ export default function EditCompraForm({ compra }: Props) {
                     {/* Etiqueta A/B */}
                     <td>
                       <div className={styles.labelToggle}>
-                        {(['A', 'B'] as const).map(fmt => (
+                        {(['A', 'B'] as const).map(f => (
                           <button
-                            key={fmt}
+                            key={f}
                             type="button"
-                            className={`${styles.labelBtn} ${item.labelFormat === fmt ? styles.labelBtnActive : ''}`}
-                            onClick={() => updateItem(idx, 'labelFormat', fmt)}
+                            className={`${styles.labelBtn} ${item.labelFormat === f ? styles.labelBtnActive : ''}`}
+                            onClick={() => updateItem(idx, 'labelFormat', f)}
                           >
-                            {fmt}
+                            {f}
                           </button>
                         ))}
                       </div>
@@ -305,10 +394,35 @@ export default function EditCompraForm({ compra }: Props) {
       {/* ── Pagamentos ─────────────────────────────────────────────────── */}
       {payments.length > 0 && (
         <div className={styles.section}>
-          <div className={styles.sectionTitle}>Pagamentos</div>
-          <p className={styles.muted} style={{ marginBottom: 12 }}>
-            Todos os pagamentos podem ser editados para correção de erros.
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div className={styles.sectionTitle} style={{ marginBottom: 0 }}>Pagamentos</div>
+            {!compra.hasAnySale && hasPaymentMismatch && (
+              <button type="button" className={styles.recalcBtn} onClick={redistributePayments}>
+                <RefreshCw size={12} /> Redistribuir ({fmt(totalCost)})
+              </button>
+            )}
+          </div>
+
+          {/* Subtotais por fornecedor — referência para o usuário */}
+          {supplierSubtotals.length > 0 && (
+            <div className={styles.supplierRef}>
+              <span className={styles.supplierRefLabel}>Subtotal por fornecedor:</span>
+              {supplierSubtotals.map(s => (
+                <span key={s.name} className={styles.supplierRefItem}>
+                  {s.name}: <strong>{fmt(s.total)}</strong>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {hasPaymentMismatch && (
+            <div className={styles.diffBanner}>
+              <AlertTriangle size={12} />
+              Soma dos pagamentos ({fmt(totalPayments)}) difere do custo total ({fmt(totalCost)}).
+              {!compra.hasAnySale && ' Clique em "Redistribuir" para ajustar.'}
+            </div>
+          )}
+
           <table className={styles.payTable}>
             <thead>
               <tr>
@@ -321,56 +435,46 @@ export default function EditCompraForm({ compra }: Props) {
             </thead>
             <tbody>
               {payments.map((pay, idx) => (
-                  <tr key={pay.id}>
-                    {/* Método */}
-                    <td>
-                      <select
-                        className={styles.payInput}
-                        value={pay.paymentMethod}
-                        onChange={e => updatePayment(idx, 'paymentMethod', e.target.value)}
-                      >
-                        <option value="cash">Dinheiro</option>
-                        <option value="pix">PIX</option>
-                        <option value="transfer">Transferência</option>
-                        <option value="credit">Crédito</option>
-                      </select>
-                    </td>
+                <tr key={pay.id}>
+                  <td>
+                    <SelectField
+                      value={pay.paymentMethod}
+                      onChange={v => updatePayment(idx, 'paymentMethod', v)}
+                      options={methodOptions}
+                    />
+                  </td>
 
-                    {/* Parcela */}
-                    <td className={styles.muted}>
-                      {pay.installmentNumber ? `${pay.installmentNumber}x` : '—'}
-                    </td>
+                  <td className={styles.muted}>
+                    {pay.installmentNumber ? `${pay.installmentNumber}x` : '—'}
+                  </td>
 
-                    {/* Vencimento */}
-                    <td>
-                      <input
-                        type="date"
-                        className={styles.payInput}
-                        value={pay.dueDate}
-                        onChange={e => updatePayment(idx, 'dueDate', e.target.value)}
-                      />
-                    </td>
+                  <td>
+                    <input
+                      type="date"
+                      className={styles.payInput}
+                      value={pay.dueDate}
+                      onChange={e => updatePayment(idx, 'dueDate', e.target.value)}
+                    />
+                  </td>
 
-                    {/* Valor */}
-                    <td>
-                      <input
-                        type="number"
-                        className={styles.payInput}
-                        style={{ width: 100 }}
-                        value={pay.amount}
-                        min={0}
-                        step={0.01}
-                        onChange={e => updatePayment(idx, 'amount', parseFloat(e.target.value) || 0)}
-                      />
-                    </td>
+                  <td>
+                    <input
+                      type="number"
+                      className={styles.payInput}
+                      style={{ width: 100 }}
+                      value={pay.amount}
+                      min={0}
+                      step={0.01}
+                      onChange={e => updatePayment(idx, 'amount', parseFloat(e.target.value) || 0)}
+                    />
+                  </td>
 
-                    {/* Status */}
-                    <td>
-                      {pay.status === 'completed'
-                        ? <span className={styles.statusPaid}><CheckCircle size={11} /> Pago</span>
-                        : <span className={styles.statusPending}><Clock size={11} /> Pendente</span>}
-                    </td>
-                  </tr>
+                  <td>
+                    {pay.status === 'completed'
+                      ? <span className={styles.statusPaid}><CheckCircle size={11} /> Pago</span>
+                      : <span className={styles.statusPending}><Clock size={11} /> Pendente</span>}
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>

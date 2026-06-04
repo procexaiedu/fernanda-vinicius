@@ -145,19 +145,94 @@
   cursor: not-allowed;
 }
 
-select.cell {
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 6px center;
-  padding-right: 22px;
-  cursor: pointer;
+/* ── Select customizado (substitui <select> nativo) ─────────────────────── */
+
+.selectWrap {
+  position: relative;
+  width: 100%;
 }
 
-select.cell option {
-  background: var(--bg-elevated);
+.selectTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  height: 30px;
+  padding: 0 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
   color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.selectTriggerWide {
+  /* usado quando o label pode ser longo */
+}
+
+.selectTrigger:hover:not(:disabled) {
+  border-color: var(--border);
+  background: var(--bg-elevated);
+}
+
+.selectTrigger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.selectLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.selectChevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.selectChevronOpen {
+  transform: rotate(180deg);
+}
+
+.selectDropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 300;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.selectOption {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+}
+
+.selectOption:hover {
+  background: rgba(201, 168, 76, 0.1);
+}
+
+.selectOptionActive {
+  background: rgba(201, 168, 76, 0.15);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* ── Badge "vendidos" ───────────────────────────────────────────────────── */
@@ -250,19 +325,71 @@ select.cell option {
   border-color: var(--accent);
 }
 
-select.payInput {
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  padding-right: 28px;
-  cursor: pointer;
+/* ── Referência subtotais por fornecedor ─────────────────────────────────── */
+
+.supplierRef {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+  font-size: 12px;
 }
 
-select.payInput option {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
+.supplierRefLabel {
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 10px;
+}
+
+.supplierRefItem {
+  color: var(--text-secondary);
+}
+
+.supplierRefItem strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ── Diff banner e botão redistribuir ───────────────────────────────────── */
+
+.diffBanner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(224, 163, 82, 0.08);
+  border: 1px solid rgba(224, 163, 82, 0.25);
+  border-radius: var(--radius-md);
+  color: var(--warning);
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.recalcBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: rgba(201, 168, 76, 0.1);
+  border: 1px solid rgba(201, 168, 76, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.recalcBtn:hover {
+  background: rgba(201, 168, 76, 0.18);
+  border-color: var(--accent);
 }
 
 .statusPaid {
