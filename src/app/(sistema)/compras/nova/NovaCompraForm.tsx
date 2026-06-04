@@ -484,7 +484,7 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
     })
   }
 
-  function getCode(row: GridRow): string {
+  function getCode(row: FormRow): string {
     const initials = row.supplierInitials || suppliers.find(s => s.id === row.supplierId)?.initials || ''
     return generateCode(initials, purchaseMonth, row.costPrice)
   }
