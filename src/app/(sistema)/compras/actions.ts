@@ -40,12 +40,12 @@ export interface PaymentRow {
 export interface SupplierPaymentGroup {
   groupKey: string
   payments: PaymentRow[]
+  nfNumber?: string
+  nfUrl?: string
 }
 
 export interface CompraFormData {
   purchaseDate: string        // YYYY-MM-DD
-  nfNumber: string
-  nfUrl: string
   notes: string
   rows: GridRow[]
   supplierPayments: SupplierPaymentGroup[]
@@ -236,6 +236,13 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   const totalCost  = data.rows.reduce((s, r) => s + r.costPrice * r.quantity, 0)
   const totalItems = data.rows.reduce((s, r) => s + r.quantity, 0)
 
+  // Concatenar NFs de todos os fornecedores (ex: "CT:001042 | BL:002033")
+  const allNfNumbers = data.supplierPayments
+    .filter(g => g.nfNumber?.trim())
+    .map(g => g.nfNumber!.trim())
+    .join(' | ') || null
+  const firstNfUrl = data.supplierPayments.find(g => g.nfUrl?.trim())?.nfUrl?.trim() || null
+
   const { data: purchase, error: purchErr } = await admin
     .from('purchases')
     .insert({
@@ -245,8 +252,8 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
       purchase_date: data.purchaseDate,
       total_cost:    totalCost,
       total_items:   totalItems,
-      nf_number:     data.nfNumber || null,
-      nf_url:        data.nfUrl || null,
+      nf_number:     allNfNumbers,
+      nf_url:        firstNfUrl,
       notes:         data.notes || null,
     })
     .select('id')
@@ -278,48 +285,47 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   }
 
   // ── 7. Criar purchase_payments + transactions ─────────────────────────────
-  // Crédito: banco gerencia as parcelas → 1 registro completed pelo total
-  // À prazo direto (pending): 1 registro pending
-  // À vista (pix/cash/debit/completed): 1 registro completed
-  const allPayments = data.supplierPayments.flatMap(g => g.payments)
-  for (const payment of allPayments) {
-    const isCredit  = payment.method === 'credit'
-    const isPending = payment.status === 'pending'
-    const status    = (isCredit || !isPending) ? 'completed' : 'pending'
-    const paidAt    = status === 'completed' ? new Date().toISOString() : null
-    const dueDate   = payment.firstDueDate
+  for (const group of data.supplierPayments) {
+    const nfNum = group.nfNumber?.trim() || null
+    for (const payment of group.payments) {
+      const isCredit  = payment.method === 'credit'
+      const isPending = payment.status === 'pending'
+      const status    = (isCredit || !isPending) ? 'completed' : 'pending'
+      const paidAt    = status === 'completed' ? new Date().toISOString() : null
+      const dueDate   = payment.firstDueDate
 
-    const { error: ppErr } = await admin.from('purchase_payments').insert({
-      purchase_id:        purchase.id,
-      payment_method:     payment.method,
-      amount:             payment.totalAmount,
-      installment_number: isCredit && payment.installments > 1 ? payment.installments : null,
-      due_date:           dueDate,
-      status,
-      paid_at:            paidAt,
-    })
-    if (ppErr) return { success: false, error: `Erro ao criar pagamento: ${ppErr.message}` }
+      const { error: ppErr } = await admin.from('purchase_payments').insert({
+        purchase_id:        purchase.id,
+        payment_method:     payment.method,
+        amount:             payment.totalAmount,
+        installment_number: isCredit && payment.installments > 1 ? payment.installments : null,
+        due_date:           dueDate,
+        status,
+        paid_at:            paidAt,
+      })
+      if (ppErr) return { success: false, error: `Erro ao criar pagamento: ${ppErr.message}` }
 
-    const desc = isCredit && payment.installments > 1
-      ? `Compra — Crédito ${payment.installments}x${data.nfNumber ? ` NF ${data.nfNumber}` : ''}`
-      : `Compra${data.nfNumber ? ` NF ${data.nfNumber}` : ''}`
+      const desc = isCredit && payment.installments > 1
+        ? `Compra — Crédito ${payment.installments}x${nfNum ? ` NF ${nfNum}` : ''}`
+        : `Compra${nfNum ? ` NF ${nfNum}` : ''}`
 
-    const { error: txErr } = await admin.from('transactions').insert({
-      store_id:         null,
-      type:             'expense',
-      amount:           payment.totalAmount,
-      category:         'compra_fornecedor',
-      description:      desc,
-      reference_type:   'purchase',
-      reference_id:     purchase.id,
-      user_id:          userId,
-      payment_method:   payment.method,
-      transaction_date: data.purchaseDate,
-      due_date:         dueDate,
-      status,
-      paid_at:          paidAt,
-    })
-    if (txErr) return { success: false, error: `Erro ao criar transação: ${txErr.message}` }
+      const { error: txErr } = await admin.from('transactions').insert({
+        store_id:         null,
+        type:             'expense',
+        amount:           payment.totalAmount,
+        category:         'compra_fornecedor',
+        description:      desc,
+        reference_type:   'purchase',
+        reference_id:     purchase.id,
+        user_id:          userId,
+        payment_method:   payment.method,
+        transaction_date: data.purchaseDate,
+        due_date:         dueDate,
+        status,
+        paid_at:          paidAt,
+      })
+      if (txErr) return { success: false, error: `Erro ao criar transação: ${txErr.message}` }
+    }
   }
 
   revalidatePath('/compras')

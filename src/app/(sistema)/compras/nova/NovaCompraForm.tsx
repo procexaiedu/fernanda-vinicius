@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, AlertTriangle, Upload, ChevronDown } from 'lucide-react'
 import Button from '@/components/ui/Button'
@@ -21,15 +21,15 @@ interface ProductOption  {
 }
 
 interface Props {
-  suppliers:       SupplierOption[]
-  stores:          StoreOption[]
-  products:        ProductOption[]
-  categories:      string[]
-  materials:       string[]
+  suppliers:        SupplierOption[]
+  stores:           StoreOption[]
+  products:         ProductOption[]
+  categories:       string[]
+  materials:        string[]
   defaultMarkupPct: number
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function generateCode(initials: string, month: number, costPrice: number): string {
   if (!initials || !month || !costPrice) return ''
@@ -71,6 +71,14 @@ function emptyRow(defaultStoreId: string): GridRow {
   }
 }
 
+// ─── Keyboard nav helper ───────────────────────────────────────────────────────
+
+const LAST_COL = 8
+
+function focusGridCell(row: number, col: number) {
+  document.querySelector<HTMLElement>(`[data-row="${row}"][data-col="${col}"]`)?.focus()
+}
+
 // ─── Hook: posição do dropdown fixo ───────────────────────────────────────────
 
 function useFixedDropdown<T extends HTMLElement = HTMLInputElement>() {
@@ -88,14 +96,17 @@ function useFixedDropdown<T extends HTMLElement = HTMLInputElement>() {
   return { inputRef, pos, openAt, close }
 }
 
-// ─── Combobox genérico ─────────────────────────────────────────────────────────
+// ─── Combobox genérico (categoria, material) ───────────────────────────────────
 
-function Combobox({ value, onChange, options, placeholder, className }: {
+function Combobox({ value, onChange, options, placeholder, className, rowIndex, colIndex, onCellKeyDown }: {
   value: string
   onChange: (v: string) => void
   options: string[]
   placeholder: string
   className?: string
+  rowIndex?: number
+  colIndex?: number
+  onCellKeyDown?: (e: React.KeyboardEvent) => void
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
   const filtered = options.filter(o => o.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
@@ -111,6 +122,13 @@ function Combobox({ value, onChange, options, placeholder, className }: {
         onBlur={() => setTimeout(close, 150)}
         placeholder={placeholder}
         autoComplete="off"
+        data-row={rowIndex}
+        data-col={colIndex}
+        onKeyDown={e => {
+          if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Enter') && onCellKeyDown) {
+            onCellKeyDown(e)
+          }
+        }}
       />
       {pos && filtered.length > 0 && (
         <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}>
@@ -125,50 +143,16 @@ function Combobox({ value, onChange, options, placeholder, className }: {
   )
 }
 
-// ─── ProductCombobox ───────────────────────────────────────────────────────────
-
-function ProductCombobox({ value, onChange, products, placeholder }: {
-  value: string
-  onChange: (name: string, product: ProductOption | null) => void
-  products: ProductOption[]
-  placeholder: string
-}) {
-  const { inputRef, pos, openAt, close } = useFixedDropdown()
-  const filtered = products.filter(p => p.name.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
-
-  return (
-    <div className={styles.comboWrap}>
-      <input
-        ref={inputRef}
-        className={styles.cell}
-        value={value}
-        onChange={e => { onChange(e.target.value, null); openAt() }}
-        onFocus={openAt}
-        onBlur={() => setTimeout(close, 150)}
-        placeholder={placeholder}
-        autoComplete="off"
-      />
-      {pos && filtered.length > 0 && (
-        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 280), zIndex: 9999 }}>
-          {filtered.map(p => (
-            <div key={p.id} className={styles.comboOption} onMouseDown={() => { onChange(p.name, p); close() }}>
-              <span style={{ fontWeight: 600 }}>{p.name}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{p.code} · R$ {p.cost_price}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── SupplierCombobox ──────────────────────────────────────────────────────────
 
-function SupplierCombobox({ value, onChange, suppliers, placeholder }: {
+function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, colIndex, onCellKeyDown }: {
   value: string
   onChange: (name: string, supplier: SupplierOption | null) => void
   suppliers: SupplierOption[]
   placeholder: string
+  rowIndex?: number
+  colIndex?: number
+  onCellKeyDown?: (e: React.KeyboardEvent) => void
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
   const filtered = suppliers.filter(s => s.name.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
@@ -184,6 +168,13 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder }: {
         onBlur={() => setTimeout(close, 150)}
         placeholder={placeholder}
         autoComplete="off"
+        data-row={rowIndex}
+        data-col={colIndex}
+        onKeyDown={e => {
+          if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Enter') && onCellKeyDown) {
+            onCellKeyDown(e)
+          }
+        }}
       />
       {pos && filtered.length > 0 && (
         <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 240), zIndex: 9999 }}>
@@ -199,7 +190,7 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder }: {
   )
 }
 
-// ─── PaySelect — dropdown customizado para pagamentos ─────────────────────
+// ─── PaySelect ─────────────────────────────────────────────────────────────────
 
 const METHOD_OPTIONS = [
   { value: 'pix',      label: 'PIX' },
@@ -252,7 +243,7 @@ function PaySelect({ value, onChange, options, disabled }: {
   )
 }
 
-// ─── StoreSelect customizado ───────────────────────────────────────────────────
+// ─── StoreSelect ──────────────────────────────────────────────────────────────
 
 function StoreSelect({ value, onChange, stores }: {
   value: string
@@ -299,13 +290,10 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
 
   // Cabeçalho
   const [purchaseDate, setPurchaseDate]     = useState(today())
-  const [nfNumber, setNfNumber]             = useState('')
-  const [nfUrl, setNfUrl]                   = useState('')
   const [notes, setNotes]                   = useState('')
   const [isConsignment, setIsConsignment]   = useState(false)
   const [returnDeadline, setReturnDeadline] = useState('')
   const [minPurchasePct, setMinPurchasePct] = useState('')
-  const [uploadingNF, setUploadingNF]       = useState(false)
 
   // Grid de itens
   const [rows, setRows] = useState<GridRow[]>([emptyRow(defaultStoreId)])
@@ -330,9 +318,14 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
   // Pagamentos por fornecedor
   const [supplierPayments, setSupplierPayments] = useState<Record<string, PaymentRow[]>>({})
 
-  // Sincronizar chaves de pagamento quando os grupos mudam
+  // NF por fornecedor
+  const [supplierNFs, setSupplierNFs] = useState<Record<string, { nfNumber: string; nfUrl: string; uploading: boolean }>>({})
+  const nfInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  // Sincronizar pagamentos e NFs quando os grupos mudam
   useEffect(() => {
     const activeKeys = new Set(supplierGroups.map(g => g.groupKey))
+
     setSupplierPayments(prev => {
       let changed = false
       const next = { ...prev }
@@ -344,14 +337,25 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
       }
       return changed ? next : prev
     })
+
+    setSupplierNFs(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const key of Object.keys(next)) {
+        if (!activeKeys.has(key)) { delete next[key]; changed = true }
+      }
+      for (const key of activeKeys) {
+        if (!next[key]) { next[key] = { nfNumber: '', nfUrl: '', uploading: false }; changed = true }
+      }
+      return changed ? next : prev
+    })
   }, [supplierGroups])
 
   // Estado
-  const [saving, setSaving]   = useState(false)
-  const [error, setError]     = useState('')
+  const [saving, setSaving]           = useState(false)
+  const [error, setError]             = useState('')
   const [printerOpen, setPrinterOpen] = useState(false)
   const [printerItems, setPrinterItems] = useState<EtiquetasPrinterItem[]>([])
-  const nfInputRef = useRef<HTMLInputElement>(null)
 
   const purchaseMonth = parseInt(purchaseDate.slice(5, 7)) || new Date().getMonth() + 1
 
@@ -369,27 +373,13 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
     setRows(prev => prev.filter((_, i) => i !== index))
   }
 
-  function handleProductSelect(index: number, name: string, product: ProductOption | null) {
-    if (!product) {
-      updateRow(index, { productId: null, productName: name, productExistingCostDiffers: false })
-      return
+  function handleProductNameChange(index: number, name: string) {
+    const wasEmpty = rows[index].productName.trim() === ''
+    updateRow(index, { productId: null, productName: name, productExistingCostDiffers: false })
+    // Auto-cria nova linha quando o último campo sai do vazio
+    if (index === rows.length - 1 && wasEmpty && name.trim() !== '') {
+      addRow()
     }
-    const sup = suppliers.find(s => s.id === product.supplier_id)
-    const costDiffers = false // ao selecionar, ainda não há custo novo — o usuário vai digitar
-    updateRow(index, {
-      productId: product.id,
-      productName: product.name,
-      productExistingCostDiffers: costDiffers,
-      supplierId: product.supplier_id,
-      supplierName: sup?.name ?? '',
-      supplierInitials: sup?.initials ?? '',
-      category: product.category,
-      material: product.material,
-      salePrice: product.sale_price,
-      promoPrice: product.promotional_price,
-      storeId: product.store_id,
-      costPrice: product.cost_price,
-    })
   }
 
   function handleSupplierSelect(index: number, name: string, supplier: SupplierOption | null) {
@@ -403,7 +393,6 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
   function handleCostChange(index: number, cost: number) {
     const row = rows[index]
     const originalCost = products.find(p => p.id === row.productId)?.cost_price ?? 0
-    // Auto-sugere preço de venda se o campo ainda não foi editado manualmente
     const autoSalePrice = cost > 0 ? parseFloat((cost * (1 + defaultMarkupPct / 100)).toFixed(2)) : 0
     const prevAutoPrice = row.costPrice > 0 ? parseFloat((row.costPrice * (1 + defaultMarkupPct / 100)).toFixed(2)) : 0
     const salePriceWasAuto = row.salePrice === 0 || row.salePrice === prevAutoPrice
@@ -419,27 +408,46 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
     return generateCode(initials, purchaseMonth, row.costPrice)
   }
 
-  function handleEnterOnLastColumn(e: React.KeyboardEvent, isLastCol: boolean) {
-    if (e.key === 'Enter' && isLastCol) {
+  // ── Navegação por teclado no grid ─────────────────────────────────────────
+
+  function handleGridKeyDown(e: React.KeyboardEvent, rowIndex: number, colIndex: number) {
+    if (e.key === 'ArrowRight') {
       e.preventDefault()
-      addRow()
+      focusGridCell(rowIndex, colIndex + 1)
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      if (colIndex > 0) focusGridCell(rowIndex, colIndex - 1)
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const nextInRow = document.querySelector<HTMLElement>(`[data-row="${rowIndex}"][data-col="${colIndex + 1}"]`)
+      if (nextInRow) {
+        nextInRow.focus()
+      } else {
+        const nextRowEl = document.querySelector<HTMLElement>(`[data-row="${rowIndex + 1}"][data-col="0"]`)
+        if (nextRowEl) {
+          nextRowEl.focus()
+        } else {
+          addRow()
+          setTimeout(() => focusGridCell(rowIndex + 1, 0), 30)
+        }
+      }
     }
   }
 
-  // ── NF upload ─────────────────────────────────────────────────────────────
+  // ── NF upload por fornecedor ──────────────────────────────────────────────
 
-  async function handleNFUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploadingNF(true)
+  async function handleNFUpload(groupKey: string, file: File) {
+    setSupplierNFs(prev => ({ ...prev, [groupKey]: { ...prev[groupKey], uploading: true } }))
     try {
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       const json = await res.json()
-      if (json.url) setNfUrl(json.url)
-    } finally {
-      setUploadingNF(false)
+      if (json.url) {
+        setSupplierNFs(prev => ({ ...prev, [groupKey]: { ...prev[groupKey], nfUrl: json.url, uploading: false } }))
+      }
+    } catch {
+      setSupplierNFs(prev => ({ ...prev, [groupKey]: { ...prev[groupKey], uploading: false } }))
     }
   }
 
@@ -474,7 +482,8 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
 
   // ── Totais ────────────────────────────────────────────────────────────────
 
-  const totalCost = rows.reduce((s, r) => s + (r.costPrice || 0) * (r.quantity || 1), 0)
+  const validRows = rows.filter(r => r.productName.trim())
+  const totalCost = validRows.reduce((s, r) => s + (r.costPrice || 0) * (r.quantity || 1), 0)
 
   // ── Validação e submit ────────────────────────────────────────────────────
 
@@ -482,11 +491,10 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
     setError('')
 
     if (!purchaseDate) { setError('Informe a data da compra.'); return }
-    if (rows.length === 0) { setError('Adicione ao menos um item.'); return }
+    if (validRows.length === 0) { setError('Adicione ao menos um item.'); return }
 
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i]
-      if (!r.productName.trim()) { setError(`Linha ${i + 1}: informe o nome do produto.`); return }
+    for (let i = 0; i < validRows.length; i++) {
+      const r = validRows[i]
       if (!r.supplierName.trim()) { setError(`Linha ${i + 1}: informe o fornecedor.`); return }
       if (!r.supplierInitials.trim()) { setError(`Linha ${i + 1}: informe as iniciais do fornecedor.`); return }
       if (!r.category.trim()) { setError(`Linha ${i + 1}: informe a categoria.`); return }
@@ -509,13 +517,13 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
     setSaving(true)
     const result = await salvarCompra({
       purchaseDate,
-      nfNumber,
-      nfUrl,
       notes,
-      rows,
+      rows: validRows,
       supplierPayments: supplierGroups.map(g => ({
         groupKey: g.groupKey,
         payments: supplierPayments[g.groupKey] ?? [],
+        nfNumber: supplierNFs[g.groupKey]?.nfNumber ?? '',
+        nfUrl:    supplierNFs[g.groupKey]?.nfUrl    ?? '',
       })),
       isConsignment,
       returnDeadline,
@@ -525,8 +533,7 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
 
     if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
 
-    // Compra criada — oferece imprimir etiquetas antes de redirecionar.
-    // Consignação (sem purchaseId) pula direto pro redirect.
+    // Compra criada — oferece imprimir etiquetas antes de redirecionar
     if (result.purchaseId) {
       const itens = await getItensCompraParaEtiquetas(result.purchaseId)
       if (itens.length > 0) {
@@ -540,7 +547,7 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
           quantity: it.quantity,
         })))
         setPrinterOpen(true)
-        return // Não redireciona ainda; aguarda fechar o modal
+        return
       }
     }
 
@@ -563,7 +570,6 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Informações Gerais</div>
 
-        {/* Toggle tipo */}
         <div className={styles.typeToggle}>
           <button
             type="button"
@@ -586,18 +592,6 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
             <label className={styles.label}>Data da compra <span className={styles.req}>*</span></label>
             <DatePicker value={purchaseDate} onChange={setPurchaseDate} className={styles.input} />
           </div>
-          <div className={styles.field}>
-            <label className={styles.label}>NF Número</label>
-            <input className={styles.input} value={nfNumber} onChange={e => setNfNumber(e.target.value)} placeholder="Ex: 001042" />
-          </div>
-          <div className={styles.field}>
-            <label className={styles.label}>Arquivo NF</label>
-            <input ref={nfInputRef} type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={handleNFUpload} />
-            <button type="button" className={styles.uploadBtn} onClick={() => nfInputRef.current?.click()} disabled={uploadingNF}>
-              <Upload size={13} />
-              {uploadingNF ? 'Enviando...' : nfUrl ? 'Arquivo anexado ✓' : 'Anexar NF'}
-            </button>
-          </div>
 
           {isConsignment && (
             <>
@@ -607,14 +601,26 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
               </div>
               <div className={styles.field}>
                 <label className={styles.label}>% mínimo de compra</label>
-                <input type="number" min="0" max="100" step="1" className={styles.input} value={minPurchasePct} onChange={e => setMinPurchasePct(e.target.value)} placeholder="Ex: 50" />
+                <input
+                  type="number" min="0" max="100" step="1"
+                  className={styles.input}
+                  value={minPurchasePct}
+                  onChange={e => setMinPurchasePct(e.target.value)}
+                  placeholder="Ex: 50"
+                />
               </div>
             </>
           )}
 
           <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
             <label className={styles.label}>Observações</label>
-            <textarea className={styles.textarea} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas sobre essa compra..." rows={2} />
+            <textarea
+              className={styles.textarea}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Notas sobre essa compra..."
+              rows={2}
+            />
           </div>
         </div>
       </div>
@@ -624,7 +630,7 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
         <div className={styles.sectionHeader}>
           <div className={styles.sectionTitle}>Itens da Compra</div>
           <div className={styles.sectionStats}>
-            {rows.length} {rows.length === 1 ? 'item' : 'itens'} · Custo total: <strong>{fmt(totalCost)}</strong>
+            {validRows.length} {validRows.length === 1 ? 'item' : 'itens'} · Custo total: <strong>{fmt(totalCost)}</strong>
           </div>
         </div>
 
@@ -651,22 +657,27 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
             </thead>
             <tbody>
               {rows.map((row, i) => {
-                const code    = getCode(row)
+                const code     = getCode(row)
                 const subtotal = (row.costPrice || 0) * (row.quantity || 1)
                 const originalCost = products.find(p => p.id === row.productId)?.cost_price ?? 0
                 const showDupWarning = row.productId && row.costPrice > 0 && row.costPrice !== originalCost
+                const nav = (col: number) => (e: React.KeyboardEvent) => handleGridKeyDown(e, i, col)
 
                 return (
                   <tr key={i} className={styles.row}>
                     <td className={styles.tdNum}>{i + 1}</td>
 
-                    {/* Produto */}
+                    {/* Produto — input simples, sem autocomplete */}
                     <td className={styles.tdProd}>
-                      <ProductCombobox
+                      <input
+                        className={styles.cell}
                         value={row.productName}
-                        onChange={(name, prod) => handleProductSelect(i, name, prod)}
-                        products={products}
+                        onChange={e => handleProductNameChange(i, e.target.value)}
                         placeholder="Nome do produto..."
+                        autoComplete="off"
+                        data-row={i}
+                        data-col={0}
+                        onKeyDown={nav(0)}
                       />
                       {showDupWarning && (
                         <div className={styles.dupWarning}>
@@ -682,6 +693,9 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                         onChange={(name, sup) => handleSupplierSelect(i, name, sup)}
                         suppliers={suppliers}
                         placeholder="Fornecedor..."
+                        rowIndex={i}
+                        colIndex={1}
+                        onCellKeyDown={nav(1)}
                       />
                     </td>
 
@@ -695,20 +709,39 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                         placeholder="MJ"
                         readOnly={!!row.supplierId}
                         style={{ opacity: row.supplierId ? 0.5 : 1 }}
+                        data-row={i}
+                        data-col={2}
+                        onKeyDown={nav(2)}
                       />
                     </td>
 
                     {/* Categoria */}
                     <td className={styles.tdCat}>
-                      <Combobox value={row.category} onChange={v => {
-                        const isBrinco = v.toLowerCase().includes('brinco')
-                        updateRow(i, { category: v, labelFormat: isBrinco ? 'B' : 'A' })
-                      }} options={categories} placeholder="brinco..." />
+                      <Combobox
+                        value={row.category}
+                        onChange={v => {
+                          const isBrinco = v.toLowerCase().includes('brinco')
+                          updateRow(i, { category: v, labelFormat: isBrinco ? 'B' : 'A' })
+                        }}
+                        options={categories}
+                        placeholder="brinco..."
+                        rowIndex={i}
+                        colIndex={3}
+                        onCellKeyDown={nav(3)}
+                      />
                     </td>
 
                     {/* Material */}
                     <td className={styles.tdMat}>
-                      <Combobox value={row.material} onChange={v => updateRow(i, { material: v })} options={materials} placeholder="prata..." />
+                      <Combobox
+                        value={row.material}
+                        onChange={v => updateRow(i, { material: v })}
+                        options={materials}
+                        placeholder="prata..."
+                        rowIndex={i}
+                        colIndex={4}
+                        onCellKeyDown={nav(4)}
+                      />
                     </td>
 
                     {/* Custo */}
@@ -719,6 +752,9 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                         value={row.costPrice || ''}
                         onChange={e => handleCostChange(i, parseFloat(e.target.value) || 0)}
                         placeholder="0,00"
+                        data-row={i}
+                        data-col={5}
+                        onKeyDown={nav(5)}
                       />
                     </td>
 
@@ -730,6 +766,9 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                         value={row.salePrice || ''}
                         onChange={e => updateRow(i, { salePrice: parseFloat(e.target.value) || 0 })}
                         placeholder="0,00"
+                        data-row={i}
+                        data-col={6}
+                        onKeyDown={nav(6)}
                       />
                     </td>
 
@@ -741,6 +780,9 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                         value={row.promoPrice ?? ''}
                         onChange={e => updateRow(i, { promoPrice: e.target.value ? parseFloat(e.target.value) : null })}
                         placeholder="—"
+                        data-row={i}
+                        data-col={7}
+                        onKeyDown={nav(7)}
                       />
                     </td>
 
@@ -769,6 +811,9 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                         className={styles.cell}
                         value={row.quantity}
                         onChange={e => updateRow(i, { quantity: parseInt(e.target.value) || 1 })}
+                        data-row={i}
+                        data-col={8}
+                        onKeyDown={nav(8)}
                       />
                     </td>
 
@@ -798,7 +843,6 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                         className={styles.delBtn}
                         onClick={() => removeRow(i)}
                         disabled={rows.length === 1}
-                        onKeyDown={e => handleEnterOnLastColumn(e, true)}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -825,9 +869,10 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
           )}
 
           {supplierGroups.map(group => {
-            const gp = supplierPayments[group.groupKey] ?? []
+            const gp  = supplierPayments[group.groupKey] ?? []
+            const nf  = supplierNFs[group.groupKey] ?? { nfNumber: '', nfUrl: '', uploading: false }
             const gpTotal = gp.reduce((s, p) => s + (p.totalAmount || 0), 0)
-            const diff = gpTotal - group.subtotal
+            const diff    = gpTotal - group.subtotal
 
             return (
               <div key={group.groupKey} className={styles.supplierPayCard}>
@@ -836,9 +881,39 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                     <span className={styles.supplierPayName}>{group.supplierName}</span>
                     <span className={styles.supplierPaySubtotal}>Subtotal: <strong>{fmt(group.subtotal)}</strong></span>
                   </div>
-                  <button type="button" className={styles.addPayBtn} onClick={() => addPaymentForSupplier(group.groupKey)}>
-                    <Plus size={13} /> Adicionar pagamento
-                  </button>
+                  <div className={styles.supplierPayActions}>
+                    <input
+                      className={styles.nfInput}
+                      value={nf.nfNumber}
+                      onChange={e => setSupplierNFs(prev => ({
+                        ...prev,
+                        [group.groupKey]: { ...prev[group.groupKey], nfNumber: e.target.value }
+                      }))}
+                      placeholder="NF Número..."
+                    />
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      style={{ display: 'none' }}
+                      ref={el => { nfInputRefs.current[group.groupKey] = el }}
+                      onChange={e => {
+                        const file = e.target.files?.[0]
+                        if (file) handleNFUpload(group.groupKey, file)
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={styles.uploadBtn}
+                      onClick={() => nfInputRefs.current[group.groupKey]?.click()}
+                      disabled={nf.uploading}
+                    >
+                      <Upload size={12} />
+                      {nf.uploading ? 'Enviando...' : nf.nfUrl ? 'NF ✓' : 'Anexar NF'}
+                    </button>
+                    <button type="button" className={styles.addPayBtn} onClick={() => addPaymentForSupplier(group.groupKey)}>
+                      <Plus size={13} /> Adicionar pagamento
+                    </button>
+                  </div>
                 </div>
 
                 {gp.length > 0 && (
