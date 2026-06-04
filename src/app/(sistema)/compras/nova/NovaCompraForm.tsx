@@ -109,7 +109,46 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
   onCellKeyDown?: (e: React.KeyboardEvent) => void
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
+  const [highlighted, setHighlighted] = useState(-1)
   const filtered = options.filter(o => o.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
+
+  useEffect(() => { setHighlighted(-1) }, [pos])
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    // Navegação no dropdown com setas
+    if (pos && filtered.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setHighlighted(h => Math.min(h + 1, filtered.length - 1))
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setHighlighted(h => Math.max(h - 1, -1))
+        return
+      }
+      if (e.key === 'Enter' && highlighted >= 0) {
+        e.preventDefault()
+        onChange(filtered[highlighted])
+        close()
+        setHighlighted(-1)
+        if (rowIndex !== undefined && colIndex !== undefined) {
+          setTimeout(() => focusGridCell(rowIndex, colIndex + 1), 0)
+        }
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        close()
+        setHighlighted(-1)
+        return
+      }
+    }
+    // Navegação entre células (setas apenas na borda do texto)
+    if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Enter') && onCellKeyDown) {
+      onCellKeyDown(e)
+    }
+  }
 
   return (
     <div className={styles.comboWrap}>
@@ -117,23 +156,23 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
         ref={inputRef}
         className={`${styles.cell} ${className ?? ''}`}
         value={value}
-        onChange={e => { onChange(e.target.value); openAt() }}
+        onChange={e => { onChange(e.target.value); openAt(); setHighlighted(-1) }}
         onFocus={openAt}
         onBlur={() => setTimeout(close, 150)}
         placeholder={placeholder}
         autoComplete="off"
         data-row={rowIndex}
         data-col={colIndex}
-        onKeyDown={e => {
-          if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Enter') && onCellKeyDown) {
-            onCellKeyDown(e)
-          }
-        }}
+        onKeyDown={handleKeyDown}
       />
       {pos && filtered.length > 0 && (
         <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}>
-          {filtered.map(o => (
-            <div key={o} className={styles.comboOption} onMouseDown={() => { onChange(o); close() }}>
+          {filtered.map((o, idx) => (
+            <div
+              key={o}
+              className={`${styles.comboOption} ${idx === highlighted ? styles.comboOptionActive : ''}`}
+              onMouseDown={() => { onChange(o); close() }}
+            >
               {o}
             </div>
           ))}
@@ -155,7 +194,45 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, c
   onCellKeyDown?: (e: React.KeyboardEvent) => void
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
+  const [highlighted, setHighlighted] = useState(-1)
   const filtered = suppliers.filter(s => s.name.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
+
+  useEffect(() => { setHighlighted(-1) }, [pos])
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (pos && filtered.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setHighlighted(h => Math.min(h + 1, filtered.length - 1))
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setHighlighted(h => Math.max(h - 1, -1))
+        return
+      }
+      if (e.key === 'Enter' && highlighted >= 0) {
+        e.preventDefault()
+        const s = filtered[highlighted]
+        onChange(s.name, s)
+        close()
+        setHighlighted(-1)
+        if (rowIndex !== undefined && colIndex !== undefined) {
+          setTimeout(() => focusGridCell(rowIndex, colIndex + 1), 0)
+        }
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        close()
+        setHighlighted(-1)
+        return
+      }
+    }
+    if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Enter') && onCellKeyDown) {
+      onCellKeyDown(e)
+    }
+  }
 
   return (
     <div className={styles.comboWrap}>
@@ -163,23 +240,23 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, c
         ref={inputRef}
         className={styles.cell}
         value={value}
-        onChange={e => { onChange(e.target.value, null); openAt() }}
+        onChange={e => { onChange(e.target.value, null); openAt(); setHighlighted(-1) }}
         onFocus={openAt}
         onBlur={() => setTimeout(close, 150)}
         placeholder={placeholder}
         autoComplete="off"
         data-row={rowIndex}
         data-col={colIndex}
-        onKeyDown={e => {
-          if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Enter') && onCellKeyDown) {
-            onCellKeyDown(e)
-          }
-        }}
+        onKeyDown={handleKeyDown}
       />
       {pos && filtered.length > 0 && (
         <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 240), zIndex: 9999 }}>
-          {filtered.map(s => (
-            <div key={s.id} className={styles.comboOption} onMouseDown={() => { onChange(s.name, s); close() }}>
+          {filtered.map((s, idx) => (
+            <div
+              key={s.id}
+              className={`${styles.comboOption} ${idx === highlighted ? styles.comboOptionActive : ''}`}
+              onMouseDown={() => { onChange(s.name, s); close() }}
+            >
               <span style={{ fontWeight: 600 }}>{s.name}</span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{s.initials}</span>
             </div>
@@ -411,12 +488,25 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
   // ── Navegação por teclado no grid ─────────────────────────────────────────
 
   function handleGridKeyDown(e: React.KeyboardEvent, rowIndex: number, colIndex: number) {
-    if (e.key === 'ArrowRight') {
-      e.preventDefault()
-      focusGridCell(rowIndex, colIndex + 1)
-    } else if (e.key === 'ArrowLeft') {
-      e.preventDefault()
-      if (colIndex > 0) focusGridCell(rowIndex, colIndex - 1)
+    const input = e.target as HTMLInputElement
+    // Inputs numéricos não expõem selectionStart — sempre navega na seta
+    const isNumeric = input.type === 'number'
+    const pos  = input.selectionStart ?? 0
+    const posE = input.selectionEnd   ?? 0
+    const len  = (input.value ?? '').length
+
+    if (e.key === 'ArrowLeft') {
+      // Só vai para campo anterior se o cursor está no início (posição 0, sem seleção)
+      if (isNumeric || (pos === 0 && posE === 0)) {
+        e.preventDefault()
+        if (colIndex > 0) focusGridCell(rowIndex, colIndex - 1)
+      }
+    } else if (e.key === 'ArrowRight') {
+      // Só vai para próximo campo se o cursor está no final
+      if (isNumeric || (pos === len && posE === len)) {
+        e.preventDefault()
+        focusGridCell(rowIndex, colIndex + 1)
+      }
     } else if (e.key === 'Enter') {
       e.preventDefault()
       const nextInRow = document.querySelector<HTMLElement>(`[data-row="${rowIndex}"][data-col="${colIndex + 1}"]`)
