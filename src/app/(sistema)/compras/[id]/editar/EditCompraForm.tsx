@@ -262,14 +262,17 @@ export default function EditCompraForm({ compra }: Props) {
                     {/* Quantidade */}
                     <td>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         className={styles.cell}
                         value={item.quantity}
-                        min={unitsSold}
-                        step={1}
                         onChange={e => {
-                          const v = e.target.value === '' ? '' : Math.max(unitsSold, parseInt(e.target.value) || 0)
-                          updateItem(idx, 'quantity', v)
+                          const raw = e.target.value.replace(/[^0-9]/g, '')
+                          updateItem(idx, 'quantity', raw === '' ? '' : parseInt(raw))
+                        }}
+                        onBlur={e => {
+                          const v = Number(item.quantity) || 0
+                          updateItem(idx, 'quantity', Math.max(unitsSold, v))
                         }}
                         onFocus={e => e.target.select()}
                         title={hasSales ? `Mínimo: ${unitsSold} (unidades vendidas)` : undefined}
@@ -304,7 +307,7 @@ export default function EditCompraForm({ compra }: Props) {
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Pagamentos</div>
           <p className={styles.muted} style={{ marginBottom: 12 }}>
-            Parcelas pagas são somente leitura. Parcelas pendentes podem ser editadas.
+            Todos os pagamentos podem ser editados para correção de erros.
           </p>
           <table className={styles.payTable}>
             <thead>
@@ -317,26 +320,20 @@ export default function EditCompraForm({ compra }: Props) {
               </tr>
             </thead>
             <tbody>
-              {payments.map((pay, idx) => {
-                const isPending = pay.status === 'pending'
-                return (
+              {payments.map((pay, idx) => (
                   <tr key={pay.id}>
                     {/* Método */}
                     <td>
-                      {isPending ? (
-                        <select
-                          className={styles.payInput}
-                          value={pay.paymentMethod}
-                          onChange={e => updatePayment(idx, 'paymentMethod', e.target.value)}
-                        >
-                          <option value="cash">Dinheiro</option>
-                          <option value="pix">PIX</option>
-                          <option value="transfer">Transferência</option>
-                          <option value="credit">Crédito</option>
-                        </select>
-                      ) : (
-                        <span>{METHOD_LABELS[pay.paymentMethod] ?? pay.paymentMethod}</span>
-                      )}
+                      <select
+                        className={styles.payInput}
+                        value={pay.paymentMethod}
+                        onChange={e => updatePayment(idx, 'paymentMethod', e.target.value)}
+                      >
+                        <option value="cash">Dinheiro</option>
+                        <option value="pix">PIX</option>
+                        <option value="transfer">Transferência</option>
+                        <option value="credit">Crédito</option>
+                      </select>
                     </td>
 
                     {/* Parcela */}
@@ -346,35 +343,25 @@ export default function EditCompraForm({ compra }: Props) {
 
                     {/* Vencimento */}
                     <td>
-                      {isPending ? (
-                        <input
-                          type="date"
-                          className={styles.payInput}
-                          value={pay.dueDate}
-                          onChange={e => updatePayment(idx, 'dueDate', e.target.value)}
-                        />
-                      ) : (
-                        <span className={styles.muted}>
-                          {pay.dueDate ? pay.dueDate.slice(8,10) + '/' + pay.dueDate.slice(5,7) + '/' + pay.dueDate.slice(0,4) : '—'}
-                        </span>
-                      )}
+                      <input
+                        type="date"
+                        className={styles.payInput}
+                        value={pay.dueDate}
+                        onChange={e => updatePayment(idx, 'dueDate', e.target.value)}
+                      />
                     </td>
 
                     {/* Valor */}
                     <td>
-                      {isPending ? (
-                        <input
-                          type="number"
-                          className={styles.payInput}
-                          style={{ width: 100 }}
-                          value={pay.amount}
-                          min={0}
-                          step={0.01}
-                          onChange={e => updatePayment(idx, 'amount', parseFloat(e.target.value) || 0)}
-                        />
-                      ) : (
-                        <span style={{ fontWeight: 600 }}>{fmt(pay.amount)}</span>
-                      )}
+                      <input
+                        type="number"
+                        className={styles.payInput}
+                        style={{ width: 100 }}
+                        value={pay.amount}
+                        min={0}
+                        step={0.01}
+                        onChange={e => updatePayment(idx, 'amount', parseFloat(e.target.value) || 0)}
+                      />
                     </td>
 
                     {/* Status */}
@@ -384,8 +371,7 @@ export default function EditCompraForm({ compra }: Props) {
                         : <span className={styles.statusPending}><Clock size={11} /> Pendente</span>}
                     </td>
                   </tr>
-                )
-              })}
+              ))}
             </tbody>
           </table>
         </div>

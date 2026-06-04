@@ -711,43 +711,38 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
     }).eq('id', item.purchaseItemId)
   }
 
-  // Atualizar pagamentos pendentes: apaga e recria para não ter inconsistências
-  const pendingPayments = payload.payments.filter(p => p.status === 'pending')
+  // Atualizar purchase_payments in-place (todos, incluindo pagos)
+  for (const pay of payload.payments) {
+    await admin.from('purchase_payments')
+      .update({
+        payment_method: pay.paymentMethod,
+        amount:         pay.amount,
+        due_date:       pay.dueDate || null,
+      })
+      .eq('id', pay.id)
+  }
 
+  // Recriar todas as transactions (delete + insert para garantir consistência)
   await admin.from('transactions')
     .delete()
     .eq('reference_id', payload.purchaseId)
     .eq('reference_type', 'purchase')
-    .eq('status', 'pending')
 
-  await admin.from('purchase_payments')
-    .delete()
-    .eq('purchase_id', payload.purchaseId)
-    .eq('status', 'pending')
-
-  for (const pay of pendingPayments) {
-    await admin.from('purchase_payments').insert({
-      purchase_id:        payload.purchaseId,
-      payment_method:     pay.paymentMethod,
-      amount:             pay.amount,
-      installment_number: pay.installmentNumber,
-      due_date:           pay.dueDate || null,
-      status:             'pending',
-    })
-
+  for (const pay of payload.payments) {
     await admin.from('transactions').insert({
       store_id:         null,
       type:             'expense',
       amount:           pay.amount,
       category:         'compra_fornecedor',
-      description:      'Compra (parcela editada)',
+      description:      'Compra',
       reference_type:   'purchase',
       reference_id:     payload.purchaseId,
       user_id:          userId,
       payment_method:   pay.paymentMethod,
       transaction_date: payload.purchaseDate,
       due_date:         pay.dueDate || null,
-      status:           'pending',
+      status:           pay.status,
+      paid_at:          pay.status === 'completed' ? new Date().toISOString() : null,
     })
   }
 
