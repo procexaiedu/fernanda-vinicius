@@ -103,84 +103,71 @@ export default function CategoryMappingPanel({ initialMappings }: Props) {
 
       {errorMsg && <p className={styles.error}>{errorMsg}</p>}
 
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Categoria</th>
-            <th>Formato</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {mappings.map(m => {
-            const isEditing = editState?.originalCategory === m.category
-            return (
-              <tr key={m.category} className={isEditing ? styles.rowEditing : ''}>
-                {isEditing && editState ? (
-                  <>
-                    <td>
-                      <input
-                        className={styles.editInput}
-                        value={editState.category}
-                        onChange={e => setEditState(s => s ? { ...s, category: e.target.value } : s)}
-                        placeholder="Nome da categoria"
-                        autoFocus
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') save()
-                          if (e.key === 'Escape') cancelEdit()
-                        }}
-                      />
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className={`${styles.formatBtn} ${editState.format === 'A' ? styles.formatA : styles.formatB}`}
-                        onClick={() => setEditState(s => s ? { ...s, format: s.format === 'A' ? 'B' : 'A' } : s)}
-                        title="Clique para alternar A/B"
-                      >
-                        {editState.format}
-                      </button>
-                    </td>
-                    <td className={styles.rowActions}>
-                      <button className={`${styles.actionBtn} ${styles.actionBtnSave}`} onClick={save} title="Salvar">
-                        <Check size={13} />
-                      </button>
-                      <button className={styles.actionBtn} onClick={cancelEdit} title="Cancelar">
-                        <X size={13} />
-                      </button>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className={styles.categoryName}>{m.category}</td>
-                    <td>
-                      <span className={`${styles.formatBadge} ${m.label_format === 'A' ? styles.formatA : styles.formatB}`}>
-                        {m.label_format}
-                      </span>
-                    </td>
-                    <td className={styles.rowActions}>
-                      <button className={styles.actionBtn} onClick={() => startEdit(m)} title="Editar">
-                        <Pencil size={13} />
-                      </button>
-                      <button
-                        className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
-                        onClick={() => handleDelete(m.category)}
-                        title="Excluir"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </td>
-                  </>
-                )}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-
       {mappings.length === 0 && !isAdding && (
         <p className={styles.empty}>Nenhuma categoria configurada ainda.</p>
       )}
+
+      <div className={styles.grid}>
+        {mappings.map(m => {
+          const isEditing = editState?.originalCategory === m.category
+          return (
+            <div
+              key={m.category}
+              className={`${styles.gridItem} ${isEditing ? styles.gridItemEditing : ''}`}
+              style={isEditing ? { gridColumn: 'span 2' } : undefined}
+            >
+              {isEditing && editState ? (
+                <div className={styles.editRow}>
+                  <input
+                    className={styles.editInput}
+                    value={editState.category}
+                    onChange={e => setEditState(s => s ? { ...s, category: e.target.value } : s)}
+                    placeholder="Nome da categoria"
+                    autoFocus
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') save()
+                      if (e.key === 'Escape') cancelEdit()
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={`${styles.formatBtn} ${editState.format === 'A' ? styles.formatA : styles.formatB}`}
+                    onClick={() => setEditState(s => s ? { ...s, format: s.format === 'A' ? 'B' : 'A' } : s)}
+                    title="Clique para alternar A/B"
+                  >
+                    {editState.format}
+                  </button>
+                  <button className={`${styles.actionBtn} ${styles.actionBtnSave}`} onClick={save} title="Salvar">
+                    <Check size={13} />
+                  </button>
+                  <button className={styles.actionBtn} onClick={cancelEdit} title="Cancelar">
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <span className={styles.categoryName}>{m.category}</span>
+                  <span className={`${styles.formatBadge} ${m.label_format === 'A' ? styles.formatA : styles.formatB}`}>
+                    {m.label_format}
+                  </span>
+                  <div className={styles.itemActions}>
+                    <button className={styles.actionBtn} onClick={() => startEdit(m)} title="Editar">
+                      <Pencil size={12} />
+                    </button>
+                    <button
+                      className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
+                      onClick={() => handleDelete(m.category)}
+                      title="Excluir"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )
+        })}
+      </div>
 
       {isAdding && editState && (
         <div className={styles.addRow}>
