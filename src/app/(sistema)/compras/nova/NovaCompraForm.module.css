@@ -297,6 +297,7 @@
   z-index: 200;
   max-height: 200px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .comboOption {
@@ -304,6 +305,8 @@
   font-size: 13px;
   cursor: pointer;
   transition: background var(--transition-fast);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .comboOption:hover {

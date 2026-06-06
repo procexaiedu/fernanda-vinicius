@@ -169,7 +169,7 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
         onKeyDown={handleKeyDown}
       />
       {pos && filtered.length > 0 && (
-        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}>
+        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 160), zIndex: 9999 }}>
           {filtered.map((o, idx) => (
             <div
               key={o}
