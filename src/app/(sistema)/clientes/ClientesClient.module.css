@@ -112,7 +112,7 @@
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .table {
@@ -126,9 +126,9 @@
 }
 
 .table th {
-  padding: 10px 16px;
+  padding: var(--table-cell-py) var(--table-cell-px);
   text-align: left;
-  font-size: 11px;
+  font-size: var(--table-head-fs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -147,8 +147,8 @@
 .table tbody tr:hover { background: var(--bg-elevated); }
 
 .table td {
-  padding: 12px 16px;
-  font-size: 13px;
+  padding: var(--table-cell-py) var(--table-cell-px);
+  font-size: var(--table-fs);
   color: var(--text-primary);
   vertical-align: middle;
 }

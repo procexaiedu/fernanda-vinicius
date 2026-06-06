@@ -222,6 +222,32 @@
   padding: 4px 8px;
 }
 
+/* ── Responsivo: condensa o grid p/ caber em notebooks ~1366px ──────────── */
+@media (max-width: 1366px) {
+  .grid { min-width: 1180px; }
+  .grid thead th { padding: 7px 4px; font-size: 10.5px; }
+  .grid tbody td { padding: 3px 3px; }
+  .cell { font-size: 12px; padding: 0 5px; }
+
+  .thProd { width: 150px; }
+  .thSup  { width: 128px; }
+  .thIni  { width: 44px; }
+  .thCat  { width: 92px; }
+  .thMat  { width: 86px; }
+  .thNum2 { width: 74px; }
+  .thEtiq { width: 56px; }
+  .thQty  { width: 46px; }
+  .thLoja { width: 92px; }
+  .thCod  { width: 96px; }
+  .thSub  { width: 84px; }
+}
+
+@media (max-width: 1180px) {
+  .grid { min-width: 1040px; }
+  .thProd { width: 132px; }
+  .thSup  { width: 116px; }
+}
+
 /* ── Células ────────────────────────────────────────────────────────────── */
 
 .cell {

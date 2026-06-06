@@ -97,8 +97,8 @@
 
 .table thead th {
   background: var(--bg-elevated);
-  padding: 10px 14px;
-  font-size: 11px;
+  padding: var(--table-cell-py) var(--table-cell-px);
+  font-size: var(--table-head-fs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -112,8 +112,8 @@
 }
 
 .table tbody td {
-  padding: 11px 14px;
-  font-size: 13px;
+  padding: var(--table-cell-py) var(--table-cell-px);
+  font-size: var(--table-fs);
   border-bottom: 1px solid var(--border);
   color: var(--text-primary);
   vertical-align: middle;

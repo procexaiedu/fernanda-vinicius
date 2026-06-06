@@ -53,7 +53,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--table-fs);
 }
 
 .table thead th {
@@ -61,9 +61,9 @@
   top: 0;
   z-index: 2;
   background: var(--bg-elevated);
-  padding: 10px 14px;
+  padding: var(--table-cell-py) var(--table-cell-px);
   text-align: left;
-  font-size: 11px;
+  font-size: var(--table-head-fs);
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -73,7 +73,7 @@
 }
 
 .table tbody td {
-  padding: 11px 14px;
+  padding: var(--table-cell-py) var(--table-cell-px);
   border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.05));
   color: var(--text-secondary);
   vertical-align: middle;

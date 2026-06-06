@@ -196,7 +196,7 @@
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .table {
@@ -206,8 +206,8 @@
 
 .table thead th {
   background: var(--bg-elevated);
-  padding: 10px 12px;
-  font-size: 11px;
+  padding: var(--table-cell-py) var(--table-cell-px);
+  font-size: var(--table-head-fs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -218,9 +218,9 @@
 }
 
 .table tbody td {
-  padding: 10px 12px;
+  padding: var(--table-cell-py) var(--table-cell-px);
   border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  font-size: var(--table-fs);
   color: var(--text-primary);
   vertical-align: middle;
 }
