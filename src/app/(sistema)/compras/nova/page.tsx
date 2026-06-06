@@ -14,11 +14,12 @@ export default async function NovaCompraPage() {
 
   const admin = createAdminClient()
 
-  const [suppliersRes, storesRes, productsRes, markupRes] = await Promise.all([
+  const [suppliersRes, storesRes, productsRes, markupRes, categoryMappingsRes] = await Promise.all([
     admin.from('suppliers').select('id, name, initials').eq('is_active', true).order('name'),
     admin.from('stores').select('id, name, city').eq('is_active', true).order('name'),
     admin.from('products').select('id, name, code, category, material, cost_price, sale_price, promotional_price, supplier_id, store_id, ownership_type').eq('is_active', true).order('name'),
     admin.from('settings').select('value').eq('key', 'default_markup_pct').maybeSingle(),
+    admin.from('category_label_mapping').select('category').order('category'),
   ])
 
   const suppliers      = suppliersRes.data ?? []
@@ -26,8 +27,8 @@ export default async function NovaCompraPage() {
   const products       = productsRes.data ?? []
   const defaultMarkupPct = Number(markupRes.data?.value ?? 280)
 
-  // Categorias e materiais distintos para combobox
-  const categories = [...new Set(products.map(p => p.category).filter(Boolean))].sort()
+  // Categorias vêm da tabela de mapeamento (fonte de verdade); materiais distintos dos produtos
+  const categories = [...new Set((categoryMappingsRes.data ?? []).map(r => r.category as string).filter(Boolean))].sort()
   const materials  = [...new Set(products.map(p => p.material).filter(Boolean))].sort()
 
   return (
