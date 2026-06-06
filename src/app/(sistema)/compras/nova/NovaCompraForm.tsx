@@ -113,7 +113,7 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
   const [highlighted, setHighlighted] = useState(-1)
-  const filtered = options.filter(o => o.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
+  const filtered = options.filter(o => o.toLowerCase().includes(value.toLowerCase())).slice(0, 50)
 
   useEffect(() => { setHighlighted(-1) }, [pos])
 
