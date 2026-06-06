@@ -8,13 +8,12 @@ import Button from '@/components/ui/Button'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { createProduct, updateProduct, deleteProduct } from './actions'
 import type { ProductWithRelations, StoreOption, SupplierOption } from './page'
+import { generateCode as buildCode } from '@/lib/productCode'
 import styles from './ProdutoFormModal.module.css'
 
 function generateCode(initials: string, month: number, costPrice: number): string {
   if (!initials || !month || !costPrice) return ''
-  const m = String(month).padStart(2, '0')
-  const costCents = Math.round(costPrice * 100)
-  return `F${initials.toUpperCase()}${m}${costCents}`
+  return buildCode(initials, month, costPrice)
 }
 
 // ─── Combobox customizado ─────────────────────────────────────────────────────

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { generateCode } from '@/lib/productCode'
 
 export interface ActionResult {
   success: boolean
@@ -23,27 +24,6 @@ export interface ProductFormData {
   purchase_month: number
   purchase_year: number
   photo_url: string | null
-}
-
-function generateCode(initials: string, month: number, costPrice: number): string {
-  const m = String(month).padStart(2, '0')
-  const costCents = Math.round(costPrice * 100)
-  return `F${initials.toUpperCase()}${m}${costCents}`
-}
-
-async function generateUniqueCode(
-  admin: ReturnType<typeof createAdminClient>,
-  baseCode: string
-): Promise<string> {
-  const { data } = await admin
-    .from('products')
-    .select('code')
-    .like('code', `${baseCode}%`)
-  const existing = new Set((data ?? []).map((r: { code: string }) => r.code))
-  if (!existing.has(baseCode)) return baseCode
-  let i = 1
-  while (existing.has(`${baseCode}-${i}`)) i++
-  return `${baseCode}-${i}`
 }
 
 async function verifyAdmin(): Promise<{ userId: string | null; error: string | null }> {
@@ -75,7 +55,7 @@ export async function createProduct(data: ProductFormData): Promise<ActionResult
 
   if (supplierErr || !supplier) return { success: false, error: 'Fornecedor não encontrado.' }
 
-  const code = await generateUniqueCode(admin, generateCode(supplier.initials, data.purchase_month, data.cost_price))
+  const code = generateCode(supplier.initials, data.purchase_month, data.cost_price)
 
   const { error } = await admin.from('products').insert({
     code,
@@ -116,7 +96,7 @@ export async function updateProduct(id: string, data: ProductFormData): Promise<
 
   if (supplierErr || !supplier) return { success: false, error: 'Fornecedor não encontrado.' }
 
-  const code = await generateUniqueCode(admin, generateCode(supplier.initials, data.purchase_month, data.cost_price))
+  const code = generateCode(supplier.initials, data.purchase_month, data.cost_price)
 
   const { error } = await admin.from('products').update({
     code,

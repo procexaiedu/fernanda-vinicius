@@ -91,6 +91,7 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
                     <th>Etiq.</th>
                     <th style={{ textAlign: 'right' }}>Qtd</th>
                     <th style={{ textAlign: 'right' }}>Custo unit.</th>
+                    <th style={{ textAlign: 'right' }}>Venda unit.</th>
                     <th style={{ textAlign: 'right' }}>Subtotal</th>
                   </tr>
                 </thead>
@@ -106,13 +107,14 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
                       <td className={styles.muted}>{item.label_format}</td>
                       <td style={{ textAlign: 'right' }} className={styles.muted}>{item.quantity}</td>
                       <td style={{ textAlign: 'right' }} className={styles.muted}>{fmt(item.unit_cost)}</td>
+                      <td style={{ textAlign: 'right' }}>{fmt(item.sale_price)}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(item.subtotal)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={9} style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: 11, padding: '8px 12px', fontWeight: 600 }}>CUSTO TOTAL</td>
+                    <td colSpan={10} style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: 11, padding: '8px 12px', fontWeight: 600 }}>CUSTO TOTAL</td>
                     <td style={{ textAlign: 'right', fontWeight: 700, padding: '8px 12px', color: 'var(--accent)' }}>{fmt(detail.total_cost)}</td>
                   </tr>
                 </tfoot>

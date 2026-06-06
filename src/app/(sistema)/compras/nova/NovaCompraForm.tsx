@@ -8,6 +8,7 @@ import DatePicker from '@/components/ui/DatePicker'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { salvarCompra, getItensCompraParaEtiquetas } from '../actions'
 import type { GridRow, PaymentRow } from '../actions'
+import { generateCode as buildCode } from '@/lib/productCode'
 import styles from './NovaCompraForm.module.css'
 
 // ─── Tipos de props ────────────────────────────────────────────────────────────
@@ -33,9 +34,7 @@ interface Props {
 
 function generateCode(initials: string, month: number, costPrice: number): string {
   if (!initials || !month || !costPrice) return ''
-  const m = String(month).padStart(2, '0')
-  const costCents = Math.round(costPrice * 100)
-  return `F${initials.toUpperCase()}${m}${costCents}`
+  return buildCode(initials, month, costPrice)
 }
 
 function suggestInitials(name: string): string {

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { generateCode } from '@/lib/productCode'
 
 export interface ActionResult {
   success: boolean
@@ -55,27 +56,6 @@ export interface CompraFormData {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function generateCode(initials: string, month: number, costPrice: number): string {
-  const m = String(month).padStart(2, '0')
-  const costCents = Math.round(costPrice * 100)
-  return `F${initials.toUpperCase()}${m}${costCents}`
-}
-
-async function generateUniqueCode(
-  admin: ReturnType<typeof createAdminClient>,
-  baseCode: string
-): Promise<string> {
-  const { data } = await admin
-    .from('products')
-    .select('code')
-    .like('code', `${baseCode}%`)
-  const existing = new Set((data ?? []).map((r: { code: string }) => r.code))
-  if (!existing.has(baseCode)) return baseCode
-  let i = 1
-  while (existing.has(`${baseCode}-${i}`)) i++
-  return `${baseCode}-${i}`
-}
 
 function installmentDate(firstDate: string, index: number): string {
   if (index === 0) return firstDate
@@ -136,6 +116,15 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
     return supplierCache.get(row.supplierName.trim().toLowerCase())!
   }
 
+  // Mapeia o groupKey de um SupplierPaymentGroup para o id real do fornecedor.
+  // O groupKey vem do front como `row.supplierId ?? supplierName.toLowerCase()`.
+  function resolveGroupSupplier(groupKey: string): string | null {
+    const row = data.rows.find(
+      r => (r.supplierId ?? r.supplierName.trim().toLowerCase()) === groupKey
+    )
+    return row ? resolveSupplier(row) : null
+  }
+
   // ── 2. Resolver iniciais para geração do código ───────────────────────────
   const initialsCache = new Map<string, string>() // supplierId → initials
 
@@ -157,7 +146,7 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   for (const row of data.rows) {
     const supId    = resolveSupplier(row)
     const initials = initialsCache.get(supId) ?? 'FV'
-    const code     = await generateUniqueCode(admin, generateCode(initials, purchaseMonth, row.costPrice))
+    const code     = generateCode(initials, purchaseMonth, row.costPrice)
 
     if (row.productId && !row.productExistingCostDiffers) {
       // Reusar produto — só incrementa estoque
@@ -286,7 +275,8 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
 
   // ── 7. Criar purchase_payments + transactions ─────────────────────────────
   for (const group of data.supplierPayments) {
-    const nfNum = group.nfNumber?.trim() || null
+    const nfNum           = group.nfNumber?.trim() || null
+    const groupSupplierId = resolveGroupSupplier(group.groupKey)
     for (const payment of group.payments) {
       const isCredit  = payment.method === 'credit'
       const isPending = payment.status === 'pending'
@@ -296,6 +286,7 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
 
       const { error: ppErr } = await admin.from('purchase_payments').insert({
         purchase_id:        purchase.id,
+        supplier_id:        groupSupplierId,
         payment_method:     payment.method,
         amount:             payment.totalAmount,
         installment_number: isCredit && payment.installments > 1 ? payment.installments : null,
@@ -351,6 +342,7 @@ export interface PurchaseDetail {
     category: string
     material: string
     unit_cost: number
+    sale_price: number
     quantity: number
     subtotal: number
     label_format: string
@@ -380,7 +372,7 @@ export async function buscarDetalheCompra(purchaseId: string): Promise<{ data: P
 
   const { data: rawItems } = await admin
     .from('purchase_items')
-    .select('id, quantity, unit_cost, subtotal, label_format, products(name, code, category, material, suppliers(name), stores(name))')
+    .select('id, quantity, unit_cost, subtotal, label_format, products(name, code, category, material, sale_price, suppliers(name), stores(name))')
     .eq('purchase_id', purchaseId)
 
   const { data: payments } = await admin
@@ -396,6 +388,7 @@ export async function buscarDetalheCompra(purchaseId: string): Promise<{ data: P
     category: item.products?.category ?? '—',
     material: item.products?.material ?? '—',
     unit_cost: item.unit_cost,
+    sale_price: item.products?.sale_price ?? 0,
     quantity: item.quantity,
     subtotal: item.subtotal,
     label_format: item.label_format ?? 'A',
@@ -488,6 +481,7 @@ export interface CompraParaEdicao {
     installmentNumber: number | null
     dueDate: string
     status: 'completed' | 'pending'
+    supplierId: string | null
   }>
   stores: Array<{ id: string; name: string; city: string }>
   suppliers: Array<{ id: string; name: string; initials: string }>
@@ -516,6 +510,7 @@ export interface EditPaymentData {
   dueDate: string
   installmentNumber: number | null
   status: 'completed' | 'pending'
+  supplierId: string | null
 }
 
 export interface EditCompraPayload {
@@ -585,7 +580,7 @@ export async function buscarCompraParaEdicao(
 
   const { data: payments } = await admin
     .from('purchase_payments')
-    .select('id, payment_method, amount, installment_number, due_date, status')
+    .select('id, payment_method, amount, installment_number, due_date, status, supplier_id')
     .eq('purchase_id', purchaseId)
     .order('due_date', { ascending: true })
 
@@ -630,6 +625,7 @@ export async function buscarCompraParaEdicao(
         installmentNumber: p.installment_number,
         dueDate:           p.due_date ?? '',
         status:            p.status as 'completed' | 'pending',
+        supplierId:        (p as { supplier_id: string | null }).supplier_id ?? null,
       })),
       stores:    (storesRes.data    ?? []) as Array<{ id: string; name: string; city: string }>,
       suppliers: (suppliersRes.data ?? []) as Array<{ id: string; name: string; initials: string }>,
@@ -718,6 +714,7 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
         payment_method: pay.paymentMethod,
         amount:         pay.amount,
         due_date:       pay.dueDate || null,
+        supplier_id:    pay.supplierId ?? null,
       })
       .eq('id', pay.id)
   }
