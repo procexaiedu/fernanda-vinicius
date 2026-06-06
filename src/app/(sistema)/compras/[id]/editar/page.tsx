@@ -27,7 +27,7 @@ export default async function EditarCompraPage({ params }: Props) {
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Editar Compra</h1>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
           Alterações de quantidade ajustam o estoque atual pelo delta.
-          Parcelas já pagas não são modificadas.
+          Os pagamentos são recalculados por fornecedor conforme o custo dos itens.
         </p>
       </div>
       <EditCompraForm compra={data} />

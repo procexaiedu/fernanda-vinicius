@@ -86,6 +86,48 @@
 
 .printerSelect:hover { border-color: rgba(255, 255, 255, 0.2); }
 
+/* Toolbar: busca + filtro de categoria */
+.toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.searchWrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 11px;
+  color: var(--color-text-secondary);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 9px 12px 9px 34px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.searchInput::placeholder { color: var(--color-text-secondary); }
+.searchInput:focus {
+  outline: none;
+  border-color: var(--color-accent, #b59470);
+}
+
+.categorySelect {
+  min-width: 200px;
+}
+
 /* Tabela editável */
 .tableWrapper {
   background: rgba(0, 0, 0, 0.18);
@@ -128,6 +170,33 @@
 .nameCell { font-weight: 500; }
 .refCell { color: var(--color-text-secondary); font-family: var(--font-mono, monospace); font-size: 12px; }
 .numCol { text-align: right; }
+
+/* Coluna de seleção */
+.checkCol {
+  width: 40px;
+  text-align: center;
+  padding-left: 14px;
+  padding-right: 4px;
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent, #b59470);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.checkbox:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.rowUnselected td:not(.checkCol) { opacity: 0.4; }
+
+.tableEmpty {
+  text-align: center;
+  padding: 28px 14px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
 
 .formatBtn {
   width: 32px;
@@ -175,11 +244,27 @@
 
 .qtyInput:disabled { opacity: 0.5; }
 
+.tableFooter {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .hint {
   font-size: 12.5px;
   color: var(--color-text-secondary);
   margin: 0;
   line-height: 1.5;
+  flex: 1;
+}
+
+.selectedCount {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-accent, #d4b08c);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Cards de formato (A e B) */

@@ -773,6 +773,7 @@ export interface ItemParaEtiqueta {
   barcode_number: string
   label_format: 'A' | 'B'
   quantity: number
+  category: string
 }
 
 export async function getItensCompraParaEtiquetas(purchaseId: string): Promise<ItemParaEtiqueta[]> {
@@ -789,7 +790,8 @@ export async function getItensCompraParaEtiquetas(purchaseId: string): Promise<I
         sale_price,
         promotional_price,
         barcode_number,
-        label_format
+        label_format,
+        category
       )
     `)
     .eq('purchase_id', purchaseId)
@@ -805,6 +807,7 @@ export async function getItensCompraParaEtiquetas(purchaseId: string): Promise<I
       promotional_price: number | null
       barcode_number: string
       label_format: 'A' | 'B'
+      category: string
     }
     return {
       id: p.id,
@@ -816,6 +819,7 @@ export async function getItensCompraParaEtiquetas(purchaseId: string): Promise<I
       // Preferência: label_format do item da compra; fallback no produto
       label_format: (row.label_format as 'A' | 'B') ?? p.label_format,
       quantity: row.quantity ?? 1,
+      category: p.category ?? '',
     }
   })
 }

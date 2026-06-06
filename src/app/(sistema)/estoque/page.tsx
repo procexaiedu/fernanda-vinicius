@@ -47,7 +47,10 @@ export default async function EstoquePage({ searchParams }: PageProps) {
 
   if (effectiveStoreId) query = query.eq('store_id', effectiveStoreId)
   if (params.qty_zero !== 'true') query = query.gt('quantity_in_stock', 0)
-  if (params.q) query = query.or(`name.ilike.%${params.q}%,code.ilike.%${params.q}%`)
+  if (params.q) {
+    const q = params.q.trim()
+    query = query.or(`name.ilike.%${q}%,code.ilike.%${q}%,barcode_number.ilike.%${q}%`)
+  }
   if (params.category) query = query.eq('category', params.category)
   if (params.material) query = query.eq('material', params.material)
 

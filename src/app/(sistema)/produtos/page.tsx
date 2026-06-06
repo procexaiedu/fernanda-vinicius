@@ -16,6 +16,7 @@ export interface ProductWithRelations {
   cost_price: number
   sale_price: number
   promotional_price: number | null
+  promotional_active: boolean
   quantity_in_stock: number
   ownership_type: 'own' | 'consignment'
   purchase_month: number
@@ -78,7 +79,7 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
 
   if (params.q) {
     const q = params.q.trim()
-    query = query.or(`name.ilike.%${q}%,code.ilike.%${q}%`)
+    query = query.or(`name.ilike.%${q}%,code.ilike.%${q}%,barcode_number.ilike.%${q}%`)
   }
   if (params.category) query = query.eq('category', params.category)
   if (params.material) query = query.eq('material', params.material)

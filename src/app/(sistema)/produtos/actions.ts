@@ -98,7 +98,8 @@ export async function updateProduct(id: string, data: ProductFormData): Promise<
 
   const code = generateCode(supplier.initials, data.purchase_month, data.cost_price)
 
-  const { error } = await admin.from('products').update({
+  const hasPromo = !!data.promotional_price && data.promotional_price > 0
+  const updatePayload: Record<string, unknown> = {
     code,
     name:              data.name.trim(),
     category:          data.category.trim().toLowerCase(),
@@ -107,14 +108,90 @@ export async function updateProduct(id: string, data: ProductFormData): Promise<
     store_id:          data.store_id,
     cost_price:        data.cost_price,
     sale_price:        data.sale_price,
-    promotional_price: data.promotional_price,
+    promotional_price: hasPromo ? data.promotional_price : null,
     quantity_in_stock: data.quantity_in_stock,
     ownership_type:    data.ownership_type,
     purchase_month:    data.purchase_month,
     purchase_year:     data.purchase_year,
     photo_url:         data.photo_url,
     updated_at:        new Date().toISOString(),
+  }
+  // Sem promo válida, garante que a promoção não fique ativa com preço vazio.
+  if (!hasPromo) updatePayload.promotional_active = false
+
+  const { error } = await admin.from('products').update(updatePayload).eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/produtos')
+  revalidatePath('/estoque')
+  return { success: true }
+}
+
+/** Liga/desliga o preço promocional na hora (header do modal de detalhe). */
+export async function setPromotionalActive(id: string, active: boolean): Promise<ActionResult> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { success: false, error: authErr }
+
+  const admin = createAdminClient()
+
+  // Para ATIVAR, exige um preço promocional válido (> 0) gravado no produto.
+  if (active) {
+    const { data: prod, error: readErr } = await admin
+      .from('products')
+      .select('promotional_price')
+      .eq('id', id)
+      .single()
+    if (readErr || !prod) return { success: false, error: 'Produto não encontrado.' }
+    if (!prod.promotional_price || Number(prod.promotional_price) <= 0) {
+      return { success: false, error: 'Defina um preço promocional maior que zero antes de ativar.' }
+    }
+  }
+
+  const { error } = await admin.from('products').update({
+    promotional_active: active,
+    updated_at: new Date().toISOString(),
   }).eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/produtos')
+  revalidatePath('/estoque')
+  return { success: true }
+}
+
+export interface QuickPricingData {
+  category: string
+  sale_price: number
+  promotional_price: number | null
+}
+
+/** Edição rápida de categoria + preço de venda + preço promocional (modal de detalhe). */
+export async function updateProductPricing(id: string, data: QuickPricingData): Promise<ActionResult> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { success: false, error: authErr }
+
+  const category = data.category.trim().toLowerCase()
+  if (!category) return { success: false, error: 'Categoria é obrigatória.' }
+  if (!data.sale_price || data.sale_price <= 0) return { success: false, error: 'Preço de venda deve ser maior que zero.' }
+
+  const promo = data.promotional_price && data.promotional_price > 0 ? data.promotional_price : null
+  if (promo !== null && promo >= data.sale_price) {
+    return { success: false, error: 'O preço promocional deve ser menor que o preço de venda.' }
+  }
+
+  const admin = createAdminClient()
+
+  const update: Record<string, unknown> = {
+    category,
+    sale_price: data.sale_price,
+    promotional_price: promo,
+    updated_at: new Date().toISOString(),
+  }
+  // Sem promo válida não faz sentido manter a promoção ativa.
+  if (promo === null) update.promotional_active = false
+
+  const { error } = await admin.from('products').update(update).eq('id', id)
 
   if (error) return { success: false, error: error.message }
 

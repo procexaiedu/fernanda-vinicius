@@ -214,6 +214,7 @@ erDiagram
 |--------|------|-------------|-----------|
 | id | uuid | PK, default gen_random_uuid() | |
 | purchase_id | uuid | NOT NULL, FK → purchases(id) ON DELETE CASCADE | |
+| supplier_id | uuid | FK → suppliers(id), NULLABLE | Fornecedor a que este pagamento se refere (uma compra pode ter vários fornecedores). NULL em compras anteriores à introdução da coluna. |
 | payment_method | text | NOT NULL, check in ('cash','pix','transfer','credit') | Método de pagamento |
 | amount | numeric(12,2) | NOT NULL | Valor desta parcela/pagamento |
 | installment_number | smallint | | Nº da parcela (1, 2, 3... NULL para à vista) |
@@ -222,7 +223,7 @@ erDiagram
 | paid_at | timestamptz | | Data do pagamento efetivo |
 | created_at | timestamptz | NOT NULL, default now() | |
 
-**Índice:** `idx_purchase_payments_status` em (status, due_date) WHERE status = 'pending'
+**Índices:** `idx_purchase_payments_status` em (status, due_date) WHERE status = 'pending'; `idx_purchase_payments_supplier` em (supplier_id)
 
 ### `consignments` (lotes de consignação)
 

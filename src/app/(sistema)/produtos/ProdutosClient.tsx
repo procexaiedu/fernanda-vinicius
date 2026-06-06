@@ -108,7 +108,11 @@ export default function ProdutosClient({
         name: p.name,
         // A 2ª linha da etiqueta (referência interna) usa o code do produto
         supplier_reference: p.code,
-        sale_price: p.promotional_price ?? p.sale_price,
+        // Preço efetivo: só usa a promo se estiver ATIVA e > 0 (mesma regra do PDV).
+        // `?? ` sozinho deixava promotional_price=0 passar e imprimia R$0,00.
+        sale_price: p.promotional_active && p.promotional_price && p.promotional_price > 0
+          ? p.promotional_price
+          : p.sale_price,
         barcode_number: p.barcode_number,
         label_format: categoryLabelMap[p.category] ?? p.label_format,
         quantity: 1,
@@ -171,7 +175,7 @@ export default function ProdutosClient({
         <div className={styles.toolbarLeft}>
           <input
             className={styles.search}
-            placeholder="Buscar por nome ou código..."
+            placeholder="Buscar por nome, código ou código de barras..."
             defaultValue={filters.q}
             onChange={e => pushFilter('q', e.target.value)}
           />
@@ -432,6 +436,8 @@ export default function ProdutosClient({
       {detalhe && (
         <ProdutoDetalheModal
           produto={detalhe}
+          categoryLabelMap={categoryLabelMap}
+          categories={categories}
           isAdmin={isAdmin}
           onClose={() => setDetalhe(null)}
           onEdit={isAdmin ? (p) => { setDetalhe(null); setEditing(p as ProductWithRelations); setFormOpen(true) } : undefined}

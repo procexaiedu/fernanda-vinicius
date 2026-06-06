@@ -69,7 +69,9 @@ export default function ComprasClient({ purchases, consignments }: Props) {
   async function openReprint(e: React.MouseEvent, purchaseId: string) {
     e.stopPropagation()
     const items = await getItensCompraParaEtiquetas(purchaseId)
-    setReprintItems(items.map(it => ({ ...it, quantity: 0 })))
+    // Quantidades já vêm iguais às compradas (purchase_items.quantity);
+    // a seleção/ajuste fino é feito dentro do próprio modal.
+    setReprintItems(items)
     setReprintOpen(true)
   }
 

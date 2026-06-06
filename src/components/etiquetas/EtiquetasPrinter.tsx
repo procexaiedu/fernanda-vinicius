@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { Printer, AlertCircle, CheckCircle2, Loader2, Download, RotateCw } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Printer, AlertCircle, CheckCircle2, Loader2, Download, RotateCw, Search } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 import { buildJob, type LabelFormat, type LabelData } from '@/lib/etiquetas/ppla'
 import { useLocalPrintAgent } from '@/lib/etiquetas/useLocalPrintAgent'
 import { printJob } from '@/lib/etiquetas/printAgent'
@@ -16,6 +17,7 @@ export interface EtiquetasPrinterItem {
   barcode_number: string
   label_format: LabelFormat
   quantity: number
+  category?: string
 }
 
 interface EtiquetasPrinterProps {
@@ -46,6 +48,9 @@ export default function EtiquetasPrinter({ isOpen, onClose, initialItems, title 
   const [stateA, setStateA] = useState<FormatState>(INITIAL_FORMAT_STATE)
   const [stateB, setStateB] = useState<FormatState>(INITIAL_FORMAT_STATE)
   const [displayQty, setDisplayQty] = useState<Record<string, string>>({})
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
 
   useEffect(() => {
     if (isOpen) {
@@ -53,12 +58,43 @@ export default function EtiquetasPrinter({ isOpen, onClose, initialItems, title 
       setStateA(INITIAL_FORMAT_STATE)
       setStateB(INITIAL_FORMAT_STATE)
       setDisplayQty({})
+      setSelectedIds(new Set(initialItems.map(it => it.id))) // abre tudo marcado
+      setSearch('')
+      setCategoryFilter('')
     }
   }, [isOpen, initialItems])
 
-  const expanded = useMemo(() => expandItems(items), [items])
+  // Categorias distintas para o filtro (ordenadas)
+  const categories = useMemo(() => {
+    const set = new Set<string>()
+    for (const it of items) if (it.category) set.add(it.category)
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [items])
+
+  // Itens visíveis após busca (nome ou ref) + filtro de categoria
+  const visibleItems = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return items.filter(it => {
+      if (categoryFilter && it.category !== categoryFilter) return false
+      if (q) {
+        const hit = it.name.toLowerCase().includes(q) ||
+          (it.supplier_reference ?? '').toLowerCase().includes(q)
+        if (!hit) return false
+      }
+      return true
+    })
+  }, [items, search, categoryFilter])
+
+  // Impressão considera apenas itens SELECIONADOS (independe do filtro visível)
+  const expanded = useMemo(() => expandItems(items, selectedIds), [items, selectedIds])
   const totalA = expanded.A.length
   const totalB = expanded.B.length
+
+  // Contador: itens selecionados com quantidade > 0
+  const selectedCount = useMemo(
+    () => items.filter(it => selectedIds.has(it.id) && it.quantity > 0).length,
+    [items, selectedIds],
+  )
 
   function updateQty(id: string, qty: number) {
     setItems(prev => prev.map(it => (it.id === id ? { ...it, quantity: Math.max(0, qty) } : it)))
@@ -67,6 +103,35 @@ export default function EtiquetasPrinter({ isOpen, onClose, initialItems, title 
   function toggleFormat(id: string) {
     setItems(prev => prev.map(it => (it.id === id ? { ...it, label_format: it.label_format === 'A' ? 'B' : 'A' } : it)))
   }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Marca/desmarca todos os itens VISÍVEIS no filtro atual
+  function toggleAllVisible() {
+    const allSelected = visibleItems.length > 0 && visibleItems.every(it => selectedIds.has(it.id))
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      for (const it of visibleItems) {
+        if (allSelected) next.delete(it.id)
+        else next.add(it.id)
+      }
+      return next
+    })
+  }
+
+  const allVisibleSelected = visibleItems.length > 0 && visibleItems.every(it => selectedIds.has(it.id))
+  const someVisibleSelected = visibleItems.some(it => selectedIds.has(it.id))
+  const headerRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (headerRef.current) headerRef.current.indeterminate = someVisibleSelected && !allVisibleSelected
+  }, [someVisibleSelected, allVisibleSelected])
 
   async function imprimir(format: LabelFormat) {
     const produtos = format === 'A' ? expanded.A : expanded.B
@@ -113,10 +178,43 @@ export default function EtiquetasPrinter({ isOpen, onClose, initialItems, title 
           <p className={styles.emptyMsg}>Nenhum produto para imprimir.</p>
         ) : (
           <>
+            <div className={styles.toolbar}>
+              <div className={styles.searchWrapper}>
+                <Search size={15} className={styles.searchIcon} />
+                <input
+                  type="text"
+                  className={styles.searchInput}
+                  placeholder="Buscar por nome ou ref…"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+              </div>
+              {categories.length > 0 && (
+                <SearchableSelect
+                  value={categoryFilter}
+                  onChange={setCategoryFilter}
+                  options={categories.map(c => ({ value: c, label: c }))}
+                  placeholder="Todas as categorias"
+                  className={styles.categorySelect}
+                />
+              )}
+            </div>
+
             <div className={styles.tableWrapper}>
               <table className={styles.table}>
                 <thead>
                   <tr>
+                    <th className={styles.checkCol}>
+                      <input
+                        ref={headerRef}
+                        type="checkbox"
+                        className={styles.checkbox}
+                        checked={allVisibleSelected}
+                        onChange={toggleAllVisible}
+                        disabled={visibleItems.length === 0}
+                        title="Selecionar/desmarcar todos os itens visíveis"
+                      />
+                    </th>
                     <th>Produto</th>
                     <th>Ref.</th>
                     <th className={styles.numCol}>Preço</th>
@@ -125,49 +223,70 @@ export default function EtiquetasPrinter({ isOpen, onClose, initialItems, title 
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map(it => (
-                    <tr key={it.id}>
-                      <td className={styles.nameCell}>{it.name}</td>
-                      <td className={styles.refCell}>{it.supplier_reference ?? '—'}</td>
-                      <td className={styles.numCol}>{formatBRL(it.sale_price)}</td>
-                      <td className={styles.numCol}>
-                        <button
-                          type="button"
-                          className={`${styles.formatBtn} ${it.label_format === 'A' ? styles.formatA : styles.formatB}`}
-                          onClick={() => toggleFormat(it.id)}
-                          title="Clique para alternar entre A (90×13) e B (30×18)"
-                        >
-                          {it.label_format}
-                        </button>
-                      </td>
-                      <td className={styles.numCol}>
-                        <input
-                          type="number"
-                          min={0}
-                          value={displayQty[it.id] ?? String(it.quantity)}
-                          onChange={e => {
-                            setDisplayQty(prev => ({ ...prev, [it.id]: e.target.value }))
-                            const n = parseInt(e.target.value, 10)
-                            if (!isNaN(n)) updateQty(it.id, Math.max(0, n))
-                          }}
-                          onBlur={e => {
-                            setDisplayQty(prev => { const next = { ...prev }; delete next[it.id]; return next })
-                            if (e.target.value === '' || isNaN(parseInt(e.target.value, 10))) updateQty(it.id, 0)
-                          }}
-                          onFocus={e => e.target.select()}
-                          className={styles.qtyInput}
-                        />
-                      </td>
+                  {visibleItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className={styles.tableEmpty}>Nenhum produto encontrado.</td>
                     </tr>
-                  ))}
+                  ) : visibleItems.map(it => {
+                    const selected = selectedIds.has(it.id)
+                    return (
+                      <tr key={it.id} className={selected ? '' : styles.rowUnselected}>
+                        <td className={styles.checkCol}>
+                          <input
+                            type="checkbox"
+                            className={styles.checkbox}
+                            checked={selected}
+                            onChange={() => toggleSelect(it.id)}
+                          />
+                        </td>
+                        <td className={styles.nameCell}>{it.name}</td>
+                        <td className={styles.refCell}>{it.supplier_reference ?? '—'}</td>
+                        <td className={styles.numCol}>{formatBRL(it.sale_price)}</td>
+                        <td className={styles.numCol}>
+                          <button
+                            type="button"
+                            className={`${styles.formatBtn} ${it.label_format === 'A' ? styles.formatA : styles.formatB}`}
+                            onClick={() => toggleFormat(it.id)}
+                            title="Clique para alternar entre A (90×13) e B (30×18)"
+                          >
+                            {it.label_format}
+                          </button>
+                        </td>
+                        <td className={styles.numCol}>
+                          <input
+                            type="number"
+                            min={0}
+                            disabled={!selected}
+                            value={displayQty[it.id] ?? String(it.quantity)}
+                            onChange={e => {
+                              setDisplayQty(prev => ({ ...prev, [it.id]: e.target.value }))
+                              const n = parseInt(e.target.value, 10)
+                              if (!isNaN(n)) updateQty(it.id, Math.max(0, n))
+                            }}
+                            onBlur={e => {
+                              setDisplayQty(prev => { const next = { ...prev }; delete next[it.id]; return next })
+                              if (e.target.value === '' || isNaN(parseInt(e.target.value, 10))) updateQty(it.id, 0)
+                            }}
+                            onFocus={e => e.target.select()}
+                            className={styles.qtyInput}
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
 
-            <p className={styles.hint}>
-              Ajuste a quantidade (zere o que não quer imprimir) e o formato de cada produto.
-              Imprima A e B separadamente — você escolhe qual rolo está na impressora.
-            </p>
+            <div className={styles.tableFooter}>
+              <p className={styles.hint}>
+                Marque os produtos e ajuste a quantidade. Imprima A e B separadamente —
+                você escolhe qual rolo está na impressora.
+              </p>
+              <span className={styles.selectedCount}>
+                {selectedCount} de {items.length} selecionado{selectedCount === 1 ? '' : 's'}
+              </span>
+            </div>
           </>
         )}
 
@@ -320,10 +439,11 @@ function AgentStatusBar({ agent }: { agent: ReturnType<typeof useLocalPrintAgent
 
 /* --------------------- Helpers --------------------- */
 
-function expandItems(items: EtiquetasPrinterItem[]): { A: LabelData[]; B: LabelData[] } {
+function expandItems(items: EtiquetasPrinterItem[], selectedIds: Set<string>): { A: LabelData[]; B: LabelData[] } {
   const A: LabelData[] = []
   const B: LabelData[] = []
   for (const it of items) {
+    if (!selectedIds.has(it.id)) continue
     for (let i = 0; i < it.quantity; i++) {
       const data: LabelData = {
         name: it.name,

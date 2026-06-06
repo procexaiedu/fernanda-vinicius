@@ -92,7 +92,7 @@ export default function EstoqueClient({
         <div className={styles.toolbarLeft}>
           <input
             className={styles.search}
-            placeholder="Buscar por nome ou código..."
+            placeholder="Buscar por nome, código ou código de barras..."
             defaultValue={filters.q}
             onChange={e => pushFilter('q', e.target.value)}
           />

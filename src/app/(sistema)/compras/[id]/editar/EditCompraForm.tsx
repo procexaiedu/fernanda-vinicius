@@ -20,6 +20,49 @@ function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+function round2(v: number) {
+  return Math.round(v * 100) / 100
+}
+
+// Redistribui os pagamentos de UM fornecedor para somar exatamente o novo
+// subtotal dos itens daquele fornecedor (custo × qtd). Mantém a proporção
+// entre os pagamentos existentes; se estavam todos zerados, divide igual.
+// O último pagamento recebe o resto para garantir soma exata.
+function redistributeForSupplier(
+  payments: EditPaymentData[],
+  items: FormItem[],
+  supplierId: string,
+): EditPaymentData[] {
+  if (!supplierId) return payments
+  const supIdxs = payments
+    .map((p, i) => ({ p, i }))
+    .filter(x => x.p.supplierId === supplierId)
+  if (supIdxs.length === 0) return payments
+
+  const subtotal = round2(
+    items
+      .filter(it => it.supplierId === supplierId)
+      .reduce((s, it) => s + it.costPrice * (Number(it.quantity) || 0), 0),
+  )
+  const curTotal = supIdxs.reduce((s, x) => s + x.p.amount, 0)
+
+  const next = [...payments]
+  let allocated = 0
+  supIdxs.forEach((x, k) => {
+    let amount: number
+    if (k === supIdxs.length - 1) {
+      amount = round2(subtotal - allocated)        // resto exato no último
+    } else if (curTotal > 0.01) {
+      amount = round2((x.p.amount / curTotal) * subtotal)
+    } else {
+      amount = round2(subtotal / supIdxs.length)
+    }
+    allocated = round2(allocated + amount)
+    next[x.i] = { ...x.p, amount }
+  })
+  return next
+}
+
 const METHOD_LABELS: Record<string, string> = {
   cash: 'Dinheiro', pix: 'PIX', transfer: 'Transferência', credit: 'Crédito',
 }
@@ -133,27 +176,45 @@ export default function EditCompraForm({ compra }: Props) {
   const paymentsDiff  = Math.abs(totalCost - totalPayments)
   const hasPaymentMismatch = paymentsDiff > 0.01
 
-  // ── Redistribuir pagamentos proporcionalmente ao novo custo ──────────────
+  // Fornecedores presentes nos itens (para redistribuição)
+  const supplierIdsInItems = useMemo(
+    () => [...new Set(items.map(i => i.supplierId).filter(Boolean))] as string[],
+    [items],
+  )
+
+  // ── Redistribuir pagamentos por fornecedor ───────────────────────────────
+  // Cada fornecedor é tratado isoladamente: a soma dos seus pagamentos passa a
+  // bater com o subtotal (custo × qtd) dos itens dele. Botão manual de re-sync.
 
   function redistributePayments() {
-    if (payments.length === 0 || totalCost === 0) return
-    if (totalPayments > 0.01) {
-      // Proporcional ao que já existe
-      setPayments(prev => prev.map(p => ({
-        ...p,
-        amount: Math.round((p.amount / totalPayments) * totalCost * 100) / 100,
-      })))
-    } else {
-      // Distribuição igual
-      const each = Math.round((totalCost / payments.length) * 100) / 100
-      setPayments(prev => prev.map(p => ({ ...p, amount: each })))
-    }
+    setPayments(prev => {
+      let next = prev
+      for (const sid of supplierIdsInItems) {
+        next = redistributeForSupplier(next, items, sid)
+      }
+      return next
+    })
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   function updateItem<K extends keyof FormItem>(idx: number, key: K, val: FormItem[K]) {
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, [key]: val } : it))
+  }
+
+  // Atualiza um item e recalcula automaticamente os pagamentos por fornecedor.
+  // Usado em mudanças que afetam o custo (quantidade, custo unit., fornecedor
+  // do item). Redistribui todos os fornecedores — idempotente para os que não
+  // mudaram, e cobre o caso de mover um item de um fornecedor para outro.
+  function updateItemAndRecalc<K extends keyof FormItem>(idx: number, key: K, val: FormItem[K]) {
+    const nextItems = items.map((it, i) => i === idx ? { ...it, [key]: val } : it)
+    setItems(nextItems)
+    const sids = [...new Set(nextItems.map(i => i.supplierId).filter(Boolean))] as string[]
+    setPayments(prev => {
+      let next = prev
+      for (const sid of sids) next = redistributeForSupplier(next, nextItems, sid)
+      return next
+    })
   }
 
   function updatePayment<K extends keyof EditPaymentData>(idx: number, key: K, val: EditPaymentData[K]) {
@@ -184,8 +245,9 @@ export default function EditCompraForm({ compra }: Props) {
 
   // ── Options ───────────────────────────────────────────────────────────────
 
-  const supplierOptions = compra.suppliers.map(s => ({ value: s.id, label: s.name }))
-  const storeOptions    = compra.stores.map(s => ({ value: s.id, label: s.name }))
+  const supplierOptions    = compra.suppliers.map(s => ({ value: s.id, label: s.name }))
+  const paySupplierOptions = [{ value: '', label: '—' }, ...supplierOptions]
+  const storeOptions       = compra.stores.map(s => ({ value: s.id, label: s.name }))
   const methodOptions   = [
     { value: 'cash',     label: 'Dinheiro' },
     { value: 'pix',      label: 'PIX' },
@@ -308,7 +370,7 @@ export default function EditCompraForm({ compra }: Props) {
                     <td>
                       <SelectField
                         value={item.supplierId}
-                        onChange={v => updateItem(idx, 'supplierId', v)}
+                        onChange={v => updateItemAndRecalc(idx, 'supplierId', v)}
                         options={supplierOptions}
                         wide
                       />
@@ -332,7 +394,7 @@ export default function EditCompraForm({ compra }: Props) {
                         value={item.costPrice}
                         min={0}
                         step={0.01}
-                        onChange={e => updateItem(idx, 'costPrice', parseFloat(e.target.value) || 0)}
+                        onChange={e => updateItemAndRecalc(idx, 'costPrice', parseFloat(e.target.value) || 0)}
                       />
                     </td>
 
@@ -357,11 +419,15 @@ export default function EditCompraForm({ compra }: Props) {
                         value={item.quantity}
                         onChange={e => {
                           const raw = e.target.value.replace(/[^0-9]/g, '')
-                          updateItem(idx, 'quantity', raw === '' ? '' : parseInt(raw))
+                          if (raw === '') {
+                            updateItem(idx, 'quantity', '')          // vazio transitório, sem recalcular
+                          } else {
+                            updateItemAndRecalc(idx, 'quantity', parseInt(raw))
+                          }
                         }}
                         onBlur={() => {
                           const v = Number(item.quantity) || 0
-                          updateItem(idx, 'quantity', Math.max(unitsSold, v))
+                          updateItemAndRecalc(idx, 'quantity', Math.max(unitsSold, v))
                         }}
                         onFocus={e => e.target.select()}
                         title={hasSales ? `Mínimo: ${unitsSold} (unidades vendidas)` : undefined}
@@ -429,6 +495,7 @@ export default function EditCompraForm({ compra }: Props) {
                 <th>Método</th>
                 <th>Parcela</th>
                 <th>Vencimento</th>
+                <th style={{ minWidth: 150 }}>Fornecedor</th>
                 <th>Valor</th>
                 <th>Status</th>
               </tr>
@@ -454,6 +521,16 @@ export default function EditCompraForm({ compra }: Props) {
                       className={styles.payInput}
                       value={pay.dueDate}
                       onChange={e => updatePayment(idx, 'dueDate', e.target.value)}
+                    />
+                  </td>
+
+                  {/* Fornecedor deste pagamento */}
+                  <td>
+                    <SelectField
+                      value={pay.supplierId ?? ''}
+                      onChange={v => updatePayment(idx, 'supplierId', v || null)}
+                      options={paySupplierOptions}
+                      wide
                     />
                   </td>
 
