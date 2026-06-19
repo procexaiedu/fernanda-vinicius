@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, Search, Send, Megaphone, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Search, Send, Megaphone, Loader2, Eye } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import NovoDisparoModal from './NovoDisparoModal'
+import DisparoDetalheModal from './DisparoDetalheModal'
 import { enviarDisparo, excluirDisparo } from './actions'
 import type { DisparoRow, StoreOption } from './page'
 import styles from './DisparosClient.module.css'
@@ -33,6 +34,7 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState<FilterType>('todos')
   const [formOpen, setFormOpen] = useState(false)
+  const [detalhe, setDetalhe]   = useState<DisparoRow | null>(null)
   const [sendingId, setSendingId]   = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -133,7 +135,7 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
                 const confirming = confirmDeleteId === d.disparo_id
                 const isDraft = d.status === 'rascunho'
                 return (
-                  <tr key={d.disparo_id} className={styles.row}>
+                  <tr key={d.disparo_id} className={styles.row} onClick={() => setDetalhe(d)} title="Ver detalhes">
                     <td className={styles.titleCell}>{d.titulo}</td>
                     <td className={styles.mutedCell}>{d.store_name}</td>
                     <td><Badge variant={badge.variant}>{badge.label}</Badge></td>
@@ -151,6 +153,13 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
                           </>
                         ) : (
                           <>
+                            <button
+                              className={styles.iconBtn}
+                              title="Ver detalhes"
+                              onClick={e => { e.stopPropagation(); setDetalhe(d) }}
+                            >
+                              <Eye size={14} />
+                            </button>
                             {isDraft && (
                               <button
                                 className={`${styles.iconBtn} ${styles.iconBtnSend}`}
@@ -194,6 +203,10 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
           currentUserStoreId={currentUserStoreId}
           onClose={() => setFormOpen(false)}
         />
+      )}
+
+      {detalhe && (
+        <DisparoDetalheModal disparo={detalhe} onClose={() => setDetalhe(null)} />
       )}
     </>
   )
