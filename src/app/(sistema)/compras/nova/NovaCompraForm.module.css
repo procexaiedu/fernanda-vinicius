@@ -318,6 +318,25 @@
   color: var(--accent);
 }
 
+/* Opção "registrar novo" no fim do dropdown */
+.comboCreate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  border-top: 1px solid var(--border);
+  transition: background var(--transition-fast);
+}
+
+.comboCreate:hover,
+.comboCreateActive {
+  background: rgba(201, 168, 76, 0.15);
+}
+
 .storeBtn {
   display: flex;
   align-items: center;

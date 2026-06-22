@@ -93,7 +93,7 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
 
   const [productsRes, materialsRes, storesRes, suppliersRes, categoryMappingsRes] = await Promise.all([
     query,
-    admin.from('products').select('material').not('material', 'is', null),
+    admin.from('materials').select('name').order('name'),
     isAdmin ? admin.from('stores').select('id, name').order('name') : Promise.resolve({ data: [] }),
     isAdmin ? admin.from('suppliers').select('id, name, initials').eq('is_active', true).order('name') : Promise.resolve({ data: [] }),
     admin.from('category_label_mapping').select('category, label_format').order('category'),
@@ -103,7 +103,7 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
   const total = productsRes.count ?? 0
 
   const categories = [...new Set((categoryMappingsRes.data ?? []).map(r => r.category as string))].filter(Boolean).sort()
-  const materials  = [...new Set((materialsRes.data ?? []).map(r => r.material as string))].filter(Boolean).sort()
+  const materials  = [...new Set((materialsRes.data ?? []).map(r => r.name as string))].filter(Boolean).sort()
   const stores     = (storesRes.data ?? []) as StoreOption[]
   const suppliers  = (suppliersRes.data ?? []) as SupplierOption[]
   const categoryLabelMap = Object.fromEntries(

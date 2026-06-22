@@ -9,6 +9,7 @@ import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etique
 import { salvarCompra, getItensCompraParaEtiquetas } from '../actions'
 import type { GridRow, PaymentRow } from '../actions'
 import { generateCode as buildCode } from '@/lib/productCode'
+import QuickCreateCatalogModal, { type QuickCreateType } from './QuickCreateCatalogModal'
 import styles from './NovaCompraForm.module.css'
 
 // ─── Tipos de props ────────────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ function useFixedDropdown<T extends HTMLElement = HTMLInputElement>() {
 
 // ─── Combobox genérico (categoria, material) ───────────────────────────────────
 
-function Combobox({ value, onChange, options, placeholder, className, rowIndex, colIndex, onCellKeyDown }: {
+function Combobox({ value, onChange, options, placeholder, className, rowIndex, colIndex, onCellKeyDown, onCreate }: {
   value: string
   onChange: (v: string) => void
   options: string[]
@@ -110,19 +111,31 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
   rowIndex?: number
   colIndex?: number
   onCellKeyDown?: (e: React.KeyboardEvent) => void
+  onCreate?: (value: string) => void
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
   const [highlighted, setHighlighted] = useState(-1)
   const filtered = options.filter(o => o.toLowerCase().includes(value.toLowerCase())).slice(0, 50)
+  const trimmed   = value.trim()
+  const hasExact  = options.some(o => o.toLowerCase() === trimmed.toLowerCase())
+  const showCreate = !!onCreate && trimmed.length > 0 && !hasExact
+  const createIndex = filtered.length
+  const totalItems  = filtered.length + (showCreate ? 1 : 0)
 
   useEffect(() => { setHighlighted(-1) }, [pos])
 
+  function triggerCreate() {
+    onCreate?.(trimmed)
+    close()
+    setHighlighted(-1)
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
     // Navegação no dropdown com setas
-    if (pos && filtered.length > 0) {
+    if (pos && totalItems > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setHighlighted(h => Math.min(h + 1, filtered.length - 1))
+        setHighlighted(h => Math.min(h + 1, totalItems - 1))
         return
       }
       if (e.key === 'ArrowUp') {
@@ -132,6 +145,7 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
       }
       if (e.key === 'Enter' && highlighted >= 0) {
         e.preventDefault()
+        if (showCreate && highlighted === createIndex) { triggerCreate(); return }
         onChange(filtered[highlighted])
         close()
         setHighlighted(-1)
@@ -168,7 +182,7 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
         data-col={colIndex}
         onKeyDown={handleKeyDown}
       />
-      {pos && filtered.length > 0 && (
+      {pos && totalItems > 0 && (
         <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 160), zIndex: 9999 }}>
           {filtered.map((o, idx) => (
             <div
@@ -179,6 +193,14 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
               {o}
             </div>
           ))}
+          {showCreate && (
+            <div
+              className={`${styles.comboCreate} ${highlighted === createIndex ? styles.comboCreateActive : ''}`}
+              onMouseDown={e => { e.preventDefault(); triggerCreate() }}
+            >
+              <Plus size={12} /> Registrar “{trimmed}”
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -187,7 +209,7 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
 
 // ─── SupplierCombobox ──────────────────────────────────────────────────────────
 
-function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, colIndex, onCellKeyDown }: {
+function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, colIndex, onCellKeyDown, onCreate }: {
   value: string
   onChange: (name: string, supplier: SupplierOption | null) => void
   suppliers: SupplierOption[]
@@ -195,18 +217,30 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, c
   rowIndex?: number
   colIndex?: number
   onCellKeyDown?: (e: React.KeyboardEvent) => void
+  onCreate?: (value: string) => void
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
   const [highlighted, setHighlighted] = useState(-1)
   const filtered = suppliers.filter(s => s.name.toLowerCase().includes(value.toLowerCase())).slice(0, 8)
+  const trimmed   = value.trim()
+  const hasExact  = suppliers.some(s => s.name.toLowerCase() === trimmed.toLowerCase())
+  const showCreate = !!onCreate && trimmed.length > 0 && !hasExact
+  const createIndex = filtered.length
+  const totalItems  = filtered.length + (showCreate ? 1 : 0)
 
   useEffect(() => { setHighlighted(-1) }, [pos])
 
+  function triggerCreate() {
+    onCreate?.(trimmed)
+    close()
+    setHighlighted(-1)
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (pos && filtered.length > 0) {
+    if (pos && totalItems > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setHighlighted(h => Math.min(h + 1, filtered.length - 1))
+        setHighlighted(h => Math.min(h + 1, totalItems - 1))
         return
       }
       if (e.key === 'ArrowUp') {
@@ -216,6 +250,7 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, c
       }
       if (e.key === 'Enter' && highlighted >= 0) {
         e.preventDefault()
+        if (showCreate && highlighted === createIndex) { triggerCreate(); return }
         const s = filtered[highlighted]
         onChange(s.name, s)
         close()
@@ -252,7 +287,7 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, c
         data-col={colIndex}
         onKeyDown={handleKeyDown}
       />
-      {pos && filtered.length > 0 && (
+      {pos && totalItems > 0 && (
         <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 240), zIndex: 9999 }}>
           {filtered.map((s, idx) => (
             <div
@@ -264,6 +299,14 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, c
               <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{s.initials}</span>
             </div>
           ))}
+          {showCreate && (
+            <div
+              className={`${styles.comboCreate} ${highlighted === createIndex ? styles.comboCreateActive : ''}`}
+              onMouseDown={e => { e.preventDefault(); triggerCreate() }}
+            >
+              <Plus size={12} /> Registrar “{trimmed}”
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -364,9 +407,17 @@ function StoreSelect({ value, onChange, stores }: {
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-export default function NovaCompraForm({ suppliers, stores, products, categories, materials, defaultMarkupPct }: Props) {
+export default function NovaCompraForm({ suppliers: initialSuppliers, stores, products, categories: initialCategories, materials: initialMaterials, defaultMarkupPct }: Props) {
   const router = useRouter()
   const defaultStoreId = stores.find(s => s.name.toLowerCase().includes('campinas'))?.id ?? stores[0]?.id ?? ''
+
+  // Listas de catálogo (mutáveis: cadastro inline adiciona novas opções na hora)
+  const [suppliers, setSuppliers]   = useState<SupplierOption[]>(initialSuppliers)
+  const [categories, setCategories] = useState<string[]>(initialCategories)
+  const [materials, setMaterials]   = useState<string[]>(initialMaterials)
+
+  // Cadastro rápido (modal) disparado por um combobox de uma linha específica
+  const [quickCreate, setQuickCreate] = useState<{ type: QuickCreateType; value: string; rowIndex: number } | null>(null)
 
   // Cabeçalho
   const [purchaseDate, setPurchaseDate]     = useState(today())
@@ -791,6 +842,7 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                         rowIndex={i}
                         colIndex={1}
                         onCellKeyDown={nav(1)}
+                        onCreate={v => setQuickCreate({ type: 'supplier', value: v, rowIndex: i })}
                       />
                     </td>
 
@@ -823,6 +875,7 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                         rowIndex={i}
                         colIndex={3}
                         onCellKeyDown={nav(3)}
+                        onCreate={v => setQuickCreate({ type: 'category', value: v, rowIndex: i })}
                       />
                     </td>
 
@@ -836,6 +889,7 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
                         rowIndex={i}
                         colIndex={4}
                         onCellKeyDown={nav(4)}
+                        onCreate={v => setQuickCreate({ type: 'material', value: v, rowIndex: i })}
                       />
                     </td>
 
@@ -1124,6 +1178,27 @@ export default function NovaCompraForm({ suppliers, stores, products, categories
         initialItems={printerItems}
         title="Compra salva — imprimir etiquetas dos produtos"
       />
+
+      {quickCreate && (
+        <QuickCreateCatalogModal
+          type={quickCreate.type}
+          initialValue={quickCreate.value}
+          existingSuppliers={suppliers}
+          onClose={() => setQuickCreate(null)}
+          onCreatedSupplier={s => {
+            setSuppliers(prev => [...prev, s].sort((a, b) => a.name.localeCompare(b.name)))
+            updateRow(quickCreate.rowIndex, { supplierId: s.id, supplierName: s.name, supplierInitials: s.initials })
+          }}
+          onCreatedCategory={(name, labelFormat) => {
+            setCategories(prev => [...new Set([...prev, name])].sort())
+            updateRow(quickCreate.rowIndex, { category: name, labelFormat })
+          }}
+          onCreatedMaterial={name => {
+            setMaterials(prev => [...new Set([...prev, name])].sort())
+            updateRow(quickCreate.rowIndex, { material: name })
+          }}
+        />
+      )}
     </div>
   )
 }
