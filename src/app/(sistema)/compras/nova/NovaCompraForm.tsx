@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, AlertTriangle, Upload, ChevronDown } from 'lucide-react'
+import { Plus, Trash2, AlertTriangle, Upload, ChevronDown, RotateCcw, X } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import DatePicker from '@/components/ui/DatePicker'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
@@ -73,6 +73,34 @@ function emptyRow(defaultStoreId: string): FormRow {
     quantity: 1,
     storeId: defaultStoreId,
   }
+}
+
+// ─── Rascunho automático (localStorage) ─────────────────────────────────────────
+
+const DRAFT_KEY = 'fv:nova-compra:draft:v1'
+
+interface CompraDraft {
+  v: 1
+  savedAt: number
+  purchaseDate: string
+  notes: string
+  isConsignment: boolean
+  returnDeadline: string
+  minPurchasePct: string
+  rows: FormRow[]
+  supplierPayments: Record<string, PaymentRow[]>
+  supplierNFs: Record<string, { nfNumber: string; nfUrl: string; uploading: boolean }>
+}
+
+function rowHasContent(r: FormRow): boolean {
+  return !!(
+    r.productName.trim() || r.supplierName.trim() ||
+    r.category.trim() || r.material.trim() || (r.costPrice && r.costPrice > 0)
+  )
+}
+
+function draftIsMeaningful(d: { rows: FormRow[]; notes: string }): boolean {
+  return d.notes.trim().length > 0 || d.rows.some(rowHasContent)
 }
 
 // ─── Keyboard nav helper ───────────────────────────────────────────────────────
@@ -488,6 +516,75 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
   const [printerOpen, setPrinterOpen] = useState(false)
   const [printerItems, setPrinterItems] = useState<EtiquetasPrinterItem[]>([])
 
+  // ── Rascunho automático ─────────────────────────────────────────────────────
+  const [draftLoaded, setDraftLoaded]       = useState(false)
+  const [draftRecovered, setDraftRecovered] = useState(false)
+
+  function clearDraft() {
+    try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
+  }
+
+  function discardDraft() {
+    clearDraft()
+    setPurchaseDate(today())
+    setNotes('')
+    setIsConsignment(false)
+    setReturnDeadline('')
+    setMinPurchasePct('')
+    setRows([emptyRow(defaultStoreId)])
+    setSupplierPayments({})
+    setSupplierNFs({})
+    setDraftRecovered(false)
+  }
+
+  // Carrega o rascunho ao montar (pós-hidratação, evita mismatch SSR)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY)
+      if (raw) {
+        const d = JSON.parse(raw) as CompraDraft
+        if (d && d.v === 1 && Array.isArray(d.rows) && draftIsMeaningful(d)) {
+          setPurchaseDate(d.purchaseDate || today())
+          setNotes(d.notes || '')
+          setIsConsignment(!!d.isConsignment)
+          setReturnDeadline(d.returnDeadline || '')
+          setMinPurchasePct(d.minPurchasePct || '')
+          setRows(d.rows.length ? d.rows : [emptyRow(defaultStoreId)])
+          setSupplierPayments(d.supplierPayments || {})
+          const nfs: Record<string, { nfNumber: string; nfUrl: string; uploading: boolean }> = {}
+          for (const [k, v] of Object.entries(d.supplierNFs || {})) {
+            nfs[k] = { nfNumber: v.nfNumber ?? '', nfUrl: v.nfUrl ?? '', uploading: false }
+          }
+          setSupplierNFs(nfs)
+          setDraftRecovered(true)
+        } else {
+          localStorage.removeItem(DRAFT_KEY)
+        }
+      }
+    } catch { /* rascunho corrompido — ignora */ }
+    setDraftLoaded(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Autosave debounced — só depois de carregar, e nunca com form vazio
+  useEffect(() => {
+    if (!draftLoaded) return
+    if (!draftIsMeaningful({ rows, notes })) {
+      clearDraft()
+      return
+    }
+    const t = setTimeout(() => {
+      const draft: CompraDraft = {
+        v: 1,
+        savedAt: Date.now(),
+        purchaseDate, notes, isConsignment, returnDeadline, minPurchasePct,
+        rows, supplierPayments, supplierNFs,
+      }
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)) } catch { /* quota/privado — ignora */ }
+    }, 600)
+    return () => clearTimeout(t)
+  }, [draftLoaded, rows, notes, purchaseDate, isConsignment, returnDeadline, minPurchasePct, supplierPayments, supplierNFs])
+
   const purchaseMonth = parseInt(purchaseDate.slice(5, 7)) || new Date().getMonth() + 1
 
   // ── Grid helpers ──────────────────────────────────────────────────────────
@@ -679,6 +776,9 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
 
     if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
 
+    // Compra salva de verdade — descarta o rascunho local
+    clearDraft()
+
     // Compra criada — oferece imprimir etiquetas antes de redirecionar
     if (result.purchaseId) {
       const itens = await getItensCompraParaEtiquetas(result.purchaseId)
@@ -711,6 +811,17 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
 
   return (
     <div className={styles.wrapper}>
+
+      {/* ── Aviso de rascunho recuperado ─────────────────────────────── */}
+      {draftRecovered && (
+        <div className={styles.draftBanner}>
+          <RotateCcw size={15} />
+          <span>Recuperamos um rascunho desta compra que não foi salvo. Continue de onde parou.</span>
+          <button type="button" className={styles.draftDiscardBtn} onClick={discardDraft}>
+            <X size={13} /> Descartar e começar do zero
+          </button>
+        </div>
+      )}
 
       {/* ── Cabeçalho ────────────────────────────────────────────────── */}
       <div className={styles.section}>

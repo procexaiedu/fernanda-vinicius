@@ -641,6 +641,46 @@
   border-radius: var(--radius-md);
 }
 
+/* ── Banner de rascunho recuperado ──────────────────────────────────────── */
+
+.draftBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(201, 168, 76, 0.1);
+  border: 1px solid rgba(201, 168, 76, 0.35);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.draftBanner span {
+  flex: 1;
+  color: var(--text-secondary);
+}
+
+.draftDiscardBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.draftDiscardBtn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 /* ── Erro e ações ───────────────────────────────────────────────────────── */
 
 .errorBanner {
