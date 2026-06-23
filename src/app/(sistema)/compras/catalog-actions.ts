@@ -79,9 +79,10 @@ export async function criarCategoriaRapida(
   if (!cleanName) return { success: false, error: 'Informe o nome da categoria.' }
 
   const admin = createAdminClient()
+  // is_active: true reativa caso a categoria tenha sido excluída (soft-delete) antes
   const { error } = await admin
     .from('category_label_mapping')
-    .upsert({ category: cleanName, label_format: labelFormat }, { onConflict: 'category' })
+    .upsert({ category: cleanName, label_format: labelFormat, is_active: true }, { onConflict: 'category' })
 
   if (error) return { success: false, error: error.message }
 
@@ -102,14 +103,20 @@ export async function criarMaterialRapido(name: string): Promise<QuickMaterialRe
 
   const admin = createAdminClient()
 
-  // Evita duplicar (índice é case-insensitive); se já existe, retorna o existente
+  // Evita duplicar (índice é case-insensitive). Se já existe, reativa (caso tenha
+  // sido excluído por soft-delete) e retorna o nome existente.
   const { data: existing } = await admin
     .from('materials')
-    .select('name')
+    .select('id, name')
     .ilike('name', cleanName)
     .maybeSingle()
 
-  if (existing) return { success: true, material: existing.name }
+  if (existing) {
+    await admin.from('materials').update({ is_active: true }).eq('id', existing.id)
+    revalidatePath('/produtos')
+    revalidatePath('/compras/nova')
+    return { success: true, material: existing.name }
+  }
 
   const { data, error } = await admin
     .from('materials')
@@ -122,4 +129,60 @@ export async function criarMaterialRapido(name: string): Promise<QuickMaterialRe
   revalidatePath('/produtos')
   revalidatePath('/compras/nova')
   return { success: true, material: data.name }
+}
+
+// ─── Soft-delete (exclusão "visual": some do front, permanece no banco) ──────────
+
+export interface DeleteResult { success: boolean; error?: string }
+
+export async function excluirFornecedorRapido(id: string): Promise<DeleteResult> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { success: false, error: authErr }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('suppliers')
+    .update({ is_active: false, updated_at: new Date().toISOString() })
+    .eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/fornecedores')
+  revalidatePath('/compras/nova')
+  return { success: true }
+}
+
+export async function excluirCategoriaRapida(name: string): Promise<DeleteResult> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { success: false, error: authErr }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('category_label_mapping')
+    .update({ is_active: false })
+    .eq('category', name)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/configuracoes/impressao')
+  revalidatePath('/produtos')
+  revalidatePath('/compras/nova')
+  return { success: true }
+}
+
+export async function excluirMaterialRapido(name: string): Promise<DeleteResult> {
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { success: false, error: authErr }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('materials')
+    .update({ is_active: false })
+    .ilike('name', name)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/produtos')
+  revalidatePath('/compras/nova')
+  return { success: true }
 }

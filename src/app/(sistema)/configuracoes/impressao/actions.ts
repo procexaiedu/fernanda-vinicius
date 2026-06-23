@@ -36,14 +36,16 @@ export async function upsertCategoryMapping(category: string, label_format: Labe
   if (authError) return { success: false, error: authError }
 
   const admin = createAdminClient()
+  // is_active: true reativa categorias que tenham sido excluídas (soft-delete)
   const { error } = await admin
     .from('category_label_mapping')
-    .upsert({ category: category.trim(), label_format }, { onConflict: 'category' })
+    .upsert({ category: category.trim(), label_format, is_active: true }, { onConflict: 'category' })
 
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/configuracoes/impressao')
   revalidatePath('/produtos')
+  revalidatePath('/compras/nova')
   return { success: true }
 }
 
@@ -73,14 +75,16 @@ export async function deleteCategoryMapping(category: string): Promise<ActionRes
   if (authError) return { success: false, error: authError }
 
   const admin = createAdminClient()
+  // Soft-delete: some das listas mas permanece no banco (produtos vinculados intactos)
   const { error } = await admin
     .from('category_label_mapping')
-    .delete()
+    .update({ is_active: false })
     .eq('category', category)
 
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/configuracoes/impressao')
   revalidatePath('/produtos')
+  revalidatePath('/compras/nova')
   return { success: true }
 }

@@ -26,6 +26,7 @@ export default async function ImpressaoConfigPage() {
     const { data } = await admin
       .from('category_label_mapping')
       .select('category, label_format')
+      .eq('is_active', true)
       .order('category')
     mappings = (data ?? []) as CategoryMapping[]
   }

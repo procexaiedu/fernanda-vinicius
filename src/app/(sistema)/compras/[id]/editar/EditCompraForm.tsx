@@ -24,6 +24,11 @@ function round2(v: number) {
   return Math.round(v * 100) / 100
 }
 
+// Impede que o scroll do mouse altere o valor de um input numérico focado
+function blurOnWheel(e: React.WheelEvent<HTMLInputElement>) {
+  e.currentTarget.blur()
+}
+
 // Redistribui os pagamentos de UM fornecedor para somar exatamente o novo
 // subtotal dos itens daquele fornecedor (custo × qtd). Mantém a proporção
 // entre os pagamentos existentes; se estavam todos zerados, divide igual.
@@ -390,6 +395,7 @@ export default function EditCompraForm({ compra }: Props) {
                     <td>
                       <input
                         type="number"
+                        onWheel={blurOnWheel}
                         className={styles.cell}
                         value={item.costPrice}
                         min={0}
@@ -402,6 +408,7 @@ export default function EditCompraForm({ compra }: Props) {
                     <td>
                       <input
                         type="number"
+                        onWheel={blurOnWheel}
                         className={styles.cell}
                         value={item.salePrice}
                         min={0}
@@ -537,6 +544,7 @@ export default function EditCompraForm({ compra }: Props) {
                   <td>
                     <input
                       type="number"
+                      onWheel={blurOnWheel}
                       className={styles.payInput}
                       style={{ width: 100 }}
                       value={pay.amount}

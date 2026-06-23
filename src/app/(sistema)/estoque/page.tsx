@@ -56,7 +56,7 @@ export default async function EstoquePage({ searchParams }: PageProps) {
 
   const [productsRes, categoriesRes, materialsRes, storesRes] = await Promise.all([
     query,
-    admin.from('category_label_mapping').select('category').order('category'),
+    admin.from('category_label_mapping').select('category').eq('is_active', true).order('category'),
     admin.from('products').select('material').eq('is_active', true).not('material', 'is', null),
     isAdmin ? admin.from('stores').select('id, name').order('name') : Promise.resolve({ data: [] }),
   ])

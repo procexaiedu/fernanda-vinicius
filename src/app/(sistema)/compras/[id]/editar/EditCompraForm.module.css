@@ -145,6 +145,21 @@
   cursor: not-allowed;
 }
 
+/* Remove as setinhas (spinner) dos inputs numéricos — evita alterar valor por engano */
+.cell::-webkit-outer-spin-button,
+.cell::-webkit-inner-spin-button,
+.payInput::-webkit-outer-spin-button,
+.payInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.cell[type='number'],
+.payInput[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* ── Select customizado (substitui <select> nativo) ─────────────────────── */
 
 .selectWrap {

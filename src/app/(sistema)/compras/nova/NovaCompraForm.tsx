@@ -10,6 +10,8 @@ import { salvarCompra, getItensCompraParaEtiquetas } from '../actions'
 import type { GridRow, PaymentRow } from '../actions'
 import { generateCode as buildCode } from '@/lib/productCode'
 import QuickCreateCatalogModal, { type QuickCreateType } from './QuickCreateCatalogModal'
+import ConfirmDeleteCatalogModal from './ConfirmDeleteCatalogModal'
+import { excluirFornecedorRapido, excluirCategoriaRapida, excluirMaterialRapido } from '../catalog-actions'
 import styles from './NovaCompraForm.module.css'
 
 // ─── Tipos de props ────────────────────────────────────────────────────────────
@@ -44,6 +46,11 @@ function suggestInitials(name: string): string {
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+// Impede que o scroll do mouse altere o valor de um input numérico focado
+function blurOnWheel(e: React.WheelEvent<HTMLInputElement>) {
+  e.currentTarget.blur()
 }
 
 function today() {
@@ -130,7 +137,7 @@ function useFixedDropdown<T extends HTMLElement = HTMLInputElement>() {
 
 // ─── Combobox genérico (categoria, material) ───────────────────────────────────
 
-function Combobox({ value, onChange, options, placeholder, className, rowIndex, colIndex, onCellKeyDown, onCreate }: {
+function Combobox({ value, onChange, options, placeholder, className, rowIndex, colIndex, onCellKeyDown, onCreate, onDelete }: {
   value: string
   onChange: (v: string) => void
   options: string[]
@@ -140,6 +147,7 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
   colIndex?: number
   onCellKeyDown?: (e: React.KeyboardEvent) => void
   onCreate?: (value: string) => void
+  onDelete?: (value: string) => void
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
   const [highlighted, setHighlighted] = useState(-1)
@@ -218,7 +226,17 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
               className={`${styles.comboOption} ${idx === highlighted ? styles.comboOptionActive : ''}`}
               onMouseDown={() => { onChange(o); close() }}
             >
-              {o}
+              <span className={styles.comboOptionLabel}>{o}</span>
+              {onDelete && (
+                <button
+                  type="button"
+                  className={styles.comboDeleteBtn}
+                  title="Excluir"
+                  onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onDelete(o) }}
+                >
+                  <Trash2 size={12} />
+                </button>
+              )}
             </div>
           ))}
           {showCreate && (
@@ -237,7 +255,7 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
 
 // ─── SupplierCombobox ──────────────────────────────────────────────────────────
 
-function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, colIndex, onCellKeyDown, onCreate }: {
+function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, colIndex, onCellKeyDown, onCreate, onDelete }: {
   value: string
   onChange: (name: string, supplier: SupplierOption | null) => void
   suppliers: SupplierOption[]
@@ -246,6 +264,7 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, c
   colIndex?: number
   onCellKeyDown?: (e: React.KeyboardEvent) => void
   onCreate?: (value: string) => void
+  onDelete?: (supplier: SupplierOption) => void
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
   const [highlighted, setHighlighted] = useState(-1)
@@ -323,8 +342,20 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, c
               className={`${styles.comboOption} ${idx === highlighted ? styles.comboOptionActive : ''}`}
               onMouseDown={() => { onChange(s.name, s); close() }}
             >
-              <span style={{ fontWeight: 600 }}>{s.name}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{s.initials}</span>
+              <span className={styles.comboOptionLabel}>
+                <span style={{ fontWeight: 600 }}>{s.name}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{s.initials}</span>
+              </span>
+              {onDelete && (
+                <button
+                  type="button"
+                  className={styles.comboDeleteBtn}
+                  title="Excluir"
+                  onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onDelete(s) }}
+                >
+                  <Trash2 size={12} />
+                </button>
+              )}
             </div>
           ))}
           {showCreate && (
@@ -446,6 +477,30 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
 
   // Cadastro rápido (modal) disparado por um combobox de uma linha específica
   const [quickCreate, setQuickCreate] = useState<{ type: QuickCreateType; value: string; rowIndex: number } | null>(null)
+
+  // Exclusão (soft-delete) de item de catálogo via dropdown
+  const [catalogDelete, setCatalogDelete] = useState<{ type: QuickCreateType; label: string; supplierId?: string } | null>(null)
+  const [deletingCatalog, setDeletingCatalog] = useState(false)
+  const [deleteCatalogError, setDeleteCatalogError] = useState<string | null>(null)
+
+  async function confirmCatalogDelete() {
+    if (!catalogDelete) return
+    setDeletingCatalog(true)
+    setDeleteCatalogError(null)
+    const cd = catalogDelete
+    const res =
+      cd.type === 'supplier'  ? await excluirFornecedorRapido(cd.supplierId!) :
+      cd.type === 'category'  ? await excluirCategoriaRapida(cd.label) :
+                                await excluirMaterialRapido(cd.label)
+    setDeletingCatalog(false)
+    if (!res.success) { setDeleteCatalogError(res.error ?? 'Erro ao excluir.'); return }
+
+    if (cd.type === 'supplier')      setSuppliers(prev => prev.filter(s => s.id !== cd.supplierId))
+    else if (cd.type === 'category') setCategories(prev => prev.filter(c => c !== cd.label))
+    else                             setMaterials(prev => prev.filter(m => m !== cd.label))
+
+    setCatalogDelete(null)
+  }
 
   // Cabeçalho
   const [purchaseDate, setPurchaseDate]     = useState(today())
@@ -859,7 +914,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
               <div className={styles.field}>
                 <label className={styles.label}>% mínimo de compra</label>
                 <input
-                  type="number" min="0" max="100" step="1"
+                  type="number" min="0" max="100" step="1" onWheel={blurOnWheel}
                   className={styles.input}
                   value={minPurchasePct}
                   onChange={e => setMinPurchasePct(e.target.value)}
@@ -954,6 +1009,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                         colIndex={1}
                         onCellKeyDown={nav(1)}
                         onCreate={v => setQuickCreate({ type: 'supplier', value: v, rowIndex: i })}
+                        onDelete={s => setCatalogDelete({ type: 'supplier', label: s.name, supplierId: s.id })}
                       />
                     </td>
 
@@ -987,6 +1043,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                         colIndex={3}
                         onCellKeyDown={nav(3)}
                         onCreate={v => setQuickCreate({ type: 'category', value: v, rowIndex: i })}
+                        onDelete={v => setCatalogDelete({ type: 'category', label: v })}
                       />
                     </td>
 
@@ -1001,13 +1058,14 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                         colIndex={4}
                         onCellKeyDown={nav(4)}
                         onCreate={v => setQuickCreate({ type: 'material', value: v, rowIndex: i })}
+                        onDelete={v => setCatalogDelete({ type: 'material', label: v })}
                       />
                     </td>
 
                     {/* Custo */}
                     <td className={styles.tdNum2}>
                       <input
-                        type="number" min="0" step="0.01"
+                        type="number" min="0" step="0.01" onWheel={blurOnWheel}
                         className={styles.cell}
                         value={row.costPrice || ''}
                         onChange={e => handleCostChange(i, parseFloat(e.target.value) || 0)}
@@ -1021,7 +1079,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                     {/* Venda */}
                     <td className={styles.tdNum2}>
                       <input
-                        type="number" min="0" step="0.01"
+                        type="number" min="0" step="0.01" onWheel={blurOnWheel}
                         className={styles.cell}
                         value={row.salePrice || ''}
                         onChange={e => updateRow(i, { salePrice: parseFloat(e.target.value) || 0 })}
@@ -1035,7 +1093,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                     {/* Promo */}
                     <td className={styles.tdNum2}>
                       <input
-                        type="number" min="0" step="0.01"
+                        type="number" min="0" step="0.01" onWheel={blurOnWheel}
                         className={styles.cell}
                         value={row.promoPrice ?? ''}
                         onChange={e => updateRow(i, { promoPrice: e.target.value ? parseFloat(e.target.value) : null })}
@@ -1067,7 +1125,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                     {/* Qtd */}
                     <td className={styles.tdQty}>
                       <input
-                        type="number" min="1" step="1"
+                        type="number" min="1" step="1" onWheel={blurOnWheel}
                         className={styles.cell}
                         value={row.quantity}
                         onChange={e => updateRow(i, { quantity: e.target.value === '' ? '' : parseInt(e.target.value) || 1 })}
@@ -1199,7 +1257,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                         </div>
 
                         <input
-                          type="number" min="0" step="0.01"
+                          type="number" min="0" step="0.01" onWheel={blurOnWheel}
                           className={styles.payCell}
                           style={{ flex: '0 0 130px' }}
                           value={p.totalAmount || ''}
@@ -1308,6 +1366,17 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
             setMaterials(prev => [...new Set([...prev, name])].sort())
             updateRow(quickCreate.rowIndex, { material: name })
           }}
+        />
+      )}
+
+      {catalogDelete && (
+        <ConfirmDeleteCatalogModal
+          type={catalogDelete.type}
+          label={catalogDelete.label}
+          deleting={deletingCatalog}
+          error={deleteCatalogError}
+          onCancel={() => { setCatalogDelete(null); setDeleteCatalogError(null) }}
+          onConfirm={confirmCatalogDelete}
         />
       )}
     </div>

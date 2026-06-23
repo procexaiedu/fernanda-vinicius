@@ -19,8 +19,8 @@ export default async function NovaCompraPage() {
     admin.from('stores').select('id, name, city').eq('is_active', true).order('name'),
     admin.from('products').select('id, name, code, category, material, cost_price, sale_price, promotional_price, supplier_id, store_id, ownership_type').eq('is_active', true).order('name'),
     admin.from('settings').select('value').eq('key', 'default_markup_pct').maybeSingle(),
-    admin.from('category_label_mapping').select('category').order('category'),
-    admin.from('materials').select('name').order('name'),
+    admin.from('category_label_mapping').select('category').eq('is_active', true).order('category'),
+    admin.from('materials').select('name').eq('is_active', true).order('name'),
   ])
 
   const suppliers      = suppliersRes.data ?? []
