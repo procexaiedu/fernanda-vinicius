@@ -13,6 +13,9 @@
 .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-subtle); }
 .inputError { border-color: var(--danger); }
 .error { display: block; font-size: 11px; color: var(--danger); margin-top: 4px; }
+
+.spin { animation: disp-spin 0.8s linear infinite; }
+@keyframes disp-spin { to { transform: rotate(360deg); } }
 .hint { display: block; font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 
 .recipients {

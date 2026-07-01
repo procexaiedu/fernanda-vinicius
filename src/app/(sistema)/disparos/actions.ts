@@ -11,6 +11,32 @@ export interface CriarDisparoData {
   template_language: string
   param2: string
   param3: string
+  image_url?: string | null
+}
+
+export interface TemplateMeta {
+  name: string
+  language: string
+  category: string
+  status: string
+  headerFormat: 'IMAGE' | 'TEXT' | 'VIDEO' | 'DOCUMENT' | 'NONE'
+  bodyText: string
+  bodyVarCount: number
+  bodyExample: string[]
+  footer: string | null
+}
+
+// Lista os templates APPROVED da WABA da Fernanda (via edge function que fala com a YCloud)
+export async function listarTemplates(): Promise<{ success: boolean; templates?: TemplateMeta[]; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Não autenticado.' }
+
+  const admin = createAdminClient()
+  const { data, error } = await admin.functions.invoke('disparo-templates', { body: {} })
+  if (error) return { success: false, error: error.message }
+  if (data?.error) return { success: false, error: data.error }
+  return { success: true, templates: (data?.templates ?? []) as TemplateMeta[] }
 }
 
 export interface CriarDisparoResult {
@@ -47,6 +73,7 @@ export async function criarDisparo(data: CriarDisparoData): Promise<CriarDisparo
     p_param2:            data.param2.trim(),
     p_param3:            data.param3.trim() || '.',
     p_created_by:        user.id,
+    p_image_url:         data.image_url || null,
   })
 
   if (error) return { success: false, error: error.message }

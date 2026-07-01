@@ -13,6 +13,7 @@ export interface DisparoRow {
   template_language: string
   param2: string | null
   param3: string | null
+  image_url: string | null
   created_at: string
   sent_at: string | null
   total: number
@@ -38,7 +39,7 @@ export default async function DisparosPage() {
     supabase.from('users').select('role, store_id').eq('id', user.id).single(),
     admin.from('stores').select('id, name').eq('is_active', true).order('name'),
     admin.from('v_disparo_metrics').select('*').order('created_at', { ascending: false }),
-    admin.from('disparos').select('id, template_name, template_language, param2_default, param3_default'),
+    admin.from('disparos').select('id, template_name, template_language, param2_default, param3_default, image_url'),
   ])
 
   const profile = profileRes.data
@@ -58,6 +59,7 @@ export default async function DisparosPage() {
     template_language: meta?.template_language ?? 'pt_BR',
     param2:            meta?.param2_default ?? null,
     param3:            meta?.param3_default ?? null,
+    image_url:         meta?.image_url ?? null,
     created_at:        m.created_at,
     sent_at:           m.sent_at,
     total:         Number(m.total ?? 0),

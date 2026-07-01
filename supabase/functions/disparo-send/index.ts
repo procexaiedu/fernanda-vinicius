@@ -2,11 +2,12 @@
 // POST { disparo_id, batch_size? }
 //
 // SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY são injetados automaticamente pelo Supabase.
-// Único secret a configurar:  supabase secrets set YCLOUD_API_KEY=...
+// Secrets: YCLOUD_API_KEY (obrigatório). FV_WABA_ID (opcional; default = WABA da Fernanda).
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { normalizePhoneBR, sendTemplate } from "../_shared/ycloud.ts";
+import { getTemplateMeta, normalizePhoneBR, sendTemplate } from "../_shared/ycloud.ts";
 
 const TIME_BUDGET_MS = 110_000;
+const DEFAULT_WABA_ID = "2640848569584957"; // Fernanda Vinícius
 
 Deno.serve(async (req) => {
   const t0 = Date.now();
@@ -22,7 +23,7 @@ Deno.serve(async (req) => {
 
     const { data: disparo, error: e1 } = await db
       .from("disparos")
-      .select("id,status,template_name,template_language,store_id,stores(whatsapp_phone,name)")
+      .select("id,status,template_name,template_language,image_url,store_id,stores(whatsapp_phone,name)")
       .eq("id", disparo_id).single();
     if (e1 || !disparo) return json({ error: "disparo não encontrado" }, 404);
     if (disparo.status === "concluido") return json({ ok: true, done: true, msg: "já concluído" });
@@ -33,6 +34,19 @@ Deno.serve(async (req) => {
 
     const apiKey = Deno.env.get("YCLOUD_API_KEY");
     if (!apiKey) return json({ error: "YCLOUD_API_KEY ausente" }, 500);
+    const wabaId = Deno.env.get("FV_WABA_ID") ?? DEFAULT_WABA_ID;
+
+    // Descobre a estrutura do template: tem header de imagem? quantas variáveis no corpo?
+    const meta = await getTemplateMeta(apiKey, wabaId, disparo.template_name, disparo.template_language)
+      .catch(() => null);
+    const headerIsImage = meta?.headerFormat === "IMAGE";
+    const bodyVarCount = meta?.bodyVarCount ?? 3; // fallback: template antigo (3 vars)
+
+    // Template com imagem exige a URL da imagem gravada no disparo.
+    if (headerIsImage && !disparo.image_url) {
+      return json({ error: "template tem header de imagem, mas o disparo não tem image_url" }, 400);
+    }
+    const imageUrl = headerIsImage ? (disparo.image_url as string) : undefined;
 
     await db.from("disparos").update({ status: "enviando" }).eq("id", disparo_id)
       .in("status", ["rascunho", "pronto", "enviando"]);
@@ -49,11 +63,16 @@ Deno.serve(async (req) => {
         const to = normalizePhoneBR(d.telefone);
         if (!to) { await mark(db, d.id, "falhou", { erro: "telefone inválido" }); falhas++; continue; }
 
+        // {{1}} = nome (por cliente); {{2}}/{{3}} = params da campanha. Corta no nº real de variáveis.
+        const allParams = [d.nome, d.param2 ?? "", d.param3 ?? "."];
+        const bodyParams = allParams.slice(0, bodyVarCount);
+
         const r = await sendTemplate({
           apiKey, from, to,
           templateName: disparo.template_name,
           language: disparo.template_language,
-          params: [d.nome, d.param2 ?? "", d.param3 ?? "."],
+          bodyParams,
+          imageUrl,
           externalId: d.id,
         });
 
