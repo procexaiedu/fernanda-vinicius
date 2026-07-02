@@ -231,7 +231,7 @@ function ImageUpload({ value, onChange }: { value: string; onChange: (url: strin
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const res = await fetch('/api/upload-disparo', { method: 'POST', body: fd })
       const data = await res.json()
       if (!res.ok) { setErr(data?.error ?? 'Erro no upload'); return }
       onChange(data.url)
