@@ -34,7 +34,7 @@ export function formatPhone(value: string): string {
   return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
 }
 
-const emptyForm: StoreFormData = { name: '', city: '', state: 'SP', address: '', phone: '', cnpj: '' }
+const emptyForm: StoreFormData = { name: '', city: '', state: 'SP', address: '', phone: '', cnpj: '', whatsapp_phone: '' }
 
 interface Props {
   stores: Store[]
@@ -74,6 +74,7 @@ export default function LojasClient({ stores: initialStores }: Props) {
       address: store.address ?? '',
       phone: store.phone ?? '',
       cnpj: store.cnpj ?? '',
+      whatsapp_phone: (store as { whatsapp_phone?: string | null }).whatsapp_phone ?? '',
     })
     setErrors({})
     setActionError(null)
@@ -297,6 +298,18 @@ export default function LojasClient({ stores: initialStores }: Props) {
                 maxLength={18}
               />
             </div>
+          </div>
+
+          <div>
+            <Input
+              label="WhatsApp de envio (disparos)"
+              value={form.whatsapp_phone}
+              onChange={(e) => setForm((f) => ({ ...f, whatsapp_phone: e.target.value }))}
+              placeholder="+5511983040007"
+            />
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              Número que dispara as campanhas desta loja (formato internacional, ex.: +5511983040007).
+            </p>
           </div>
 
           {actionError && <p className={styles.actionError}>{actionError}</p>}

@@ -10,6 +10,15 @@ export interface StoreFormData {
   address: string
   phone: string
   cnpj: string
+  whatsapp_phone: string
+}
+
+// Normaliza o número de envio para E.164 (+55DDDNXXXXXXXX). Vazio -> null.
+function normalizeWhatsapp(raw: string): string | null {
+  const digits = (raw || '').replace(/\D/g, '')
+  if (!digits) return null
+  const withCountry = digits.startsWith('55') ? digits : `55${digits}`
+  return `+${withCountry}`
 }
 
 export interface ActionResult {
@@ -43,6 +52,7 @@ export async function createStore(data: StoreFormData): Promise<ActionResult> {
     address: data.address.trim() || null,
     phone: data.phone.trim() || null,
     cnpj: data.cnpj.trim() || null,
+    whatsapp_phone: normalizeWhatsapp(data.whatsapp_phone),
   })
 
   if (dbError) return { success: false, error: dbError.message }
@@ -64,6 +74,7 @@ export async function updateStore(id: string, data: StoreFormData): Promise<Acti
       address: data.address.trim() || null,
       phone: data.phone.trim() || null,
       cnpj: data.cnpj.trim() || null,
+      whatsapp_phone: normalizeWhatsapp(data.whatsapp_phone),
     })
     .eq('id', id)
 
