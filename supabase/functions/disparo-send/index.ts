@@ -63,8 +63,9 @@ Deno.serve(async (req) => {
         const to = normalizePhoneBR(d.telefone);
         if (!to) { await mark(db, d.id, "falhou", { erro: "telefone inválido" }); falhas++; continue; }
 
-        // {{1}} = nome (por cliente); {{2}}/{{3}} = params da campanha. Corta no nº real de variáveis.
-        const allParams = [d.nome, d.param2 ?? "", d.param3 ?? "."];
+        // {{1}} = PRIMEIRO nome do cliente; {{2}}/{{3}} = params da campanha. Corta no nº real de variáveis.
+        const firstName = String(d.nome ?? "").trim().split(/\s+/)[0] || String(d.nome ?? "");
+        const allParams = [firstName, d.param2 ?? "", d.param3 ?? "."];
         const bodyParams = allParams.slice(0, bodyVarCount);
 
         const r = await sendTemplate({
