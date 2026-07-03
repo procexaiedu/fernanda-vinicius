@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { ChevronDown, Check, Info, ImagePlus, Loader2, X, Search } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
-import { criarDisparo, atualizarDisparo, enviarDisparo, listarClientes, listarTemplates, type TemplateMeta, type ClienteOption } from './actions'
+import { criarDisparo, atualizarDisparo, enviarDisparo, listarClientes, listarDestinatarios, listarTemplates, type TemplateMeta, type ClienteOption } from './actions'
 import { renderPreview } from './templates'
 import type { StoreOption, DisparoRow } from './page'
 import styles from './NovoDisparoModal.module.css'
@@ -63,20 +63,22 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
   const tpl = templates?.find(t => t.name === form.template_name) ?? null
   const needsImage = tpl?.headerFormat === 'IMAGE'
 
-  // Carrega os clientes da loja escolhida e marca todos por padrão (não em edição — destinatários fixos)
+  // Carrega os clientes da loja. Novo: marca todos. Edição: marca os que já estão no disparo.
   useEffect(() => {
-    if (isEdit) return
     let alive = true
     const sid = form.store_id
     if (!sid) return
     setClientes(null)
-    listarClientes(sid).then(cs => {
+    Promise.all([
+      listarClientes(sid),
+      (isEdit && editDisparo) ? listarDestinatarios(editDisparo.disparo_id) : Promise.resolve<string[] | null>(null),
+    ]).then(([cs, sel]) => {
       if (!alive) return
       setClientes(cs)
-      setSelectedIds(new Set(cs.map(c => c.id)))
+      setSelectedIds(new Set(sel ?? cs.map(c => c.id)))
     })
     return () => { alive = false }
-  }, [form.store_id, isEdit])
+  }, [form.store_id, isEdit, editDisparo])
 
   const filteredClientes = useMemo(() => {
     const list = clientes ?? []
@@ -108,7 +110,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
     if (!tpl) e.template = 'Selecione um template'
     if (tpl && tpl.bodyVarCount >= 2 && !form.param2.trim()) e.param2 = 'O texto da campanha é obrigatório'
     if (needsImage && !form.image_url) e.image = 'Este template exige uma imagem'
-    if (!isEdit && selectedIds.size === 0) e.destinatarios = 'Selecione ao menos 1 cliente'
+    if (selectedIds.size === 0) e.destinatarios = 'Selecione ao menos 1 cliente'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -126,7 +128,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
       param2: form.param2,
       param3: form.param3,
       image_url: form.image_url || null,
-      customer_ids: isEdit ? null : Array.from(selectedIds),
+      customer_ids: Array.from(selectedIds),
     }
 
     let disparoId: string
@@ -224,12 +226,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
             </Field>
           )}
 
-          {isEdit ? (
-            <div className={styles.recipients}>
-              <Info size={14} />
-              <span>Este disparo tem <strong>{editDisparo!.total}</strong> destinatário(s). A seleção não muda na edição — pra outros clientes, crie um novo.</span>
-            </div>
-          ) : (
+          {(
             <Field
               label={`Destinatários — ${selectedIds.size} selecionado(s)`}
               error={errors.destinatarios}

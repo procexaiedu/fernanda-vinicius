@@ -39,6 +39,17 @@ export async function listarClientes(store_id: string): Promise<ClienteOption[]>
   return (data ?? []) as ClienteOption[]
 }
 
+// IDs dos clientes que já estão num disparo (para pré-marcar no seletor ao editar).
+export async function listarDestinatarios(disparo_id: string): Promise<string[]> {
+  if (!disparo_id) return []
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('disparo_destinatarios')
+    .select('customer_id')
+    .eq('disparo_id', disparo_id)
+  return (data ?? []).map(r => r.customer_id).filter(Boolean) as string[]
+}
+
 export interface TemplateMeta {
   name: string
   language: string
@@ -174,10 +185,19 @@ export async function atualizarDisparo(id: string, data: CriarDisparoData): Prom
   }).eq('id', id).eq('status', 'rascunho')
   if (e1) return { success: false, error: e1.message }
 
-  const { error: e2 } = await admin.from('disparo_destinatarios')
-    .update({ param2: p2, param3: p3 })
-    .eq('disparo_id', id).eq('status', 'pendente')
-  if (e2) return { success: false, error: e2.message }
+  if (data.customer_ids && data.customer_ids.length) {
+    // Re-monta os destinatários com a nova seleção (e aplica os params atualizados)
+    const { error: e2 } = await admin.rpc('set_disparo_recipients', {
+      p_disparo_id: id, p_param2: p2, p_param3: p3, p_customer_ids: data.customer_ids,
+    })
+    if (e2) return { success: false, error: e2.message }
+  } else {
+    // Sem seleção nova: só atualiza os params dos destinatários pendentes
+    const { error: e2 } = await admin.from('disparo_destinatarios')
+      .update({ param2: p2, param3: p3 })
+      .eq('disparo_id', id).eq('status', 'pendente')
+    if (e2) return { success: false, error: e2.message }
+  }
 
   revalidatePath('/disparos')
   return { success: true }
