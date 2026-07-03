@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, Check, Info, ImagePlus, Loader2, X } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { ChevronDown, Check, Info, ImagePlus, Loader2, X, Search } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
-import { criarDisparo, atualizarDisparo, enviarDisparo, contarDestinatarios, listarTemplates, type TemplateMeta } from './actions'
+import { criarDisparo, atualizarDisparo, enviarDisparo, listarClientes, listarTemplates, type TemplateMeta, type ClienteOption } from './actions'
 import { renderPreview } from './templates'
 import type { StoreOption, DisparoRow } from './page'
 import styles from './NovoDisparoModal.module.css'
@@ -15,6 +15,12 @@ interface Props {
   currentUserStoreId: string | null
   editDisparo?: DisparoRow | null
   onClose: () => void
+}
+
+const miniBtn: React.CSSProperties = {
+  padding: '0 10px', height: 32, fontSize: 12, borderRadius: 6,
+  border: '1px solid var(--border)', background: 'var(--bg-elevated)',
+  color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap',
 }
 
 export default function NovoDisparoModal({ stores, currentUserRole, currentUserStoreId, editDisparo, onClose }: Props) {
@@ -33,11 +39,13 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
     param3: (editDisparo?.param3 && editDisparo.param3 !== '.') ? editDisparo.param3 : '',
     image_url: (editDisparo?.image_url ?? '') as string,
   })
-  const [countState, setCountState] = useState<{ store: string; n: number | null }>({ store: '', n: null })
+  const [clientes, setClientes] = useState<ClienteOption[] | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [clienteSearch, setClienteSearch] = useState('')
   const [saving, setSaving]     = useState(false)
   const [sending, setSending]   = useState(false)
   const [serverErr, setServerErr] = useState<string | null>(null)
-  const [errors, setErrors]     = useState<{ titulo?: string; param2?: string; image?: string; template?: string }>({})
+  const [errors, setErrors]     = useState<{ titulo?: string; param2?: string; image?: string; template?: string; destinatarios?: string }>({})
 
   // Carrega os templates aprovados da WABA
   useEffect(() => {
@@ -55,16 +63,39 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
   const tpl = templates?.find(t => t.name === form.template_name) ?? null
   const needsImage = tpl?.headerFormat === 'IMAGE'
 
-  // conta destinatários da loja escolhida
+  // Carrega os clientes da loja escolhida e marca todos por padrão (não em edição — destinatários fixos)
   useEffect(() => {
+    if (isEdit) return
     let alive = true
     const sid = form.store_id
     if (!sid) return
-    contarDestinatarios(sid).then(c => { if (alive) setCountState({ store: sid, n: c }) })
+    setClientes(null)
+    listarClientes(sid).then(cs => {
+      if (!alive) return
+      setClientes(cs)
+      setSelectedIds(new Set(cs.map(c => c.id)))
+    })
     return () => { alive = false }
-  }, [form.store_id])
+  }, [form.store_id, isEdit])
 
-  const count = countState.store === form.store_id ? countState.n : null
+  const filteredClientes = useMemo(() => {
+    const list = clientes ?? []
+    const q = clienteSearch.trim().toLowerCase()
+    if (!q) return list
+    const qd = q.replace(/\D/g, '')
+    return list.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (qd && (c.phone || '').replace(/\D/g, '').includes(qd))
+    )
+  }, [clientes, clienteSearch])
+
+  function toggleCliente(id: string) {
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+    setErrors(e => ({ ...e, destinatarios: undefined }))
+  }
+  function selectAll()  { setSelectedIds(new Set((clientes ?? []).map(c => c.id))) }
+  function selectNone() { setSelectedIds(new Set()) }
+  function selectFiltrados() { setSelectedIds(prev => { const n = new Set(prev); filteredClientes.forEach(c => n.add(c.id)); return n }) }
 
   function set<K extends keyof typeof form>(k: K, v: string) {
     setForm(f => ({ ...f, [k]: v }))
@@ -77,6 +108,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
     if (!tpl) e.template = 'Selecione um template'
     if (tpl && tpl.bodyVarCount >= 2 && !form.param2.trim()) e.param2 = 'O texto da campanha é obrigatório'
     if (needsImage && !form.image_url) e.image = 'Este template exige uma imagem'
+    if (!isEdit && selectedIds.size === 0) e.destinatarios = 'Selecione ao menos 1 cliente'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -94,6 +126,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
       param2: form.param2,
       param3: form.param3,
       image_url: form.image_url || null,
+      customer_ids: isEdit ? null : Array.from(selectedIds),
     }
 
     let disparoId: string
@@ -191,12 +224,58 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
             </Field>
           )}
 
-          <div className={styles.recipients}>
-            <Info size={14} />
-            {count === null
-              ? <span>Calculando destinatários…</span>
-              : <span>Será enviado para <strong>{count}</strong> cliente(s) da loja <strong>{storeName}</strong> (sem opt-out). O nome de cada um entra automaticamente no <span className={styles.var}>{'{{1}}'}</span>.</span>}
-          </div>
+          {isEdit ? (
+            <div className={styles.recipients}>
+              <Info size={14} />
+              <span>Este disparo tem <strong>{editDisparo!.total}</strong> destinatário(s). A seleção não muda na edição — pra outros clientes, crie um novo.</span>
+            </div>
+          ) : (
+            <Field
+              label={`Destinatários — ${selectedIds.size} selecionado(s)`}
+              error={errors.destinatarios}
+              hint="Marque quem vai receber. Busque por nome ou telefone. O nome de cada um entra no {{1}}.">
+              {clientes === null ? (
+                <div className={styles.input} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: .7 }}>
+                  <Loader2 size={14} className={styles.spin} /> Carregando clientes…
+                </div>
+              ) : clientes.length === 0 ? (
+                <div className={styles.input} style={{ opacity: .8, fontSize: 12 }}>Nenhum cliente elegível nesta loja.</div>
+              ) : (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', gap: 6, padding: 8, borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <Search size={13} style={{ position: 'absolute', left: 9, top: 9, color: 'var(--text-muted)' }} />
+                      <input className={styles.input} style={{ height: 32, paddingLeft: 28 }}
+                        placeholder="Buscar nome ou telefone…" value={clienteSearch}
+                        onChange={e => setClienteSearch(e.target.value)} />
+                    </div>
+                    <button type="button" onClick={selectAll} style={miniBtn}>Todos</button>
+                    <button type="button" onClick={selectNone} style={miniBtn}>Nenhum</button>
+                  </div>
+                  <div style={{ maxHeight: 168, overflowY: 'auto' }}>
+                    {filteredClientes.map(c => {
+                      const on = selectedIds.has(c.id)
+                      return (
+                        <label key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 10px', cursor: 'pointer', fontSize: 13, background: on ? 'var(--accent-subtle)' : 'transparent' }}>
+                          <input type="checkbox" checked={on} onChange={() => toggleCliente(c.id)} />
+                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{c.phone}</span>
+                        </label>
+                      )
+                    })}
+                    {filteredClientes.length === 0 && (
+                      <div style={{ padding: 12, fontSize: 12, color: 'var(--text-muted)' }}>Nenhum resultado.</div>
+                    )}
+                  </div>
+                  {clienteSearch && filteredClientes.length > 0 && (
+                    <div style={{ padding: 6, borderTop: '1px solid var(--border)' }}>
+                      <button type="button" onClick={selectFiltrados} style={miniBtn}>+ Selecionar os {filteredClientes.length} filtrados</button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </Field>
+          )}
 
           {serverErr && <div className={styles.serverError}>{serverErr}</div>}
 

@@ -12,6 +12,31 @@ export interface CriarDisparoData {
   param2: string
   param3: string
   image_url?: string | null
+  customer_ids?: string[] | null
+}
+
+export interface ClienteOption {
+  id: string
+  name: string
+  phone: string
+}
+
+// Lista os clientes elegíveis de uma loja (para o seletor de destinatários).
+export async function listarClientes(store_id: string): Promise<ClienteOption[]> {
+  if (!store_id) return []
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('customers')
+    .select('id, name, phone')
+    .eq('origin_store_id', store_id)
+    .eq('whatsapp_opt_out', false)
+    .not('phone', 'is', null)
+    .order('name')
+  return (data ?? []) as ClienteOption[]
 }
 
 export interface TemplateMeta {
@@ -74,6 +99,7 @@ export async function criarDisparo(data: CriarDisparoData): Promise<CriarDisparo
     p_param3:            data.param3.trim() || '.',
     p_created_by:        user.id,
     p_image_url:         data.image_url || null,
+    p_customer_ids:      (data.customer_ids && data.customer_ids.length) ? data.customer_ids : null,
   })
 
   if (error) return { success: false, error: error.message }
