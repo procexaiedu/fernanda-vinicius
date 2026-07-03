@@ -244,34 +244,42 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
                 <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                   <div style={{ display: 'flex', gap: 6, padding: 8, borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
                     <div style={{ position: 'relative', flex: 1 }}>
-                      <Search size={13} style={{ position: 'absolute', left: 9, top: 9, color: 'var(--text-muted)' }} />
-                      <input className={styles.input} style={{ height: 32, paddingLeft: 28 }}
+                      <Search size={14} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-muted)' }} />
+                      <input className={styles.input} style={{ height: 36, paddingLeft: 30 }}
                         placeholder="Buscar nome ou telefone…" value={clienteSearch}
                         onChange={e => setClienteSearch(e.target.value)} />
                     </div>
                     <button type="button" onClick={selectAll} style={miniBtn}>Todos</button>
                     <button type="button" onClick={selectNone} style={miniBtn}>Nenhum</button>
                   </div>
-                  <div style={{ maxHeight: 168, overflowY: 'auto' }}>
+
+                  {clienteSearch && filteredClientes.length > 0 && (
+                    <button type="button" onClick={selectFiltrados}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', height: 40, border: 'none', borderBottom: '1px solid var(--border)', background: 'var(--accent)', color: '#0D0D0D', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                      <Check size={16} /> Adicionar os {filteredClientes.length} resultados à seleção
+                    </button>
+                  )}
+
+                  <div style={{ maxHeight: 340, overflowY: 'auto' }}>
                     {filteredClientes.map(c => {
                       const on = selectedIds.has(c.id)
                       return (
-                        <label key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 10px', cursor: 'pointer', fontSize: 13, background: on ? 'var(--accent-subtle)' : 'transparent' }}>
-                          <input type="checkbox" checked={on} onChange={() => toggleCliente(c.id)} />
-                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{c.phone}</span>
+                        <label key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px', cursor: 'pointer', fontSize: 14, borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,.04))', background: on ? 'var(--accent-subtle)' : 'transparent' }}>
+                          <input type="checkbox" checked={on} onChange={() => toggleCliente(c.id)} style={{ width: 17, height: 17, flexShrink: 0, cursor: 'pointer' }} />
+                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: on ? 600 : 400 }}>{c.name}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>{c.phone}</span>
                         </label>
                       )
                     })}
                     {filteredClientes.length === 0 && (
-                      <div style={{ padding: 12, fontSize: 12, color: 'var(--text-muted)' }}>Nenhum resultado.</div>
+                      <div style={{ padding: 16, fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nenhum resultado.</div>
                     )}
                   </div>
-                  {clienteSearch && filteredClientes.length > 0 && (
-                    <div style={{ padding: 6, borderTop: '1px solid var(--border)' }}>
-                      <button type="button" onClick={selectFiltrados} style={miniBtn}>+ Selecionar os {filteredClientes.length} filtrados</button>
-                    </div>
-                  )}
+
+                  <div style={{ padding: '7px 12px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{filteredClientes.length} mostrado(s){clienteSearch ? ' (filtro)' : ''}</span>
+                    <span><strong style={{ color: 'var(--accent)' }}>{selectedIds.size}</strong> selecionado(s)</span>
+                  </div>
                 </div>
               )}
             </Field>
