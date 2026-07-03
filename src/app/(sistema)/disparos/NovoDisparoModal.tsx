@@ -4,32 +4,34 @@ import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, Check, Info, ImagePlus, Loader2, X } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
-import { criarDisparo, enviarDisparo, contarDestinatarios, listarTemplates, type TemplateMeta } from './actions'
+import { criarDisparo, atualizarDisparo, enviarDisparo, contarDestinatarios, listarTemplates, type TemplateMeta } from './actions'
 import { renderPreview } from './templates'
-import type { StoreOption } from './page'
+import type { StoreOption, DisparoRow } from './page'
 import styles from './NovoDisparoModal.module.css'
 
 interface Props {
   stores: StoreOption[]
   currentUserRole: string
   currentUserStoreId: string | null
+  editDisparo?: DisparoRow | null
   onClose: () => void
 }
 
-export default function NovoDisparoModal({ stores, currentUserRole, currentUserStoreId, onClose }: Props) {
+export default function NovoDisparoModal({ stores, currentUserRole, currentUserStoreId, editDisparo, onClose }: Props) {
   const isAdmin = currentUserRole === 'admin'
+  const isEdit = !!editDisparo
   const defaultStoreId = currentUserStoreId ?? stores[0]?.id ?? ''
 
   const [templates, setTemplates] = useState<TemplateMeta[] | null>(null)
   const [tplError, setTplError]   = useState<string | null>(null)
 
   const [form, setForm] = useState({
-    titulo: '',
-    store_id: defaultStoreId,
-    template_name: '',
-    param2: '',
-    param3: '',
-    image_url: '' as string,
+    titulo: editDisparo?.titulo ?? '',
+    store_id: editDisparo?.store_id ?? defaultStoreId,
+    template_name: editDisparo?.template_name ?? '',
+    param2: editDisparo?.param2 ?? '',
+    param3: (editDisparo?.param3 && editDisparo.param3 !== '.') ? editDisparo.param3 : '',
+    image_url: (editDisparo?.image_url ?? '') as string,
   })
   const [countState, setCountState] = useState<{ store: string; n: number | null }>({ store: '', n: null })
   const [saving, setSaving]     = useState(false)
@@ -84,7 +86,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
     setServerErr(null)
     if (disparar) setSending(true); else setSaving(true)
 
-    const res = await criarDisparo({
+    const payload = {
       titulo: form.titulo,
       store_id: form.store_id,
       template_name: tpl!.name,
@@ -92,20 +94,33 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
       param2: form.param2,
       param3: form.param3,
       image_url: form.image_url || null,
-    })
+    }
 
-    if (!res.success || !res.disparo_id) {
-      setServerErr(res.error ?? 'Erro ao criar disparo'); setSaving(false); setSending(false); return
+    let disparoId: string
+    let total: number
+
+    if (isEdit && editDisparo) {
+      const res = await atualizarDisparo(editDisparo.disparo_id, payload)
+      if (!res.success) { setServerErr(res.error ?? 'Erro ao salvar'); setSaving(false); setSending(false); return }
+      disparoId = editDisparo.disparo_id
+      total = editDisparo.total
+    } else {
+      const res = await criarDisparo(payload)
+      if (!res.success || !res.disparo_id) {
+        setServerErr(res.error ?? 'Erro ao criar disparo'); setSaving(false); setSending(false); return
+      }
+      disparoId = res.disparo_id
+      total = res.total ?? 0
     }
 
     if (!disparar) { onClose(); window.location.reload(); return }
 
-    if (!confirm(`Disparar para ${res.total} cliente(s) agora?`)) {
+    if (!confirm(`Disparar para ${total} cliente(s) agora?`)) {
       setSending(false); onClose(); window.location.reload(); return
     }
-    const env = await enviarDisparo(res.disparo_id)
+    const env = await enviarDisparo(disparoId)
     setSending(false)
-    if (!env.success) { alert('Disparo criado, mas houve erro no envio: ' + env.error) }
+    if (!env.success) { alert('Salvo, mas houve erro no envio: ' + env.error) }
     onClose(); window.location.reload()
   }
 
@@ -115,7 +130,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
   const busy = saving || sending
 
   return (
-    <Modal isOpen onClose={onClose} title="Novo disparo" size="lg">
+    <Modal isOpen onClose={onClose} title={isEdit ? 'Editar disparo' : 'Novo disparo'} size="lg">
       <div className={styles.body}>
         {/* Formulário */}
         <div className={styles.formCol}>
@@ -125,8 +140,9 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
               placeholder="Ex.: Convite arraiá — julho" maxLength={120} />
           </Field>
 
-          <Field label="Loja (define o número que envia) *">
-            {isAdmin ? (
+          <Field label="Loja (define o número que envia) *"
+            hint={isEdit ? 'A loja não muda na edição. Pra trocar, duplique ou crie um novo.' : undefined}>
+            {isAdmin && !isEdit ? (
               <StoreSelect stores={stores} value={form.store_id} onChange={v => set('store_id', v)} />
             ) : (
               <input className={styles.input} value={storeName} disabled style={{ opacity: .7, cursor: 'not-allowed' }} />
@@ -186,7 +202,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
 
           <div className={styles.actions}>
             <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
-            <Button type="button" variant="outline" loading={saving} disabled={busy || !tpl} onClick={() => salvar(false)}>Salvar rascunho</Button>
+            <Button type="button" variant="outline" loading={saving} disabled={busy || !tpl} onClick={() => salvar(false)}>{isEdit ? 'Salvar alterações' : 'Salvar rascunho'}</Button>
             <Button type="button" loading={sending} disabled={busy || !tpl} onClick={() => salvar(true)}>Enviar agora</Button>
           </div>
           <div className={styles.note}>Salvar <b>não</b> envia — o envio é uma ação separada com confirmação.</div>

@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, Search, Send, Megaphone, Loader2, Eye } from 'lucide-react'
+import { Plus, Trash2, Search, Send, Megaphone, Loader2, Eye, Pencil, Copy } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import NovoDisparoModal from './NovoDisparoModal'
 import DisparoDetalheModal from './DisparoDetalheModal'
-import { enviarDisparo, excluirDisparo } from './actions'
+import { enviarDisparo, excluirDisparo, duplicarDisparo } from './actions'
 import type { DisparoRow, StoreOption } from './page'
 import styles from './DisparosClient.module.css'
 
@@ -34,10 +34,24 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = useState<FilterType>('todos')
   const [formOpen, setFormOpen] = useState(false)
+  const [editDisparo, setEditDisparo] = useState<DisparoRow | null>(null)
   const [detalhe, setDetalhe]   = useState<DisparoRow | null>(null)
   const [sendingId, setSendingId]   = useState<string | null>(null)
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  function openNovo() { setEditDisparo(null); setFormOpen(true) }
+  function openEditar(d: DisparoRow, e: React.MouseEvent) { e.stopPropagation(); setEditDisparo(d); setFormOpen(true) }
+
+  async function handleDuplicate(d: DisparoRow, e: React.MouseEvent) {
+    e.stopPropagation()
+    setDuplicatingId(d.disparo_id)
+    const r = await duplicarDisparo(d.disparo_id)
+    setDuplicatingId(null)
+    if (!r.success) { alert('Erro ao duplicar: ' + r.error); return }
+    window.location.reload()
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -100,7 +114,7 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
             </button>
           </div>
         </div>
-        <Button size="sm" onClick={() => setFormOpen(true)}>
+        <Button size="sm" onClick={openNovo}>
           <Plus size={14} /> Novo disparo
         </Button>
       </div>
@@ -162,6 +176,23 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
                             </button>
                             {isDraft && (
                               <button
+                                className={styles.iconBtn}
+                                title="Editar"
+                                onClick={e => openEditar(d, e)}
+                              >
+                                <Pencil size={14} />
+                              </button>
+                            )}
+                            <button
+                              className={styles.iconBtn}
+                              title="Duplicar (reenviar)"
+                              disabled={duplicatingId === d.disparo_id}
+                              onClick={e => handleDuplicate(d, e)}
+                            >
+                              {duplicatingId === d.disparo_id ? <Loader2 size={14} className={styles.spin} /> : <Copy size={14} />}
+                            </button>
+                            {isDraft && (
+                              <button
                                 className={`${styles.iconBtn} ${styles.iconBtnSend}`}
                                 title="Disparar agora"
                                 disabled={sendingId === d.disparo_id}
@@ -201,7 +232,8 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
           stores={stores}
           currentUserRole={currentUserRole}
           currentUserStoreId={currentUserStoreId}
-          onClose={() => setFormOpen(false)}
+          editDisparo={editDisparo}
+          onClose={() => { setFormOpen(false); setEditDisparo(null) }}
         />
       )}
 

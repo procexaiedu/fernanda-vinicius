@@ -125,3 +125,62 @@ export async function contarDestinatarios(store_id: string): Promise<number> {
     .eq('whatsapp_opt_out', false)
   return count ?? 0
 }
+
+// Edita um rascunho (título, template, params, imagem) + atualiza os params dos destinatários pendentes.
+// Não muda a loja (pra trocar de loja, use duplicar ou crie um novo).
+export async function atualizarDisparo(id: string, data: CriarDisparoData): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Não autenticado.' }
+  if (!data.titulo.trim()) return { success: false, error: 'Título é obrigatório.' }
+
+  const admin = createAdminClient()
+  const p2 = data.param2.trim()
+  const p3 = data.param3.trim() || '.'
+
+  const { error: e1 } = await admin.from('disparos').update({
+    titulo:            data.titulo.trim(),
+    template_name:     data.template_name,
+    template_language: data.template_language,
+    param2_default:    p2,
+    param3_default:    p3,
+    image_url:         data.image_url || null,
+  }).eq('id', id).eq('status', 'rascunho')
+  if (e1) return { success: false, error: e1.message }
+
+  const { error: e2 } = await admin.from('disparo_destinatarios')
+    .update({ param2: p2, param3: p3 })
+    .eq('disparo_id', id).eq('status', 'pendente')
+  if (e2) return { success: false, error: e2.message }
+
+  revalidatePath('/disparos')
+  return { success: true }
+}
+
+// Duplica um disparo: cria um novo rascunho com os mesmos dados + re-snapshota os clientes atuais da loja.
+export async function duplicarDisparo(id: string): Promise<CriarDisparoResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Não autenticado.' }
+
+  const admin = createAdminClient()
+  const { data: src, error: e0 } = await admin.from('disparos')
+    .select('titulo, store_id, template_name, template_language, param2_default, param3_default, image_url')
+    .eq('id', id).single()
+  if (e0 || !src) return { success: false, error: 'Disparo não encontrado.' }
+
+  const { data: rows, error } = await admin.rpc('criar_disparo', {
+    p_titulo:            (src.titulo + ' (cópia)').slice(0, 120),
+    p_store_id:          src.store_id,
+    p_template_name:     src.template_name,
+    p_template_language: src.template_language,
+    p_param2:            src.param2_default,
+    p_param3:            src.param3_default,
+    p_created_by:        user.id,
+    p_image_url:         src.image_url,
+  })
+  if (error) return { success: false, error: error.message }
+  const row = Array.isArray(rows) ? rows[0] : rows
+  revalidatePath('/disparos')
+  return { success: true, disparo_id: row?.disparo_id, total: row?.total ?? 0 }
+}
