@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   ChevronDown, ChevronLeft, ChevronRight, Plus, Check, Pencil, Trash2, X,
-  RefreshCw,
+  RefreshCw, AlertTriangle, ArrowRight,
 } from 'lucide-react'
 import DatePicker from '@/components/ui/DatePicker'
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
@@ -11,7 +11,7 @@ import CompraDetalheModal from '@/components/compra/CompraDetalheModal'
 import ComissaoDetalheModal from '@/components/comissao/ComissaoDetalheModal'
 import styles from './FinanceiroClient.module.css'
 import {
-  buscarTransacoes, marcarComoPago, criarDespesaManual, editarDespesaManual,
+  buscarTransacoes, buscarPendencias, marcarComoPago, criarDespesaManual, editarDespesaManual,
   deletarDespesaManual, buscarPnl, buscarRecorrentes, criarRecorrente,
   editarRecorrente, toggleRecorrente, deletarRecorrente, gerarRecorrentesManual,
   type TransactionRow, type PnlData, type RecurrenteRow,
@@ -333,6 +333,17 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
   const [compraModalId,    setCompraModalId]    = useState<string | null>(null)
   const [comissaoModalTxId, setComissaoModalTxId] = useState<string | null>(null)
 
+  // Pendências globais (todas as contas a pagar, independente dos filtros de período)
+  const [pendencias, setPendencias] = useState<TransactionRow[]>([])
+  const [showPendencias, setShowPendencias] = useState(false)
+
+  async function reloadPendencias() {
+    const res = await buscarPendencias()
+    setPendencias(res.data)
+  }
+
+  useEffect(() => { reloadPendencias() }, [])
+
   function handleRowClick(tx: TransactionRow) {
     if (tx.reference_type === 'sale' && tx.reference_id) {
       setVendaModalId(tx.reference_id)
@@ -355,17 +366,20 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
       dateTo:   fDateTo    || undefined,
     })
     setTransactions(res.data)
+    reloadPendencias()
     setLoading(false)
   }
 
   async function handleMarkPaid(id: string) {
     await marcarComoPago(id)
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: 'completed', paid_at: new Date().toISOString() } : t))
+    setPendencias(prev => prev.filter(t => t.id !== id))
   }
 
   async function handleDelete(id: string) {
     await deletarDespesaManual(id)
     setTransactions(prev => prev.filter(t => t.id !== id))
+    setPendencias(prev => prev.filter(t => t.id !== id))
     setDeleteConfirm(null)
   }
 
@@ -404,8 +418,46 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
     { value: 'pending', label: 'Pendente' },
   ]
 
+  const pendTotal = useMemo(() => pendencias.reduce((s, t) => s + t.amount, 0), [pendencias])
+  const pendVencidas = useMemo(() => {
+    const hoje = today()
+    return pendencias.filter(t => t.due_date && t.due_date.slice(0, 10) < hoje).length
+  }, [pendencias])
+
   return (
     <div>
+      {/* Atalho global de pendências — sempre visível quando há conta a pagar, ignora filtros */}
+      {pendencias.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowPendencias(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+            padding: '12px 16px', marginBottom: 16, cursor: 'pointer',
+            background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.35)',
+            borderRadius: 10, color: 'var(--text-primary)', textAlign: 'left',
+            font: 'inherit',
+          }}
+        >
+          <AlertTriangle size={18} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+          <span style={{ fontWeight: 600 }}>
+            {pendencias.length} {pendencias.length === 1 ? 'conta pendente' : 'contas pendentes'} em aberto
+            {pendVencidas > 0 && (
+              <span style={{ color: 'var(--danger)', fontWeight: 700 }}>
+                {' '}· {pendVencidas} vencida{pendVencidas > 1 ? 's' : ''}
+              </span>
+            )}
+            <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> (todos os períodos)</span>
+          </span>
+          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: 'var(--accent)' }}>
+            {fmt(pendTotal)}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600 }}>
+              Ver todas <ArrowRight size={14} />
+            </span>
+          </span>
+        </button>
+      )}
+
       {/* Stats */}
       <div className={styles.statsRow}>
         <div className={styles.stat}>
@@ -568,6 +620,7 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
             } else {
               setTransactions(prev => [newTx, ...prev])
             }
+            reloadPendencias()
             setShowModal(false)
           }}
         />
@@ -608,6 +661,107 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
           }}
         />
       )}
+
+      {/* Modal global de pendências (todas as contas a pagar) */}
+      {showPendencias && (
+        <PendenciasModal
+          pendencias={pendencias}
+          onClose={() => setShowPendencias(false)}
+          onMarkPaid={handleMarkPaid}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Modal Pendências (Contas a Pagar globais) ───────────────────────────────
+
+function PendenciasModal({
+  pendencias, onClose, onMarkPaid,
+}: {
+  pendencias: TransactionRow[]
+  onClose: () => void
+  onMarkPaid: (id: string) => void
+}) {
+  const total = pendencias.reduce((s, t) => s + t.amount, 0)
+  const hoje = today()
+
+  function origemLabel(rt: string) {
+    return rt === 'purchase' ? 'Compra'
+      : rt === 'sale' ? 'Venda'
+      : rt === 'seller_commission' ? 'Comissão'
+      : rt === 'manual' ? 'Manual/Recorrente'
+      : rt
+  }
+
+  return (
+    <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className={styles.modal} style={{ maxWidth: 820 }}>
+        <div className={styles.modalHeader}>
+          <span className={styles.modalTitle}>Contas a Pagar — Todas as pendências</span>
+          <button className={styles.closeBtn} onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className={styles.modalBody}>
+          {pendencias.length === 0 ? (
+            <div className={styles.empty} style={{ padding: '40px 0', textAlign: 'center' }}>
+              Nenhuma conta pendente. Tudo em dia. 🎉
+            </div>
+          ) : (
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Vencimento</th>
+                    <th>Descrição</th>
+                    <th>Categoria</th>
+                    <th>Origem</th>
+                    <th>Método</th>
+                    <th style={{ textAlign: 'right' }}>Valor</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendencias.map(p => {
+                    const vencida = !!p.due_date && p.due_date.slice(0, 10) < hoje
+                    return (
+                      <tr key={p.id} className={styles.row}>
+                        <td className={styles.dateCell} style={vencida ? { color: 'var(--danger)', fontWeight: 700 } : undefined}>
+                          {fmtDate(p.due_date)}{vencida && ' ⚠'}
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 500 }}>{p.description}</div>
+                          {p.store_name && <div className={styles.muted}>{p.store_name}</div>}
+                        </td>
+                        <td><span className={styles.categoryBadge}>{p.category}</span></td>
+                        <td className={styles.muted}>{origemLabel(p.reference_type)}</td>
+                        <td className={styles.muted}>{METHOD_LABELS[p.payment_method ?? ''] ?? p.payment_method ?? '—'}</td>
+                        <td style={{ color: 'var(--accent)', fontWeight: 700, textAlign: 'right' }}>{fmt(p.amount)}</td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <div className={styles.actionsCell}>
+                            <button
+                              className={`${styles.iconBtn} ${styles.iconBtnSuccess}`}
+                              title="Marcar como pago"
+                              onClick={() => onMarkPaid(p.id)}
+                            >
+                              <Check size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        <div className={styles.modalFooter}>
+          <span style={{ marginRight: 'auto', fontWeight: 700 }}>
+            Total pendente: <span style={{ color: 'var(--accent)' }}>{fmt(total)}</span>
+          </span>
+          <button className={styles.btnSecondary} onClick={onClose}>Fechar</button>
+        </div>
+      </div>
     </div>
   )
 }

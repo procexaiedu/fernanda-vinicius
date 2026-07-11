@@ -145,6 +145,44 @@ export async function buscarTransacoes(filters: TransactionFilters): Promise<{ d
   return { data: rows }
 }
 
+// Todas as pendências (contas a pagar) — ignora filtros de período/loja de propósito.
+// Usado pelo atalho global no Financeiro para nada de pendente ficar escondido por filtro.
+export async function buscarPendencias(): Promise<{ data: TransactionRow[]; error?: string }> {
+  const admin = createAdminClient()
+
+  const { data, error } = await admin
+    .from('transactions')
+    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, recurring_expense_id, stores(name), users(full_name)')
+    .eq('type', 'expense')
+    .eq('status', 'pending')
+    .order('due_date', { ascending: true, nullsFirst: false })
+
+  if (error) return { data: [], error: error.message }
+
+  const rows: TransactionRow[] = (data ?? []).map((t: any) => ({
+    id: t.id,
+    type: t.type,
+    amount: t.amount,
+    category: t.category,
+    description: t.description,
+    reference_type: t.reference_type,
+    reference_id: t.reference_id,
+    payment_method: t.payment_method,
+    transaction_date: t.transaction_date,
+    due_date: t.due_date,
+    status: t.status,
+    paid_at: t.paid_at,
+    cost_type: t.cost_type,
+    store_id: t.store_id,
+    store_name: t.stores?.name ?? null,
+    user_id: t.user_id,
+    user_name: t.users?.full_name ?? null,
+    recurring_expense_id: t.recurring_expense_id,
+  }))
+
+  return { data: rows }
+}
+
 export async function marcarComoPago(transactionId: string): Promise<ActionResult> {
   const { error: authErr } = await verifyAdmin()
   if (authErr) return { success: false, error: authErr }
