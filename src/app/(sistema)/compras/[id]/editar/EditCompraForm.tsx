@@ -69,7 +69,7 @@ function redistributeForSupplier(
 }
 
 const METHOD_LABELS: Record<string, string> = {
-  cash: 'Dinheiro', pix: 'PIX', transfer: 'Transferência', credit: 'Crédito',
+  cash: 'Dinheiro', pix: 'PIX', transfer: 'Transferência', credit: 'Crédito', check: 'Cheque',
 }
 
 // Permite quantity vazio durante digitação sem forçar 0 imediatamente
@@ -258,6 +258,7 @@ export default function EditCompraForm({ compra }: Props) {
     { value: 'pix',      label: 'PIX' },
     { value: 'transfer', label: 'Transferência' },
     { value: 'credit',   label: 'Crédito' },
+    { value: 'check',    label: 'Cheque' },
   ]
 
   // ── Render ────────────────────────────────────────────────────────────────

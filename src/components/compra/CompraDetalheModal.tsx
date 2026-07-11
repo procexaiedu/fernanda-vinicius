@@ -15,7 +15,7 @@ function fmtDate(s: string) {
 }
 
 function methodLabel(m: string) {
-  return { pix: 'PIX', cash: 'Dinheiro', transfer: 'Transferência', credit: 'Crédito', debit: 'Débito' }[m] ?? m
+  return { pix: 'PIX', cash: 'Dinheiro', transfer: 'Transferência', credit: 'Crédito', debit: 'Débito', check: 'Cheque' }[m] ?? m
 }
 
 interface Props {

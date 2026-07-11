@@ -379,6 +379,7 @@ const METHOD_OPTIONS = [
   { value: 'cash',     label: 'Dinheiro' },
   { value: 'transfer', label: 'Transferência' },
   { value: 'credit',   label: 'Crédito' },
+  { value: 'check',    label: 'Cheque' },
 ]
 
 const STATUS_OPTIONS = [
@@ -809,6 +810,11 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
       for (const group of supplierGroups) {
         const gp = supplierPayments[group.groupKey] ?? []
         if (gp.length === 0) { setError(`Adicione ao menos um pagamento para "${group.supplierName}".`); return }
+        for (const p of gp) {
+          if (p.method === 'check' && !p.firstDueDate) {
+            setError(`"${group.supplierName}": informe a data de compensação do cheque (bom para).`); return
+          }
+        }
       }
     }
 
@@ -1251,7 +1257,12 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                         <div style={{ flex: '0 0 140px' }}>
                           <PaySelect
                             value={p.method}
-                            onChange={v => updatePaymentForSupplier(group.groupKey, i, { method: v as PaymentRow['method'], installments: 1 })}
+                            onChange={v => updatePaymentForSupplier(group.groupKey, i, {
+                              method: v as PaymentRow['method'],
+                              installments: 1,
+                              // Cheque entra como "A pagar" (compensação futura) por padrão
+                              ...(v === 'check' ? { status: 'pending' as const } : {}),
+                            })}
                             options={METHOD_OPTIONS}
                           />
                         </div>

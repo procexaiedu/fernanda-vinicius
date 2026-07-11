@@ -31,10 +31,10 @@ export interface GridRow {
 }
 
 export interface PaymentRow {
-  method: 'cash' | 'pix' | 'transfer' | 'credit'
+  method: 'cash' | 'pix' | 'transfer' | 'credit' | 'check'
   totalAmount: number
-  installments: number        // 1 para cash/pix/transfer
-  firstDueDate: string        // YYYY-MM-DD
+  installments: number        // 1 para cash/pix/transfer/check
+  firstDueDate: string        // YYYY-MM-DD (cheque: data combinada "bom para")
   status: 'completed' | 'pending'
 }
 
@@ -298,6 +298,8 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
 
       const desc = isCredit && payment.installments > 1
         ? `Compra — Crédito ${payment.installments}x${nfNum ? ` NF ${nfNum}` : ''}`
+        : payment.method === 'check'
+        ? `Compra — Cheque${nfNum ? ` NF ${nfNum}` : ''}`
         : `Compra${nfNum ? ` NF ${nfNum}` : ''}`
 
       const { error: txErr } = await admin.from('transactions').insert({

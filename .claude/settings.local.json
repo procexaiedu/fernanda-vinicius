@@ -1,13 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "mcp__devcontext__get_context",
-      "mcp__devcontext__create_task",
-      "mcp__devcontext__search_vault",
-      "mcp__devcontext__vault_read",
-      "mcp__devcontext__start_time",
-      "mcp__devcontext__update_task",
-      "mcp__devcontext__vault_write",
       "Bash(npx create-next-app@latest:*)",
       "Bash(npm install:*)",
       "Bash(mkdir -p src/app/\\\\\\(auth\\\\\\)/login src/app/\\\\\\(sistema\\\\\\)/produtos src/app/\\\\\\(sistema\\\\\\)/clientes src/app/\\\\\\(sistema\\\\\\)/compras src/app/\\\\\\(sistema\\\\\\)/vendas src/app/\\\\\\(sistema\\\\\\)/financeiro src/app/\\\\\\(sistema\\\\\\)/configuracoes src/components/ui src/components/layout src/lib/supabase src/hooks src/types)",
@@ -18,7 +11,6 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "mcp__devcontext__stop_time",
       "mcp__supabase__apply_migration",
       "mcp__supabase__list_tables",
       "mcp__chrome-devtools__new_page",
@@ -42,16 +34,13 @@
       "Bash(npx next:*)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
       "Bash(curl:*)",
-      "mcp__devcontext__get_tasks",
       "Bash(xargs ls:*)",
       "Bash(grep -A 20 \"^### \\\\`users\\\\`\")",
       "Bash(grep -A 40 \"^### \\\\`sales\\\\`\")",
       "Bash(grep -E \"^### \\\\`\" docs/schema_database.md)",
       "Bash(npx tsc:*)",
       "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\(Object.keys\\(l\\).filter\\(k => k.toLowerCase\\(\\).includes\\('instagram'\\) || k.toLowerCase\\(\\).includes\\('brand'\\)\\)\\)\")",
-      "Bash(node -e \"const l = require\\('lucide-react'\\); const keys = Object.keys\\(l\\); console.log\\(keys.filter\\(k => k.match\\(/[Ii]nst|[Ss]ocial|[Bb]rand|[Mm]essage/\\)\\).slice\\(0, 20\\)\\)\")",
-      "mcp__devcontext__vault_list",
-      "mcp__devcontext__get_task"
+      "Bash(node -e \"const l = require\\('lucide-react'\\); const keys = Object.keys\\(l\\); console.log\\(keys.filter\\(k => k.match\\(/[Ii]nst|[Ss]ocial|[Bb]rand|[Mm]essage/\\)\\).slice\\(0, 20\\)\\)\")"
     ]
   }
 }

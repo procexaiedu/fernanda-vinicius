@@ -64,7 +64,7 @@ function monthEnd(y: number, m: number) {
 }
 
 const METHOD_LABELS: Record<string, string> = {
-  cash: 'Dinheiro', pix: 'Pix', credit: 'Crédito', debit: 'Débito', transfer: 'Transferência',
+  cash: 'Dinheiro', pix: 'Pix', credit: 'Crédito', debit: 'Débito', transfer: 'Transferência', check: 'Cheque',
 }
 
 const RECURRENCE_LABELS: Record<string, string> = {
@@ -761,6 +761,7 @@ function DespesaModal({
                   { value: 'transfer', label: 'Transferência' },
                   { value: 'credit',   label: 'Crédito'       },
                   { value: 'debit',    label: 'Débito'        },
+                  { value: 'check',    label: 'Cheque'        },
                 ]}
               />
             </div>
