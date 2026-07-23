@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Lock, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { buscarCaixaDoDia, finalizarCaixa, type CaixaDoDia as CaixaData } from './actions'
+import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
 import styles from './pdv.module.css'
 
 interface StoreOpt { id: string; name: string; city: string }
@@ -39,6 +40,7 @@ export default function CaixaDoDia({ stores, isAdmin, date, caixa, onCaixaChange
   const [loading, setLoading]   = useState(false)
   const [finalizing, setFinalizing] = useState(false)
   const [error, setError]       = useState('')
+  const [detalheId, setDetalheId] = useState<string | null>(null)   // venda aberta no modal
 
   // Sincroniza o "dinheiro contado" com o esperado ao trocar de loja/dia.
   useEffect(() => {
@@ -123,7 +125,12 @@ export default function CaixaDoDia({ stores, isAdmin, date, caixa, onCaixaChange
               </thead>
               <tbody>
                 {caixa.lancamentos.map(l => (
-                  <tr key={l.id}>
+                  <tr
+                    key={l.id}
+                    className={styles.rowClickable}
+                    onClick={() => setDetalheId(l.id)}
+                    title="Ver detalhe da venda"
+                  >
                     <td className={styles.time}>{l.time}</td>
                     <td className={l.customerName ? '' : styles.anon}>{l.customerName ?? 'Sem cliente'}</td>
                     <td className={styles.muted}>{l.itemsCount} {l.itemsCount === 1 ? 'item' : 'itens'}</td>
@@ -190,6 +197,15 @@ export default function CaixaDoDia({ stores, isAdmin, date, caixa, onCaixaChange
           )}
         </aside>
       </div>
+
+      {/* Detalhe da venda — abre ao clicar no lançamento (somente leitura no PDV) */}
+      {detalheId && (
+        <VendaDetalheModal
+          saleId={detalheId}
+          onClose={() => setDetalheId(null)}
+          canDelete={false}
+        />
+      )}
     </div>
   )
 }

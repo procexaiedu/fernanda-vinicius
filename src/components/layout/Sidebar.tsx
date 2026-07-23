@@ -25,10 +25,12 @@ interface NavItem {
   href: string
   icon: React.ReactNode
   adminOnly?: boolean
+  /** Abre em nova aba/janela (o PDV é uma superfície separada, de operação). */
+  newTab?: boolean
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'PDV',          href: '/pdv',           icon: <Monitor size={18} /> },
+  { label: 'PDV',          href: '/pdv',           icon: <Monitor size={18} />, newTab: true },
   { label: 'Dashboard',    href: '/',              icon: <LayoutDashboard size={18} />, adminOnly: true },
   { label: 'Vendas',       href: '/vendas',        icon: <ShoppingCart size={18} /> },
   { label: 'Produtos',     href: '/produtos',      icon: <Package size={18} />,    adminOnly: true },
@@ -73,15 +75,29 @@ export default function Sidebar({ userRole = 'operator', collapsed, onToggle }: 
       {/* Navegação */}
       <nav className={styles.nav}>
         {visibleItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`${styles.navItem} ${isActive(item.href) ? styles.active : ''}`}
-            title={collapsed ? item.label : undefined}
-          >
-            <span className={styles.navIcon}>{item.icon}</span>
-            {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
-          </Link>
+          item.newTab ? (
+            <a
+              key={item.href}
+              href={item.href}
+              target="_blank"
+              rel="noopener"
+              className={styles.navItem}
+              title={collapsed ? item.label : 'Abre em uma nova aba'}
+            >
+              <span className={styles.navIcon}>{item.icon}</span>
+              {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
+            </a>
+          ) : (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`${styles.navItem} ${isActive(item.href) ? styles.active : ''}`}
+              title={collapsed ? item.label : undefined}
+            >
+              <span className={styles.navIcon}>{item.icon}</span>
+              {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
+            </Link>
+          )
         ))}
       </nav>
 

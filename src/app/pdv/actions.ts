@@ -24,6 +24,18 @@ export interface CaixaDoDia {
   closing: { counted_cash: number | null; cash_difference: number | null; total_sales: number; notes: string | null } | null
 }
 
+// Hora real do lançamento no fuso de Brasília. Usamos `created_at` (instante do
+// registro) porque `sale_date` guarda só a DATA de negócio (meia-noite) — por isso
+// a coluna Hora aparecia como 00:00.
+function horaSP(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit',
+    }).format(new Date(iso))
+  } catch { return '—' }
+}
+
 // Consolida o movimento do dia (loja + data): totais por método, lançamentos e
 // se o caixa já foi fechado.
 export async function buscarCaixaDoDia(storeId: string, date: string): Promise<CaixaDoDia> {
@@ -37,7 +49,7 @@ export async function buscarCaixaDoDia(storeId: string, date: string): Promise<C
 
   const { data: sales } = await admin
     .from('sales')
-    .select('id, sale_date, total, payment_summary, customers(name)')
+    .select('id, sale_date, created_at, total, payment_summary, customers(name)')
     .eq('store_id', storeId)
     .eq('status', 'completed')
     .gte('sale_date', `${date}T00:00:00`)
@@ -71,7 +83,7 @@ export async function buscarCaixaDoDia(storeId: string, date: string): Promise<C
 
   const lancamentos: CaixaLancamento[] = saleRows.map((s: any) => ({
     id:             s.id,
-    time:           String(s.sale_date).slice(11, 16),
+    time:           horaSP(s.created_at),
     customerName:   s.customers?.name ?? null,
     itemsCount:     itemsCountBySale.get(s.id) ?? 0,
     paymentSummary: s.payment_summary ?? null,

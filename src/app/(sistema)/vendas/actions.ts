@@ -355,6 +355,9 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
     }
   }
 
+  // Se o caixa do dia já estava fechado, mantém o consolidado em dia.
+  await recomputarFechamentoSeExistir(admin, finalStoreId, data.saleDate)
+
   revalidatePath('/vendas')
   revalidatePath('/produtos')
   revalidatePath('/estoque')

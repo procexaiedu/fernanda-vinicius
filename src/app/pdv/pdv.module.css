@@ -72,6 +72,8 @@
 .table th.r, .table td.r { text-align: right; }
 .table tbody td { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
 .table tbody tr:last-child td { border-bottom: none; }
+.rowClickable { cursor: pointer; transition: background .12s; }
+.rowClickable:hover { background: var(--bg-elevated); }
 .time { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 12.5px; }
 .anon { color: var(--text-muted); font-style: italic; }
 .muted { color: var(--text-muted); font-size: 12.5px; }
