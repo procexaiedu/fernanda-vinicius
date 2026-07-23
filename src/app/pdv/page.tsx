@@ -3,8 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import PdvClient from './PdvClient'
 import { buscarCaixaDoDia } from './actions'
-
-function today() { return new Date().toISOString().slice(0, 10) }
+import { todaySP } from '@/lib/date'
 
 export default async function PdvPage() {
   const supabase = await createClient()
@@ -17,13 +16,17 @@ export default async function PdvPage() {
 
   const admin = createAdminClient()
 
+  // Operadora só vende na própria loja → carrega apenas o catálogo dela (menos dados).
+  const isOperator = profile.role === 'operator' && !!profile.store_id
+  let productsQuery = admin.from('products')
+    .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock, is_service')
+    .eq('is_active', true)
+  if (isOperator) productsQuery = productsQuery.eq('store_id', profile.store_id!)
+
   const [storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
     admin.from('stores').select('id, name, city').eq('is_active', true).order('name'),
-    admin.from('products')
-      .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock, is_service')
-      .eq('is_active', true)
-      .order('name'),
-    admin.from('customers').select('id, name, phone, cpf, birthday').order('name'),
+    productsQuery.order('name'),
+    admin.from('customers').select('id, name, phone, cpf, birthday').order('name').limit(400),
     admin.from('settings').select('key, value').in('key', [
       'pix_discount_pct',
       'birthday_discount_pct',
@@ -64,7 +67,7 @@ export default async function PdvPage() {
     stores.find(s => /campin/i.test(s.name) || /campin/i.test(s.city))?.id
     ?? stores[0]?.id ?? ''
   const caixaStoreId = profile.store_id ?? defaultStore
-  const date = today()
+  const date = todaySP()
   const initialCaixa = await buscarCaixaDoDia(caixaStoreId, date)
 
   return (

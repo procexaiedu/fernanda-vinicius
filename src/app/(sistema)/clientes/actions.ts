@@ -24,6 +24,21 @@ export interface CustomerFormData {
   notes: string
 }
 
+export interface CustomerSearchResult {
+  id: string; name: string; phone: string; cpf: string | null; birthday: string | null
+}
+
+// Busca server-side (unaccent + telefone/CPF), limitada — evita carregar toda a
+// base de clientes no front. Termo vazio devolve os primeiros por nome.
+export async function searchCustomers(term: string): Promise<CustomerSearchResult[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin.rpc('search_customers', { term: term ?? '', lim: 20 })
+  if (error) return []
+  return (data ?? []).map((c: any) => ({
+    id: c.id, name: c.name, phone: c.phone, cpf: c.cpf, birthday: c.birthday,
+  }))
+}
+
 export async function createCustomer(data: CustomerFormData): Promise<ActionResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

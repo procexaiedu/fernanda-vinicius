@@ -14,13 +14,17 @@ export default async function NovaVendaPage() {
 
   const admin = createAdminClient()
 
+  // Operadora só vende na própria loja → carrega apenas o catálogo dela (menos dados).
+  const isOperator = profile.role === 'operator' && !!profile.store_id
+  let productsQuery = admin.from('products')
+    .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock, is_service')
+    .eq('is_active', true)
+  if (isOperator) productsQuery = productsQuery.eq('store_id', profile.store_id!)
+
   const [storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
     admin.from('stores').select('id, name, city').eq('is_active', true).order('name'),
-    admin.from('products')
-      .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock, is_service')
-      .eq('is_active', true)
-      .order('name'),
-    admin.from('customers').select('id, name, phone, cpf, birthday').order('name'),
+    productsQuery.order('name'),
+    admin.from('customers').select('id, name, phone, cpf, birthday').order('name').limit(400),
     admin.from('settings').select('key, value').in('key', [
       'pix_discount_pct',
       'birthday_discount_pct',

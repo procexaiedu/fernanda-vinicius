@@ -13,8 +13,9 @@ import {
   salvarVenda, editarVenda, buscarVendasCliente, type VendaFormData,
   type SaleItem, type SalePaymentRow, type ExchangeItemSelected, type VendaParaTroca, type EditSaleData,
 } from '../actions'
-import { createCustomer, type CustomerFormData } from '../../clientes/actions'
-import { normalize, matchText, onlyDigits } from '@/lib/normalize'
+import { createCustomer, searchCustomers, type CustomerFormData } from '../../clientes/actions'
+import { matchText } from '@/lib/normalize'
+import { todaySP } from '@/lib/date'
 import styles from './NovaVendaForm.module.css'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -95,7 +96,7 @@ function fmt(v: number) {
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  return todaySP()   // fuso de Brasília
 }
 
 function fmtDate(s: string) {
@@ -193,19 +194,24 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
   customers: CustomerOption[]
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
-  const q = normalize(value)                 // sem acento + minúsculo
-  const qDigits = onlyDigits(value)          // p/ telefone/CPF
+  const q = value.trim()
+  const [serverResults, setServerResults] = useState<CustomerOption[]>([])
+  const [searching, setSearching] = useState(false)
 
-  const filtered = q === ''
-    ? customers.slice(0, 8)
-    : customers.filter(c => {
-        if (matchText(c.name, value)) return true   // trecho, ignora acento
-        if (qDigits.length > 0) {
-          if (c.phone && onlyDigits(c.phone).includes(qDigits)) return true
-          if (c.cpf  && onlyDigits(c.cpf).includes(qDigits))  return true
-        }
-        return false
-      }).slice(0, 8)
+  // Busca server-side (debounce) — não carrega toda a base de clientes no front.
+  useEffect(() => {
+    if (q === '') { setServerResults([]); setSearching(false); return }
+    let active = true
+    setSearching(true)
+    const t = setTimeout(async () => {
+      const res = await searchCustomers(q)
+      if (active) { setServerResults(res as CustomerOption[]); setSearching(false) }
+    }, 250)
+    return () => { active = false; clearTimeout(t) }
+  }, [q])
+
+  // Termo vazio: primeiros do conjunto inicial (instantâneo). Digitando: servidor.
+  const filtered = q === '' ? customers.slice(0, 8) : serverResults.slice(0, 8)
 
   return (
     <div className={styles.comboWrap}>
@@ -234,7 +240,9 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
             </div>
           ))}
           {filtered.length === 0 && q !== '' && (
-            <div className={styles.comboEmpty}>Nenhum cliente encontrado para "{value}"</div>
+            <div className={styles.comboEmpty}>
+              {searching ? 'Buscando…' : `Nenhum cliente encontrado para "${value}"`}
+            </div>
           )}
           <div className={styles.comboCreateBtn} onMouseDown={() => { close(); onCreateClick() }}>
             <Plus size={12} /> Criar novo cliente

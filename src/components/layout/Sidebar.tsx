@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Gem,
+  Monitor,
 } from 'lucide-react'
 import styles from './Sidebar.module.css'
 
@@ -27,7 +28,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard',    href: '/',              icon: <LayoutDashboard size={18} /> },
+  { label: 'PDV',          href: '/pdv',           icon: <Monitor size={18} /> },
+  { label: 'Dashboard',    href: '/',              icon: <LayoutDashboard size={18} />, adminOnly: true },
   { label: 'Vendas',       href: '/vendas',        icon: <ShoppingCart size={18} /> },
   { label: 'Produtos',     href: '/produtos',      icon: <Package size={18} />,    adminOnly: true },
   { label: 'Estoque',      href: '/estoque',       icon: <Warehouse size={18} /> },

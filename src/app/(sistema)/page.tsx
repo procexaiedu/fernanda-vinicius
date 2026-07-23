@@ -21,6 +21,9 @@ export default async function DashboardPage() {
     .eq('id', user.id)
     .single()
 
+  // Operadora não usa o dashboard gerencial — vai direto pro PDV.
+  if (profile?.role === 'operator') redirect('/pdv')
+
   const isAdmin  = profile?.role === 'admin'
   // Operators always see their own store; admins start with null (all)
   const storeId  = isAdmin ? null : (profile?.store_id ?? null)
