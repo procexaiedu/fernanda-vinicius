@@ -1,0 +1,120 @@
+/* ── Shell do PDV ─────────────────────────────────────────── */
+.app { min-height: 100vh; background: var(--bg-base); color: var(--text-primary); display: flex; flex-direction: column; }
+
+.topbar {
+  display: flex; align-items: center; gap: 16px; padding: 12px 24px;
+  border-bottom: 1px solid var(--border); background: var(--bg-surface);
+  position: sticky; top: 0; z-index: 50;
+}
+.brand { display: flex; flex-direction: column; line-height: 1.15; }
+.brandName { font-size: 15px; font-weight: 600; letter-spacing: .3px; }
+.brandName b { color: var(--accent); font-weight: 600; }
+.brandSub { font-size: 10px; color: var(--text-muted); letter-spacing: 1.8px; text-transform: uppercase; }
+
+.tabs { display: flex; gap: 4px; margin-left: 10px; background: var(--bg-elevated); padding: 4px; border-radius: 11px; border: 1px solid var(--border); }
+.tab { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: var(--text-muted);
+  padding: 8px 16px; border-radius: 8px; border: none; background: none; cursor: pointer; transition: .15s; }
+.tab:hover { color: var(--text-primary); }
+.tabOn { background: var(--accent); color: #1a1508; font-weight: 600; }
+
+.spacer { flex: 1; }
+.exit { font-size: 13px; color: var(--text-muted); text-decoration: none; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); }
+.exit:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.clock { font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
+
+.main { flex: 1; }
+.vendaWrap { max-width: 1200px; margin: 0 auto; padding: 20px 24px; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+  background: var(--success); color: #0c1810; font-weight: 600; font-size: 14px;
+  padding: 13px 22px; border-radius: 12px; display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.4); z-index: 100;
+}
+
+/* ── Caixa do dia ─────────────────────────────────────────── */
+.caixaWrap { max-width: 1300px; margin: 0 auto; padding: 20px 24px 40px; }
+
+.caixaHead { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.storeSel, .storeFixed {
+  font-size: 14px; font-weight: 600; color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 9px 14px;
+}
+.storeSel { cursor: pointer; }
+.caixaDate { font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.statusChip { display: flex; align-items: center; gap: 8px; padding: 8px 13px; border-radius: 10px; font-size: 13px; font-weight: 600; }
+.statusOpen { background: var(--success-subtle); color: var(--success); }
+.statusClosed { background: var(--accent-subtle); color: var(--accent); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+.strip { display: grid; grid-template-columns: 1.5fr repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.kpi { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+.cap { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
+.val { font-size: 25px; font-weight: 600; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+.sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+.kpiTotal { background: linear-gradient(135deg, var(--accent-subtle), var(--bg-surface)); border-color: var(--accent); }
+.kpiTotal .val { font-size: 32px; color: var(--accent); }
+.swatch { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+.sCash { background: var(--success); }
+.sDebit { background: #5B9BD5; }
+.sCredit { background: #9B84D4; }
+.sPix { background: var(--accent); }
+
+.caixaMain { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
+.card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.cardHead { display: flex; align-items: center; gap: 12px; padding: 15px 20px; border-bottom: 1px solid var(--border); }
+.cardHead h2 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 9px; }
+.count { font-size: 12px; color: var(--text-muted); background: var(--bg-elevated); padding: 3px 9px; border-radius: 20px; margin-left: auto; }
+.empty { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+.table { width: 100%; border-collapse: collapse; }
+.table thead th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--text-muted); font-weight: 500; padding: 11px 20px; border-bottom: 1px solid var(--border); }
+.table th.r, .table td.r { text-align: right; }
+.table tbody td { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+.table tbody tr:last-child td { border-bottom: none; }
+.time { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.anon { color: var(--text-muted); font-style: italic; }
+.muted { color: var(--text-muted); font-size: 12.5px; }
+.amt { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.breakdown { padding: 6px 20px; }
+.brow { display: flex; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.brow:last-child { border-bottom: none; }
+.browM { display: flex; align-items: center; gap: 9px; flex: 1; font-size: 13px; }
+.browV { font-weight: 600; font-variant-numeric: tabular-nums; }
+.totalLine { display: flex; justify-content: space-between; align-items: baseline; padding: 13px 20px; border-top: 1px solid var(--border); }
+.totalLine span { font-size: 13px; color: var(--text-muted); }
+.totalLine strong { font-size: 20px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+.conf { padding: 16px 20px; border-top: 1px solid var(--border); background: var(--bg-elevated); }
+.conf h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--text-muted); margin-bottom: 12px; }
+.confRow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 11px; font-size: 13px; }
+.cashin { display: flex; align-items: center; gap: 6px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 8px; padding: 7px 11px; width: 130px; }
+.cashin span { color: var(--text-muted); font-size: 13px; }
+.cashin input { background: none; border: none; color: var(--text-primary); font-size: 14px; width: 100%; text-align: right; font-variant-numeric: tabular-nums; outline: none; }
+.cashin:focus-within { border-color: var(--accent); }
+.diff { display: flex; justify-content: space-between; align-items: center; padding: 11px 13px; border-radius: 9px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.diffOk { background: var(--success-subtle); color: var(--success); }
+.diffBad { background: var(--danger-subtle); color: var(--danger); }
+.obs { width: 100%; margin-top: 14px; background: var(--bg-base); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text-primary); font-family: inherit; font-size: 13px; resize: vertical; min-height: 50px; outline: none; }
+.obs:focus { border-color: var(--accent); }
+
+.err { display: flex; align-items: center; gap: 6px; color: var(--danger); font-size: 12.5px; padding: 10px 20px 0; }
+.finalize { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 16px 20px 8px; width: calc(100% - 40px);
+  background: var(--accent); color: #1a1508; font-weight: 700; font-size: 14px; padding: 13px; border: none; border-radius: 10px; cursor: pointer; transition: .15s; }
+.finalize:hover:not(:disabled) { background: var(--accent-hover); }
+.finalize:disabled { opacity: .5; cursor: not-allowed; }
+.hint { font-size: 11px; color: var(--text-muted); text-align: center; padding: 0 20px 18px; line-height: 1.5; }
+
+.done { padding: 24px 22px; text-align: center; }
+.doneIc { width: 52px; height: 52px; border-radius: 50%; background: var(--success-subtle); color: var(--success); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+.done h3 { font-size: 16px; margin-bottom: 6px; }
+.done p { font-size: 13px; color: var(--text-muted); }
+.savedBox { margin-top: 14px; text-align: left; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 9px; padding: 12px 14px; font-size: 12.5px; color: var(--text-muted); }
+.savedBox div { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
+.savedBox b { color: var(--text-primary); font-weight: 600; }
+
+@media (max-width: 980px) {
+  .strip { grid-template-columns: 1fr 1fr; }
+  .caixaMain { grid-template-columns: 1fr; }
+}

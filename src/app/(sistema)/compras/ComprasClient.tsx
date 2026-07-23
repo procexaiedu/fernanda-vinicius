@@ -1,5 +1,7 @@
 'use client'
 
+import { usePersistedState } from '@/hooks/usePersistedState'
+
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, ExternalLink, AlertTriangle, RefreshCw, CheckCircle, Clock, Printer } from 'lucide-react'
@@ -61,7 +63,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
   const router = useRouter()
   const [search, setSearch]         = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'purchase' | 'consignment'>('all')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending' | 'active'>('all')
+  const [statusFilter, setStatusFilter] = usePersistedState<'all' | 'paid' | 'pending' | 'active'>('fv-filtros-compras-status', 'all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [reprintOpen, setReprintOpen]   = useState(false)
   const [reprintItems, setReprintItems] = useState<EtiquetasPrinterItem[]>([])

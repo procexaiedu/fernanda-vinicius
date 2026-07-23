@@ -10,10 +10,11 @@ import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import DatePicker from '@/components/ui/DatePicker'
 import {
-  salvarVenda, buscarVendasCliente, type VendaFormData,
-  type SaleItem, type SalePaymentRow, type ExchangeItemSelected, type VendaParaTroca,
+  salvarVenda, editarVenda, buscarVendasCliente, type VendaFormData,
+  type SaleItem, type SalePaymentRow, type ExchangeItemSelected, type VendaParaTroca, type EditSaleData,
 } from '../actions'
 import { createCustomer, type CustomerFormData } from '../../clientes/actions'
+import { normalize, matchText, onlyDigits } from '@/lib/normalize'
 import styles from './NovaVendaForm.module.css'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -21,7 +22,7 @@ import styles from './NovaVendaForm.module.css'
 interface ProductOption {
   id: string; name: string; code: string; barcode_number: string; category: string; store_id: string
   sale_price: number; promotional_price: number | null; promotional_active: boolean
-  cost_price: number; quantity_in_stock: number
+  cost_price: number; quantity_in_stock: number; is_service: boolean
 }
 
 interface CustomerOption {
@@ -34,6 +35,8 @@ interface Settings {
   pixDiscountPct: number
   birthdayDiscountPct: number
   installmentThreshold: number
+  maxInstallmentsDefault: number   // parcelas s/ juros padrão (regra: 5x)
+  maxInstallmentsAbove: number     // parcelas s/ juros acima do threshold (regra: 6x)
 }
 
 interface UserProfile {
@@ -55,13 +58,24 @@ interface SaleRow {
   unitPrice: number
   unitCost: number
   stockAvailable: number
+  isService: boolean       // item de serviço (conserto) — ignora estoque
 }
 
 interface PaymentRow {
   method: 'cash' | 'pix' | 'debit' | 'credit'
   amount: number
   installments: number
+  cardBrand?: string | null   // bandeira (crédito/débito), opcional
 }
+
+// Bandeiras de cartão (crédito/débito). value = o que grava no banco.
+const CARD_BRANDS = [
+  { value: 'visa',      label: 'Visa',   color: '#4B6DDB' },
+  { value: 'mastercard', label: 'Master', color: '#F79E1B' },
+  { value: 'elo',       label: 'Elo',    color: '#EFB700' },
+  { value: 'amex',      label: 'Amex',   color: '#2E9BD6' },
+  { value: 'hipercard', label: 'Hiper',  color: '#E2544C' },
+] as const
 
 interface Props {
   stores: StoreOption[]
@@ -70,6 +84,8 @@ interface Props {
   settings: Settings
   userProfile: UserProfile
   users: UserOption[]
+  editSale?: EditSaleData    // presente = modo edição de uma venda existente
+  onSaved?: () => void       // presente (PDV) = após salvar, fica na tela e reseta em vez de navegar
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -94,7 +110,13 @@ function isBirthdayMonth(birthday: string | null): boolean {
 }
 
 function emptyRow(): SaleRow {
-  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0 }
+  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false }
+}
+
+// Navegação por teclado no grid de itens (mesmo padrão da Nova Compra).
+// Cols: 0 = produto, 1 = qtd, 2 = preço.
+function focusGridCell(row: number, col: number) {
+  document.querySelector<HTMLElement>(`[data-row="${row}"][data-col="${col}"]`)?.focus()
 }
 
 // ─── Hook: dropdown fixo ──────────────────────────────────────────────────────
@@ -103,13 +125,32 @@ function useFixedDropdown<T extends HTMLElement = HTMLInputElement>() {
   const inputRef = useRef<T>(null)
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
-  function openAt() {
+  function measure() {
     if (!inputRef.current) return
     const r = inputRef.current.getBoundingClientRect()
     setPos({ top: r.bottom + 4, left: r.left, width: r.width })
   }
 
+  function openAt() { measure() }
   function close() { setPos(null) }
+
+  // Enquanto aberto, reposiciona colado ao campo ao rolar/redimensionar a tela.
+  // Sem isso, o menu (position:fixed) fica cravado na coordenada antiga e "descola".
+  const isOpen = pos !== null
+  useEffect(() => {
+    if (!isOpen) return
+    function reposition() {
+      if (!inputRef.current) return
+      const r = inputRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    }
+    window.addEventListener('scroll', reposition, true) // capture: pega scroll de qualquer container
+    window.addEventListener('resize', reposition)
+    return () => {
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [isOpen])
 
   return { inputRef, pos, openAt, close }
 }
@@ -152,16 +193,16 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
   customers: CustomerOption[]
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
-  const q = value.trim().toLowerCase()
-  const qDigits = q.replace(/\D/g, '')
+  const q = normalize(value)                 // sem acento + minúsculo
+  const qDigits = onlyDigits(value)          // p/ telefone/CPF
 
   const filtered = q === ''
     ? customers.slice(0, 8)
     : customers.filter(c => {
-        if (c.name.toLowerCase().includes(q)) return true
+        if (matchText(c.name, value)) return true   // trecho, ignora acento
         if (qDigits.length > 0) {
-          if (c.phone && c.phone.replace(/\D/g, '').includes(qDigits)) return true
-          if (c.cpf  && c.cpf.replace(/\D/g, '').includes(qDigits))  return true
+          if (c.phone && onlyDigits(c.phone).includes(qDigits)) return true
+          if (c.cpf  && onlyDigits(c.cpf).includes(qDigits))  return true
         }
         return false
       }).slice(0, 8)
@@ -206,15 +247,17 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
 
 // ─── ProductCombobox (venda) ──────────────────────────────────────────────────
 
-function ProductCombobox({ value, onChange, products }: {
+function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGridKeyDown }: {
   value: string
   onChange: (name: string, product: ProductOption | null) => void
   products: ProductOption[]
+  rowIndex?: number
+  colIndex?: number
+  onGridKeyDown?: (e: React.KeyboardEvent, row: number, col: number) => void
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
-  const q = value.toLowerCase()
   const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+    matchText(p.name, value) || matchText(p.code, value)   // trecho, ignora acento
   ).slice(0, 10)
 
   return (
@@ -226,6 +269,9 @@ function ProductCombobox({ value, onChange, products }: {
         onChange={e => { onChange(e.target.value, null); openAt() }}
         onFocus={openAt}
         onBlur={() => setTimeout(close, 150)}
+        onKeyDown={e => { if (onGridKeyDown && rowIndex != null && colIndex != null) onGridKeyDown(e, rowIndex, colIndex) }}
+        data-row={rowIndex}
+        data-col={colIndex}
         placeholder="Nome ou código..."
         autoComplete="off"
       />
@@ -236,7 +282,7 @@ function ProductCombobox({ value, onChange, products }: {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 600 }}>{p.name}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
-                  {p.quantity_in_stock <= 0 ? '(sem estoque)' : `${p.quantity_in_stock} em estoque`}
+                  {p.is_service ? 'serviço' : p.quantity_in_stock <= 0 ? '(sem estoque)' : `${p.quantity_in_stock} em estoque`}
                 </span>
               </div>
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
@@ -356,31 +402,39 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function NovaVendaForm({ stores, products, customers: initialCustomers, settings, userProfile, users }: Props) {
+export default function NovaVendaForm({ stores, products, customers: initialCustomers, settings, userProfile, users, editSale, onSaved }: Props) {
   const router = useRouter()
+  const isEditing = !!editSale
 
   // ── Estado geral ──────────────────────────────────────────────────────────
-  const [saleDate, setSaleDate]   = useState(today())
-  const [storeId, setStoreId]     = useState(userProfile.storeId ?? stores[0]?.id ?? '')
-  const [sellerId, setSellerId]   = useState<string>(userProfile.userId)
-  const [notes, setNotes]         = useState('')
+  // Admin abre a venda já com a loja principal (Campinas) pré-selecionada — sem
+  // hardcode de UUID: casa por nome/cidade e cai no primeiro da lista se não achar.
+  const defaultAdminStore =
+    stores.find(s => /campin/i.test(s.name) || /campin/i.test(s.city))?.id
+    ?? stores[0]?.id ?? ''
+  const [saleDate, setSaleDate]   = useState(editSale?.saleDate ?? today())
+  const [storeId, setStoreId]     = useState(editSale?.storeId ?? userProfile.storeId ?? defaultAdminStore)
+  const [sellerId, setSellerId]   = useState<string>(editSale?.sellerId ?? userProfile.userId)
+  const [notes, setNotes]         = useState(editSale?.notes ?? '')
 
   // ── Cliente ───────────────────────────────────────────────────────────────
   const [customers, setCustomers]           = useState(initialCustomers)
-  const [customerSearch, setCustomerSearch] = useState('')
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null)
+  const [customerSearch, setCustomerSearch] = useState(editSale?.customer?.name ?? '')
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(editSale?.customer ?? null)
   const [showCreateCustomer, setShowCreateCustomer] = useState(false)
 
   // ── Itens da venda ────────────────────────────────────────────────────────
-  const [rows, setRows] = useState<SaleRow[]>([emptyRow()])
+  const [rows, setRows] = useState<SaleRow[]>(
+    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r })) : [emptyRow()]
+  )
 
   // ── Descontos ─────────────────────────────────────────────────────────────
-  const [hasPix, setHasPix]           = useState(false)
-  const [hasBirthday, setHasBirthday] = useState(false)
-  const [manualDiscount, setManualDiscount] = useState(0)
+  const [hasPix, setHasPix]           = useState(editSale?.hasPix ?? false)
+  const [hasBirthday, setHasBirthday] = useState(editSale?.hasBirthday ?? false)
+  const [manualDiscount, setManualDiscount] = useState(editSale?.manualDiscount ?? 0)
 
   // ── Pagamentos ────────────────────────────────────────────────────────────
-  const [payments, setPayments] = useState<PaymentRow[]>([])
+  const [payments, setPayments] = useState<PaymentRow[]>(editSale?.payments ?? [])
 
   // ── Troca ─────────────────────────────────────────────────────────────────
   const [exchangeSales, setExchangeSales]     = useState<VendaParaTroca[]>([])
@@ -429,6 +483,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             productId: match.id, productName: match.name,
             quantity: 1, unitPrice: price,
             unitCost: match.cost_price, stockAvailable: match.quantity_in_stock,
+            isService: match.is_service,
           }
           setRows(prev => {
             const last = prev[prev.length - 1]
@@ -458,8 +513,13 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  // No modo edição, os descontos vêm da venda salva — não deixar os efeitos
+  // auto-derivarem (e sobrescreverem) no primeiro render. Liberados após montar.
+  const editInit = useRef(isEditing)
+
   // ── Efeito: birthday discount ──────────────────────────────────────────────
   useEffect(() => {
+    if (editInit.current) return
     if (selectedCustomer && isBirthdayMonth(selectedCustomer.birthday)) {
       setHasBirthday(true)
     } else {
@@ -469,16 +529,25 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Efeito: pix discount ───────────────────────────────────────────────────
   useEffect(() => {
+    if (editInit.current) return
     const hasPixPayment = payments.some(p => p.method === 'pix')
     if (hasPixPayment && !hasPix) setHasPix(true)
     if (!hasPixPayment && hasPix) setHasPix(false)
   }, [payments])
 
+  // Libera os efeitos acima após o primeiro render (deve rodar DEPOIS deles).
+  useEffect(() => { editInit.current = false }, [])
+
   // ── Totais ────────────────────────────────────────────────────────────────
   const subtotal       = rows.reduce((s, r) => s + r.unitPrice * (r.quantity || 0), 0)
   const discountPct    = (hasPix ? settings.pixDiscountPct : 0) + (hasBirthday ? settings.birthdayDiscountPct : 0)
-  const discountAmt    = parseFloat((subtotal * discountPct / 100 + manualDiscount).toFixed(2))
-  const total          = Math.max(0, parseFloat((subtotal - discountAmt).toFixed(2)))
+  // Desconto bruto → total arredondado para o inteiro mais próximo quando HÁ desconto
+  // (≥0,50 sobe, <0,50 desce). O desconto é reconciliado p/ que subtotal − desconto = total.
+  // Assim o valor exibido já é redondo e é exatamente o que grava no banco.
+  const rawDiscount    = subtotal * discountPct / 100 + manualDiscount
+  const rawTotal       = Math.max(0, subtotal - rawDiscount)
+  const total          = rawDiscount > 0 ? Math.round(rawTotal) : parseFloat(rawTotal.toFixed(2))
+  const discountAmt    = parseFloat((subtotal - total).toFixed(2))
   const exchangeCredit = selectedExchangeItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
   const paidTotal      = payments.reduce((s, p) => s + p.amount, 0)
   const coveredTotal   = paidTotal + exchangeCredit
@@ -492,7 +561,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   function removeRow(i: number) { setRows(prev => prev.filter((_, idx) => idx !== i)) }
 
   function handleProductSelect(i: number, name: string, p: ProductOption | null) {
-    if (!p) { updateRow(i, { productId: null, productName: name }); return }
+    if (!p) { updateRow(i, { productId: null, productName: name, isService: false }); return }
     const price = p.promotional_active && p.promotional_price ? p.promotional_price : p.sale_price
     updateRow(i, {
       productId: p.id,
@@ -500,7 +569,39 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       unitPrice: price,
       unitCost: p.cost_price,
       stockAvailable: p.quantity_in_stock,
+      isService: p.is_service,
     })
+  }
+
+  // ── Navegação por teclado no grid (←/→ entre campos, Enter avança/cria linha) ──
+  function handleGridKeyDown(e: React.KeyboardEvent, rowIndex: number, colIndex: number) {
+    const input = e.target as HTMLInputElement
+    const isNumeric = input.type === 'number'   // inputs number não expõem selectionStart
+    const pos  = input.selectionStart ?? 0
+    const posE = input.selectionEnd   ?? 0
+    const len  = (input.value ?? '').length
+
+    if (e.key === 'ArrowLeft') {
+      if (isNumeric || (pos === 0 && posE === 0)) {
+        e.preventDefault()
+        if (colIndex > 0) focusGridCell(rowIndex, colIndex - 1)
+      }
+    } else if (e.key === 'ArrowRight') {
+      if (isNumeric || (pos === len && posE === len)) {
+        e.preventDefault()
+        focusGridCell(rowIndex, colIndex + 1)
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const nextInRow = document.querySelector<HTMLElement>(`[data-row="${rowIndex}"][data-col="${colIndex + 1}"]`)
+      if (nextInRow) {
+        nextInRow.focus()
+      } else {
+        const nextRowEl = document.querySelector<HTMLElement>(`[data-row="${rowIndex + 1}"][data-col="0"]`)
+        if (nextRowEl) nextRowEl.focus()
+        else { addRow(); setTimeout(() => focusGridCell(rowIndex + 1, 0), 30) }
+      }
+    }
   }
 
   // ── Customer helpers ──────────────────────────────────────────────────────
@@ -524,7 +625,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Pagamento helpers ─────────────────────────────────────────────────────
   function addPayment(method: PaymentRow['method']) {
-    setPayments(prev => [...prev, { method, amount: 0, installments: 1 }])
+    setPayments(prev => [...prev, { method, amount: 0, installments: 1, cardBrand: null }])
   }
 
   function updatePayment(i: number, patch: Partial<PaymentRow>) {
@@ -578,7 +679,11 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   }
 
   // ── Parcelamento ──────────────────────────────────────────────────────────
-  const maxInstallments = total >= settings.installmentThreshold ? 12 : 5
+  // Lê o limite direto da config (sem hardcode): acima do threshold usa o limite
+  // "acima de 3k" (6x), senão o padrão (5x). Mudar a config passa a refletir aqui.
+  const maxInstallments = total >= settings.installmentThreshold
+    ? settings.maxInstallmentsAbove
+    : settings.maxInstallmentsDefault
 
   // ── Submit ────────────────────────────────────────────────────────────────
   async function handleSubmit() {
@@ -623,10 +728,11 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     }
 
     setSaving(true)
-    const result = await salvarVenda(formData)
+    const result = isEditing ? await editarVenda(editSale!.id, formData) : await salvarVenda(formData)
     setSaving(false)
 
     if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
+    if (onSaved) { onSaved(); return }   // PDV: fica na tela (o pai reseta o form)
     router.push('/vendas')
     router.refresh()
   }
@@ -747,8 +853,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               {rows.map((row, i) => {
                 const qty = row.quantity || 0
                 const rowSubtotal = row.unitPrice * qty
-                const stockWarn = row.productId && qty > row.stockAvailable && row.stockAvailable >= 0
-                const noStock   = row.stockAvailable === 0 && row.productId
+                const stockWarn = row.productId && !row.isService && qty > row.stockAvailable && row.stockAvailable >= 0
+                const noStock   = !row.isService && row.stockAvailable === 0 && row.productId
 
                 return (
                   <tr key={i} className={styles.row}>
@@ -759,6 +865,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                         value={row.productName}
                         onChange={(name, p) => handleProductSelect(i, name, p)}
                         products={products.filter(p => p.store_id === storeId)}
+                        rowIndex={i}
+                        colIndex={0}
+                        onGridKeyDown={handleGridKeyDown}
                       />
                       {stockWarn && (
                         <div className={styles.stockWarn}>
@@ -774,6 +883,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                         className={styles.cell}
                         value={row.quantity}
                         onChange={e => updateRow(i, { quantity: e.target.value === '' ? '' : parseInt(e.target.value) || 1 })}
+                        data-row={i}
+                        data-col={1}
+                        onKeyDown={e => handleGridKeyDown(e, i, 1)}
                       />
                     </td>
 
@@ -784,6 +896,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                         value={row.unitPrice || ''}
                         onChange={e => updateRow(i, { unitPrice: parseFloat(e.target.value) || 0 })}
                         placeholder="0,00"
+                        data-row={i}
+                        data-col={2}
+                        onKeyDown={e => handleGridKeyDown(e, i, 2)}
                       />
                     </td>
 
@@ -892,48 +1007,84 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
         {payments.length > 0 && (
           <div className={styles.paymentsList}>
             {payments.map((p, i) => (
-              <div key={i} className={styles.paymentRow}>
-                <select
-                  className={styles.payCell}
-                  value={p.method}
-                  onChange={e => updatePayment(i, { method: e.target.value as PaymentRow['method'], installments: 1 })}
-                >
-                  <option value="pix">PIX</option>
-                  <option value="cash">Dinheiro</option>
-                  <option value="debit">Débito</option>
-                  <option value="credit">Crédito</option>
-                </select>
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div className={styles.paymentRow}>
+                  <select
+                    className={styles.payCell}
+                    value={p.method}
+                    onChange={e => {
+                      const m = e.target.value as PaymentRow['method']
+                      updatePayment(i, {
+                        method: m,
+                        installments: 1,
+                        cardBrand: (m === 'credit' || m === 'debit') ? (p.cardBrand ?? null) : null,
+                      })
+                    }}
+                  >
+                    <option value="pix">PIX</option>
+                    <option value="cash">Dinheiro</option>
+                    <option value="debit">Débito</option>
+                    <option value="credit">Crédito</option>
+                  </select>
 
-                <input
-                  type="number" min="0" step="0.01"
-                  className={styles.payAmtInput}
-                  value={p.amount || ''}
-                  onChange={e => updatePayment(i, { amount: parseFloat(e.target.value) || 0 })}
-                  placeholder="R$ 0,00"
-                />
+                  <input
+                    type="number" min="0" step="0.01"
+                    className={styles.payAmtInput}
+                    value={p.amount || ''}
+                    onChange={e => updatePayment(i, { amount: parseFloat(e.target.value) || 0 })}
+                    placeholder="R$ 0,00"
+                  />
 
-                {p.method === 'credit' ? (
-                  <div className={styles.installmentsWrap}>
-                    <select
-                      className={styles.payCell}
-                      value={p.installments}
-                      onChange={e => updatePayment(i, { installments: parseInt(e.target.value) })}
-                    >
-                      {Array.from({ length: maxInstallments }, (_, k) => k + 1).map(n => (
-                        <option key={n} value={n}>{n}x</option>
-                      ))}
-                    </select>
-                    {p.installments > 1 && p.amount > 0 && (
-                      <span className={styles.installmentHint}>{fmt(p.amount / p.installments)}/parcela</span>
-                    )}
+                  {p.method === 'credit' ? (
+                    <div className={styles.installmentsWrap}>
+                      <select
+                        className={styles.payCell}
+                        value={p.installments}
+                        onChange={e => updatePayment(i, { installments: parseInt(e.target.value) })}
+                      >
+                        {Array.from({ length: maxInstallments }, (_, k) => k + 1).map(n => (
+                          <option key={n} value={n}>{n}x</option>
+                        ))}
+                      </select>
+                      {p.installments > 1 && p.amount > 0 && (
+                        <span className={styles.installmentHint}>{fmt(p.amount / p.installments)}/parcela</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ flex: 1 }} />
+                  )}
+
+                  <button type="button" className={styles.delBtn} onClick={() => removePayment(i)}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+
+                {/* Bandeira do cartão — crédito e débito (opcional) */}
+                {(p.method === 'credit' || p.method === 'debit') && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingLeft: 2 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>Bandeira:</span>
+                    {CARD_BRANDS.map(b => {
+                      const on = p.cardBrand === b.value
+                      return (
+                        <button
+                          type="button"
+                          key={b.value}
+                          onClick={() => updatePayment(i, { cardBrand: on ? null : b.value })}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+                            fontSize: 11, fontWeight: 600, padding: '4px 9px', borderRadius: 6,
+                            border: `1px solid ${on ? '#C9A84C' : 'var(--border, rgba(128,128,128,.35))'}`,
+                            background: on ? 'rgba(201,168,76,.14)' : 'transparent',
+                            color: on ? '#C9A84C' : 'var(--text-muted)',
+                          }}
+                        >
+                          <span style={{ width: 8, height: 8, borderRadius: 2, background: b.color, display: 'inline-block' }} />
+                          {b.label}
+                        </button>
+                      )
+                    })}
                   </div>
-                ) : (
-                  <div style={{ flex: 1 }} />
                 )}
-
-                <button type="button" className={styles.delBtn} onClick={() => removePayment(i)}>
-                  <Trash2 size={13} />
-                </button>
               </div>
             ))}
           </div>
@@ -1053,7 +1204,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
           Cancelar
         </Button>
         <Button loading={saving} onClick={handleSubmit}>
-          Salvar Venda →
+          {isEditing ? 'Salvar alterações' : 'Salvar Venda →'}
         </Button>
       </div>
 

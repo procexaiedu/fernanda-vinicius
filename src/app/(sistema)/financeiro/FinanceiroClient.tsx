@@ -1,5 +1,7 @@
 'use client'
 
+import { usePersistedState } from '@/hooks/usePersistedState'
+
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   ChevronDown, ChevronLeft, ChevronRight, Plus, Check, Pencil, Trash2, X,
@@ -983,9 +985,9 @@ function DespesaModal({
 
 function PnlTab({ stores }: { stores: Store[] }) {
   const now = new Date()
-  const [month, setMonth]   = useState(now.getMonth() + 1)
-  const [year,  setYear]    = useState(now.getFullYear())
-  const [storeId, setStoreId] = useState('')
+  const [month, setMonth]   = usePersistedState('fv-filtros-financeiro-pnl-month', now.getMonth() + 1)
+  const [year,  setYear]    = usePersistedState('fv-filtros-financeiro-pnl-year', now.getFullYear())
+  const [storeId, setStoreId] = usePersistedState('fv-filtros-financeiro-pnl-store', '')
   const [data,  setData]    = useState<PnlData | null>(null)
   const [loading, setLoading] = useState(false)
   const [loaded,  setLoaded]  = useState(false)

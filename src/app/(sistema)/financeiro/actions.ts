@@ -188,13 +188,38 @@ export async function marcarComoPago(transactionId: string): Promise<ActionResul
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
+  const nowIso = new Date().toISOString()
+
+  // Buscar a transação antes: se ela espelha um pagamento de compra, precisamos
+  // sincronizar o purchase_payment correspondente (a tela de Compras lê o status de lá).
+  const { data: tx } = await admin
+    .from('transactions')
+    .select('reference_type, reference_id, payment_method, amount, due_date')
+    .eq('id', transactionId)
+    .single()
+
   const { error } = await admin.from('transactions').update({
     status: 'completed',
-    paid_at: new Date().toISOString(),
+    paid_at: nowIso,
   }).eq('id', transactionId)
 
   if (error) return { success: false, error: error.message }
+
+  // Sincroniza o purchase_payment equivalente (match por compra + método + valor + vencimento)
+  if (tx?.reference_type === 'purchase' && tx.reference_id) {
+    let q = admin
+      .from('purchase_payments')
+      .update({ status: 'completed', paid_at: nowIso })
+      .eq('purchase_id', tx.reference_id)
+      .eq('status', 'pending')
+      .eq('amount', tx.amount)
+    if (tx.payment_method) q = q.eq('payment_method', tx.payment_method)
+    if (tx.due_date) q = q.eq('due_date', tx.due_date)
+    await q
+  }
+
   revalidatePath('/financeiro')
+  revalidatePath('/compras')
   return { success: true }
 }
 

@@ -1,9 +1,11 @@
 'use client'
 
+import { usePersistedState } from '@/hooks/usePersistedState'
+
 import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import {
-  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2,
+  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil,
 } from 'lucide-react'
 import Badge from '@/components/ui/Badge'
 import DatePicker from '@/components/ui/DatePicker'
@@ -108,13 +110,13 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
 
   const [sales, setSales]             = useState(initial)
   const [search, setSearch]           = useState('')
-  const [filterStore, setFilterStore] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
-  const [filterSeller, setFilterSeller] = useState('')
+  const [filterStore, setFilterStore] = usePersistedState('fv-filtros-vendas-store', '')
+  const [filterStatus, setFilterStatus] = usePersistedState('fv-filtros-vendas-status', '')
+  const [filterSeller, setFilterSeller] = usePersistedState('fv-filtros-vendas-seller', '')
   const [dateFrom, setDateFrom]       = useState(today)
   const [dateTo, setDateTo]           = useState(today)
-  const [sortKey, setSortKey]         = useState<SortKey>('date')
-  const [sortDir, setSortDir]         = useState<SortDir>('desc')
+  const [sortKey, setSortKey]         = usePersistedState<SortKey>('fv-filtros-vendas-sortkey', 'date')
+  const [sortDir, setSortDir]         = usePersistedState<SortDir>('fv-filtros-vendas-sortdir', 'desc')
   const [detalheId, setDetalheId]     = useState<string | null>(null)
 
   useEffect(() => { setSales(initial) }, [initial])
@@ -166,18 +168,36 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
       {/* Page header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Vendas</h1>
-        <Link
-          href="/vendas/nova"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '7px 16px',
-            background: 'var(--accent)', color: '#000',
-            borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700,
-            textDecoration: 'none',
-          }}
-        >
-          + Nova Venda
-        </Link>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+          <a
+            href="/pdv"
+            target="_blank"
+            rel="noopener"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '7px 16px',
+              background: 'transparent', color: 'var(--text-primary)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
+              textDecoration: 'none',
+            }}
+            title="Abrir o PDV em uma nova aba (registro rápido + caixa do dia)"
+          >
+            🖥 Abrir PDV
+          </a>
+          <Link
+            href="/vendas/nova"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '7px 16px',
+              background: 'var(--accent)', color: '#000',
+              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700,
+              textDecoration: 'none',
+            }}
+          >
+            + Nova Venda
+          </Link>
+        </div>
       </div>
 
       {/* Stats — refletem o período selecionado */}
@@ -327,9 +347,14 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
                     </Badge>
                   </td>
                   <td onClick={e => e.stopPropagation()}>
-                    <button className={styles.iconBtn} onClick={() => setDetalheId(s.id)} title="Ver detalhe">
-                      <BarChart2 size={13} />
-                    </button>
+                    <div style={{ display: 'inline-flex', gap: 4 }}>
+                      <button className={styles.iconBtn} onClick={() => setDetalheId(s.id)} title="Ver detalhe">
+                        <BarChart2 size={13} />
+                      </button>
+                      <Link className={styles.iconBtn} href={`/vendas/${s.id}/editar`} title="Editar venda">
+                        <Pencil size={13} />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

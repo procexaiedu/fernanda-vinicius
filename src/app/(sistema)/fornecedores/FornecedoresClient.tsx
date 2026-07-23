@@ -1,5 +1,7 @@
 'use client'
 
+import { usePersistedState } from '@/hooks/usePersistedState'
+
 import { useState, useEffect, useMemo } from 'react'
 import {
   Plus, Pencil, Power, BarChart2, AlertTriangle,
@@ -55,9 +57,9 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
   const [suppliers, setSuppliers]                     = useState(initial)
   const [search, setSearch]                           = useState('')
   const [showInactive, setShowInactive]               = useState(false)
-  const [filterConsignment, setFilterConsignment]     = useState(false)
-  const [sortKey, setSortKey]                         = useState<SortKey>('name')
-  const [sortDir, setSortDir]                         = useState<SortDir>('asc')
+  const [filterConsignment, setFilterConsignment]     = usePersistedState('fv-filtros-fornecedores-consignacao', false)
+  const [sortKey, setSortKey]                         = usePersistedState<SortKey>('fv-filtros-fornecedores-sortkey', 'name')
+  const [sortDir, setSortDir]                         = usePersistedState<SortDir>('fv-filtros-fornecedores-sortdir', 'asc')
   const [formOpen, setFormOpen]                       = useState(false)
   const [editing, setEditing]                         = useState<SupplierWithCount | null>(null)
   const [detalhe, setDetalhe]                         = useState<SupplierWithCount | null>(null)

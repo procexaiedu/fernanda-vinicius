@@ -1,5 +1,7 @@
 'use client'
 
+import { usePersistedState } from '@/hooks/usePersistedState'
+
 import { useState, useMemo } from 'react'
 import { Plus, Trash2, Search, Send, Megaphone, Loader2, Eye, Pencil, Copy } from 'lucide-react'
 import Button from '@/components/ui/Button'
@@ -32,7 +34,7 @@ interface Props {
 
 export default function DisparosClient({ disparos, stores, currentUserRole, currentUserStoreId }: Props) {
   const [search, setSearch]   = useState('')
-  const [filter, setFilter]   = useState<FilterType>('todos')
+  const [filter, setFilter]   = usePersistedState<FilterType>('fv-filtros-disparos-filter', 'todos')
   const [formOpen, setFormOpen] = useState(false)
   const [editDisparo, setEditDisparo] = useState<DisparoRow | null>(null)
   const [detalhe, setDetalhe]   = useState<DisparoRow | null>(null)

@@ -91,12 +91,13 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
     query = query.eq('is_active', true)
   }
 
-  const [productsRes, materialsRes, storesRes, suppliersRes, categoryMappingsRes] = await Promise.all([
+  const [productsRes, materialsRes, storesRes, suppliersRes, categoryMappingsRes, markupRes] = await Promise.all([
     query,
     admin.from('materials').select('name').eq('is_active', true).order('name'),
     isAdmin ? admin.from('stores').select('id, name').order('name') : Promise.resolve({ data: [] }),
     isAdmin ? admin.from('suppliers').select('id, name, initials').eq('is_active', true).order('name') : Promise.resolve({ data: [] }),
     admin.from('category_label_mapping').select('category, label_format').eq('is_active', true).order('category'),
+    admin.from('settings').select('value').eq('key', 'default_markup_pct').maybeSingle(),
   ])
 
   const products = (productsRes.data ?? []) as ProductWithRelations[]
@@ -109,6 +110,8 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
   const categoryLabelMap = Object.fromEntries(
     (categoryMappingsRes.data ?? []).map(r => [r.category, r.label_format as 'A' | 'B'])
   )
+  // Mesmo markup usado na Compra — alimenta o preço de venda automático no cadastro de produto.
+  const defaultMarkupPct = Number(markupRes.data?.value ?? 100)
 
   return (
     <div>
@@ -133,6 +136,7 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
         categories={categories}
         materials={materials}
         categoryLabelMap={categoryLabelMap}
+        defaultMarkupPct={defaultMarkupPct}
         filters={{
           q: params.q ?? '',
           store_id: params.store_id ?? '',

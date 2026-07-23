@@ -9,6 +9,8 @@ import SearchableSelect from '@/components/ui/SearchableSelect'
 import { createProduct, updateProduct, deleteProduct } from './actions'
 import type { ProductWithRelations, StoreOption, SupplierOption } from './page'
 import { generateCode as buildCode } from '@/lib/productCode'
+import { matchText } from '@/lib/normalize'
+import { computeSalePrice, salePriceIsAuto } from '@/lib/pricing'
 import styles from './ProdutoFormModal.module.css'
 
 function generateCode(initials: string, month: number, costPrice: number): string {
@@ -25,7 +27,7 @@ function Combobox({ value, onChange, options, placeholder }: {
   placeholder: string
 }) {
   const [open, setOpen] = useState(false)
-  const filtered = options.filter(o => o.toLowerCase().includes(value.toLowerCase()))
+  const filtered = options.filter(o => matchText(o, value))
 
   return (
     <div className={styles.comboWrapper}>
@@ -59,6 +61,7 @@ interface Props {
   stores: StoreOption[]
   categories: string[]
   materials: string[]
+  defaultMarkupPct: number
   onClose: () => void
 }
 
@@ -67,7 +70,7 @@ const currentMonth = new Date().getMonth() + 1
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
-export default function ProdutoFormModal({ product, suppliers, stores, categories, materials, onClose }: Props) {
+export default function ProdutoFormModal({ product, suppliers, stores, categories, materials, defaultMarkupPct, onClose }: Props) {
   const router = useRouter()
   const isEditing = !!product
 
@@ -100,6 +103,18 @@ export default function ProdutoFormModal({ product, suppliers, stores, categorie
     Number(month),
     parseFloat(costPrice) || 0
   )
+
+  // Preço de venda automático a partir do custo (mesma regra/config da Compra).
+  // Não sobrescreve se o usuário já ajustou o preço manualmente.
+  function handleCostChange(v: string) {
+    const prevCost    = parseFloat(costPrice) || 0
+    const currentSale = parseFloat(salePrice) || 0
+    setCostPrice(v)
+    if (salePriceIsAuto(currentSale, prevCost, defaultMarkupPct)) {
+      const auto = computeSalePrice(parseFloat(v) || 0, defaultMarkupPct)
+      setSalePrice(auto ? String(auto) : '')
+    }
+  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -223,7 +238,7 @@ export default function ProdutoFormModal({ product, suppliers, stores, categorie
           <div className={styles.grid3} style={{ marginBottom: 12 }}>
             <div className={styles.field}>
               <label className={styles.label}>Custo (R$) <span className={styles.required}>*</span></label>
-              <input className={styles.input} type="number" min="0" step="0.01" value={costPrice} onChange={e => setCostPrice(e.target.value)} placeholder="0,00" />
+              <input className={styles.input} type="number" min="0" step="0.01" value={costPrice} onChange={e => handleCostChange(e.target.value)} placeholder="0,00" />
             </div>
             <div className={styles.field}>
               <label className={styles.label}>Venda (R$) <span className={styles.required}>*</span></label>

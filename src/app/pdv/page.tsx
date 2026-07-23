@@ -1,9 +1,12 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import NovaVendaForm from './NovaVendaForm'
+import PdvClient from './PdvClient'
+import { buscarCaixaDoDia } from './actions'
 
-export default async function NovaVendaPage() {
+function today() { return new Date().toISOString().slice(0, 10) }
+
+export default async function PdvPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -41,9 +44,9 @@ export default async function NovaVendaPage() {
 
   const settingsMap = new Map((settingsRes.data ?? []).map(s => [s.key, Number(s.value)]))
   const settings = {
-    pixDiscountPct:        settingsMap.get('pix_discount_pct') ?? 5,
-    birthdayDiscountPct:   settingsMap.get('birthday_discount_pct') ?? 10,
-    installmentThreshold:  settingsMap.get('installment_threshold') ?? 3000,
+    pixDiscountPct:         settingsMap.get('pix_discount_pct') ?? 5,
+    birthdayDiscountPct:    settingsMap.get('birthday_discount_pct') ?? 10,
+    installmentThreshold:   settingsMap.get('installment_threshold') ?? 3000,
     maxInstallmentsDefault: settingsMap.get('max_installments_default') ?? 5,
     maxInstallmentsAbove:   settingsMap.get('max_installments_above_3k') ?? 6,
   }
@@ -56,28 +59,25 @@ export default async function NovaVendaPage() {
     userId:    user.id,
   }
 
-  return (
-    <div style={{ padding: '24px 32px', maxWidth: '100%' }}>
-      <div style={{ marginBottom: 24 }}>
-        <a
-          href="/vendas"
-          style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          ← Voltar para Vendas
-        </a>
-        <h1 style={{ fontSize: 22, fontWeight: 700, marginTop: 8, color: 'var(--text-primary)' }}>
-          Nova Venda
-        </h1>
-      </div>
+  // Loja do caixa: operadora usa a sua; admin usa Campinas (ou a 1ª).
+  const defaultStore =
+    stores.find(s => /campin/i.test(s.name) || /campin/i.test(s.city))?.id
+    ?? stores[0]?.id ?? ''
+  const caixaStoreId = profile.store_id ?? defaultStore
+  const date = today()
+  const initialCaixa = await buscarCaixaDoDia(caixaStoreId, date)
 
-      <NovaVendaForm
-        stores={stores}
-        products={products}
-        customers={customers}
-        settings={settings}
-        userProfile={userProfile}
-        users={users}
-      />
-    </div>
+  return (
+    <PdvClient
+      stores={stores}
+      products={products}
+      customers={customers}
+      settings={settings}
+      userProfile={userProfile}
+      users={users}
+      initialCaixa={initialCaixa}
+      caixaStoreId={caixaStoreId}
+      date={date}
+    />
   )
 }

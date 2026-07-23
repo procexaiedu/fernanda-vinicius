@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, useTransition } from 'react'
+import { useState, useCallback, useMemo, useTransition, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Pencil, Power, Plus, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Gem, Printer } from 'lucide-react'
 import Button from '@/components/ui/Button'
@@ -63,13 +63,14 @@ interface Props {
   categories: string[]
   materials: string[]
   categoryLabelMap: Record<string, 'A' | 'B'>
+  defaultMarkupPct: number
   filters: Filters
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export default function ProdutosClient({
-  products, total, page, perPage, isAdmin, stores, suppliers, categories, materials, categoryLabelMap, filters,
+  products, total, page, perPage, isAdmin, stores, suppliers, categories, materials, categoryLabelMap, defaultMarkupPct, filters,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -124,11 +125,27 @@ export default function ProdutosClient({
   const from = Math.min((page - 1) * perPage + 1, total)
   const to = Math.min(page * perPage, total)
 
+  // Persistência dos filtros da URL (localStorage). Ao voltar ao módulo sem
+  // nenhum filtro na URL, restaura o último usado.
+  const FILTERS_KEY = 'fv-filtros-produtos'
+  const FILTER_PARAMS = ['q', 'store_id', 'category', 'material', 'supplier_id', 'active']
+
+  useEffect(() => {
+    const hasFilters = [...FILTER_PARAMS, 'page'].some(k => searchParams.has(k))
+    if (hasFilters) return
+    try {
+      const saved = localStorage.getItem(FILTERS_KEY)
+      if (saved) router.replace(`?${saved}`)
+    } catch { /* ignora */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function pushFilter(key: string, value: string) {
     const p = new URLSearchParams(searchParams.toString())
     if (value) p.set(key, value)
     else p.delete(key)
     p.delete('page')
+    try { localStorage.setItem(FILTERS_KEY, p.toString()) } catch { /* ignora */ }
     startTransition(() => router.push(`?${p.toString()}`))
   }
 
@@ -429,6 +446,7 @@ export default function ProdutosClient({
           stores={stores}
           categories={categories}
           materials={materials}
+          defaultMarkupPct={defaultMarkupPct}
           onClose={() => setFormOpen(false)}
         />
       )}

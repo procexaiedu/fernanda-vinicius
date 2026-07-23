@@ -1,5 +1,7 @@
 'use client'
 
+import { usePersistedState } from '@/hooks/usePersistedState'
+
 import { useState, useMemo } from 'react'
 import { Plus, Pencil, Trash2, Eye, Search, Users, Cake, Clock, ChevronUp, ChevronDown } from 'lucide-react'
 import Button from '@/components/ui/Button'
@@ -77,9 +79,9 @@ export default function ClientesClient({
 }: Props) {
   const [customers, setCustomers]         = useState(initial)
   const [search, setSearch]               = useState('')
-  const [filter, setFilter]               = useState<FilterType>('todos')
-  const [sortKey, setSortKey]             = useState<SortKey>('last_sale_date')
-  const [sortDir, setSortDir]             = useState<SortDir>('desc')
+  const [filter, setFilter]               = usePersistedState<FilterType>('fv-filtros-clientes-filter', 'todos')
+  const [sortKey, setSortKey]             = usePersistedState<SortKey>('fv-filtros-clientes-sortkey', 'last_sale_date')
+  const [sortDir, setSortDir]             = usePersistedState<SortDir>('fv-filtros-clientes-sortdir', 'desc')
   const [formOpen, setFormOpen]           = useState(false)
   const [editing, setEditing]             = useState<CustomerWithStats | null>(null)
   const [detalhe, setDetalhe]             = useState<CustomerWithStats | null>(null)

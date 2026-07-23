@@ -24,6 +24,7 @@ export interface SalePaymentRow {
   method: 'cash' | 'pix' | 'debit' | 'credit'
   amount: number
   installments: number
+  cardBrand?: string | null   // bandeira (crédito/débito), opcional
 }
 
 export interface ExchangeItemSelected {
@@ -124,14 +125,19 @@ async function verifyUser(): Promise<{ userId: string | null; role: string | nul
   }
 }
 
+const BRAND_LABEL: Record<string, string> = {
+  visa: 'Visa', mastercard: 'Master', elo: 'Elo', amex: 'Amex', hipercard: 'Hipercard',
+}
+
 function buildPaymentSummary(payments: SalePaymentRow[], hasExchange: boolean, exchangeCredit: number): string {
   const labels: string[] = []
   for (const p of payments) {
     const methodLabel = { cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito' }[p.method] ?? p.method
+    const brand = p.cardBrand ? ` ${BRAND_LABEL[p.cardBrand] ?? p.cardBrand}` : ''
     if (p.method === 'credit' && p.installments > 1) {
-      labels.push(`${methodLabel} ${p.installments}x`)
+      labels.push(`${methodLabel}${brand} ${p.installments}x`)
     } else {
-      labels.push(methodLabel)
+      labels.push(`${methodLabel}${brand}`)
     }
   }
   if (hasExchange) labels.push(`Troca (R$ ${exchangeCredit.toFixed(2).replace('.', ',')})`)
@@ -166,8 +172,12 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
   const totalCost  = data.items.reduce((s, i) => s + i.unitCost  * i.quantity, 0)
 
   const discountPct = (data.hasPix ? pixPct : 0) + (data.hasBirthday ? birthdayPct : 0)
-  const discountAmt = parseFloat((subtotal * discountPct / 100 + data.manualDiscount).toFixed(2))
-  const total       = parseFloat((subtotal - discountAmt).toFixed(2))
+  // Espelha o front: quando há desconto, o total é arredondado ao inteiro mais próximo
+  // e o desconto é reconciliado (subtotal − total). Grava redondo, sem centavos quebrados.
+  const rawDiscount = subtotal * discountPct / 100 + data.manualDiscount
+  const rawTotal    = Math.max(0, subtotal - rawDiscount)
+  const total       = rawDiscount > 0 ? Math.round(rawTotal) : parseFloat(rawTotal.toFixed(2))
+  const discountAmt = parseFloat((subtotal - total).toFixed(2))
 
   const discountTypeParts: string[] = []
   if (data.hasPix)          discountTypeParts.push('pix')
@@ -195,6 +205,7 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
       discount_type:   discountType,
       discount_pct:    discountPct,
       discount_amount: discountAmt,
+      manual_discount: data.manualDiscount,
       total,
       total_cost:      totalCost,
       payment_summary: paymentSummary,
@@ -220,7 +231,8 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
   if (itemsErr) return { success: false, error: `Erro ao criar itens: ${itemsErr.message}` }
 
   for (const item of data.items) {
-    const { data: prod } = await admin.from('products').select('quantity_in_stock').eq('id', item.productId).single()
+    const { data: prod } = await admin.from('products').select('quantity_in_stock, is_service').eq('id', item.productId).single()
+    if (prod?.is_service) continue   // serviço (conserto) não controla estoque
     const newQty = (prod?.quantity_in_stock ?? 0) - item.quantity
     await admin.from('products').update({ quantity_in_stock: newQty }).eq('id', item.productId)
   }
@@ -232,6 +244,7 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
       payment_method: payment.method,
       amount:         payment.amount,
       installments:   payment.installments,
+      card_brand:     (payment.method === 'credit' || payment.method === 'debit') ? (payment.cardBrand ?? null) : null,
     })
     if (ppErr) return { success: false, error: `Erro ao criar pagamento: ${ppErr.message}` }
 
@@ -502,7 +515,8 @@ export async function deletarVenda(saleId: string): Promise<ActionResult> {
 
   if (items) {
     for (const item of items) {
-      const { data: prod } = await admin.from('products').select('quantity_in_stock').eq('id', item.product_id).single()
+      const { data: prod } = await admin.from('products').select('quantity_in_stock, is_service').eq('id', item.product_id).single()
+      if (prod?.is_service) continue   // serviço (conserto) não controla estoque
       await admin.from('products')
         .update({ quantity_in_stock: (prod?.quantity_in_stock ?? 0) + item.quantity })
         .eq('id', item.product_id)
@@ -546,5 +560,281 @@ export async function deletarVenda(saleId: string): Promise<ActionResult> {
   revalidatePath('/financeiro')
   revalidatePath('/clientes')
   return { success: true }
+}
+
+// ─── Action: carregar venda para edição ───────────────────────────────────────
+
+export interface EditSaleData {
+  id: string
+  storeId: string
+  saleDate: string   // YYYY-MM-DD
+  customer: { id: string; name: string; phone: string; cpf: string | null; birthday: string | null } | null
+  sellerId: string | null
+  hasPix: boolean
+  hasBirthday: boolean
+  manualDiscount: number
+  notes: string
+  rows: Array<{
+    productId: string
+    productName: string
+    quantity: number
+    unitPrice: number
+    unitCost: number
+    stockAvailable: number
+    isService: boolean
+  }>
+  payments: Array<{ method: 'cash' | 'pix' | 'debit' | 'credit'; amount: number; installments: number; cardBrand: string | null }>
+}
+
+export async function buscarVendaParaEdicao(saleId: string): Promise<{ data: EditSaleData | null; error?: string }> {
+  const admin = createAdminClient()
+
+  const { data: sale, error: saleErr } = await admin
+    .from('sales')
+    .select('id, store_id, sale_date, customer_id, seller_id, discount_type, manual_discount, notes, status')
+    .eq('id', saleId)
+    .single()
+  if (saleErr || !sale) return { data: null, error: saleErr?.message ?? 'Venda não encontrada.' }
+
+  const s = sale as any
+
+  const { data: rawItems } = await admin
+    .from('sale_items')
+    .select('product_id, quantity, unit_price, unit_cost, products(name, is_service, quantity_in_stock)')
+    .eq('sale_id', saleId)
+
+  const { data: rawPayments } = await admin
+    .from('sale_payments')
+    .select('payment_method, amount, installments, card_brand')
+    .eq('sale_id', saleId)
+
+  let customer: EditSaleData['customer'] = null
+  if (s.customer_id) {
+    const { data: c } = await admin
+      .from('customers').select('id, name, phone, cpf, birthday').eq('id', s.customer_id).single()
+    if (c) customer = { id: c.id, name: c.name, phone: c.phone, cpf: c.cpf, birthday: c.birthday }
+  }
+
+  const discountType: string = s.discount_type ?? ''
+
+  return {
+    data: {
+      id:            s.id,
+      storeId:       s.store_id,
+      saleDate:      String(s.sale_date).slice(0, 10),
+      customer,
+      sellerId:      s.seller_id ?? null,
+      hasPix:        discountType.includes('pix'),
+      hasBirthday:   discountType.includes('birthday'),
+      manualDiscount: Number(s.manual_discount) || 0,
+      notes:         s.notes ?? '',
+      rows: (rawItems ?? []).map((i: any) => ({
+        productId:      i.product_id,
+        productName:    i.products?.name ?? '—',
+        quantity:       i.quantity,
+        unitPrice:      Number(i.unit_price),
+        unitCost:       Number(i.unit_cost),
+        stockAvailable: i.products?.quantity_in_stock ?? 0,
+        isService:      !!i.products?.is_service,
+      })),
+      payments: (rawPayments ?? []).map((p: any) => ({
+        method:       p.payment_method,
+        amount:       Number(p.amount),
+        installments: p.installments ?? 1,
+        cardBrand:    p.card_brand ?? null,
+      })),
+    },
+  }
+}
+
+// ─── Action: editar venda ──────────────────────────────────────────────────────
+// Reverte os efeitos da venda antiga (estoque, troca, pagamentos, transações) e
+// reaplica com os novos dados, mantendo o MESMO id. Reaproveita a lógica já
+// validada de salvarVenda/deletarVenda.
+
+export async function editarVenda(saleId: string, data: VendaFormData): Promise<ActionResult> {
+  const { userId, role, storeId: userStoreId, error: authErr } = await verifyUser()
+  if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
+
+  const admin = createAdminClient()
+
+  const finalStoreId = role === 'operator' && userStoreId ? userStoreId : data.storeId
+  if (!finalStoreId) return { success: false, error: 'Loja não definida.' }
+  if (!data.items.length) return { success: false, error: 'Adicione ao menos um produto.' }
+
+  const { data: existing, error: exErr } = await admin.from('sales').select('id').eq('id', saleId).single()
+  if (exErr || !existing) return { success: false, error: 'Venda não encontrada.' }
+
+  // ── 1. Reverter efeitos antigos ───────────────────────────────────────────
+  const { data: oldItems } = await admin.from('sale_items').select('product_id, quantity').eq('sale_id', saleId)
+  if (oldItems) {
+    for (const it of oldItems) {
+      const { data: prod } = await admin.from('products').select('quantity_in_stock, is_service').eq('id', it.product_id).single()
+      if (prod?.is_service) continue
+      await admin.from('products').update({ quantity_in_stock: (prod?.quantity_in_stock ?? 0) + it.quantity }).eq('id', it.product_id)
+    }
+  }
+
+  const { data: oldExchanges } = await admin.from('exchanges').select('id').eq('sale_id', saleId)
+  if (oldExchanges) {
+    for (const exch of oldExchanges) {
+      const { data: returned } = await admin.from('exchange_items').select('product_id, quantity').eq('exchange_id', exch.id).eq('direction', 'returned')
+      if (returned) {
+        for (const r of returned) {
+          const { data: prod } = await admin.from('products').select('quantity_in_stock, is_service').eq('id', r.product_id).single()
+          if (prod?.is_service) continue
+          await admin.from('products').update({ quantity_in_stock: (prod?.quantity_in_stock ?? 0) - r.quantity }).eq('id', r.product_id)
+        }
+      }
+      await admin.from('exchange_items').delete().eq('exchange_id', exch.id)
+      await admin.from('exchanges').delete().eq('id', exch.id)
+    }
+  }
+
+  await admin.from('transactions').delete().eq('reference_id', saleId).eq('reference_type', 'sale')
+  await admin.from('sale_payments').delete().eq('sale_id', saleId)
+  await admin.from('sale_items').delete().eq('sale_id', saleId)
+
+  // ── 2. Recalcular totais (igual salvarVenda) ──────────────────────────────
+  const { data: settingsRows } = await admin.from('settings').select('key, value').in('key', ['pix_discount_pct', 'birthday_discount_pct'])
+  const settingsMap = new Map((settingsRows ?? []).map(s => [s.key, Number(s.value)]))
+  const pixPct      = settingsMap.get('pix_discount_pct') ?? 5
+  const birthdayPct = settingsMap.get('birthday_discount_pct') ?? 10
+
+  const subtotal    = data.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+  const totalCost   = data.items.reduce((s, i) => s + i.unitCost * i.quantity, 0)
+  const discountPct = (data.hasPix ? pixPct : 0) + (data.hasBirthday ? birthdayPct : 0)
+  const rawDiscount = subtotal * discountPct / 100 + data.manualDiscount
+  const rawTotal    = Math.max(0, subtotal - rawDiscount)
+  const total       = rawDiscount > 0 ? Math.round(rawTotal) : parseFloat(rawTotal.toFixed(2))
+  const discountAmt = parseFloat((subtotal - total).toFixed(2))
+
+  const discountTypeParts: string[] = []
+  if (data.hasPix)             discountTypeParts.push('pix')
+  if (data.hasBirthday)        discountTypeParts.push('birthday')
+  if (data.manualDiscount > 0) discountTypeParts.push('manual')
+  const discountType = discountTypeParts.join(',') || null
+
+  const exchangeCredit = data.exchangeItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+  const hasExchange    = data.exchangeItems.length > 0
+  const paymentSummary = buildPaymentSummary(data.payments, hasExchange, exchangeCredit)
+
+  // ── 3. Atualizar a venda (mesmo id) ───────────────────────────────────────
+  const { error: updErr } = await admin.from('sales').update({
+    store_id:        finalStoreId,
+    customer_id:     data.customerId ?? null,
+    seller_id:       data.sellerId ?? userId,
+    sale_date:       data.saleDate,
+    subtotal,
+    discount_type:   discountType,
+    discount_pct:    discountPct,
+    discount_amount: discountAmt,
+    manual_discount: data.manualDiscount,
+    total,
+    total_cost:      totalCost,
+    payment_summary: paymentSummary,
+    status:          'completed',
+    notes:           data.notes || null,
+    updated_at:      new Date().toISOString(),
+  }).eq('id', saleId)
+  if (updErr) return { success: false, error: `Erro ao atualizar venda: ${updErr.message}` }
+
+  // ── 4. Reinserir itens + baixar estoque (skip serviço) ────────────────────
+  const saleItems = data.items.map(i => ({
+    sale_id:    saleId,
+    product_id: i.productId,
+    quantity:   i.quantity,
+    unit_price: i.unitPrice,
+    unit_cost:  i.unitCost,
+    subtotal:   parseFloat((i.unitPrice * i.quantity).toFixed(2)),
+  }))
+  const { error: itemsErr } = await admin.from('sale_items').insert(saleItems)
+  if (itemsErr) return { success: false, error: `Erro ao criar itens: ${itemsErr.message}` }
+
+  for (const item of data.items) {
+    const { data: prod } = await admin.from('products').select('quantity_in_stock, is_service').eq('id', item.productId).single()
+    if (prod?.is_service) continue
+    await admin.from('products').update({ quantity_in_stock: (prod?.quantity_in_stock ?? 0) - item.quantity }).eq('id', item.productId)
+  }
+
+  // ── 5. Pagamentos + transações ────────────────────────────────────────────
+  for (const payment of data.payments) {
+    const { error: ppErr } = await admin.from('sale_payments').insert({
+      sale_id:        saleId,
+      payment_method: payment.method,
+      amount:         payment.amount,
+      installments:   payment.installments,
+      card_brand:     (payment.method === 'credit' || payment.method === 'debit') ? (payment.cardBrand ?? null) : null,
+    })
+    if (ppErr) return { success: false, error: `Erro ao criar pagamento: ${ppErr.message}` }
+
+    const methodLabel = { cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito' }[payment.method] ?? payment.method
+    const desc = payment.installments > 1 ? `Venda — ${methodLabel} ${payment.installments}x` : 'Venda'
+    const { error: txErr } = await admin.from('transactions').insert({
+      store_id:         finalStoreId,
+      type:             'income',
+      amount:           payment.amount,
+      category:         'venda',
+      description:      desc,
+      reference_type:   'sale',
+      reference_id:     saleId,
+      user_id:          userId,
+      payment_method:   payment.method,
+      transaction_date: data.saleDate,
+      status:           'completed',
+      paid_at:          new Date().toISOString(),
+    })
+    if (txErr) return { success: false, error: `Erro ao criar transação: ${txErr.message}` }
+  }
+
+  // ── 6. Recriar troca, se houver ───────────────────────────────────────────
+  if (hasExchange) {
+    const priceDifference = parseFloat((total - exchangeCredit).toFixed(2))
+    const differenceMethod = data.payments[0]?.method ?? null
+
+    const { data: exchange, error: exchErr } = await admin
+      .from('exchanges')
+      .insert({
+        sale_id:          saleId,
+        original_sale_id: data.exchangeItems[0]?.originalSaleId ?? null,
+        store_id:         finalStoreId,
+        customer_id:      data.customerId,
+        user_id:          userId,
+        exchange_date:    data.saleDate,
+        reason:           'Troca de produto',
+        price_difference: priceDifference,
+        payment_method:   priceDifference > 0 ? differenceMethod : null,
+      })
+      .select('id')
+      .single()
+
+    if (exchErr || !exchange) return { success: false, error: `Erro ao criar troca: ${exchErr?.message}` }
+
+    for (const ei of data.exchangeItems) {
+      const { data: prod } = await admin.from('products').select('quantity_in_stock, cost_price, is_service').eq('id', ei.productId).single()
+      await admin.from('exchange_items').insert({
+        exchange_id: exchange.id, direction: 'returned',
+        product_id: ei.productId, quantity: ei.quantity,
+        unit_price: ei.unitPrice, unit_cost: prod?.cost_price ?? 0,
+      })
+      if (!prod?.is_service) {
+        await admin.from('products').update({ quantity_in_stock: (prod?.quantity_in_stock ?? 0) + ei.quantity }).eq('id', ei.productId)
+      }
+    }
+    for (const item of data.items) {
+      await admin.from('exchange_items').insert({
+        exchange_id: exchange.id, direction: 'given',
+        product_id: item.productId, quantity: item.quantity,
+        unit_price: item.unitPrice, unit_cost: item.unitCost,
+      })
+    }
+  }
+
+  revalidatePath('/vendas')
+  revalidatePath('/produtos')
+  revalidatePath('/estoque')
+  revalidatePath('/financeiro')
+  revalidatePath('/clientes')
+  return { success: true, saleId }
 }
 

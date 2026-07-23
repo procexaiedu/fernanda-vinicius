@@ -1,9 +1,11 @@
-import { redirect } from 'next/navigation'
+import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import NovaVendaForm from './NovaVendaForm'
+import NovaVendaForm from '../../nova/NovaVendaForm'
+import { buscarVendaParaEdicao } from '../../actions'
 
-export default async function NovaVendaPage() {
+export default async function EditarVendaPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -14,7 +16,8 @@ export default async function NovaVendaPage() {
 
   const admin = createAdminClient()
 
-  const [storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
+  const [saleRes, storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
+    buscarVendaParaEdicao(id),
     admin.from('stores').select('id, name, city').eq('is_active', true).order('name'),
     admin.from('products')
       .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock, is_service')
@@ -34,6 +37,8 @@ export default async function NovaVendaPage() {
     admin.from('users').select('id, full_name, store_id').eq('is_active', true).order('full_name'),
   ])
 
+  if (!saleRes.data) notFound()
+
   const stores    = storesRes.data ?? []
   const products  = productsRes.data ?? []
   const customers = customersRes.data ?? []
@@ -41,9 +46,9 @@ export default async function NovaVendaPage() {
 
   const settingsMap = new Map((settingsRes.data ?? []).map(s => [s.key, Number(s.value)]))
   const settings = {
-    pixDiscountPct:        settingsMap.get('pix_discount_pct') ?? 5,
-    birthdayDiscountPct:   settingsMap.get('birthday_discount_pct') ?? 10,
-    installmentThreshold:  settingsMap.get('installment_threshold') ?? 3000,
+    pixDiscountPct:         settingsMap.get('pix_discount_pct') ?? 5,
+    birthdayDiscountPct:    settingsMap.get('birthday_discount_pct') ?? 10,
+    installmentThreshold:   settingsMap.get('installment_threshold') ?? 3000,
     maxInstallmentsDefault: settingsMap.get('max_installments_default') ?? 5,
     maxInstallmentsAbove:   settingsMap.get('max_installments_above_3k') ?? 6,
   }
@@ -66,7 +71,7 @@ export default async function NovaVendaPage() {
           ← Voltar para Vendas
         </a>
         <h1 style={{ fontSize: 22, fontWeight: 700, marginTop: 8, color: 'var(--text-primary)' }}>
-          Nova Venda
+          Editar Venda
         </h1>
       </div>
 
@@ -77,6 +82,7 @@ export default async function NovaVendaPage() {
         settings={settings}
         userProfile={userProfile}
         users={users}
+        editSale={saleRes.data}
       />
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { matchText } from '@/lib/normalize'
 import styles from './SearchableSelect.module.css'
 
 export interface SelectOption {
@@ -26,7 +27,7 @@ export default function SearchableSelect({ value, onChange, options, placeholder
 
   const selected = options.find(o => o.value === value)
   const filtered = searchable && query
-    ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
+    ? options.filter(o => matchText(o.label, query))
     : options
 
   useEffect(() => {
