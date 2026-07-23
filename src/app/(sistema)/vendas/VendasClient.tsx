@@ -124,8 +124,11 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     let list = sales.filter(s => {
-      if (dateFrom && s.sale_date < dateFrom) return false
-      if (dateTo   && s.sale_date > dateTo)   return false
+      // sale_date vem como "2026-07-23T00:00:00+00:00" e os filtros como "2026-07-23".
+      // Comparar as strings inteiras excluía a venda do próprio dia final — comparar só a data.
+      const saleDay = s.sale_date.slice(0, 10)
+      if (dateFrom && saleDay < dateFrom) return false
+      if (dateTo   && saleDay > dateTo)   return false
       if (filterStore  && s.store_id  !== filterStore)  return false
       if (filterSeller && s.seller_id !== filterSeller) return false
       if (filterStatus === 'exchange'  && !s.has_exchange)       return false

@@ -342,46 +342,57 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
 export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaDetail | null; error?: string }> {
   const admin = createAdminClient()
 
-  const { data: sale, error: saleErr } = await admin
-    .from('sales')
-    .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, seller_id, customers(name), stores(name)')
-    .eq('id', saleId)
-    .single()
+  // Lote 1 — tudo que só depende do saleId vai em PARALELO (antes eram 6 idas
+  // sequenciais ao banco, o que fazia o modal levar ~10s para abrir).
+  const [saleRes, itemsRes, paymentsRes, exchangesRes] = await Promise.all([
+    admin
+      .from('sales')
+      .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, seller_id, customers(name), stores(name)')
+      .eq('id', saleId)
+      .single(),
+    admin
+      .from('sale_items')
+      .select('id, quantity, unit_price, unit_cost, subtotal, products(name, code)')
+      .eq('sale_id', saleId),
+    admin
+      .from('sale_payments')
+      .select('id, payment_method, amount, installments, card_brand')
+      .eq('sale_id', saleId),
+    admin
+      .from('exchanges')
+      .select('id, price_difference')
+      .eq('sale_id', saleId)
+      .limit(1),
+  ])
 
+  const sale = saleRes.data
+  const saleErr = saleRes.error
   if (saleErr || !sale) return { data: null, error: saleErr?.message }
 
-  let sellerName: string | null = null
+  const rawItems = itemsRes.data
+  const payments = paymentsRes.data
+  const exchanges = exchangesRes.data
+
+  // Lote 2 — vendedora e itens da troca também em paralelo
   const sellerIdVal = (sale as any).seller_id
-  if (sellerIdVal) {
-    const { data: sellerUser } = await admin.from('users').select('full_name').eq('id', sellerIdVal).single()
-    sellerName = sellerUser?.full_name ?? null
-  }
+  const exchId = exchanges && exchanges.length > 0 ? exchanges[0].id : null
 
-  const { data: rawItems } = await admin
-    .from('sale_items')
-    .select('id, quantity, unit_price, unit_cost, subtotal, products(name, code)')
-    .eq('sale_id', saleId)
+  const [sellerRes, exchItemsRes] = await Promise.all([
+    sellerIdVal
+      ? admin.from('users').select('full_name').eq('id', sellerIdVal).single()
+      : Promise.resolve({ data: null }),
+    exchId
+      ? admin.from('exchange_items').select('direction, quantity, unit_price, products(name, code)').eq('exchange_id', exchId)
+      : Promise.resolve({ data: null }),
+  ])
 
-  const { data: payments } = await admin
-    .from('sale_payments')
-    .select('id, payment_method, amount, installments')
-    .eq('sale_id', saleId)
-
-  // Buscar exchange vinculado à venda (via sale_id)
-  const { data: exchanges } = await admin
-    .from('exchanges')
-    .select('id, price_difference')
-    .eq('sale_id', saleId)
-    .limit(1)
+  const sellerName: string | null = (sellerRes as any).data?.full_name ?? null
 
   let exchangeDetail: VendaDetail['exchange'] = null
 
   if (exchanges && exchanges.length > 0) {
     const exch = exchanges[0]
-    const { data: exchItems } = await admin
-      .from('exchange_items')
-      .select('direction, quantity, unit_price, products(name, code)')
-      .eq('exchange_id', exch.id)
+    const exchItems = (exchItemsRes as any).data   // já veio no lote 2
 
     const returned = (exchItems ?? []).filter((e: any) => e.direction === 'returned')
     const given    = (exchItems ?? []).filter((e: any) => e.direction === 'given')
