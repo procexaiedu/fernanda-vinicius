@@ -108,13 +108,20 @@
 .finalize:disabled { opacity: .5; cursor: not-allowed; }
 .hint { font-size: 11px; color: var(--text-muted); text-align: center; padding: 0 20px 18px; line-height: 1.5; }
 
-.done { padding: 24px 22px; text-align: center; }
-.doneIc { width: 52px; height: 52px; border-radius: 50%; background: var(--success-subtle); color: var(--success); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
-.done h3 { font-size: 16px; margin-bottom: 6px; }
-.done p { font-size: 13px; color: var(--text-muted); }
-.savedBox { margin-top: 14px; text-align: left; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 9px; padding: 12px 14px; font-size: 12.5px; color: var(--text-muted); }
-.savedBox div { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
-.savedBox b { color: var(--text-primary); font-weight: 600; }
+/* Aviso do fechamento recém-feito ("este foi o seu período") */
+.closedBanner {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
+  background: var(--success-subtle); border: 1px solid var(--success);
+  color: var(--success); border-radius: 12px; padding: 13px 16px;
+}
+.closedBannerText { display: flex; flex-direction: column; gap: 2px; flex: 1; font-size: 13px; }
+.closedBannerText strong { font-size: 13.5px; }
+.closedBannerText span { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.closedBannerX {
+  background: none; border: none; cursor: pointer; color: var(--text-muted);
+  display: flex; padding: 4px; border-radius: 6px;
+}
+.closedBannerX:hover { color: var(--text-primary); background: var(--bg-elevated); }
 
 @media (max-width: 980px) {
   .strip { grid-template-columns: 1fr 1fr; }

@@ -144,36 +144,10 @@ function buildPaymentSummary(payments: SalePaymentRow[], hasExchange: boolean, e
   return labels.join(' + ')
 }
 
-// Se o caixa de (loja, dia) já foi fechado, recalcula os totais por método do
-// fechamento após uma edição/exclusão de venda — mantém o consolidado correto.
-// Preserva a conferência (dinheiro contado/diferença) informada no fechamento.
-async function recomputarFechamentoSeExistir(admin: ReturnType<typeof createAdminClient>, storeId: string, date: string) {
-  const day = String(date).slice(0, 10)
-  const { data: closing } = await admin
-    .from('cash_closings').select('id').eq('store_id', storeId).eq('closing_date', day).maybeSingle()
-  if (!closing) return
-
-  const { data: sales } = await admin
-    .from('sales').select('id')
-    .eq('store_id', storeId).eq('status', 'completed')
-    .gte('sale_date', `${day}T00:00:00`).lte('sale_date', `${day}T23:59:59`)
-  const saleIds = (sales ?? []).map((s: any) => s.id)
-
-  const totals = { cash: 0, debit: 0, credit: 0, pix: 0 }
-  if (saleIds.length) {
-    const { data: pays } = await admin.from('sale_payments').select('payment_method, amount').in('sale_id', saleIds)
-    for (const p of pays ?? []) {
-      const m = (p as any).payment_method as keyof typeof totals
-      if (m in totals) totals[m] += Number((p as any).amount) || 0
-    }
-  }
-  const totalSales = totals.cash + totals.debit + totals.credit + totals.pix
-
-  await admin.from('cash_closings').update({
-    total_credit: totals.credit, total_debit: totals.debit, total_pix: totals.pix, total_cash: totals.cash,
-    total_sales: totalSales, sales_count: saleIds.length,
-  }).eq('id', closing.id)
-}
+// NOTA: o fechamento de caixa é um SNAPSHOT de conferência de um período (a
+// vendedora fecha e a visão zera dali). Por isso registros de fechamento não são
+// reescritos quando uma venda é criada/editada/excluída depois — o snapshot vale
+// como "o que foi conferido naquele momento". A verdade contábil está nas vendas.
 
 // ─── Action: salvar venda ─────────────────────────────────────────────────────
 
@@ -354,9 +328,6 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
       })
     }
   }
-
-  // Se o caixa do dia já estava fechado, mantém o consolidado em dia.
-  await recomputarFechamentoSeExistir(admin, finalStoreId, data.saleDate)
 
   revalidatePath('/vendas')
   revalidatePath('/produtos')
@@ -543,9 +514,6 @@ export async function deletarVenda(saleId: string): Promise<ActionResult> {
 
   const admin = createAdminClient()
 
-  // Guardar loja/data antes de apagar (para recalcular o fechamento se o caixa estiver fechado)
-  const { data: saleInfo } = await admin.from('sales').select('store_id, sale_date').eq('id', saleId).single()
-
   // Reverter estoque dos itens vendidos
   const { data: items } = await admin
     .from('sale_items').select('product_id, quantity').eq('sale_id', saleId)
@@ -590,10 +558,6 @@ export async function deletarVenda(saleId: string): Promise<ActionResult> {
   const { error } = await admin.from('sales').delete().eq('id', saleId)
 
   if (error) return { success: false, error: error.message }
-
-  if (saleInfo) {
-    await recomputarFechamentoSeExistir(admin, (saleInfo as any).store_id, String((saleInfo as any).sale_date).slice(0, 10))
-  }
 
   revalidatePath('/vendas')
   revalidatePath('/produtos')
@@ -869,14 +833,6 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
         unit_price: item.unitPrice, unit_cost: item.unitCost,
       })
     }
-  }
-
-  // Caixa já fechado: recalcula o consolidado do(s) dia(s) afetado(s).
-  await recomputarFechamentoSeExistir(admin, finalStoreId, data.saleDate)
-  const oldDay = String((existing as any).sale_date).slice(0, 10)
-  const oldStore = (existing as any).store_id as string
-  if (oldDay !== String(data.saleDate).slice(0, 10) || oldStore !== finalStoreId) {
-    await recomputarFechamentoSeExistir(admin, oldStore, oldDay)
   }
 
   revalidatePath('/vendas')

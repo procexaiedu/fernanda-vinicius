@@ -6,27 +6,38 @@ import { createClient } from '@/lib/supabase/server'
 
 export interface CaixaLancamento {
   id: string
-  time: string              // HH:MM
+  time: string              // HH:MM (fuso de Brasília)
   customerName: string | null
   itemsCount: number
   paymentSummary: string | null
   total: number
 }
 
+/** Resumo de um fechamento já realizado (snapshot de conferência de uma janela). */
+export interface CaixaFechamento {
+  at: string                // ISO do momento do fechamento (corte)
+  atLabel: string           // HH:MM
+  totalSales: number
+  salesCount: number
+  countedCash: number | null
+  cashDifference: number | null
+  notes: string | null
+}
+
 export interface CaixaDoDia {
   date: string
   storeId: string
+  /** Totais da JANELA ATUAL (após o último fechamento). É isso que "zera" ao fechar. */
   totals: { cash: number; debit: number; credit: number; pix: number }
   totalSales: number
   salesCount: number
   lancamentos: CaixaLancamento[]
-  closed: boolean
-  closing: { counted_cash: number | null; cash_difference: number | null; total_sales: number; notes: string | null } | null
+  /** Último fechamento do dia, se houver — só informativo. */
+  lastClosing: CaixaFechamento | null
 }
 
-// Hora real do lançamento no fuso de Brasília. Usamos `created_at` (instante do
-// registro) porque `sale_date` guarda só a DATA de negócio (meia-noite) — por isso
-// a coluna Hora aparecia como 00:00.
+// Hora real no fuso de Brasília. Usamos `created_at` (instante do registro) porque
+// `sale_date` guarda só a DATA de negócio (meia-noite).
 function horaSP(iso: string | null | undefined): string {
   if (!iso) return '—'
   try {
@@ -36,30 +47,55 @@ function horaSP(iso: string | null | undefined): string {
   } catch { return '—' }
 }
 
-// Consolida o movimento do dia (loja + data): totais por método, lançamentos e
-// se o caixa já foi fechado.
+/**
+ * Movimento da JANELA atual (loja + dia, a partir do último fechamento).
+ * Não existe caixa "aberto/fechado": fechar apenas consolida e zera a visão dali.
+ */
 export async function buscarCaixaDoDia(storeId: string, date: string): Promise<CaixaDoDia> {
   const empty: CaixaDoDia = {
     date, storeId, totals: { cash: 0, debit: 0, credit: 0, pix: 0 },
-    totalSales: 0, salesCount: 0, lancamentos: [], closed: false, closing: null,
+    totalSales: 0, salesCount: 0, lancamentos: [], lastClosing: null,
   }
   if (!storeId) return empty
 
   const admin = createAdminClient()
 
-  const { data: sales } = await admin
+  // Último fechamento do dia = corte da janela atual
+  const { data: closings } = await admin
+    .from('cash_closings')
+    .select('created_at, total_sales, sales_count, counted_cash, cash_difference, notes')
+    .eq('store_id', storeId)
+    .eq('closing_date', date)
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  const last: any = (closings ?? [])[0]
+  const lastClosing: CaixaFechamento | null = last ? {
+    at:             last.created_at,
+    atLabel:        horaSP(last.created_at),
+    totalSales:     Number(last.total_sales) || 0,
+    salesCount:     last.sales_count ?? 0,
+    countedCash:    last.counted_cash != null ? Number(last.counted_cash) : null,
+    cashDifference: last.cash_difference != null ? Number(last.cash_difference) : null,
+    notes:          last.notes ?? null,
+  } : null
+
+  let salesQuery = admin
     .from('sales')
     .select('id, sale_date, created_at, total, payment_summary, customers(name)')
     .eq('store_id', storeId)
     .eq('status', 'completed')
     .gte('sale_date', `${date}T00:00:00`)
     .lte('sale_date', `${date}T23:59:59`)
-    .order('sale_date', { ascending: true })
+
+  // É isto que "zera" a visão: só conta o que veio depois do último fechamento.
+  if (lastClosing) salesQuery = salesQuery.gt('created_at', lastClosing.at)
+
+  const { data: sales } = await salesQuery.order('created_at', { ascending: true })
 
   const saleRows = sales ?? []
   const saleIds = saleRows.map((s: any) => s.id)
 
-  // Nº de itens por venda
   const itemsCountBySale = new Map<string, number>()
   if (saleIds.length) {
     const { data: items } = await admin.from('sale_items').select('sale_id').in('sale_id', saleIds)
@@ -69,7 +105,6 @@ export async function buscarCaixaDoDia(storeId: string, date: string): Promise<C
     }
   }
 
-  // Totais por método (a partir dos pagamentos — suporta venda mista)
   const totals = { cash: 0, debit: 0, credit: 0, pix: 0 }
   if (saleIds.length) {
     const { data: pays } = await admin.from('sale_payments').select('payment_method, amount').in('sale_id', saleIds)
@@ -90,27 +125,16 @@ export async function buscarCaixaDoDia(storeId: string, date: string): Promise<C
     total:          Number(s.total) || 0,
   }))
 
-  const { data: closing } = await admin
-    .from('cash_closings')
-    .select('counted_cash, cash_difference, total_sales, notes')
-    .eq('store_id', storeId)
-    .eq('closing_date', date)
-    .maybeSingle()
-
-  return {
-    date, storeId, totals, totalSales,
-    salesCount: saleRows.length, lancamentos,
-    closed: !!closing,
-    closing: closing
-      ? { counted_cash: closing.counted_cash, cash_difference: closing.cash_difference, total_sales: Number(closing.total_sales), notes: closing.notes }
-      : null,
-  }
+  return { date, storeId, totals, totalSales, salesCount: saleRows.length, lancamentos, lastClosing }
 }
 
 export interface FinalizarResult { success: boolean; error?: string }
 
-// Fecha o caixa do dia: grava (ou atualiza) o cash_closings com os totais por
-// método + conferência do dinheiro (contado x esperado).
+/**
+ * Fecha o caixa: grava um NOVO fechamento com os totais da janela atual + a
+ * conferência da gaveta. Depois disso a visão zera (a próxima consulta usa este
+ * fechamento como corte). Pode ser feito várias vezes no mesmo dia (turnos).
+ */
 export async function finalizarCaixa(storeId: string, date: string, countedCash: number, notes: string): Promise<FinalizarResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -118,15 +142,16 @@ export async function finalizarCaixa(storeId: string, date: string, countedCash:
   if (!storeId) return { success: false, error: 'Loja não definida.' }
 
   const caixa = await buscarCaixaDoDia(storeId, date)
-  if (caixa.salesCount === 0) return { success: false, error: 'Não há vendas para fechar neste dia.' }
+  if (caixa.salesCount === 0) return { success: false, error: 'Não há vendas novas para fechar.' }
 
   const admin = createAdminClient()
   const diff = parseFloat((countedCash - caixa.totals.cash).toFixed(2))
 
-  const { error } = await admin.from('cash_closings').upsert({
+  const { error } = await admin.from('cash_closings').insert({
     store_id:        storeId,
     user_id:         user.id,
     closing_date:    date,
+    period_start:    caixa.lastClosing?.at ?? null,
     total_credit:    caixa.totals.credit,
     total_debit:     caixa.totals.debit,
     total_pix:       caixa.totals.pix,
@@ -136,7 +161,7 @@ export async function finalizarCaixa(storeId: string, date: string, countedCash:
     counted_cash:    countedCash,
     cash_difference: diff,
     notes:           notes || null,
-  }, { onConflict: 'store_id,closing_date' })
+  })
 
   if (error) return { success: false, error: error.message }
   revalidatePath('/pdv')
