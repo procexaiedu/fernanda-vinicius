@@ -10,7 +10,7 @@ import {
 import Badge from '@/components/ui/Badge'
 import DatePicker from '@/components/ui/DatePicker'
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
-import type { SaleRow } from './page'
+import type { SaleRow, ClosingOption } from './page'
 import styles from './VendasClient.module.css'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -29,6 +29,15 @@ function todayStr() {
   const mm = String(t.getMonth() + 1).padStart(2, '0')
   const dd = String(t.getDate()).padStart(2, '0')
   return `${t.getFullYear()}-${mm}-${dd}`
+}
+
+/** Hora (HH:MM) no fuso de Brasília, a partir de um timestamp ISO. */
+function horaBR(iso: string) {
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit',
+    }).format(new Date(iso))
+  } catch { return '' }
 }
 
 // ─── FilterSelect ─────────────────────────────────────────────────────────────
@@ -102,10 +111,11 @@ interface Props {
   sales: SaleRow[]
   stores: Array<{ id: string; name: string }>
   sellers: Array<{ id: string; full_name: string }>
+  closings: ClosingOption[]
   userRole: string
 }
 
-export default function VendasClient({ sales: initial, stores, sellers, userRole }: Props) {
+export default function VendasClient({ sales: initial, stores, sellers, closings, userRole }: Props) {
   const today = todayStr()
 
   const [sales, setSales]             = useState(initial)
@@ -118,17 +128,33 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
   const [sortKey, setSortKey]         = usePersistedState<SortKey>('fv-filtros-vendas-sortkey', 'date')
   const [sortDir, setSortDir]         = usePersistedState<SortDir>('fv-filtros-vendas-sortdir', 'desc')
   const [detalheId, setDetalheId]     = useState<string | null>(null)
+  // Filtro por fechamento de caixa (transitório — não persiste entre acessos)
+  const [filterClosing, setFilterClosing] = useState('')
 
   useEffect(() => { setSales(initial) }, [initial])
+
+  const closing = closings.find(c => c.id === filterClosing) ?? null
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     let list = sales.filter(s => {
-      // sale_date vem como "2026-07-23T00:00:00+00:00" e os filtros como "2026-07-23".
-      // Comparar as strings inteiras excluía a venda do próprio dia final — comparar só a data.
-      const saleDay = s.sale_date.slice(0, 10)
-      if (dateFrom && saleDay < dateFrom) return false
-      if (dateTo   && saleDay > dateTo)   return false
+      if (closing) {
+        // Janela exata do fechamento: mesma loja, até o momento do fechamento e
+        // depois do fechamento anterior (ou, se for o 1º do dia, o dia todo).
+        if (s.store_id !== closing.store_id) return false
+        if (s.created_at > closing.created_at) return false
+        if (closing.period_start) {
+          if (s.created_at <= closing.period_start) return false
+        } else if (s.sale_date.slice(0, 10) !== closing.closing_date) {
+          return false
+        }
+      } else {
+        // sale_date vem como "2026-07-23T00:00:00+00:00" e os filtros como "2026-07-23".
+        // Comparar as strings inteiras excluía a venda do próprio dia final — comparar só a data.
+        const saleDay = s.sale_date.slice(0, 10)
+        if (dateFrom && saleDay < dateFrom) return false
+        if (dateTo   && saleDay > dateTo)   return false
+      }
       if (filterStore  && s.store_id  !== filterStore)  return false
       if (filterSeller && s.seller_id !== filterSeller) return false
       if (filterStatus === 'exchange'  && !s.has_exchange)       return false
@@ -147,7 +173,7 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
     })
 
     return list
-  }, [sales, search, dateFrom, dateTo, filterStore, filterSeller, filterStatus, sortKey, sortDir])
+  }, [sales, search, dateFrom, dateTo, filterStore, filterSeller, filterStatus, sortKey, sortDir, closing])
 
   // Stats refletem o período e filtros ativos
   const totalRevenue = filtered.reduce((s, v) => s + v.total, 0)
@@ -265,6 +291,17 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
               options={sellers.map(u => ({ value: u.id, label: u.full_name }))}
             />
           )}
+          {closings.length > 0 && (
+            <FilterSelect
+              value={filterClosing}
+              onChange={setFilterClosing}
+              placeholder="Fechamento de caixa"
+              options={closings.map(c => ({
+                value: c.id,
+                label: `${fmtDate(c.closing_date)} ${horaBR(c.created_at)} · ${c.store_name} · ${c.user_name} · ${fmt(c.total_sales)}`,
+              }))}
+            />
+          )}
           <FilterSelect
             value={filterStatus}
             onChange={setFilterStatus}
@@ -276,6 +313,38 @@ export default function VendasClient({ sales: initial, stores, sellers, userRole
           />
         </div>
       </div>
+
+      {/* Aviso do fechamento selecionado — a faixa de datas fica ignorada */}
+      {closing && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          background: 'var(--accent-subtle)', border: '1px solid var(--accent)',
+          borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 13,
+        }}>
+          <strong style={{ color: 'var(--accent)' }}>
+            Fechamento de {fmtDate(closing.closing_date)} às {horaBR(closing.created_at)}
+          </strong>
+          <span style={{ color: 'var(--text-muted)' }}>
+            {closing.store_name} · fechado por {closing.user_name} ·{' '}
+            {closing.sales_count} {closing.sales_count === 1 ? 'venda' : 'vendas'} ·{' '}
+            apurado {fmt(closing.total_sales)}
+            {closing.counted_cash != null && ` · dinheiro contado ${fmt(closing.counted_cash)}`}
+            {closing.cash_difference != null && closing.cash_difference !== 0 && (
+              ` · diferença ${closing.cash_difference > 0 ? '+' : ''}${fmt(closing.cash_difference)}`
+            )}
+          </span>
+          <button
+            onClick={() => setFilterClosing('')}
+            style={{
+              marginLeft: 'auto', background: 'none', border: '1px solid var(--border)',
+              color: 'var(--text-muted)', borderRadius: 8, padding: '5px 12px',
+              fontSize: 12, cursor: 'pointer',
+            }}
+          >
+            Limpar fechamento
+          </button>
+        </div>
+      )}
 
       {/* Tabela */}
       <div className={styles.tableWrapper}>

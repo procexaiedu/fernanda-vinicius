@@ -6,9 +6,25 @@ import MinhaMetaCard from './MinhaMetaCard'
 import { getUserProgress } from '@/lib/metas/server'
 import { currentMonthKey, monthLabel, type MetaProgress } from '@/lib/metas/compute'
 
+/** Fechamento de caixa — usado como filtro na tela de Vendas. */
+export interface ClosingOption {
+  id: string
+  closing_date: string
+  created_at: string
+  period_start: string | null
+  store_id: string
+  store_name: string
+  user_name: string
+  sales_count: number
+  total_sales: number
+  counted_cash: number | null
+  cash_difference: number | null
+}
+
 export interface SaleRow {
   id: string
   sale_date: string
+  created_at: string
   customer_name: string | null
   customer_id: string | null
   store_name: string
@@ -40,7 +56,7 @@ export default async function VendasPage() {
   let salesQuery = admin
     .from('sales')
     .select(`
-      id, sale_date, subtotal, discount_pct, discount_amount, total,
+      id, sale_date, created_at, subtotal, discount_pct, discount_amount, total,
       payment_summary, status, store_id, seller_id,
       customers(name, id),
       stores(name)
@@ -52,11 +68,22 @@ export default async function VendasPage() {
     salesQuery = salesQuery.eq('store_id', profile.store_id)
   }
 
-  // Lote 1 — vendas + listas de filtro (lojas/vendedoras não dependem das vendas)
-  const [salesRes, storesRes, usersRes] = await Promise.all([
+  // Fechamentos de caixa (para o filtro) — operadora vê os da própria loja
+  let closingsQuery = admin
+    .from('cash_closings')
+    .select('id, closing_date, created_at, period_start, store_id, user_id, sales_count, total_sales, counted_cash, cash_difference')
+    .order('created_at', { ascending: false })
+    .limit(60)
+  if (profile.role === 'operator' && profile.store_id) {
+    closingsQuery = closingsQuery.eq('store_id', profile.store_id)
+  }
+
+  // Lote 1 — vendas + listas de filtro (lojas/vendedoras/fechamentos não dependem das vendas)
+  const [salesRes, storesRes, usersRes, closingsRes] = await Promise.all([
     salesQuery,
     admin.from('stores').select('id, name').eq('is_active', true).order('name'),
     admin.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+    closingsQuery,
   ])
 
   const rawSales = salesRes.data
@@ -89,6 +116,7 @@ export default async function VendasPage() {
   const sales: SaleRow[] = (rawSales ?? []).map((s: any) => ({
     id:              s.id,
     sale_date:       s.sale_date,
+    created_at:      s.created_at,
     customer_name:   s.customers?.name ?? null,
     customer_id:     s.customers?.id ?? null,
     store_name:      s.stores?.name ?? '—',
@@ -108,6 +136,23 @@ export default async function VendasPage() {
   const stores = storesRes.data ?? []
   const sellers = usersRes.data ?? []
 
+  const storeNameById = new Map((stores as any[]).map(s => [s.id, s.name]))
+  const userNameById  = new Map((sellers as any[]).map(u => [u.id, u.full_name]))
+
+  const closings: ClosingOption[] = ((closingsRes.data ?? []) as any[]).map(c => ({
+    id:              c.id,
+    closing_date:    c.closing_date,
+    created_at:      c.created_at,
+    period_start:    c.period_start,
+    store_id:        c.store_id,
+    store_name:      storeNameById.get(c.store_id) ?? '—',
+    user_name:       userNameById.get(c.user_id) ?? '—',
+    sales_count:     c.sales_count ?? 0,
+    total_sales:     Number(c.total_sales) || 0,
+    counted_cash:    c.counted_cash != null ? Number(c.counted_cash) : null,
+    cash_difference: c.cash_difference != null ? Number(c.cash_difference) : null,
+  }))
+
   // Operadora vê a própria meta do mês
   const monthKey = currentMonthKey(new Date())
   let minhaMeta: MetaProgress | null = null
@@ -118,7 +163,7 @@ export default async function VendasPage() {
   return (
     <div style={{ padding: '24px 32px' }}>
       {minhaMeta && <MinhaMetaCard progress={minhaMeta} monthLabel={monthLabel(monthKey)} />}
-      <VendasClient sales={sales} stores={stores} sellers={sellers} userRole={profile.role} />
+      <VendasClient sales={sales} stores={stores} sellers={sellers} closings={closings} userRole={profile.role} />
     </div>
   )
 }
