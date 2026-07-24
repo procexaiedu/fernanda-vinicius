@@ -10,6 +10,7 @@ import {
 import Badge from '@/components/ui/Badge'
 import DatePicker from '@/components/ui/DatePicker'
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
+import { normalize } from '@/lib/normalize'
 import type { SaleRow, ClosingOption } from './page'
 import styles from './VendasClient.module.css'
 
@@ -42,25 +43,41 @@ function horaBR(iso: string) {
 
 // ─── FilterSelect ─────────────────────────────────────────────────────────────
 
-function FilterSelect({ value, onChange, placeholder, options }: {
+function FilterSelect({ value, onChange, placeholder, options, searchable, minWidth }: {
   value: string
   onChange: (v: string) => void
   placeholder: string
   options: Array<{ value: string; label: string }>
+  /** Mostra um campo de busca no topo (para listas longas, ex: fechamentos). */
+  searchable?: boolean
+  minWidth?: number
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const [query, setQuery] = useState('')
   const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
   function toggle() {
     if (open) { setOpen(false); setPos(null); return }
     if (!ref.current) return
     const r = ref.current.getBoundingClientRect()
-    setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 160) })
+    setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, minWidth ?? 160) })
     setOpen(true)
+    setQuery('')
+    if (searchable) setTimeout(() => searchRef.current?.focus(), 30)
   }
 
-  function select(v: string) { onChange(v); setOpen(false); setPos(null) }
+  function select(v: string) { onChange(v); setOpen(false); setPos(null); setQuery('') }
+
+  // Busca multi-termo em AND: "rosi 22" exige "rosi" E "22" no label (sem acento).
+  const terms = normalize(query).split(/\s+/).filter(Boolean)
+  const visible = terms.length === 0
+    ? options
+    : options.filter(o => {
+        const label = normalize(o.label)
+        return terms.every(t => label.includes(t))
+      })
 
   useEffect(() => {
     if (!open) return
@@ -81,21 +98,37 @@ function FilterSelect({ value, onChange, placeholder, options }: {
       </button>
       {pos && (
         <div className={styles.filterDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}>
-          <div
-            className={`${styles.filterOption} ${value === '' ? styles.filterOptionActive : ''}`}
-            onMouseDown={() => select('')}
-          >
-            {placeholder}
-          </div>
-          {options.map(o => (
-            <div
-              key={o.value}
-              className={`${styles.filterOption} ${value === o.value ? styles.filterOptionActive : ''}`}
-              onMouseDown={() => select(o.value)}
-            >
-              {o.label}
+          {searchable && (
+            <div className={styles.filterSearchWrap}>
+              <input
+                ref={searchRef}
+                className={styles.filterSearch}
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Buscar por data ou vendedora…"
+              />
             </div>
-          ))}
+          )}
+          <div className={styles.filterList}>
+            <div
+              className={`${styles.filterOption} ${value === '' ? styles.filterOptionActive : ''}`}
+              onMouseDown={() => select('')}
+            >
+              {placeholder}
+            </div>
+            {visible.map(o => (
+              <div
+                key={o.value}
+                className={`${styles.filterOption} ${value === o.value ? styles.filterOptionActive : ''}`}
+                onMouseDown={() => select(o.value)}
+              >
+                {o.label}
+              </div>
+            ))}
+            {visible.length === 0 && (
+              <div className={styles.filterEmpty}>Nada encontrado para “{query}”</div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -296,6 +329,8 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
               value={filterClosing}
               onChange={setFilterClosing}
               placeholder="Fechamento de caixa"
+              searchable
+              minWidth={340}
               options={closings.map(c => ({
                 value: c.id,
                 label: `${fmtDate(c.closing_date)} ${horaBR(c.created_at)} · ${c.store_name} · ${c.user_name} · ${fmt(c.total_sales)}`,
