@@ -213,6 +213,33 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
   // Termo vazio: primeiros do conjunto inicial (instantâneo). Digitando: servidor.
   const filtered = q === '' ? customers.slice(0, 8) : serverResults.slice(0, 8)
 
+  // Opção destacada para navegar com ↑/↓ e escolher com Enter
+  const [highlight, setHighlight] = useState(0)
+  const listRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { setHighlight(0) }, [value])
+
+  const hi = Math.min(highlight, Math.max(0, filtered.length - 1))
+  useEffect(() => {
+    if (!pos) return
+    listRef.current?.querySelector<HTMLElement>(`[data-opt="${hi}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [hi, pos])
+
+  function pick(c: CustomerOption) {
+    onChange(c, c.name)
+    close()
+    setHighlight(0)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (pos && filtered.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(h => Math.min(h + 1, filtered.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlight(h => Math.max(h - 1, 0)); return }
+      if (e.key === 'Enter')     { e.preventDefault(); pick(filtered[hi]); return }
+    }
+    if (e.key === 'Escape')      { e.preventDefault(); close(); return }
+    if (e.key === 'ArrowDown' && !pos) { e.preventDefault(); openAt(); setHighlight(0) }
+  }
+
   return (
     <div className={styles.comboWrap}>
       <div className={styles.customerInputWrap}>
@@ -224,14 +251,21 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
           onChange={e => { onChange(null, e.target.value); openAt() }}
           onFocus={openAt}
           onBlur={() => setTimeout(close, 150)}
+          onKeyDown={handleKeyDown}
           placeholder="Buscar por nome, CPF ou telefone..."
           autoComplete="off"
         />
       </div>
       {pos && (
-        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 320), zIndex: 9999 }}>
-          {filtered.map(c => (
-            <div key={c.id} className={styles.comboOption} onMouseDown={() => { onChange(c, c.name); close() }}>
+        <div ref={listRef} className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 320), zIndex: 9999 }}>
+          {filtered.map((c, idx) => (
+            <div
+              key={c.id}
+              data-opt={idx}
+              className={`${styles.comboOption} ${idx === hi ? styles.comboOptionActive : ''}`}
+              onMouseEnter={() => setHighlight(idx)}
+              onMouseDown={() => pick(c)}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontWeight: 600 }}>{c.name}</span>
                 {isBirthdayMonth(c.birthday) && <Cake size={12} style={{ color: '#C9A84C' }} />}
@@ -268,6 +302,40 @@ function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGrid
     matchText(p.name, value) || matchText(p.code, value)   // trecho, ignora acento
   ).slice(0, 10)
 
+  // Opção destacada para navegar com ↑/↓ e escolher com Enter
+  const [highlight, setHighlight] = useState(0)
+  const listRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { setHighlight(0) }, [value])
+
+  const hi = Math.min(highlight, Math.max(0, filtered.length - 1))
+  const isOpen = !!pos && filtered.length > 0
+
+  // Mantém a opção destacada visível ao rolar com o teclado
+  useEffect(() => {
+    if (!isOpen) return
+    listRef.current?.querySelector<HTMLElement>(`[data-opt="${hi}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [hi, isOpen])
+
+  function pick(p: ProductOption) {
+    onChange(p.name, p)
+    close()
+    setHighlight(0)
+    if (rowIndex != null) setTimeout(() => focusGridCell(rowIndex, 1), 0)  // vai para a quantidade
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (isOpen) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(h => Math.min(h + 1, filtered.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setHighlight(h => Math.max(h - 1, 0)); return }
+      if (e.key === 'Enter')     { e.preventDefault(); pick(filtered[hi]); return }
+      if (e.key === 'Escape')    { e.preventDefault(); close(); return }
+    } else if (e.key === 'ArrowDown' && filtered.length > 0) {
+      e.preventDefault(); openAt(); setHighlight(0); return    // ↓ abre o dropdown
+    }
+    // Sem dropdown aberto: navegação normal do grid (←/→/Enter)
+    if (onGridKeyDown && rowIndex != null && colIndex != null) onGridKeyDown(e, rowIndex, colIndex)
+  }
+
   return (
     <div className={styles.comboWrap}>
       <input
@@ -277,16 +345,22 @@ function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGrid
         onChange={e => { onChange(e.target.value, null); openAt() }}
         onFocus={openAt}
         onBlur={() => setTimeout(close, 150)}
-        onKeyDown={e => { if (onGridKeyDown && rowIndex != null && colIndex != null) onGridKeyDown(e, rowIndex, colIndex) }}
+        onKeyDown={handleKeyDown}
         data-row={rowIndex}
         data-col={colIndex}
         placeholder="Nome ou código..."
         autoComplete="off"
       />
-      {pos && filtered.length > 0 && (
-        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 320), zIndex: 9999 }}>
-          {filtered.map(p => (
-            <div key={p.id} className={styles.comboOption} onMouseDown={() => { onChange(p.name, p); close() }}>
+      {isOpen && (
+        <div ref={listRef} className={styles.comboDropdown} style={{ position: 'fixed', top: pos!.top, left: pos!.left, width: Math.max(pos!.width, 320), zIndex: 9999 }}>
+          {filtered.map((p, idx) => (
+            <div
+              key={p.id}
+              data-opt={idx}
+              className={`${styles.comboOption} ${idx === hi ? styles.comboOptionActive : ''}`}
+              onMouseEnter={() => setHighlight(idx)}
+              onMouseDown={() => pick(p)}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontWeight: 600 }}>{p.name}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
