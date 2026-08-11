@@ -64,10 +64,23 @@ Três compras com `purchase_payments` de `amount = 0`, `installment_number = nul
 | 01/07 | R$ 9.476,12 | R$ 1.338,91 | 10 de 13 |
 | 20/07 | R$ 7.270,40 | R$ 0,00 | 13 de 13 |
 | 05/08 | R$ 9.911,50 | R$ 0,00 | 12 de 12 |
+| **11/08** | **R$ 8.891,65** | **R$ 0,00** | **10 de 10** |
 
-O ledger espelha as parcelas → despesa lançada **R$ 67.479,97** contra **R$ 92.796,30** real.
+O ledger espelha as parcelas → despesa lançada **R$ 67.479,97** contra **R$ 92.796,30** real na data da auditoria.
 
-**Impacto:** o financeiro mostra −R$ 52.816,11 quando o real é **−R$ 78.132,44**. A dona vê um resultado **R$ 25,3 mil melhor que a realidade**. As parcelas zeradas estão `completed` — o sistema considera essas compras pagas.
+**Impacto:** o financeiro mostra −R$ 52.816,11 quando o real é **−R$ 78.132,44**. As parcelas zeradas estão `completed` — o sistema considera essas compras pagas.
+
+> **Atualização 11/08:** o bug **disparou de novo** no dia seguinte à auditoria, numa compra de R$ 8.891,65 com 157 peças. **O buraco passou de R$ 25.316,33 para R$ 34.207,98.** Não era problema histórico: era ativo e recorrente, a cada mala de SP lançada. Causa raiz e correção na §4.2.1.
+
+### 4.2.1 Causa raiz (investigada em 11/08)
+
+Não era parcelamento. O formulário agrupa os itens **por fornecedor**, e uma mala de SP tem ~10 fornecedores — a compra de 11/08 tinha 9. Cada cartão de pagamento nascia **sem linha**, e o `handleSubmit` exigia que existisse ao menos uma linha por fornecedor, **mas não que ela tivesse valor**. Como toda linha nova nascia com `totalAmount: 0` e `status: 'completed'`, para conseguir salvar era preciso criar ~10 linhas vazias — que entravam no banco como pagamentos de R$ 0,00 já quitados.
+
+**A validação que existia era satisfeita pelo próprio ato que gerava o dado ruim.**
+
+O aviso na tela (*"Diferença: R$ X — possível taxa da maquininha"*) apresentava a divergência como esperada, então R$ 8,8 mil a menos tinha a mesma aparência de R$ 2,00 a menos.
+
+Corrigido no commit `6a22323`: validação pura compartilhada entre formulário e as duas server actions (exige valor > 0 e situação declarada), linha nascendo já aberta, situação nascendo em branco em vez de "Pago", e botão Salvar com aparência de desabilitado enquanto faltar preenchimento. Os R$ 34.207,98 já gravados continuam pendentes de reconstituição com a Fernanda.
 
 > O prejuízo em si é esperado nesta fase (compra de estoque em junho/agosto, venda diluída nos meses). O problema não é o sinal, é o erro de R$ 25 mil.
 

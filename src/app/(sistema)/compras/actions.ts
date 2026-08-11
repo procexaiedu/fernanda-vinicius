@@ -95,9 +95,22 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   // ── 0. Pagamentos: valor e situação obrigatórios ───────────────────────────
   // Trava de servidor, além da do formulário. Sem ela, uma linha de pagamento
   // vazia entra como R$ 0,00 e a despesa da compra não chega ao ledger.
+  // Subtotal por fornecedor, recalculado a partir dos itens — mesma chave de
+  // agrupamento do formulário. Recalcular no servidor é de propósito: um
+  // subtotal vindo do cliente poderia ser manipulado ou chegar dessincronizado.
+  const subtotalPorGrupo = new Map<string, number>()
+  const nomePorGrupo     = new Map<string, string>()
+  for (const row of data.rows) {
+    if (!row.supplierName?.trim() || !row.costPrice) continue
+    const key = row.supplierId ?? row.supplierName.trim().toLowerCase()
+    subtotalPorGrupo.set(key, (subtotalPorGrupo.get(key) ?? 0) + row.costPrice * (row.quantity || 1))
+    if (!nomePorGrupo.has(key)) nomePorGrupo.set(key, row.supplierName.trim())
+  }
+
   const payErr = validatePaymentGroups(
     data.supplierPayments.map(g => ({
-      label: g.groupKey,
+      label: nomePorGrupo.get(g.groupKey) ?? g.groupKey,
+      subtotal: subtotalPorGrupo.get(g.groupKey),
       payments: g.payments.map(p => ({ amount: p.totalAmount, status: p.status })),
     }))
   )
@@ -662,10 +675,17 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
   const { userId, error: authErr } = await verifyAdmin()
   if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
 
-  // Mesma trava da criação: editar não pode zerar o valor nem apagar a situação
-  // de um pagamento — o ledger é regravado a partir daqui.
+  // Mesma trava da criação: editar não pode zerar o valor, apagar a situação,
+  // nem deixar a soma dos pagamentos diferente do custo dos itens — o ledger é
+  // regravado a partir daqui. Aqui a checagem é sobre o total da compra, e não
+  // por fornecedor: nesta tela os pagamentos são editados em lista única.
+  const custoItens = payload.items.reduce((s, it) => s + it.costPrice * (it.quantity || 1), 0)
   const payErr = validatePaymentGroups([
-    { label: 'pagamentos da compra', payments: payload.payments.map(p => ({ amount: p.amount, status: p.status })) },
+    {
+      label: 'pagamentos da compra',
+      subtotal: custoItens,
+      payments: payload.payments.map(p => ({ amount: p.amount, status: p.status })),
+    },
   ])
   if (payErr) return { success: false, error: payErr }
 

@@ -23,7 +23,23 @@ export interface PaymentGroupToValidate {
   /** Nome do fornecedor, usado na mensagem de erro. */
   label: string
   payments: PaymentToValidate[]
+  /**
+   * Custo total dos itens deste fornecedor. A soma dos pagamentos precisa
+   * fechar com ele. Omitir desliga essa checagem (usado onde o subtotal por
+   * fornecedor não está disponível).
+   */
+  subtotal?: number
 }
+
+/**
+ * Diferença tolerada, em centavos. Comparamos centavos INTEIROS de propósito:
+ * em ponto flutuante `100.01 - 100` dá 0.010000000000005, que estouraria uma
+ * tolerância escrita como 0.01. 1 centavo é ruído de arredondamento; 2 já é
+ * valor digitado errado.
+ */
+const TOLERANCIA_CENTAVOS = 1
+
+const emCentavos = (v: number) => Math.round(Number(v) * 100)
 
 /**
  * Retorna a primeira mensagem de erro encontrada, ou `null` se estiver tudo ok.
@@ -45,6 +61,21 @@ export function validatePaymentGroups(groups: PaymentGroupToValidate[]): string 
 
       if (p.status !== 'completed' && p.status !== 'pending') {
         return `"${group.label}": declare se o pagamento${n} está Pago ou Pendente.`
+      }
+    }
+
+    // A soma tem de fechar com o custo dos itens do fornecedor. Sem isto, um
+    // valor digitado errado (R$ 5,00 num subtotal de R$ 11,00) passa: os
+    // pagamentos têm valor e situação, mas a despesa lançada fica menor que a
+    // compra e o ledger volta a divergir — o mesmo problema, em escala menor.
+    if (typeof group.subtotal === 'number' && Number.isFinite(group.subtotal)) {
+      const somaCent = group.payments.reduce((s, p) => s + emCentavos(p.amount || 0), 0)
+      const diffCent = somaCent - emCentavos(group.subtotal)
+
+      if (Math.abs(diffCent) > TOLERANCIA_CENTAVOS) {
+        const falta = (Math.abs(diffCent) / 100).toFixed(2).replace('.', ',')
+        const total = group.subtotal.toFixed(2).replace('.', ',')
+        return `"${group.label}": os pagamentos somam R$ ${falta} ${diffCent > 0 ? 'a mais' : 'a menos'} que o subtotal de R$ ${total}.`
       }
     }
   }

@@ -561,6 +561,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
     return validatePaymentGroups(
       supplierGroups.map(g => ({
         label: g.supplierName,
+        subtotal: g.subtotal,
         payments: (supplierPayments[g.groupKey] ?? []).map(p => ({ amount: p.totalAmount, status: p.status })),
       }))
     )
@@ -843,6 +844,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
       const payErr = validatePaymentGroups(
         supplierGroups.map(g => ({
           label: g.supplierName,
+          subtotal: g.subtotal,
           payments: (supplierPayments[g.groupKey] ?? []).map(p => ({ amount: p.totalAmount, status: p.status })),
         }))
       )
@@ -1356,7 +1358,9 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                       {Math.abs(diff) > 0.01 && (
                         <span className={styles.diffWarning}>
                           <AlertTriangle size={13} />
-                          Diferença: {fmt(Math.abs(diff))} {diff > 0 ? '(a mais)' : '(a menos)'} — possível taxa da maquininha
+                          {diff < 0
+                            ? <>Falta {fmt(Math.abs(diff))} para fechar o subtotal de {fmt(group.subtotal)}</>
+                            : <>{fmt(diff)} a mais que o subtotal de {fmt(group.subtotal)}</>}
                         </span>
                       )}
                       {Math.abs(diff) <= 0.01 && gpTotal > 0 && (
