@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { generateCode } from '@/lib/productCode'
+import { validatePaymentGroups } from '@/lib/compras/validate-payments'
 
 export interface ActionResult {
   success: boolean
@@ -35,7 +36,13 @@ export interface PaymentRow {
   totalAmount: number
   installments: number        // 1 para cash/pix/transfer/check
   firstDueDate: string        // YYYY-MM-DD (cheque: data combinada "bom para")
-  status: 'completed' | 'pending'
+  /**
+   * `''` = ainda não declarado. A linha de pagamento nasce assim de propósito:
+   * antes, nascia como 'completed' e uma linha nunca preenchida entrava no banco
+   * como pagamento de R$ 0,00 já quitado — foi assim que R$ 34 mil de compra
+   * ficaram fora do ledger financeiro. Salvar exige declaração explícita.
+   */
+  status: 'completed' | 'pending' | ''
 }
 
 export interface SupplierPaymentGroup {
@@ -84,6 +91,17 @@ async function verifyAdmin(): Promise<{ userId: string | null; error: string | n
 export async function salvarCompra(data: CompraFormData): Promise<ActionResult> {
   const { userId, error: authErr } = await verifyAdmin()
   if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
+
+  // ── 0. Pagamentos: valor e situação obrigatórios ───────────────────────────
+  // Trava de servidor, além da do formulário. Sem ela, uma linha de pagamento
+  // vazia entra como R$ 0,00 e a despesa da compra não chega ao ledger.
+  const payErr = validatePaymentGroups(
+    data.supplierPayments.map(g => ({
+      label: g.groupKey,
+      payments: g.payments.map(p => ({ amount: p.totalAmount, status: p.status })),
+    }))
+  )
+  if (payErr) return { success: false, error: payErr }
 
   const admin = createAdminClient()
   const purchaseMonth = parseInt(data.purchaseDate.slice(5, 7))
@@ -279,8 +297,10 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
     const groupSupplierId = resolveGroupSupplier(group.groupKey)
     for (const payment of group.payments) {
       const isCredit  = payment.method === 'credit'
-      const isPending = payment.status === 'pending'
-      const status    = (isCredit || !isPending) ? 'completed' : 'pending'
+      // A situação declarada é respeitada. Antes, `(isCredit || !isPending)`
+      // forçava 'completed': crédito sempre virava pago, e qualquer status não
+      // 'pending' também — o que tornava a declaração da usuária irrelevante.
+      const status    = payment.status === 'pending' ? 'pending' : 'completed'
       const paidAt    = status === 'completed' ? new Date().toISOString() : null
       const dueDate   = payment.firstDueDate
 
@@ -641,6 +661,13 @@ export async function buscarCompraParaEdicao(
 export async function editarCompra(payload: EditCompraPayload): Promise<ActionResult> {
   const { userId, error: authErr } = await verifyAdmin()
   if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
+
+  // Mesma trava da criação: editar não pode zerar o valor nem apagar a situação
+  // de um pagamento — o ledger é regravado a partir daqui.
+  const payErr = validatePaymentGroups([
+    { label: 'pagamentos da compra', payments: payload.payments.map(p => ({ amount: p.amount, status: p.status })) },
+  ])
+  if (payErr) return { success: false, error: payErr }
 
   const admin = createAdminClient()
 

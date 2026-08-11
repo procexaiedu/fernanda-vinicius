@@ -8,6 +8,7 @@ import DatePicker from '@/components/ui/DatePicker'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { salvarCompra, getItensCompraParaEtiquetas } from '../actions'
 import type { GridRow, PaymentRow } from '../actions'
+import { validatePaymentGroups } from '@/lib/compras/validate-payments'
 import { generateCode as buildCode } from '@/lib/productCode'
 import QuickCreateCatalogModal, { type QuickCreateType } from './QuickCreateCatalogModal'
 import ConfirmDeleteCatalogModal from './ConfirmDeleteCatalogModal'
@@ -55,6 +56,23 @@ function blurOnWheel(e: React.WheelEvent<HTMLInputElement>) {
 
 function today() {
   return new Date().toISOString().slice(0, 10)
+}
+
+// ─── Linha de pagamento em branco ─────────────────────────────────────────────
+
+/**
+ * Situação nasce vazia (`''`), de propósito: antes nascia como 'completed' e
+ * uma linha nunca preenchida ia para o banco como R$ 0,00 já pago, deixando a
+ * despesa da compra fora do ledger. Agora salvar exige valor e situação.
+ */
+function emptyPayment(): PaymentRow {
+  return {
+    method: 'pix',
+    totalAmount: 0,
+    installments: 1,
+    firstDueDate: today(),
+    status: '',
+  }
 }
 
 // ─── Tipo local que permite quantity vazio durante digitação ──────────────────
@@ -533,6 +551,21 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
   // Pagamentos por fornecedor
   const [supplierPayments, setSupplierPayments] = useState<Record<string, PaymentRow[]>>({})
 
+  /**
+   * `null` = pagamentos completos. Se não, a mensagem do que falta — usada para
+   * deixar o botão Salvar com aparência de desabilitado e no title do botão.
+   * Consignação não tem pagamento no ato, então não entra na conta.
+   */
+  const paymentsPending = useMemo(() => {
+    if (isConsignment || supplierGroups.length === 0) return null
+    return validatePaymentGroups(
+      supplierGroups.map(g => ({
+        label: g.supplierName,
+        payments: (supplierPayments[g.groupKey] ?? []).map(p => ({ amount: p.totalAmount, status: p.status })),
+      }))
+    )
+  }, [isConsignment, supplierGroups, supplierPayments])
+
   // NF por fornecedor
   const [supplierNFs, setSupplierNFs] = useState<Record<string, { nfNumber: string; nfUrl: string; uploading: boolean }>>({})
   const nfInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
@@ -548,7 +581,10 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
         if (!activeKeys.has(key)) { delete next[key]; changed = true }
       }
       for (const key of activeKeys) {
-        if (!next[key]) { next[key] = []; changed = true }
+        // Já abre uma linha de pagamento para o fornecedor. Antes nascia vazio
+        // (`[]`) e era preciso clicar em "adicionar pagamento" em cada um dos
+        // ~10 fornecedores de uma mala só para o salvar liberar.
+        if (!next[key]) { next[key] = [emptyPayment()]; changed = true }
       }
       return changed ? next : prev
     })
@@ -753,13 +789,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
   function addPaymentForSupplier(groupKey: string) {
     setSupplierPayments(prev => ({
       ...prev,
-      [groupKey]: [...(prev[groupKey] ?? []), {
-        method: 'pix' as const,
-        totalAmount: 0,
-        installments: 1,
-        firstDueDate: today(),
-        status: 'completed' as const,
-      }]
+      [groupKey]: [...(prev[groupKey] ?? []), emptyPayment()]
     }))
   }
 
@@ -807,10 +837,19 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
 
     if (!isConsignment) {
       if (supplierGroups.length === 0) { setError('Adicione itens com custo antes de salvar.'); return }
+
+      // Valor e situação de todo pagamento são obrigatórios. Mesma função usada
+      // pela server action, para o formulário e o servidor não divergirem.
+      const payErr = validatePaymentGroups(
+        supplierGroups.map(g => ({
+          label: g.supplierName,
+          payments: (supplierPayments[g.groupKey] ?? []).map(p => ({ amount: p.totalAmount, status: p.status })),
+        }))
+      )
+      if (payErr) { setError(payErr); return }
+
       for (const group of supplierGroups) {
-        const gp = supplierPayments[group.groupKey] ?? []
-        if (gp.length === 0) { setError(`Adicione ao menos um pagamento para "${group.supplierName}".`); return }
-        for (const p of gp) {
+        for (const p of supplierPayments[group.groupKey] ?? []) {
           if (p.method === 'check' && !p.firstDueDate) {
             setError(`"${group.supplierName}": informe a data de compensação do cheque (bom para).`); return
           }
@@ -1347,7 +1386,12 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
         <Button variant="ghost" onClick={() => router.back()} disabled={saving}>
           Cancelar
         </Button>
-        <Button loading={saving} onClick={handleSubmit}>
+        <Button
+          loading={saving}
+          onClick={handleSubmit}
+          className={paymentsPending ? styles.saveIncomplete : ''}
+          title={paymentsPending ?? undefined}
+        >
           {isConsignment ? 'Salvar Consignação' : 'Salvar Compra'} →
         </Button>
       </div>

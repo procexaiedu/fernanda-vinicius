@@ -754,3 +754,21 @@
   gap: 10px;
   padding-top: 8px;
 }
+
+/*
+ * Salvar com aparência de desabilitado enquanto os pagamentos não estão
+ * completos (todo pagamento com valor e com "Pago"/"Pendente" declarado).
+ * O botão continua clicável de propósito: ao clicar, a mensagem diz qual
+ * fornecedor e qual campo faltam. Um botão morto não explicaria nada.
+ */
+.saveIncomplete {
+  background: var(--surface-2, rgba(255, 255, 255, 0.04)) !important;
+  border-color: var(--border) !important;
+  color: var(--text-muted) !important;
+  box-shadow: none !important;
+}
+
+.saveIncomplete:hover {
+  background: var(--surface-2, rgba(255, 255, 255, 0.06)) !important;
+  color: var(--text-secondary, var(--text-muted)) !important;
+}
