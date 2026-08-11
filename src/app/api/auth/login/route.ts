@@ -1,14 +1,16 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { publicUrl } from '@/lib/request-url'
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData()
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
-  // Monta redirect de sucesso com cookies na response (padrão correto do @supabase/ssr)
-  const redirectTo = new URL('/', request.url)
-  const response = NextResponse.redirect(redirectTo, { status: 303 })
+  // Monta redirect de sucesso com cookies na response (padrão correto do @supabase/ssr).
+  // `publicUrl` em vez de `request.url`: atrás do Traefik, `request.url` aponta para
+  // localhost:3000 (host interno do container) e o navegador era jogado lá.
+  const response = NextResponse.redirect(publicUrl(request, '/'), { status: 303 })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.redirect(
-      new URL('/login?error=invalid', request.url),
+      publicUrl(request, '/login?error=invalid'),
       { status: 303 }
     )
   }

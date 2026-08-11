@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import DisparosClient from './DisparosClient'
 
@@ -29,20 +28,16 @@ export interface StoreOption {
 }
 
 export default async function DisparosPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const profile = await requireProfile()
 
   const admin = createAdminClient()
 
-  const [profileRes, storesRes, metricsRes, disparosRes] = await Promise.all([
-    supabase.from('users').select('role, store_id').eq('id', user.id).single(),
+  const [storesRes, metricsRes, disparosRes] = await Promise.all([
     admin.from('stores').select('id, name').eq('is_active', true).order('name'),
     admin.from('v_disparo_metrics').select('*').order('created_at', { ascending: false }),
     admin.from('disparos').select('id, template_name, template_language, param2_default, param3_default, image_url'),
   ])
 
-  const profile = profileRes.data
   const stores: StoreOption[] = storesRes.data ?? []
   const storeMap = new Map(stores.map(s => [s.id, s.name]))
   const dispMap = new Map((disparosRes.data ?? []).map(d => [d.id, d]))

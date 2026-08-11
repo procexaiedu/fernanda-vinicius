@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import VendasClient from './VendasClient'
 import MinhaMetaCard from './MinhaMetaCard'
@@ -42,13 +41,7 @@ export interface SaleRow {
 }
 
 export default async function VendasPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users').select('role, store_id').eq('id', user.id).single()
-  if (!profile) redirect('/login')
+  const profile = await requireProfile()
 
   const admin = createAdminClient()
 
@@ -157,7 +150,7 @@ export default async function VendasPage() {
   const monthKey = currentMonthKey(new Date())
   let minhaMeta: MetaProgress | null = null
   if (profile.role === 'operator') {
-    minhaMeta = await getUserProgress(user.id, monthKey)
+    minhaMeta = await getUserProgress(profile.id, monthKey)
   }
 
   return (

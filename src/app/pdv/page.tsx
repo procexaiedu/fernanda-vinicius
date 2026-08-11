@@ -1,18 +1,11 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import PdvClient from './PdvClient'
 import { buscarCaixaDoDia } from './actions'
 import { todaySP } from '@/lib/date'
 
 export default async function PdvPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users').select('role, store_id, full_name').eq('id', user.id).single()
-  if (!profile) redirect('/login')
+  const profile = await requireProfile()
 
   const admin = createAdminClient()
 
@@ -59,7 +52,7 @@ export default async function PdvPage() {
     storeId:   profile.store_id ?? null,
     storeName: (userStoreRes as any).data?.name ?? null,
     fullName:  profile.full_name ?? '',
-    userId:    user.id,
+    userId:    profile.id,
   }
 
   // Loja do caixa: operadora usa a sua; admin usa Campinas (ou a 1ª).

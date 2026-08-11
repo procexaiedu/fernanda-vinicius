@@ -1,22 +1,12 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ImpressaoClient from './ImpressaoClient'
 import CategoryMappingPanel from './CategoryMappingPanel'
 import type { CategoryMapping } from './actions'
 
 export default async function ImpressaoConfigPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const profile = await requireProfile()
 
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) redirect('/login')
 
   const isAdmin = profile.role === 'admin'
 

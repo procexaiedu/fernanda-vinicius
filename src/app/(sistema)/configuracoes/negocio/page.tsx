@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ConfiguracoesNegocioClient from './ConfiguracoesNegocioClient'
 import styles from './page.module.css'
@@ -11,13 +11,8 @@ export interface SettingRow {
 }
 
 export default async function ConfiguracoesNegocioPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') redirect('/')
+  const profile = await requireProfile()
+  if (profile.role !== 'admin') redirect('/')
 
   const admin = createAdminClient()
   const { data } = await admin.from('settings').select('key, value, description').order('key')

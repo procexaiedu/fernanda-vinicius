@@ -1,18 +1,12 @@
-import { redirect, notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { notFound } from 'next/navigation'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import NovaVendaForm from '../../nova/NovaVendaForm'
 import { buscarVendaParaEdicao } from '../../actions'
 
 export default async function EditarVendaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users').select('role, store_id, full_name').eq('id', user.id).single()
-  if (!profile) redirect('/login')
+  const profile = await requireProfile()
 
   const admin = createAdminClient()
 
@@ -61,7 +55,7 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
     storeId:   profile.store_id ?? null,
     storeName: (userStoreRes as any).data?.name ?? null,
     fullName:  profile.full_name ?? '',
-    userId:    user.id,
+    userId:    profile.id,
   }
 
   return (

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   currentMonthKey, isValidMonthKey, monthBounds, monthKeyToFirstDay, computeProgress,
@@ -18,11 +18,8 @@ interface GoalRow {
 
 export default async function MetasPage({ searchParams }: PageProps) {
   const { month: monthParam } = await searchParams
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-  const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') redirect('/')
+  const profile = await requireProfile()
+  if (profile.role !== 'admin') redirect('/')
 
   const admin = createAdminClient()
 

@@ -1,22 +1,17 @@
 import { redirect } from 'next/navigation'
+import { requireProfile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Store } from '@/types'
 import LojasClient from './LojasClient'
 import styles from './page.module.css'
 
 export default async function LojasPage() {
+
+  const profile = await requireProfile()
+
+  if (profile.role !== 'admin') redirect('/')
+
   const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'admin') redirect('/')
 
   const { data: stores } = await supabase
     .from('stores')

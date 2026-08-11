@@ -1,22 +1,13 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getProfile } from '@/lib/auth'
 import LoginForm from './LoginForm'
 import styles from './login.module.css'
 
 export default async function LoginPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (user) {
-    const { data: profile } = await supabase
-      .from('users')
-      .select('id, is_active')
-      .eq('id', user.id)
-      .single()
-
-    if (profile?.is_active) redirect('/')
-  }
+  // Já logado e ativo? vai direto pro sistema.
+  const profile = await getProfile()
+  if (profile?.is_active) redirect('/')
 
   return (
     <div className={styles.page}>

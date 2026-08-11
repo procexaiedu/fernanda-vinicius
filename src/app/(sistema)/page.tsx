@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import DashboardClient from './DashboardClient'
 import {
@@ -11,22 +11,14 @@ import {
 } from './actions'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role, store_id')
-    .eq('id', user.id)
-    .single()
+  const profile = await requireProfile()
 
   // Operadora não usa o dashboard gerencial — vai direto pro PDV.
-  if (profile?.role === 'operator') redirect('/pdv')
+  if (profile.role === 'operator') redirect('/pdv')
 
-  const isAdmin  = profile?.role === 'admin'
+  const isAdmin  = profile.role === 'admin'
   // Operators always see their own store; admins start with null (all)
-  const storeId  = isAdmin ? null : (profile?.store_id ?? null)
+  const storeId  = isAdmin ? null : (profile.store_id ?? null)
 
   const now   = new Date()
   const month = now.getMonth() + 1

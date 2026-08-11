@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import TransferenciasClient from './TransferenciasClient'
 
@@ -30,17 +30,9 @@ interface PageProps {
 
 export default async function TransferenciasPage({ searchParams }: PageProps) {
   const params = await searchParams
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const profile = await requireProfile()
 
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role, store_id')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'admin') redirect('/estoque')
+  if (profile.role !== 'admin') redirect('/estoque')
 
   const page = Math.max(1, Number(params.page ?? 1))
   const offset = (page - 1) * PAGE_SIZE

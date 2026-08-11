@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { buscarCompraParaEdicao } from '@/app/(sistema)/compras/actions'
 import EditCompraForm from './EditCompraForm'
 
@@ -10,13 +10,8 @@ interface Props {
 export default async function EditarCompraPage({ params }: Props) {
   const { id } = await params
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') redirect('/')
+  const profile = await requireProfile()
+  if (profile.role !== 'admin') redirect('/')
 
   const { data, error } = await buscarCompraParaEdicao(id)
   if (error || !data) redirect('/compras')

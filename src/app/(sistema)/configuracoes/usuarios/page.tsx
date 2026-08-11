@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getProgressByUser } from '@/lib/metas/server'
 import { currentMonthKey } from '@/lib/metas/compute'
@@ -23,13 +23,8 @@ export interface UserWithMetrics {
 }
 
 export default async function UsuariosPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') redirect('/')
+  const profile = await requireProfile()
+  if (profile.role !== 'admin') redirect('/')
 
   const adminClient = createAdminClient()
   const now = new Date()
@@ -101,7 +96,7 @@ export default async function UsuariosPage() {
       <UsuariosClient
         users={users}
         stores={stores}
-        currentUserId={user.id}
+        currentUserId={profile.id}
       />
     </div>
   )

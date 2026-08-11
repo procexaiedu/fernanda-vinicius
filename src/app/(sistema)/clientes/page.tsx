@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ClientesClient from './ClientesClient'
 
@@ -30,21 +29,17 @@ export interface StoreOption {
 }
 
 export default async function ClientesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const profile = await requireProfile()
 
   const admin = createAdminClient()
 
-  const [profileRes, customersRes, storesRes, salesRes, settingRes] = await Promise.all([
-    supabase.from('users').select('role, store_id').eq('id', user.id).single(),
+  const [customersRes, storesRes, salesRes, settingRes] = await Promise.all([
     admin.from('customers').select('*, stores(name)').order('name'),
     admin.from('stores').select('id, name').eq('is_active', true).order('name'),
     admin.from('sales').select('customer_id, sale_date, total').not('customer_id', 'is', null),
     admin.from('settings').select('value').eq('key', 'inactive_customer_days').maybeSingle(),
   ])
 
-  const profile     = profileRes.data
   const customers   = customersRes.data ?? []
   const stores: StoreOption[] = storesRes.data ?? []
   const sales       = salesRes.data ?? []

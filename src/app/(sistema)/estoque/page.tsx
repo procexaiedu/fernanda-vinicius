@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import EstoqueClient from './EstoqueClient'
 import type { ProductWithRelations, StoreOption } from '../produtos/page'
@@ -19,17 +18,8 @@ interface PageProps {
 
 export default async function EstoquePage({ searchParams }: PageProps) {
   const params = await searchParams
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const profile = await requireProfile()
 
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role, store_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile) redirect('/login')
 
   const isAdmin = profile.role === 'admin'
   const effectiveStoreId = isAdmin ? (params.store_id ?? null) : profile.store_id
