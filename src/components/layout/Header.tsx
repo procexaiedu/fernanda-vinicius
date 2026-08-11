@@ -11,6 +11,8 @@ interface HeaderProps {
   storeName?: string
   theme?: 'dark' | 'light'
   onToggleTheme?: () => void
+  /** Precisa saber: o header é `fixed` e alinha o `left` com a sidebar. */
+  collapsed?: boolean
 }
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -30,7 +32,7 @@ function getBreadcrumb(pathname: string): string[] {
   return ['Dashboard', label]
 }
 
-export default function Header({ userName, userRole, storeName, theme = 'dark', onToggleTheme }: HeaderProps) {
+export default function Header({ userName, userRole, storeName, theme = 'dark', onToggleTheme, collapsed = false }: HeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
   const breadcrumb = getBreadcrumb(pathname)
@@ -43,7 +45,7 @@ export default function Header({ userName, userRole, storeName, theme = 'dark', 
   }
 
   return (
-    <header className={styles.header}>
+    <header className={`${styles.header} ${collapsed ? styles.headerCollapsed : ''}`}>
       {/* Breadcrumb */}
       <nav className={styles.breadcrumb} aria-label="Breadcrumb">
         {breadcrumb.map((crumb, i) => (

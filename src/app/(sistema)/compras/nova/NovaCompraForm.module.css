@@ -222,10 +222,79 @@
   padding: 4px 8px;
 }
 
-/* ── Responsivo: condensa o grid p/ caber em notebooks ~1366px ──────────── */
-@media (max-width: 1366px) {
+/* ── Enquadramento das colunas ─────────────────────────────────────────────
+ *
+ * Antes todo cabeçalho era alinhado à esquerda (`.grid thead th`), inclusive os
+ * de dinheiro e quantidade, enquanto os valores ficavam onde o input calhava.
+ * Cabeçalho e valor desalinhados são o que faz a tabela parecer improvisada.
+ *
+ * Convenção aplicada: dinheiro e quantidade à DIREITA (compara ordem de
+ * grandeza de bate-pronto), colunas curtas CENTRADAS, texto à esquerda.
+ * `tabular-nums` trava a largura dos dígitos, então as vírgulas ficam numa
+ * coluna vertical em vez de dançar entre as linhas.
+ */
+
+.thNum2, .thQty, .thSub,
+.tdNum2, .tdQty, .tdSub {
+  text-align: right;
+}
+
+.tdNum2 .cell,
+.tdQty .cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.subtotalText,
+.codeText {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Colunas curtas: cabeçalho e conteúdo centrados juntos */
+.thNum, .thIni, .thEtiq,
+.tdIni, .tdEtiq {
+  text-align: center;
+}
+
+.tdIni .cell {
+  text-align: center;
+}
+
+/* ── Responsivo: condensa o grid para caber sem barra de rolagem ──────────
+ *
+ * Os breakpoints descontam a sidebar. O grid não ocupa a janela: ele vive num
+ * container ~235px mais estreito (sidebar expandida 200px + padding da página).
+ * Antes os breakpoints mediam a janela e ignoravam isso — a 1366px de janela a
+ * regra aplicava min-width 1180px num espaço de 1131px, e sobrava uma barra de
+ * rolagem horizontal permanente. Cada tier abaixo tem min-width MENOR que o
+ * espaço disponível no seu próprio limite, então nenhuma faixa gera barra.
+ *
+ * Dimensionado para a sidebar EXPANDIDA (pior caso). Recolhida sobra espaço.
+ *
+ * Container query seria mais elegante, mas `container-type` cria bloco de
+ * contenção para descendentes `position: fixed` — e os dropdowns dos combos são
+ * fixos com coordenadas de viewport, então iriam para o lugar errado.
+ */
+
+/* janela ≤1848 → sobra ~1430 */
+@media (max-width: 1848px) {
+  .thProd { width: 178px; }
+  .thSup  { width: 146px; }
+  .thIni  { width: 50px; }
+  .thCat  { width: 100px; }
+  .thMat  { width: 92px; }
+  .thNum2 { width: 82px; }
+  .thEtiq { width: 62px; }
+  .thQty  { width: 50px; }
+  .thLoja { width: 100px; }
+  .thCod  { width: 110px; }
+  .thSub  { width: 92px; }
+}
+
+/* janela ≤1716 → sobra ~1300 */
+@media (max-width: 1716px) {
   .grid { min-width: 1180px; }
-  .grid thead th { padding: 7px 4px; font-size: 10.5px; }
+  .grid thead th { padding: 7px 4px; font-size: 11px; }
   .grid tbody td { padding: 3px 3px; }
   .cell { font-size: 12px; padding: 0 5px; }
 
@@ -242,10 +311,69 @@
   .thSub  { width: 84px; }
 }
 
-@media (max-width: 1180px) {
-  .grid { min-width: 1040px; }
-  .thProd { width: 132px; }
-  .thSup  { width: 116px; }
+/* janela ≤1586 → sobra ~1170. Pega os notebooks de 1536px */
+@media (max-width: 1586px) {
+  .grid { min-width: 1080px; }
+  .thProd { width: 138px; }
+  .thSup  { width: 118px; }
+  .thCod  { width: 76px; }
+  .thSub  { width: 74px; }
+}
+
+/* janela ≤1506 → sobra ~1090 */
+@media (max-width: 1506px) {
+  .grid { min-width: 1000px; }
+  .thProd { width: 126px; }
+  .thSup  { width: 108px; }
+  .thIni  { width: 40px; }
+  .thCat  { width: 84px; }
+  .thMat  { width: 78px; }
+  .thNum2 { width: 68px; }
+  .thLoja { width: 84px; }
+  .thCod  { width: 72px; }
+  .thSub  { width: 72px; }
+}
+
+/* janela ≤1426 → sobra ~1010 */
+@media (max-width: 1426px) {
+  .grid { min-width: 930px; }
+  .thProd { width: 116px; }
+  .thSup  { width: 100px; }
+  .thCat  { width: 78px; }
+  .thMat  { width: 72px; }
+  .thEtiq { width: 52px; }
+  .thQty  { width: 42px; }
+  .thLoja { width: 78px; }
+}
+
+/* janela ≤1356 → sobra ~940. Pega os notebooks de 1366px */
+@media (max-width: 1356px) {
+  .grid { min-width: 870px; }
+  .thNum  { width: 32px; }
+  .thProd { width: 106px; }
+  .thSup  { width: 92px; }
+  .thCat  { width: 72px; }
+  .thMat  { width: 66px; }
+  .thNum2 { width: 64px; }
+  .thLoja { width: 74px; }
+  .thCod  { width: 64px; }
+  .thSub  { width: 66px; }
+  .thDel  { width: 30px; }
+}
+
+/* janela ≤1296 → sobra ~880 */
+@media (max-width: 1296px) {
+  .grid { min-width: 820px; }
+  .thProd { width: 98px; }
+  .thSup  { width: 86px; }
+  .thIni  { width: 38px; }
+  .thCat  { width: 66px; }
+  .thMat  { width: 62px; }
+  .thNum2 { width: 60px; }
+  .thEtiq { width: 48px; }
+  .thQty  { width: 40px; }
+  .thLoja { width: 70px; }
+  .thSub  { width: 62px; }
 }
 
 /* ── Células ────────────────────────────────────────────────────────────── */

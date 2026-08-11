@@ -14,6 +14,16 @@
   transition: left var(--transition-base);
 }
 
+/*
+ * O header é `position: fixed`, então ignora a margem do container e precisa
+ * saber por conta própria a largura atual da sidebar. Sem isto ele ficava
+ * deslocado 240px mesmo com a sidebar recolhida em 64px, deixando uma faixa
+ * morta entre a sidebar e o começo do header.
+ */
+.headerCollapsed {
+  left: var(--sidebar-width-collapsed);
+}
+
 /* Breadcrumb */
 .breadcrumb {
   display: flex;

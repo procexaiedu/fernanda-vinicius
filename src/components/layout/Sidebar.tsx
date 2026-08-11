@@ -15,7 +15,6 @@ import {
   Send,
   ChevronLeft,
   ChevronRight,
-  Gem,
   Monitor,
 } from 'lucide-react'
 import styles from './Sidebar.module.css'
@@ -64,7 +63,7 @@ export default function Sidebar({ userRole = 'operator', collapsed, onToggle }: 
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''}`}>
       {/* Logo */}
       <div className={styles.logo}>
-        <Gem size={20} className={styles.logoIcon} />
+        <span className={styles.logoMark} role="img" aria-label="Fernanda Vinícius" />
         {!collapsed && (
           <span className={styles.logoText}>
             Fernanda<strong>Vinícius</strong>

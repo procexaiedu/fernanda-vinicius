@@ -67,6 +67,7 @@ export default function SistemaLayoutClient({
           storeName={storeName}
           theme={theme}
           onToggleTheme={toggleTheme}
+          collapsed={collapsed}
         />
         <main className={styles.content}>
           {children}

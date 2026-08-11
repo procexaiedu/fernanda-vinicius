@@ -13,7 +13,7 @@ export default async function LoginPage() {
     <div className={styles.page}>
       <div className={styles.card}>
         <div className={styles.logo}>
-          <div className={styles.logoGem}>◆</div>
+          <div className={styles.logoGem} role="img" aria-label="Fernanda Vinícius" />
           <div className={styles.logoText}>
             <span className={styles.logoName}>Fernanda Vinícius</span>
             <span className={styles.logoTagline}>Sistema de Gestão</span>

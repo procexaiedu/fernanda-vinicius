@@ -30,9 +30,20 @@
   white-space: nowrap;
 }
 
-.logoIcon {
-  color: var(--accent);
+/*
+ * Monograma da marca. A logo entra como MÁSCARA e a cor vem de `--accent`, não
+ * do arquivo: assim assume o dourado do tema atual sozinha, sem precisar de um
+ * arquivo por tema, e mantém exatamente a cor que o ícone genérico tinha antes.
+ * O PNG servido já é transparente (gerado a partir do original opaco), então não
+ * há quadrado de fundo.
+ */
+.logoMark {
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
+  background-color: var(--accent);
+  -webkit-mask: url('/brand/logo-fv.png') center / contain no-repeat;
+  mask: url('/brand/logo-fv.png') center / contain no-repeat;
 }
 
 .logoText {

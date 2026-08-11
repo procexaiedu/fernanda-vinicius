@@ -33,11 +33,15 @@
   gap: 14px;
 }
 
+/* Mesmo monograma da sidebar, em máscara colorida por `--accent`. Ver
+ * Sidebar.module.css → .logoMark. */
 .logoGem {
-  font-size: 28px;
-  color: var(--accent);
-  line-height: 1;
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
+  background-color: var(--accent);
+  -webkit-mask: url('/brand/logo-fv.png') center / contain no-repeat;
+  mask: url('/brand/logo-fv.png') center / contain no-repeat;
 }
 
 .logoText {
