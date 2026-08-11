@@ -239,7 +239,13 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
     const { data: prod } = await admin.from('products').select('quantity_in_stock, is_service').eq('id', item.productId).single()
     if (prod?.is_service) continue   // serviço (conserto) não controla estoque
     const newQty = (prod?.quantity_in_stock ?? 0) - item.quantity
-    await admin.from('products').update({ quantity_in_stock: newQty }).eq('id', item.productId)
+    // `last_sale_date` nunca era gravado: dos 77 produtos já vendidos, ZERO
+    // tinham a data. Isso quebrava a view `v_stale_products` e o alerta
+    // "produtos sem venda há X dias" do dashboard, que passava a contar o
+    // catálogo inteiro como parado — 601 de 971 SKUs, número sem significado.
+    await admin.from('products')
+      .update({ quantity_in_stock: newQty, last_sale_date: data.saleDate })
+      .eq('id', item.productId)
   }
 
   // ── 7. Criar sale_payments + transactions ─────────────────────────────────

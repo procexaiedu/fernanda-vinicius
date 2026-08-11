@@ -73,7 +73,10 @@
     --table-cell-py: 8px;
     --table-cell-px: 11px;
     --table-fs:      12.5px;
-    --table-head-fs: 10.5px;
+    /* 11px, não 10.5px: tamanho fracionário cai entre pixels e renderiza
+     * borrado justamente no cabeçalho, que é texto pequeno em maiúsculas. A
+     * densidade continua vindo do padding, que é o que de fato ganha espaço. */
+    --table-head-fs: 11px;
   }
 }
 
@@ -83,7 +86,9 @@
     --table-cell-py: 7px;
     --table-cell-px: 9px;
     --table-fs:      12px;
-    --table-head-fs: 10px;
+    /* Piso de 11px no cabeçalho: abaixo disso o rótulo em maiúsculas deixa de
+     * ser confortável no notebook da loja, e a densidade vem do padding. */
+    --table-head-fs: 11px;
   }
 }
 

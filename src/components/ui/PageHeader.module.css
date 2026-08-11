@@ -1,0 +1,48 @@
+.header {
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/*
+ * Alvo de clique confortável: o link antigo tinha 20px de altura. 32px é o
+ * mínimo para não errar o clique num trackpad de notebook.
+ */
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  min-height: 32px;
+  margin-left: -6px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color var(--transition-base), background var(--transition-base);
+}
+
+.back:hover {
+  color: var(--accent);
+  background: rgba(201, 168, 76, 0.06);
+}
+
+.back svg {
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: var(--fs-page-title);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}

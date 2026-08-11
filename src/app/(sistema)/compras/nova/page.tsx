@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import PageHeader from '@/components/ui/PageHeader'
 import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import NovaCompraForm from './NovaCompraForm'
@@ -29,17 +30,7 @@ export default async function NovaCompraPage() {
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: '100%' }}>
-      <div style={{ marginBottom: 24 }}>
-        <a
-          href="/compras"
-          style={{ fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          ← Voltar para Compras
-        </a>
-        <h1 style={{ fontSize: 22, fontWeight: 700, marginTop: 8, color: 'var(--text-primary)' }}>
-          Nova Compra
-        </h1>
-      </div>
+      <PageHeader title="Nova Compra" backHref="/compras" backLabel="Voltar para Compras" />
 
       <NovaCompraForm
         suppliers={suppliers}
