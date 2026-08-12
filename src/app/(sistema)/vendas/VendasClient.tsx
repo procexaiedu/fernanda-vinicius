@@ -5,8 +5,9 @@ import { usePersistedState } from '@/hooks/usePersistedState'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import {
-  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil,
+  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil, Plus,
 } from 'lucide-react'
+import btn from '@/components/ui/Button.module.css'
 import Badge from '@/components/ui/Badge'
 import DatePicker from '@/components/ui/DatePicker'
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
@@ -247,17 +248,14 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
           >
             🖥 Abrir PDV
           </a>
-          <Link
-            href="/vendas/nova"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '7px 16px',
-              background: 'var(--accent)', color: '#000',
-              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700,
-              textDecoration: 'none',
-            }}
-          >
-            + Nova Venda
+          {/* Usa as classes do Button em vez de estilo inline: fica idêntico aos
+              botões das outras telas e continua sendo um link de verdade (abre em
+              nova aba com o meio do mouse, o que um <button> perderia). */}
+          <Link href="/vendas/nova" className={`${btn.btn} ${btn.primary} ${btn.sm}`}>
+            <span className={btn.label}>
+              <Plus size={14} />
+              Nova Venda
+            </span>
           </Link>
         </div>
       </div>

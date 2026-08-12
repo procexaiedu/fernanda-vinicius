@@ -4,7 +4,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import NovaVendaForm from './NovaVendaForm'
 
-export default async function NovaVendaPage() {
+interface PageProps {
+  /** `?bip=10100` — peça lida pelo leitor em outra tela do sistema. */
+  searchParams: Promise<{ bip?: string }>
+}
+
+export default async function NovaVendaPage({ searchParams }: PageProps) {
+  const { bip } = await searchParams
   const profile = await requireProfile()
 
   const admin = createAdminClient()
@@ -71,6 +77,7 @@ export default async function NovaVendaPage() {
         settings={settings}
         userProfile={userProfile}
         users={users}
+        bipInicial={bip ?? null}
       />
     </div>
   )

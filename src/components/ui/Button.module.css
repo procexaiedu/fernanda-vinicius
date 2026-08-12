@@ -17,12 +17,36 @@
 .btn:active:not(:disabled) { transform: scale(0.98); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+/*
+ * O conteúdo do botão vem envolvido num span (para o spinner poder esconder o
+ * texto sem mudar o layout). Sem flex aqui, o `gap` do .btn se aplicava só entre
+ * spinner e span — e o ícone ficava COLADO no texto em todos os botões do
+ * sistema. O espaçamento precisa existir neste nível.
+ */
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label svg {
+  flex-shrink: 0;
+  /* Ícone de traço fino pesa menos que o texto ao lado; um respiro ótico a
+   * menos alinha melhor as bordas. */
+  margin-left: -1px;
+}
+
 /* Variantes */
 .primary {
   background: var(--accent);
   color: #0D0D0D;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
-.primary:hover:not(:disabled) { background: var(--accent-hover); }
+.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  box-shadow: 0 2px 8px rgba(201, 168, 76, 0.28);
+}
 
 .ghost {
   background: transparent;

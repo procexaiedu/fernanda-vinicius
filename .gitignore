@@ -30,8 +30,18 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env.local
+# env files — TODA variante, não só .env.local. Antes só `.env.local` era
+# ignorado: um `.env` criado por engano entraria no commit com a service_role
+# key do Supabase, que dá acesso total ao banco ignorando RLS.
+.env
+.env.*
+!.env.example
+
+# Dumps do banco. Contêm CPF, telefone e endereço de clientes — não versionar.
+# O lugar correto é fora do repositório (../backups-fv/).
+/backups/
+*.dump
+*.sql.gz
 
 # vercel
 .vercel

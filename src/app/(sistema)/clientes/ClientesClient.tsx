@@ -206,7 +206,7 @@ export default function ClientesClient({
 
         <Button size="sm" onClick={openCreate}>
           <Plus size={14} />
-          Nova Cliente
+          Novo Cliente
         </Button>
       </div>
 
@@ -218,7 +218,7 @@ export default function ClientesClient({
             <span>{customers.length === 0 ? 'Nenhuma cliente cadastrada.' : 'Nenhuma cliente encontrada.'}</span>
             <span className={styles.emptyHint}>
               {customers.length === 0
-                ? 'Clique em "Nova Cliente" para começar.'
+                ? 'Clique em "Novo Cliente" para começar.'
                 : 'Tente ajustar a busca ou os filtros.'}
             </span>
           </div>

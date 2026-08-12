@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import {
   Plus, Trash2, AlertTriangle, ChevronDown, Cake, X, CreditCard,
   Banknote, Smartphone, ArrowLeftRight, RefreshCw, User, CheckCircle2,
@@ -87,6 +88,11 @@ interface Props {
   users: UserOption[]
   editSale?: EditSaleData    // presente = modo edição de uma venda existente
   onSaved?: () => void       // presente (PDV) = após salvar, fica na tela e reseta em vez de navegar
+  /**
+   * `barcode_number` lido em outra tela do sistema. A venda abre já com essa peça
+   * na primeira linha, preenchida com tudo que dá para deduzir do produto.
+   */
+  bipInicial?: string | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -112,6 +118,24 @@ function isBirthdayMonth(birthday: string | null): boolean {
 
 function emptyRow(): SaleRow {
   return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false }
+}
+
+/**
+ * Monta a linha da venda a partir do produto. Tudo o que dá para deduzir do
+ * cadastro entra aqui — preço (respeitando promoção ativa), custo, estoque
+ * disponível e se é serviço. O que depende de decisão humana (cliente, forma de
+ * pagamento, parcelas, desconto) fica em branco de propósito.
+ */
+function rowDoProduto(p: ProductOption): SaleRow {
+  return {
+    productId: p.id,
+    productName: p.name,
+    quantity: 1,
+    unitPrice: p.promotional_active && p.promotional_price ? p.promotional_price : p.sale_price,
+    unitCost: p.cost_price,
+    stockAvailable: p.quantity_in_stock,
+    isService: p.is_service,
+  }
 }
 
 // Navegação por teclado no grid de itens (mesmo padrão da Nova Compra).
@@ -484,9 +508,17 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function NovaVendaForm({ stores, products, customers: initialCustomers, settings, userProfile, users, editSale, onSaved }: Props) {
+export default function NovaVendaForm({ stores, products, customers: initialCustomers, settings, userProfile, users, editSale, onSaved, bipInicial }: Props) {
   const router = useRouter()
   const isEditing = !!editSale
+
+  // Peça bipada em outra tela. A operadora só vende na própria loja, então só
+  // aceita o pré-preenchimento se a peça for de lá.
+  const produtoBipado = bipInicial && !editSale
+    ? products.find(p =>
+        p.barcode_number === bipInicial &&
+        (!userProfile.storeId || p.store_id === userProfile.storeId))
+    : undefined
 
   // ── Estado geral ──────────────────────────────────────────────────────────
   // Admin abre a venda já com a loja principal (Campinas) pré-selecionada — sem
@@ -495,7 +527,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     stores.find(s => /campin/i.test(s.name) || /campin/i.test(s.city))?.id
     ?? stores[0]?.id ?? ''
   const [saleDate, setSaleDate]   = useState(editSale?.saleDate ?? today())
-  const [storeId, setStoreId]     = useState(editSale?.storeId ?? userProfile.storeId ?? defaultAdminStore)
+  // Admin que bipa uma peça de Brasília abre a venda já naquela loja
+  const [storeId, setStoreId]     = useState(editSale?.storeId ?? userProfile.storeId ?? produtoBipado?.store_id ?? defaultAdminStore)
   const [sellerId, setSellerId]   = useState<string>(editSale?.sellerId ?? userProfile.userId)
   const [notes, setNotes]         = useState(editSale?.notes ?? '')
 
@@ -507,7 +540,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Itens da venda ────────────────────────────────────────────────────────
   const [rows, setRows] = useState<SaleRow[]>(
-    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r })) : [emptyRow()]
+    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r }))
+      : produtoBipado ? [rowDoProduto(produtoBipado)]
+      : [emptyRow()]
   )
 
   // ── Descontos ─────────────────────────────────────────────────────────────
@@ -528,20 +563,10 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   const [error, setError]   = useState('')
 
   // ── Scanner HID ───────────────────────────────────────────────────────────
+  // A mecânica da captura (cadência, desfazer o que o leitor digitou no campo em
+  // foco, cancelar o Enter) mora em useBarcodeScanner. Aqui fica só o que fazer
+  // com o código lido.
   const [scanFeedback, setScanFeedback] = useState<{ text: string; ok: boolean } | null>(null)
-  /**
-   * `alvo`/`valorAntes`: o campo que estava com foco quando a leitura começou e
-   * o valor que ele tinha. O leitor digita como teclado, então os dígitos também
-   * entram no campo focado — bipar com o cursor na busca de cliente adicionava a
-   * peça E deixava "10100" escrito lá. Guardando o valor anterior, dá para
-   * desfazer ao reconhecer que foi o leitor.
-   */
-  const scanBuffer = useRef<{
-    chars: string[]
-    firstTs: number
-    alvo: HTMLInputElement | HTMLTextAreaElement | null
-    valorAntes: string
-  }>({ chars: [], firstTs: 0, alvo: null, valorAntes: '' })
   const scanStoreId  = useRef(storeId)
   const scanProducts = useRef(products)
 
@@ -549,118 +574,65 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   useEffect(() => { scanStoreId.current  = storeId   }, [storeId])
   useEffect(() => { scanProducts.current = products  }, [products])
 
-  // ── Scanner HID: captura global de keydown ────────────────────────────────
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const buf = scanBuffer.current
-      const now = Date.now()
+  // ── Scanner HID: o que fazer com o código lido ────────────────────────────
+  const aoBipar = useCallback((code: string) => {
+    const storeProds = scanProducts.current.filter(p => p.store_id === scanStoreId.current)
 
-      if (e.key === 'Enter') {
-        const code    = buf.chars.join('')
-        const elapsed = buf.firstTs ? now - buf.firstTs : 9999
-        const nChars  = buf.chars.length
-        const alvo    = buf.alvo
-        const antes   = buf.valorAntes
-        buf.chars = []; buf.firstTs = 0; buf.alvo = null; buf.valorAntes = ''
-
-        // < 3 chars ou > 80ms/char = não é scanner
-        if (nChars < 3 || (nChars > 1 && elapsed / nChars > 80)) return
-
-        // Foi o leitor: devolve o campo focado ao valor anterior (os dígitos do
-        // código foram digitados nele) e impede o Enter de submeter formulário.
-        e.preventDefault()
-        if (alvo && alvo.value !== antes) {
-          const proto = alvo instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement
-          const setter = Object.getOwnPropertyDescriptor(proto.prototype, 'value')?.set
-          setter?.call(alvo, antes)
-          alvo.dispatchEvent(new Event('input', { bubbles: true }))
-        }
-
-        const storeProds = scanProducts.current.filter(p => p.store_id === scanStoreId.current)
-
-        // O leitor lê o barcode_number impresso na etiqueta (ex: 10100), que é
-        // único. O `code` (F+fornecedor+mês+custo) NÃO é único — 173 códigos
-        // cobrem produtos diferentes, um deles com 4 peças de R$ 68 a R$ 698.
-        // Por isso o fallback só resolve quando é inequívoco: escolher "o
-        // primeiro" venderia a peça errada com o preço errado, em silêncio.
-        let match = storeProds.find(p => p.barcode_number === code)
-        if (!match) {
-          const porCode = storeProds.filter(p => p.code.toUpperCase() === code.toUpperCase())
-          if (porCode.length === 1) {
-            match = porCode[0]
-          } else if (porCode.length > 1) {
-            setScanFeedback({
-              text: `"${code}" é o código de ${porCode.length} produtos diferentes — bipe o código de barras ou busque pelo nome`,
-              ok: false,
-            })
-            setTimeout(() => setScanFeedback(null), 4000)
-            return
-          }
-        }
-
-        if (match) {
-          const achado = match
-          const price = achado.promotional_active && achado.promotional_price
-            ? achado.promotional_price : achado.sale_price
-          let aviso: string | null = null
-
-          setRows(prev => {
-            // Mesma peça bipada de novo soma quantidade, em vez de criar outra
-            // linha igual — comportamento esperado de PDV.
-            const iExistente = prev.findIndex(r => r.productId === achado.id)
-            if (iExistente >= 0) {
-              // `quantity` aceita string vazia enquanto a operadora digita
-              const qtdAtual = Number(prev[iExistente].quantity) || 0
-              const limite = achado.is_service ? Infinity : achado.quantity_in_stock
-              if (qtdAtual >= limite) {
-                aviso = `${achado.name}: só há ${limite} em estoque`
-                return prev
-              }
-              return prev.map((r, i) => i === iExistente ? { ...r, quantity: qtdAtual + 1 } : r)
-            }
-
-            const newRow: SaleRow = {
-              productId: achado.id, productName: achado.name,
-              quantity: 1, unitPrice: price,
-              unitCost: achado.cost_price, stockAvailable: achado.quantity_in_stock,
-              isService: achado.is_service,
-            }
-            const last = prev[prev.length - 1]
-            // preenche última linha se vazia; senão adiciona nova
-            if (!last.productId && !last.productName.trim()) {
-              return [...prev.slice(0, -1), newRow]
-            }
-            return [...prev, newRow]
-          })
-          setScanFeedback(aviso ? { text: aviso, ok: false } : { text: `${achado.name} adicionado`, ok: true })
-        } else {
-          setScanFeedback({ text: `Código "${code}" não encontrado`, ok: false })
-        }
-        setTimeout(() => setScanFeedback(null), 2500)
+    // O leitor lê o barcode_number impresso na etiqueta (ex: 10100), que é
+    // único. O `code` (F+fornecedor+mês+custo) NÃO é único — 173 códigos
+    // cobrem produtos diferentes, um deles com 4 peças de R$ 68 a R$ 698.
+    // Por isso o fallback só resolve quando é inequívoco: escolher "o
+    // primeiro" venderia a peça errada com o preço errado, em silêncio.
+    let match = storeProds.find(p => p.barcode_number === code)
+    if (!match) {
+      const porCode = storeProds.filter(p => p.code.toUpperCase() === code.toUpperCase())
+      if (porCode.length === 1) {
+        match = porCode[0]
+      } else if (porCode.length > 1) {
+        setScanFeedback({
+          text: `"${code}" é o código de ${porCode.length} produtos diferentes — bipe o código de barras ou busque pelo nome`,
+          ok: false,
+        })
+        setTimeout(() => setScanFeedback(null), 4000)
         return
-      }
-
-      if (e.key.length === 1) {
-        if (!buf.chars.length) {
-          buf.firstTs = now
-          const ativo = document.activeElement
-          if (ativo instanceof HTMLInputElement || ativo instanceof HTMLTextAreaElement) {
-            buf.alvo = ativo
-            buf.valorAntes = ativo.value
-          } else {
-            buf.alvo = null
-            buf.valorAntes = ''
-          }
-        }
-        buf.chars.push(e.key)
-      } else if (e.key !== 'Shift' && e.key !== 'CapsLock') {
-        buf.chars = []; buf.firstTs = 0; buf.alvo = null; buf.valorAntes = ''
       }
     }
 
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+    if (match) {
+      const achado = match
+      let aviso: string | null = null
+
+      setRows(prev => {
+        // Mesma peça bipada de novo soma quantidade, em vez de criar outra
+        // linha igual — comportamento esperado de PDV.
+        const iExistente = prev.findIndex(r => r.productId === achado.id)
+        if (iExistente >= 0) {
+          // `quantity` aceita string vazia enquanto a operadora digita
+          const qtdAtual = Number(prev[iExistente].quantity) || 0
+          const limite = achado.is_service ? Infinity : achado.quantity_in_stock
+          if (qtdAtual >= limite) {
+            aviso = `${achado.name}: só há ${limite} em estoque`
+            return prev
+          }
+          return prev.map((r, i) => i === iExistente ? { ...r, quantity: qtdAtual + 1 } : r)
+        }
+
+        const newRow = rowDoProduto(achado)
+        const last = prev[prev.length - 1]
+        // preenche última linha se vazia; senão adiciona nova
+        if (!last.productId && !last.productName.trim()) {
+          return [...prev.slice(0, -1), newRow]
+        }
+        return [...prev, newRow]
+      })
+      setScanFeedback(aviso ? { text: aviso, ok: false } : { text: `${achado.name} adicionado`, ok: true })
+    } else {
+      setScanFeedback({ text: `Código "${code}" não encontrado`, ok: false })
+    }
+    setTimeout(() => setScanFeedback(null), 2500)
   }, [])
+
+  useBarcodeScanner({ onScan: aoBipar })
 
   // No modo edição, os descontos vêm da venda salva — não deixar os efeitos
   // auto-derivarem (e sobrescreverem) no primeiro render. Liberados após montar.

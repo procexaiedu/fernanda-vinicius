@@ -24,3 +24,27 @@
   flex: 1;
   min-width: 0;
 }
+
+/* Aviso do bipe global: confirma a leitura enquanto a venda carrega */
+.bipToast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  font-size: 13px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.bipToast svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}

@@ -156,7 +156,7 @@ export default function ClienteFormModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={customer ? 'Editar Cliente' : 'Nova Cliente'}
+      title={customer ? 'Editar Cliente' : 'Novo Cliente'}
       size="lg"
     >
       <form onSubmit={handleSubmit} className={styles.form}>

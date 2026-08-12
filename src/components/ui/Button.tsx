@@ -27,7 +27,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {loading && <span className={styles.spinner} aria-hidden />}
-        <span className={loading ? styles.hiddenText : ''}>{children}</span>
+        <span className={`${styles.label} ${loading ? styles.hiddenText : ''}`}>{children}</span>
       </button>
     )
   }
