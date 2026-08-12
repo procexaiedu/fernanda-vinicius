@@ -192,11 +192,11 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          <label className={styles.toggle}>
+          <label className="filtro-toggle">
             <input type="checkbox" checked={showInactive} onChange={e => setShowInactive(e.target.checked)} />
             Exibir inativos
           </label>
-          <label className={styles.toggle}>
+          <label className="filtro-toggle">
             <input type="checkbox" checked={filterConsignment} onChange={e => setFilterConsignment(e.target.checked)} />
             Só consignação
           </label>

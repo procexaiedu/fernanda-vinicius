@@ -372,6 +372,68 @@ input, textarea, select {
  * coluna de 136px e a tabela fica visualmente irregular, mesmo quando a altura da
  * linha não muda. Ponha `title` no <td> para o valor cheio ficar acessível.
  */
+/* ─── Barra de filtros ───────────────────────────────────────────
+ *
+ * Toda barra de filtro do sistema usa a MESMA altura de controle. Medido antes de
+ * padronizar, os controles conviviam em cinco alturas: 13px e 20px (o checkbox
+ * cru e seu rótulo), 30px (Button size="sm"), 32px e 34px (inputs e selects). Com
+ * alturas diferentes na mesma linha nada alinha, e a barra parece montada aos
+ * pedaços — que é a queixa. `/financeiro` já era o certo: 8 controles, altura
+ * única, uma linha.
+ *
+ * `--altura-controle` existe para o número morar num lugar só.
+ */
+:root {
+  --altura-controle: 34px;
+}
+
+/*
+ * Alternador de filtro (era `<label><input type=checkbox>Texto</label>`).
+ *
+ * Virou chip da mesma altura dos outros controles. O checkbox nativo tem 13px e
+ * arrasta o rótulo para 20px, o que criava justamente as duas alturas órfãs da
+ * barra. O input continua lá dentro, invisível mas real, então o clique no rótulo,
+ * o foco por teclado e o leitor de tela seguem funcionando.
+ */
+.filtro-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: var(--altura-controle);
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.filtro-toggle:hover {
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+
+/* Ligado: assume o acento, como qualquer outro estado ativo do sistema. */
+.filtro-toggle:has(input:checked) {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.filtro-toggle input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
 .col-truncate {
   /* O limite explícito é obrigatório, não estética: `nowrap` sozinho faz a tabela
    * ALARGAR a coluna para caber o texto, o que reintroduz o transbordo que

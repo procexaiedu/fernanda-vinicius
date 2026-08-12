@@ -217,7 +217,7 @@ export default function ProdutosClient({
         <div className={styles.toolbarLeft}>
           <input
             className={styles.search}
-            placeholder="Buscar por nome, código ou código de barras..."
+            placeholder="Buscar nome, código ou barras…"
             defaultValue={filters.q}
             onChange={e => pushFilter('q', e.target.value)}
           />
@@ -226,7 +226,7 @@ export default function ProdutosClient({
               value={filters.store_id}
               onChange={v => pushFilter('store_id', v)}
               options={stores.map(s => ({ value: s.id, label: s.name }))}
-              placeholder="Todas as lojas"
+              placeholder="Loja"
               searchable={stores.length > 5}
             />
           )}
@@ -234,24 +234,24 @@ export default function ProdutosClient({
             value={filters.category}
             onChange={v => pushFilter('category', v)}
             options={categories.map(c => ({ value: c, label: c }))}
-            placeholder="Todas as categorias"
+            placeholder="Categoria"
           />
           <SearchableSelect
             value={filters.material}
             onChange={v => pushFilter('material', v)}
             options={materials.map(m => ({ value: m, label: m }))}
-            placeholder="Todos os materiais"
+            placeholder="Material"
           />
           {isAdmin && (
             <SearchableSelect
               value={filters.supplier_id}
               onChange={v => pushFilter('supplier_id', v)}
               options={suppliers.map(s => ({ value: s.id, label: s.name }))}
-              placeholder="Todos os fornecedores"
+              placeholder="Fornecedor"
             />
           )}
           {isAdmin && (
-            <label className={styles.toggle}>
+            <label className="filtro-toggle">
               <input
                 type="checkbox"
                 checked={filters.active === 'false'}
