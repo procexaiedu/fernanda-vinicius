@@ -8,7 +8,7 @@ import {
 import {
   ChevronLeft, ChevronRight, ChevronDown,
   TrendingUp, TrendingDown, Package, AlertTriangle, Users, Calendar,
-  DollarSign, ShoppingCart, Gem, Award, Clock, ArrowRight,
+  DollarSign, ShoppingCart, Gem, Award, Clock, ArrowRight, X,
 } from 'lucide-react'
 
 import ProdutoDetalheModal from '@/components/produto/ProdutoDetalheModal'
@@ -136,6 +136,88 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
+/*
+ * ─── Dado fixado por clique ───────────────────────────────────────────────────
+ *
+ * O tooltip de hover some quando o dedo sai do trackpad, então ler três valores e
+ * comparar meses exigia manter a mão parada em cima do ponto. Clicar FIXA os
+ * valores numa faixa embaixo do gráfico, que só sai ao clicar em outro ponto ou no
+ * mesmo de novo.
+ *
+ * O hover continua existindo — não custa nada e serve a quem usa mouse. Não usei o
+ * `trigger="click"` do recharts porque ele TROCA o hover pelo clique em vez de
+ * somar, e o tooltip continuaria desaparecendo ao mexer o ponteiro.
+ */
+interface PontoFixado {
+  label: string
+  itens: Array<{ nome: string; valor: number; cor: string }>
+}
+
+/** Uma série do gráfico: de onde tirar o valor, como chamar e com que cor. */
+interface Serie {
+  chave: string
+  nome: string
+  cor: string
+}
+
+/**
+ * Monta o ponto fixado a partir do clique.
+ *
+ * O valor vem dos PRÓPRIOS DADOS, não do evento. A primeira versão lia
+ * `e.activePayload`, que existia no recharts 2 e foi removido do handler no 3 — o
+ * clique disparava, `activePayload` vinha `undefined`, a função devolvia null e
+ * nada acontecia, sem erro nenhum no console. Usar `activeTooltipIndex` + os dados
+ * também deixa isto imune à próxima mudança de forma desse objeto.
+ */
+function pontoDoClique(
+  e: any,
+  dados: any[],
+  series: Serie[],
+  chaveRotulo = 'label',
+): PontoFixado | null {
+  if (!dados?.length) return null
+  const idx = typeof e?.activeTooltipIndex === 'number' ? e.activeTooltipIndex : -1
+  const linha = idx >= 0 && idx < dados.length
+    ? dados[idx]
+    : dados.find((d: any) => String(d?.[chaveRotulo]) === String(e?.activeLabel))
+  if (!linha) return null
+  return {
+    label: String(linha[chaveRotulo] ?? e?.activeLabel ?? ''),
+    itens: series.map(s => ({ nome: s.nome, valor: Number(linha[s.chave] ?? 0), cor: s.cor })),
+  }
+}
+
+/** As séries de cada gráfico, no mesmo lugar em que as cores das linhas são definidas. */
+const SERIES_VENDAS_COMPRAS: Serie[] = [
+  { chave: 'faturamento',  nome: 'Faturamento',   cor: 'var(--accent)' },
+  { chave: 'custoCompras', nome: 'Custo Compras', cor: 'var(--gem-rubi)' },
+  { chave: 'lucroLiquido', nome: 'Lucro Líquido', cor: 'var(--gem-esmeralda)' },
+]
+const SERIES_CATEGORIA: Serie[] = [
+  { chave: 'receita', nome: 'Receita', cor: 'var(--gem-safira)' },
+]
+const SERIES_EVOLUCAO: Serie[] = [
+  { chave: 'receita', nome: 'Faturamento', cor: 'var(--accent)' },
+]
+
+function FaixaFixada({ ponto, onFechar }: { ponto: PontoFixado; onFechar: () => void }) {
+  return (
+    <div className={styles.fixado}>
+      <span className={styles.fixadoLabel}>{ponto.label}</span>
+      {ponto.itens.map(i => (
+        <span key={i.nome} className={styles.fixadoItem}>
+          <span className={styles.fixadoDot} style={{ background: i.cor }} />
+          <span className={styles.fixadoNome}>{i.nome}</span>
+          <strong className={styles.fixadoValor}>{fmt(i.valor)}</strong>
+        </span>
+      ))}
+      <button type="button" className={styles.fixadoFechar} onClick={onFechar} title="Soltar">
+        <X size={12} />
+      </button>
+    </div>
+  )
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -183,6 +265,17 @@ export default function DashboardClient({
   const [evolucao, setEvolucao]       = useState(initialEvolucao)
 
   const [grafMeses, setGrafMeses]   = useState(6)
+  // Um ponto fixado por gráfico — fixar em um não apaga o do outro, então dá para
+  // comparar o mês no gráfico de linhas com o mesmo mês na evolução.
+  const [fixadoLinhas, setFixadoLinhas]     = useState<PontoFixado | null>(null)
+  const [fixadoCategoria, setFixadoCategoria] = useState<PontoFixado | null>(null)
+  const [fixadoEvolucao, setFixadoEvolucao]   = useState<PontoFixado | null>(null)
+
+  /** Clicar no mesmo ponto solta; em outro, troca. */
+  function alternarFixado(atual: PontoFixado | null, novo: PontoFixado | null): PontoFixado | null {
+    if (!novo) return atual
+    return atual?.label === novo.label ? null : novo
+  }
 
   // Modais
   const [vendedoraModal, setVendedoraModal] = useState<TopVendedora | null>(null)
@@ -389,7 +482,12 @@ export default function DashboardClient({
             </div>
             <div className={styles.chartWrap}>
               <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={grafico} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                <LineChart
+                  data={grafico}
+                  margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
+                  onClick={e => setFixadoLinhas(a => alternarFixado(a, pontoDoClique(e, grafico, SERIES_VENDAS_COMPRAS)))}
+                  style={{ cursor: 'pointer' }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                   <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
@@ -397,11 +495,17 @@ export default function DashboardClient({
                   <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
                   <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                   <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 2" />
+                  {/* Marca qual mês está fixado — sem isso a faixa embaixo mostra
+                      valores sem dizer de onde vieram. */}
+                  {fixadoLinhas && (
+                    <ReferenceLine x={fixadoLinhas.label} stroke="var(--accent)" strokeDasharray="3 3" strokeOpacity={0.6} />
+                  )}
                   <Line dataKey="faturamento"  name="Faturamento"   stroke="var(--accent)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: 'var(--accent)' }} type="monotone" />
-                  <Line dataKey="custoCompras" name="Custo Compras" stroke="#E05252" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#E05252' }} type="monotone" />
-                  <Line dataKey="lucroLiquido" name="Lucro Líquido" stroke="#4CAF7D" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: '#4CAF7D' }} type="monotone" />
+                  <Line dataKey="custoCompras" name="Custo Compras" stroke="var(--gem-rubi)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: 'var(--gem-rubi)' }} type="monotone" />
+                  <Line dataKey="lucroLiquido" name="Lucro Líquido" stroke="var(--gem-esmeralda)" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: 'var(--gem-esmeralda)' }} type="monotone" />
                 </LineChart>
               </ResponsiveContainer>
+              {fixadoLinhas && <FaixaFixada ponto={fixadoLinhas} onFechar={() => setFixadoLinhas(null)} />}
             </div>
           </div>
         )}
@@ -422,7 +526,14 @@ export default function DashboardClient({
           ) : (
             <div className={styles.chartWrapSm}>
               <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={categorias} layout="vertical" margin={{ top: 2, right: 48, left: 4, bottom: 2 }} barSize={10}>
+                <BarChart
+                  data={categorias}
+                  layout="vertical"
+                  margin={{ top: 2, right: 48, left: 4, bottom: 2 }}
+                  barSize={10}
+                  onClick={e => setFixadoCategoria(a => alternarFixado(a, pontoDoClique(e, categorias, SERIES_CATEGORIA, 'category')))}
+                  style={{ cursor: 'pointer' }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
                   <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
                     tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
@@ -432,9 +543,10 @@ export default function DashboardClient({
                     contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
                     labelStyle={{ color: 'var(--text-primary)' }}
                   />
-                  <Bar dataKey="receita" fill="var(--accent)" radius={[0,3,3,0]} label={{ position: 'right', fill: 'var(--text-muted)', fontSize: 10, formatter: (v: any) => fmt(Number(v)) }} />
+                  <Bar dataKey="receita" fill="var(--gem-safira)" radius={[0,3,3,0]} label={{ position: 'right', fill: 'var(--text-muted)', fontSize: 10, formatter: (v: any) => fmt(Number(v)) }} />
                 </BarChart>
               </ResponsiveContainer>
+              {fixadoCategoria && <FaixaFixada ponto={fixadoCategoria} onFechar={() => setFixadoCategoria(null)} />}
             </div>
           )}
         </div>
@@ -448,7 +560,12 @@ export default function DashboardClient({
           </div>
           <div className={styles.chartWrapSm}>
             <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={evolucao} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <AreaChart
+                data={evolucao}
+                margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                onClick={e => setFixadoEvolucao(a => alternarFixado(a, pontoDoClique(e, evolucao, SERIES_EVOLUCAO)))}
+                style={{ cursor: 'pointer' }}
+              >
                 <defs>
                   <linearGradient id="evolGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="var(--accent)" stopOpacity={0.25} />
@@ -467,6 +584,7 @@ export default function DashboardClient({
                 <Area dataKey="receita" name="Faturamento" stroke="var(--accent)" strokeWidth={2} fill="url(#evolGrad)" dot={{ fill: 'var(--accent)', r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
               </AreaChart>
             </ResponsiveContainer>
+            {fixadoEvolucao && <FaixaFixada ponto={fixadoEvolucao} onFechar={() => setFixadoEvolucao(null)} />}
           </div>
         </div>
 
