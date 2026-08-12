@@ -9,6 +9,8 @@ import Badge from '@/components/ui/Badge'
 import ProdutoDetalheModal from '@/components/produto/ProdutoDetalheModal'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import type { ProductWithRelations, StoreOption } from '../produtos/page'
+import Paginacao from '@/components/ui/Paginacao'
+import { usePaginacaoServidor } from '@/hooks/usePaginacaoServidor'
 import styles from './EstoqueClient.module.css'
 
 function getStatusVenda(lastSaleDate: string | null, createdAt: string): 'parado' | 'critico' | null {
@@ -19,16 +21,6 @@ function getStatusVenda(lastSaleDate: string | null, createdAt: string): 'parado
   if (dias >= 90) return 'critico'
   if (dias >= 60) return 'parado'
   return null
-}
-
-function buildPages(current: number, total: number): (number | '...')[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
-  const pages: (number | '...')[] = [1]
-  if (current > 3) pages.push('...')
-  for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i)
-  if (current < total - 2) pages.push('...')
-  pages.push(total)
-  return pages
 }
 
 function fmt(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
@@ -64,12 +56,21 @@ export default function EstoqueClient({
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [, startTransition] = useTransition()
+  const [pendente, startTransition] = useTransition()
   const [detalhe, setDetalhe] = useState<ProductWithRelations | null>(null)
 
-  const totalPages = Math.ceil(total / perPage)
-  const from = Math.min((page - 1) * perPage + 1, total)
-  const to = Math.min(page * perPage, total)
+  /*
+   * 10 por tela, encadeada sobre os lotes de 50 do servidor: as 5 primeiras
+   * páginas de cada lote são instantâneas e só a virada consulta de novo.
+   */
+  const pag = usePaginacaoServidor({
+    itens: products,
+    paginaServidor: page,
+    porLoteServidor: perPage,
+    totalItens: total,
+    irParaPaginaServidor: pushPage,
+    carregando: pendente,
+  })
 
   function pushFilter(key: string, value: string) {
     const p = new URLSearchParams(searchParams.toString())
@@ -163,7 +164,7 @@ export default function EstoqueClient({
               </tr>
             </thead>
             <tbody>
-              {products.map(prod => {
+              {pag.fatia.map(prod => {
                 const statusVenda = getStatusVenda(prod.last_sale_date, prod.created_at)
                 return (
                   <tr
@@ -236,24 +237,14 @@ export default function EstoqueClient({
       </div>
 
       {/* Paginação */}
-      {totalPages > 1 && (
-        <div className={styles.pagination}>
-          <span className={styles.paginationInfo}>Mostrando {from}–{to} de {total}</span>
-          <div className={styles.paginationButtons}>
-            <button className={styles.pageBtn} disabled={page <= 1} onClick={() => pushPage(page - 1)}>
-              <ChevronLeft size={14} />
-            </button>
-            {buildPages(page, totalPages).map((p, i) =>
-              p === '...'
-                ? <span key={`dots-${i}`} className={styles.pageDots}>…</span>
-                : <button key={p} className={`${styles.pageBtn} ${p === page ? styles.pageBtnActive : ''}`} onClick={() => pushPage(p as number)}>{p}</button>
-            )}
-            <button className={styles.pageBtn} disabled={page >= totalPages} onClick={() => pushPage(page + 1)}>
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
-      )}
+      <Paginacao
+        pagina={pag.pagina}
+        totalPaginas={pag.totalPaginas}
+        totalItens={pag.totalItens}
+        rotulo="peça"
+        onIr={pag.irPara}
+        carregando={pag.carregando}
+      />
 
       {detalhe && (
         <ProdutoDetalheModal

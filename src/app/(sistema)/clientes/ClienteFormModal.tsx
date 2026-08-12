@@ -6,6 +6,7 @@ import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { createCustomer, updateCustomer } from './actions'
 import type { CustomerWithStats, StoreOption } from './page'
+import { mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/telefone'
 import styles from './ClienteFormModal.module.css'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -25,13 +26,9 @@ function validateCPF(cpf: string): boolean {
   return r === parseInt(d[10])
 }
 
-function maskPhone(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 11)
-  if (d.length <= 2)  return d.length ? `(${d}` : ''
-  if (d.length <= 7)  return `(${d.slice(0, 2)}) ${d.slice(2)}`
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
-}
+/* Máscara compartilhada: mostra +55 e não corrompe número já salvo com código de
+ * país. Ver src/lib/telefone.ts. */
+const maskPhone = mascararTelefone
 
 function maskCPF(v: string): string {
   const d = v.replace(/\D/g, '').slice(0, 11)
@@ -92,7 +89,7 @@ export default function ClienteFormModal({
 
   const [form, setForm] = useState({
     name:            customer?.name    ?? '',
-    phone:           customer?.phone   ?? '',
+    phone:           mascararTelefone(customer?.phone ?? ''),
     cpf:             customer?.cpf     ?? '',
     email:           customer?.email   ?? '',
     birthday:        customer?.birthday ?? '',
@@ -125,8 +122,10 @@ export default function ClienteFormModal({
   function validate(): boolean {
     const e: typeof errors = {}
     if (!form.name.trim())  e.name  = 'Nome é obrigatório'
-    if (!form.phone.trim()) e.phone = 'Telefone é obrigatório'
-    else if (form.phone.replace(/\D/g, '').length < 10) e.phone = 'Telefone inválido'
+    // Exige país + DDD + número. Antes bastava ter 10 dígitos, o que aceitava
+    // número sem DDD válido e deixava o banco com três formatos diferentes.
+    const erroTel = validarTelefone(form.phone)
+    if (erroTel) e.phone = erroTel
     if (form.cpf && !validateCPF(form.cpf)) e.cpf = 'CPF inválido'
     if (!form.origin_store_id) e.origin_store_id = 'Loja de origem é obrigatória'
     setErrors(e)
@@ -139,9 +138,13 @@ export default function ClienteFormModal({
     setSaving(true)
     setServerErr(null)
 
+    // Grava na forma canônica (+5519995672222). Sem isso cada tela salvava do
+    // jeito que exibia, e o banco acumulou três formatos diferentes.
+    const dados = { ...form, phone: normalizarTelefone(form.phone) }
+
     const result = customer
-      ? await updateCustomer(customer.id, form)
-      : await createCustomer(form)
+      ? await updateCustomer(customer.id, dados)
+      : await createCustomer(dados)
 
     if (result.success) {
       onClose()
@@ -178,7 +181,7 @@ export default function ClienteFormModal({
               className={`${styles.input} ${errors.phone ? styles.inputError : ''}`}
               value={form.phone}
               onChange={e => set('phone', maskPhone(e.target.value))}
-              placeholder="(19) 9 9999-9999"
+              placeholder="+55 (19) 99999-9999"
             />
           </Field>
           <Field label="CPF" error={errors.cpf}>

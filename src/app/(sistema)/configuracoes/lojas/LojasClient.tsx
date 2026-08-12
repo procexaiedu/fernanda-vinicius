@@ -10,6 +10,7 @@ import LojaDetalheModal from './LojaDetalheModal'
 import type { Store } from '@/types'
 import { createStore, updateStore, toggleStoreStatus, type StoreFormData } from './actions'
 import styles from './LojasClient.module.css'
+import { mascararTelefone } from '@/lib/telefone'
 
 const BR_STATES = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA',
@@ -26,13 +27,14 @@ function formatCNPJ(value: string): string {
   return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`
 }
 
-export function formatPhone(value: string): string {
-  const d = value.replace(/\D/g, '').slice(0, 11)
-  if (d.length <= 2)  return d.length ? `(${d}` : ''
-  if (d.length <= 6)  return `(${d.slice(0,2)}) ${d.slice(2)}`
-  if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
-  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
-}
+/*
+ * Reexport da máscara compartilhada. A implementação que estava aqui cortava os
+ * dígitos em 11 ANTES de formatar: num número salvo com código do país
+ * (`+5519995672222`, 408 dos 760 clientes) isso produzia `(55) 19995-6722` — DDD
+ * errado e número truncado. Como a máscara também roda ao ABRIR o formulário de
+ * edição, salvar depois gravava o número corrompido. Ver src/lib/telefone.ts.
+ */
+export const formatPhone = mascararTelefone
 
 const emptyForm: StoreFormData = { name: '', city: '', state: 'SP', address: '', phone: '', cnpj: '', whatsapp_phone: '' }
 

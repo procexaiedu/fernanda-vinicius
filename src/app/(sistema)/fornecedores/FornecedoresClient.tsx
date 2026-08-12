@@ -14,6 +14,8 @@ import FornecedorDetalheModal from './FornecedorDetalheModal'
 import { toggleSupplierStatus } from './actions'
 import type { SupplierWithCount } from './page'
 import styles from './FornecedoresClient.module.css'
+import Paginacao from '@/components/ui/Paginacao'
+import { usePaginacaoLocal } from '@/hooks/usePaginacaoLocal'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -117,6 +119,9 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
 
     return list
   }, [suppliers, search, showInactive, filterConsignment, sortKey, sortDir])
+
+  // 10 por página, corte local — a lista inteira já está na memória.
+  const { fatia, pagina, totalPaginas, totalItens, irPara } = usePaginacaoLocal(filtered)
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -243,7 +248,7 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(s => {
+              {fatia.map(s => {
                 const isDupe = duplicateInitials.has(s.id)
                 return (
                   <tr
@@ -358,6 +363,15 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
           </table>
         )}
       </div>
+
+      <Paginacao
+        pagina={pagina}
+        totalPaginas={totalPaginas}
+        totalItens={totalItens}
+        rotulo="fornecedor"
+        rotuloPlural="fornecedores"
+        onIr={irPara}
+      />
 
       {formOpen && (
         <FornecedorFormModal

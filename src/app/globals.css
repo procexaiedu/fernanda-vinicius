@@ -337,10 +337,33 @@ input, textarea, select {
   text-align: right !important;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
+  white-space: nowrap;
+  /* Piso comum para as numéricas terem o mesmo ritmo. Sem ele a largura vem do
+   * tamanho do TEXTO DO CABEÇALHO, então "Entregues" ficava com 148px e "Lidos"
+   * com 95px lado a lado, e os valores (muitas vezes um "0") pareciam jogados. */
+  min-width: 92px;
 }
 
 .col-center {
   text-align: center !important;
+}
+
+/* Data: à direita como as numéricas, e nunca quebrada. À esquerda ela encostava
+ * no número da coluna anterior, que é alinhado à direita — os dois grudavam. */
+.col-date {
+  text-align: right !important;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  min-width: 92px;
+}
+
+/* Coluna de ações: encosta na borda direita e não disputa largura com o resto.
+ * `width: 1%` com nowrap é o que faz a coluna encolher até o conteúdo, devolvendo
+ * a sobra para a coluna de texto — que é quem deve absorver folga. */
+.col-acoes {
+  text-align: right !important;
+  width: 1%;
+  white-space: nowrap;
 }
 
 /*

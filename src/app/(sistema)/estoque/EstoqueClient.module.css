@@ -79,8 +79,7 @@
 
 .tableWrapper {
   overflow-x: auto;
-  overflow-y: auto;
-  max-height: calc(100vh - 260px);
+  /* Sem scroll interno — a paginação de 10 em 10 já define a altura. */
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--bg-surface);

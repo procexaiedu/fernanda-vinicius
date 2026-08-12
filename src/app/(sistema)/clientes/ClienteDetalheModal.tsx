@@ -11,6 +11,7 @@ import Badge from '@/components/ui/Badge'
 import { createClient } from '@/lib/supabase/client'
 import type { CustomerWithStats } from './page'
 import styles from './ClienteDetalheModal.module.css'
+import { formatarTelefone } from '@/lib/telefone'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -233,7 +234,7 @@ export default function ClienteDetalheModal({ customer, inactiveDays, isAdmin = 
 
       {/* ── Info chips ─────────────────────────────────────── */}
       <div className={styles.infoRow}>
-        <InfoChip icon={<Phone size={12} />} value={customer.phone} />
+        <InfoChip icon={<Phone size={12} />} value={formatarTelefone(customer.phone)} />
         {customer.email && <InfoChip icon={<Mail size={12} />} value={customer.email} />}
         {customer.birthday && (
           <InfoChip

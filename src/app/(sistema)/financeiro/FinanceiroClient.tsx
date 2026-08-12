@@ -8,10 +8,13 @@ import {
   RefreshCw, AlertTriangle, ArrowRight,
 } from 'lucide-react'
 import DatePicker from '@/components/ui/DatePicker'
+import SeletorPeriodo from '@/components/ui/SeletorPeriodo'
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
 import CompraDetalheModal from '@/components/compra/CompraDetalheModal'
 import ComissaoDetalheModal from '@/components/comissao/ComissaoDetalheModal'
 import styles from './FinanceiroClient.module.css'
+import Paginacao from '@/components/ui/Paginacao'
+import { usePaginacaoLocal } from '@/hooks/usePaginacaoLocal'
 import {
   buscarTransacoes, buscarPendencias, marcarComoPago, criarDespesaManual, editarDespesaManual,
   deletarDespesaManual, buscarPnl, buscarRecorrentes, criarRecorrente,
@@ -393,6 +396,9 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
     return { entradas, saidas, saldo: entradas - saidas, aPagar }
   }, [transactions])
 
+  // 10 por página, corte local — as transações do período já vieram todas.
+  const { fatia, pagina, totalPaginas, totalItens, irPara } = usePaginacaoLocal(transactions)
+
   const catOptions: DropdownOption[] = [
     { value: '', label: 'Categoria' },
     ...categories.map(c => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) })),
@@ -490,11 +496,12 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
         <FilterDropdown label="Categoria" value={fCategory} options={catOptions} onChange={setFCategory} />
         <FilterDropdown label="Vendedor" value={fUser} options={userOptions} onChange={setFUser} />
 
-        <div className={styles.dateRangeWrap}>
-          <DatePicker value={fDateFrom} onChange={setFDateFrom} />
-          <span className={styles.dateSep}>→</span>
-          <DatePicker value={fDateTo} onChange={setFDateTo} />
-        </div>
+        {/* Período — um controle só, no lugar dos dois DatePicker separados. */}
+        <SeletorPeriodo
+          value={{ de: fDateFrom, ate: fDateTo }}
+          onChange={p => { setFDateFrom(p.de); setFDateTo(p.ate) }}
+          placeholder="Todo o período"
+        />
 
         <button className={styles.btnSecondary} onClick={reload} disabled={loading}>
           <RefreshCw size={13} />
@@ -533,7 +540,7 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
                 </td>
               </tr>
             )}
-            {transactions.map(tx => {
+            {fatia.map(tx => {
               const isClickable = (
                 (tx.reference_type === 'sale' || tx.reference_type === 'purchase') && !!tx.reference_id
               ) || tx.reference_type === 'seller_commission'
@@ -608,6 +615,15 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
           </tbody>
         </table>
       </div>
+
+      <Paginacao
+        pagina={pagina}
+        totalPaginas={totalPaginas}
+        totalItens={totalItens}
+        rotulo="transação"
+        rotuloPlural="transações"
+        onIr={irPara}
+      />
 
       {/* Modal despesa */}
       {showModal && (

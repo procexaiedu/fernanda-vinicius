@@ -8,6 +8,7 @@ import Input from '@/components/ui/Input'
 import { createSupplier, updateSupplier, type SupplierFormData, type SupplierPhone } from './actions'
 import type { SupplierWithCount } from './page'
 import styles from './FornecedorFormModal.module.css'
+import { mascararTelefone } from '@/lib/telefone'
 
 interface NominatimResult {
   display_name: string
@@ -50,13 +51,9 @@ function formatCNPJ(v: string): string {
   return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`
 }
 
-function formatPhone(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 11)
-  if (d.length <= 2)  return d.length ? `(${d}` : ''
-  if (d.length <= 6)  return `(${d.slice(0,2)}) ${d.slice(2)}`
-  if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
-  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
-}
+/* Cópia local removida: cortava os dígitos em 11 antes de formatar e corrompia
+ * número com código do país. Ver src/lib/telefone.ts. */
+const formatPhone = mascararTelefone
 
 function formatCEP(v: string): string {
   const d = v.replace(/\D/g, '').slice(0, 8)

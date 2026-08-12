@@ -25,6 +25,7 @@ import {
   type CategoryChartData, type EvolucaoChartData,
 } from './actions'
 import styles from './DashboardClient.module.css'
+import { formatarTelefone } from '@/lib/telefone'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -566,7 +567,7 @@ export default function DashboardClient({
               <div key={a.id} className={styles.alertRow}>
                 <div className={styles.alertRowInfo}>
                   <span className={styles.alertRowName}>{a.name}</span>
-                  <span className={styles.alertRowSub}>{a.phone} · {fmtBirthday(a.birthday)}</span>
+                  <span className={styles.alertRowSub}>{formatarTelefone(a.phone)} · {fmtBirthday(a.birthday)}</span>
                 </div>
                 <span className={styles.alertRowMuted}>
                   {a.last_sale_date ? fmtDate(a.last_sale_date) : 'Nunca'}

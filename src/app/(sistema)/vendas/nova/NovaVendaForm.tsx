@@ -18,6 +18,7 @@ import { createCustomer, searchCustomers, type CustomerFormData } from '../../cl
 import { matchText } from '@/lib/normalize'
 import { todaySP } from '@/lib/date'
 import styles from './NovaVendaForm.module.css'
+import { formatarTelefone } from '@/lib/telefone'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -294,7 +295,7 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
                 <span style={{ fontWeight: 600 }}>{c.name}</span>
                 {isBirthdayMonth(c.birthday) && <Cake size={12} style={{ color: 'var(--accent)' }} />}
               </div>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.phone}{c.cpf ? ` · CPF: ${c.cpf}` : ''}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatarTelefone(c.phone)}{c.cpf ? ` · CPF: ${c.cpf}` : ''}</span>
             </div>
           ))}
           {filtered.length === 0 && q !== '' && (
@@ -905,7 +906,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               <div className={styles.selectedCustomer}>
                 <User size={13} />
                 <span className={styles.selectedCustomerName}>{selectedCustomer.name}</span>
-                {selectedCustomer.phone && <span className={styles.selectedCustomerMeta}>{selectedCustomer.phone}</span>}
+                {selectedCustomer.phone && <span className={styles.selectedCustomerMeta}>{formatarTelefone(selectedCustomer.phone)}</span>}
                 <button className={styles.clearCustomerBtn} onClick={() => selectCustomer(null, '')}>
                   <X size={12} />
                 </button>

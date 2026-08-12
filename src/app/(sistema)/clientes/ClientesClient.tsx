@@ -11,6 +11,9 @@ import ClienteDetalheModal from './ClienteDetalheModal'
 import { deleteCustomer } from './actions'
 import type { CustomerWithStats, StoreOption } from './page'
 import styles from './ClientesClient.module.css'
+import { formatarTelefone } from '@/lib/telefone'
+import Paginacao from '@/components/ui/Paginacao'
+import { usePaginacaoLocal } from '@/hooks/usePaginacaoLocal'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -120,6 +123,10 @@ export default function ClientesClient({
       return sortDir === 'asc' ? cmp : -cmp
     })
   }, [customers, search, filter, inactiveDays, sortKey, sortDir])
+
+  // 10 por página, cortadas localmente: as 760 clientes já estão na memória, então
+  // trocar de página é instantâneo e não custa ida ao servidor.
+  const { fatia, pagina, totalPaginas, totalItens, irPara } = usePaginacaoLocal(filtered)
 
   const counts = useMemo(() => ({
     aniversariantes: customers.filter(c => isBirthdayThisMonth(c.birthday)).length,
@@ -243,7 +250,7 @@ export default function ClientesClient({
               </tr>
             </thead>
             <tbody>
-              {filtered.map(c => {
+              {fatia.map(c => {
                 const birthday   = isBirthdayThisMonth(c.birthday)
                 const inactive   = isInactive(c.last_sale_date, inactiveDays)
                 const confirming = confirmDeleteId === c.id
@@ -279,7 +286,7 @@ export default function ClientesClient({
                     </td>
 
                     {/* Telefone */}
-                    <td className={styles.mutedCell}>{c.phone}</td>
+                    <td className={styles.mutedCell}>{formatarTelefone(c.phone)}</td>
 
                     {/* Aniversário */}
                     <td className={styles.mutedCell}>
@@ -362,12 +369,13 @@ export default function ClientesClient({
         )}
       </div>
 
-      {filtered.length > 0 && (
-        <div className={styles.footer}>
-          {filtered.length} cliente{filtered.length !== 1 ? 's' : ''} exibida{filtered.length !== 1 ? 's' : ''}
-          {search || filter !== 'todos' ? ` de ${customers.length} total` : ''}
-        </div>
-      )}
+      <Paginacao
+        pagina={pagina}
+        totalPaginas={totalPaginas}
+        totalItens={totalItens}
+        rotulo="cliente"
+        onIr={irPara}
+      />
 
       {formOpen && (
         <ClienteFormModal

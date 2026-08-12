@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import btn from '@/components/ui/Button.module.css'
 import Badge from '@/components/ui/Badge'
-import DatePicker from '@/components/ui/DatePicker'
+import SeletorPeriodo from '@/components/ui/SeletorPeriodo'
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
 import { normalize } from '@/lib/normalize'
 import type { SaleRow, ClosingOption } from './page'
@@ -283,22 +283,14 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
       {/* Toolbar */}
       <div className={styles.toolbar}>
         <div className={styles.toolbarLeft}>
-          {/* Filtro de data */}
-          <div className={styles.dateRange}>
-            <div className={styles.dateRangeField}>
-              <DatePicker
-                value={dateFrom}
-                onChange={v => { setDateFrom(v); if (v && dateTo && v > dateTo) setDateTo(v) }}
-              />
-            </div>
-            <span className={styles.dateRangeSep}>—</span>
-            <div className={styles.dateRangeField}>
-              <DatePicker
-                value={dateTo}
-                onChange={v => { setDateTo(v); if (v && dateFrom && v < dateFrom) setDateFrom(v) }}
-              />
-            </div>
-          </div>
+          {/* Período — um controle só. Os dois DatePicker separados obrigavam
+              abrir dois calendários e cada tela remendava por conta própria a
+              inversão de início/fim; o seletor já garante de ≤ até. */}
+          <SeletorPeriodo
+            value={{ de: dateFrom, ate: dateTo }}
+            onChange={p => { setDateFrom(p.de); setDateTo(p.ate) }}
+            placeholder="Todo o período"
+          />
 
           <input
             className={styles.search}

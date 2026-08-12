@@ -8,6 +8,7 @@ import { criarDisparo, atualizarDisparo, enviarDisparo, listarClientes, listarDe
 import { renderPreview } from './templates'
 import type { StoreOption, DisparoRow } from './page'
 import styles from './NovoDisparoModal.module.css'
+import { formatarTelefone } from '@/lib/telefone'
 
 interface Props {
   stores: StoreOption[]
@@ -264,7 +265,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
                         <label key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px', cursor: 'pointer', fontSize: 14, borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,.04))', background: on ? 'var(--accent-subtle)' : 'transparent' }}>
                           <input type="checkbox" checked={on} onChange={() => toggleCliente(c.id)} style={{ width: 17, height: 17, flexShrink: 0, cursor: 'pointer' }} />
                           <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: on ? 600 : 400 }}>{c.name}</span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>{c.phone}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>{formatarTelefone(c.phone)}</span>
                         </label>
                       )
                     })}

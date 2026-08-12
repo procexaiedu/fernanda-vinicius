@@ -11,6 +11,8 @@ import DisparoDetalheModal from './DisparoDetalheModal'
 import { enviarDisparo, excluirDisparo, duplicarDisparo } from './actions'
 import type { DisparoRow, StoreOption } from './page'
 import styles from './DisparosClient.module.css'
+import Paginacao from '@/components/ui/Paginacao'
+import { usePaginacaoLocal } from '@/hooks/usePaginacaoLocal'
 
 type FilterType = 'todos' | 'rascunhos' | 'enviados'
 
@@ -64,6 +66,9 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
       return true
     })
   }, [disparos, search, filter])
+
+  // 10 por página, corte local
+  const { fatia, pagina, totalPaginas, totalItens, irPara } = usePaginacaoLocal(filtered)
 
   const counts = useMemo(() => ({
     rascunhos: disparos.filter(d => d.status === 'rascunho').length,
@@ -146,7 +151,7 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
               </tr>
             </thead>
             <tbody>
-              {filtered.map(d => {
+              {fatia.map(d => {
                 const badge = STATUS_BADGE[d.status] ?? STATUS_BADGE.cancelado
                 const confirming = confirmDeleteId === d.disparo_id
                 const isDraft = d.status === 'rascunho'
@@ -223,11 +228,13 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
         )}
       </div>
 
-      {filtered.length > 0 && (
-        <div className={styles.footer}>
-          {filtered.length} disparo{filtered.length !== 1 ? 's' : ''} exibido{filtered.length !== 1 ? 's' : ''}
-        </div>
-      )}
+      <Paginacao
+        pagina={pagina}
+        totalPaginas={totalPaginas}
+        totalItens={totalItens}
+        rotulo="disparo"
+        onIr={irPara}
+      />
 
       {formOpen && (
         <NovoDisparoModal
