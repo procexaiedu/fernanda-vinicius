@@ -36,8 +36,11 @@
 .title {
   font-size: var(--fs-page-title);
   font-weight: 700;
+  /* Tracking negativo: em texto grande o espaçamento padrão parece frouxo. É o
+   * que dá presença ao título sem precisar de outra família de fonte. */
+  letter-spacing: var(--tracking-title);
   color: var(--text-primary);
-  line-height: 1.2;
+  line-height: 1.15;
   margin: 0;
 }
 

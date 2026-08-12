@@ -1,61 +1,94 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* ─── Design Tokens ─────────────────────────────────────────────
  *
- * CLARO é o padrão (`:root`); escuro é a variante (`[data-theme="dark"]`).
- * Era o contrário até 12/08/2026 — a Fernanda pediu algo clean, e "clean" para
- * a maioria das pessoas significa fundo branco.
+ * ESCURO é o padrão (`:root`); claro é a variante (`[data-theme="light"]`).
  *
- * A cor de marca é MONOCROMÁTICA: o acento é quase-preto no claro e
- * quase-branco no escuro. Cor de verdade fica reservada para estado —
- * verde/vermelho de pago, pendente, sucesso e erro. Assim nada compete com a
- * foto da joia, que é o que precisa chamar atenção na tela.
+ * Histórico, porque isso mudou duas vezes em 12/08/2026: a paleta era dourada,
+ * a Fernanda não gostou; virou monocromática clara, ficou sem vida e sem
+ * contraste (o fundo #FAFAFA era quase igual ao branco do card); agora é escura
+ * com cor de volta. Foto de joia brilha sobre fundo escuro — é assim que as
+ * vitrines da loja são iluminadas.
  *
- * `--accent-fg` existe porque o acento agora é escuro no tema claro: texto
- * sobre ele precisa inverter, senão o botão primário fica preto no preto.
- * `--accent-rgb` permite qualquer opacidade sem cravar a cor —
- * `rgba(var(--accent-rgb), 0.06)` acompanha o tema sozinho.
+ * A cor de MARCA continua monocromática: o acento é quase-branco no escuro,
+ * quase-preto no claro. Mas a cor voltou na camada de INFORMAÇÃO — tarjas de
+ * indicador, badges de situação, avatares e gráficos. A distinção importa: cor
+ * que informa ajuda, cor decorativa só concorre com a peça na foto.
+ *
+ * `--accent-fg`  texto sobre o acento; inverte junto com ele, senão o botão
+ *                primário fica claro no claro (ou escuro no escuro).
+ * `--accent-rgb` permite qualquer opacidade sem cravar a cor:
+ *                `rgba(var(--accent-rgb), 0.08)` acompanha o tema sozinho.
+ * `--text-on-base` texto direto sobre o fundo, fora de card. Existe para o tema
+ *                claro não quebrar quando o fundo é mais escuro que o card.
  */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  /* Backgrounds — branco neutro, sem bege */
-  --bg-base:     #FAFAFA;
-  --bg-surface:  #FFFFFF;
-  --bg-elevated: #F4F4F5;
+  /* Backgrounds — quase preto com leve viés frio, cards um degrau acima.
+   * O viés (o B levemente acima do R/G) é o que separa "escuro sofisticado" de
+   * "cinza morto": preto neutro puro achata a tela. */
+  --bg-base:     #0B0B0E;
+  --bg-surface:  #14141A;
+  --bg-elevated: #1C1C24;
 
-  /* Borders */
-  --border:       #E4E4E7;
-  --border-light: #D4D4D8;
+  /* Texto direto sobre o fundo (fora de card) */
+  --text-on-base:       #F4F4F5;
+  --text-on-base-muted: #A1A1AA;
 
-  /* Accent — grafite */
-  --accent:        #1A1A1A;
-  --accent-hover:  #000000;
-  --accent-subtle: rgba(26, 26, 26, 0.06);
-  --accent-fg:     #FFFFFF;
-  --accent-rgb:    26, 26, 26;
+  /* Borders — quase imperceptíveis; o card se separa pelo tom, não pelo traço */
+  --border:       #23232B;
+  --border-light: #32323C;
+
+  /* Accent — grafite invertido */
+  --accent:        #F4F4F5;
+  --accent-hover:  #FFFFFF;
+  --accent-subtle: rgba(244, 244, 245, 0.08);
+  --accent-fg:     #0D0D0D;
+  --accent-rgb:    244, 244, 245;
 
   /* Text */
-  --text-primary:  #18181B;
-  --text-secondary: #52525B;
-  --text-muted:    #71717A;
-  --text-disabled: #A1A1AA;
+  --text-primary:   #F4F4F5;
+  --text-secondary: #A1A1AA;
+  --text-muted:     #71717A;
+  --text-disabled:  #52525B;
 
-  /* Semantic — a única cor do sistema, e só para estado */
-  --success:       #15803D;
-  --success-subtle: rgba(21, 128, 61, 0.10);
-  --danger:        #DC2626;
-  --danger-subtle: rgba(220, 38, 38, 0.10);
-  --warning:       #B45309;
-  --warning-subtle: rgba(180, 83, 9, 0.10);
+  /* Semantic — estado */
+  --success:        #4ADE80;
+  --success-subtle: rgba(74, 222, 128, 0.12);
+  --danger:         #F87171;
+  --danger-subtle:  rgba(248, 113, 113, 0.12);
+  --warning:        #FBBF24;
+  --warning-subtle: rgba(251, 191, 36, 0.12);
+  --info:           #60A5FA;
+  --info-subtle:    rgba(96, 165, 250, 0.12);
+
+  /*
+   * Paleta de informação — as pedras que ela vende. Usada nas tarjas dos
+   * indicadores e nos avatares, onde a variação de cor ajuda a bater o olho.
+   * Sai das peças do feed dela: esmeralda, safira, ametista, rubi, topázio.
+   */
+  --gem-esmeralda: #34D399;
+  --gem-safira:    #60A5FA;
+  --gem-ametista:  #A78BFA;
+  --gem-rubi:      #FB7185;
+  --gem-topazio:   #FBBF24;
+  --gem-perola:    #D4D4D8;
+
+  /* Tipografia — uma família só. Título ganha presença por TAMANHO e tracking
+   * apertado, não por outra fonte: é o que a referência do Quantix faz, e evita
+   * carregar uma segunda família por decoração. */
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   /* Layout */
   --sidebar-width:          240px;
   --sidebar-width-collapsed: 64px;
   --header-height:          56px;
-  --radius-sm:  4px;
-  --radius-md:  8px;
-  --radius-lg:  12px;
+  /* Raio mais generoso que o anterior (4/8/12): card com canto macio é o que
+   * diferencia "painel de sistema" de "produto desenhado". */
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  16px;
 
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -81,8 +114,12 @@
   --table-head-fs: 11px;
 
   /* Tipografia fluida de títulos/seções (corpo continua 14px) */
-  --fs-page-title: clamp(18px, 0.6vw + 14px, 22px);
+  /* Título com presença: maior e com tracking negativo. Em texto grande o
+   * espaçamento padrão parece frouxo — apertar é o que dá o ar editorial da
+   * referência sem precisar de outra fonte. */
+  --fs-page-title: clamp(24px, 1vw + 19px, 32px);
   --fs-section:    clamp(15px, 0.4vw + 12px, 18px);
+  --tracking-title: -0.022em;
 }
 
 /* ─── Breakpoints: redensifica tokens conforme a tela aperta ───── */
@@ -111,42 +148,57 @@
   }
 }
 
-/* ─── Modo Escuro ────────────────────────────────────────────────
- * Variante. O acento inverte para quase-branco, e `--accent-fg` inverte com
- * ele, senão o texto do botão primário desaparece no próprio fundo.
+/* ─── Modo Claro ─────────────────────────────────────────────────
+ * Variante. O acento inverte para quase-preto e `--accent-fg` inverte com ele,
+ * senão o texto do botão primário fica preto no preto. As cores semânticas e as
+ * gemas escurecem, porque tom claro sobre fundo branco não tem contraste.
  */
-[data-theme="dark"] {
-  color-scheme: dark;
+[data-theme="light"] {
+  color-scheme: light;
 
-  /* Backgrounds */
-  --bg-base:     #0D0D0D;
-  --bg-surface:  #161616;
-  --bg-elevated: #1F1F1F;
+  /* Backgrounds — o fundo é perceptivelmente mais escuro que o card, senão o
+   * card não existe (era o problema do #FAFAFA) */
+  --bg-base:     #E9E9ED;
+  --bg-surface:  #FFFFFF;
+  --bg-elevated: #F4F4F6;
+
+  --text-on-base:       #18181B;
+  --text-on-base-muted: #52525B;
 
   /* Borders */
-  --border:       #2A2A2A;
-  --border-light: #383838;
+  --border:       #E1E1E6;
+  --border-light: #CFCFD6;
 
-  /* Accent — grafite invertido */
-  --accent:        #F0F0F0;
-  --accent-hover:  #FFFFFF;
-  --accent-subtle: rgba(240, 240, 240, 0.08);
-  --accent-fg:     #0D0D0D;
-  --accent-rgb:    240, 240, 240;
+  /* Accent — grafite */
+  --accent:        #18181B;
+  --accent-hover:  #000000;
+  --accent-subtle: rgba(24, 24, 27, 0.06);
+  --accent-fg:     #FFFFFF;
+  --accent-rgb:    24, 24, 27;
 
   /* Text */
-  --text-primary:   #F4F4F5;
-  --text-secondary: #A1A1AA;
+  --text-primary:   #18181B;
+  --text-secondary: #52525B;
   --text-muted:     #71717A;
-  --text-disabled:  #52525B;
+  --text-disabled:  #A1A1AA;
 
-  /* Semantic — versões mais claras para contraste no fundo escuro */
-  --success:        #4ADE80;
-  --success-subtle: rgba(74, 222, 128, 0.12);
-  --danger:         #F87171;
-  --danger-subtle:  rgba(248, 113, 113, 0.12);
-  --warning:        #FBBF24;
-  --warning-subtle: rgba(251, 191, 36, 0.12);
+  /* Semantic — mais escuras para contrastar no branco */
+  --success:        #15803D;
+  --success-subtle: rgba(21, 128, 61, 0.10);
+  --danger:         #DC2626;
+  --danger-subtle:  rgba(220, 38, 38, 0.10);
+  --warning:        #B45309;
+  --warning-subtle: rgba(180, 83, 9, 0.10);
+  --info:           #2563EB;
+  --info-subtle:    rgba(37, 99, 235, 0.10);
+
+  /* Gemas */
+  --gem-esmeralda: #059669;
+  --gem-safira:    #2563EB;
+  --gem-ametista:  #7C3AED;
+  --gem-rubi:      #E11D48;
+  --gem-topazio:   #B45309;
+  --gem-perola:    #71717A;
 }
 
 /* ─── Reset ──────────────────────────────────────────────────── */
@@ -163,7 +215,7 @@ html {
 
 body {
   min-height: 100%;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-ui);
   font-size: 14px;
   line-height: 1.5;
   background-color: var(--bg-base);
@@ -227,4 +279,60 @@ input, textarea, select {
 }
 @media (max-width: 1180px) {
   .col-secondary { display: none !important; }
+}
+
+/* ─── Movimento ──────────────────────────────────────────────────
+ *
+ * Regra que segui: animação serve para explicar mudança de estado, não para
+ * decorar. Nada acima de 260ms — num PDV a operadora repete a mesma ação
+ * dezenas de vezes por dia, e animação lenta que encanta na primeira vez irrita
+ * na vigésima.
+ *
+ * Tudo aqui respeita `prefers-reduced-motion`, no final do bloco.
+ */
+
+@keyframes fv-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fv-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fv-pop {
+  0%   { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Entrada do conteúdo da página — sutil, só o suficiente para a troca de tela
+ * não ser um corte seco. */
+.fv-enter {
+  animation: fv-fade-up 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* Cards levantam de leve no hover: confirma que são uma unidade clicável e dá
+ * a sensação de profundidade que o fundo escuro pede. */
+.fv-lift {
+  transition:
+    transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.fv-lift:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-light);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .fv-lift:hover { transform: none; }
 }

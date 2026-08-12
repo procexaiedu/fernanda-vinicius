@@ -40,7 +40,19 @@
       "Bash(grep -E \"^### \\\\`\" docs/schema_database.md)",
       "Bash(npx tsc:*)",
       "Bash(node -e \"const l = require\\('lucide-react'\\); console.log\\(Object.keys\\(l\\).filter\\(k => k.toLowerCase\\(\\).includes\\('instagram'\\) || k.toLowerCase\\(\\).includes\\('brand'\\)\\)\\)\")",
-      "Bash(node -e \"const l = require\\('lucide-react'\\); const keys = Object.keys\\(l\\); console.log\\(keys.filter\\(k => k.match\\(/[Ii]nst|[Ss]ocial|[Bb]rand|[Mm]essage/\\)\\).slice\\(0, 20\\)\\)\")"
+      "Bash(node -e \"const l = require\\('lucide-react'\\); const keys = Object.keys\\(l\\); console.log\\(keys.filter\\(k => k.match\\(/[Ii]nst|[Ss]ocial|[Bb]rand|[Mm]essage/\\)\\).slice\\(0, 20\\)\\)\")",
+      "mcp__devcontext__whoami",
+      "WebSearch",
+      "Bash(grep -o -i 'supabase[a-zA-Z0-9_.:/-]\\\\{0,60\\\\}' C:/Users/felip/AppData/Local/Temp/claude/C--Users-felip-FeVinicius-fernanda-vinicius/e8f80193-642d-4983-b189-e1c3a8af2cd2/scratchpad/all.js)",
+      "mcp__portainer__dockerProxy",
+      "Bash(git check-ignore *)",
+      "mcp__devcontext__list_meetings",
+      "mcp__claude_ai_atlasmcp__list_meetings",
+      "Bash(node -e ' *)",
+      "Bash(xargs -I{} echo \"arquivos configuracoes/page.tsx no meu diff: {}\")",
+      "Bash(git checkout *)",
+      "Bash(npx eslint *)",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{JSON.parse\\(d\\).forEach\\(p=>console.log\\('  ',String\\(p.barcode_number\\).padEnd\\(7\\),\\('R\\\\$ '+p.sale_price\\).padEnd\\(10\\),\\(p.stores?.name||'?'\\).padEnd\\(10\\),p.name\\)\\)}\\)\")"
     ]
   }
 }

@@ -46,9 +46,8 @@ function fmtBirthday(s: string) {
 }
 
 function getAvatarColor(id: string) {
-  // Tons neutros — ver a nota em ClientesClient sobre por que o avatar não
-  // carrega matiz nesta paleta.
-  const colors = ['#3F3F46', '#52525B', '#71717A', '#27272A', '#5B5B63', '#44444B']
+  // Paleta de gemas — ver a nota em ClientesClient.
+  const colors = ['var(--gem-esmeralda)','var(--gem-safira)','var(--gem-ametista)','var(--gem-rubi)','var(--gem-topazio)','var(--gem-perola)']
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
   return colors[Math.abs(hash) % colors.length]

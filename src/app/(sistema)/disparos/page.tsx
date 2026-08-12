@@ -68,7 +68,7 @@ export default async function DisparosPage() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
           Disparos
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>

@@ -18,10 +18,11 @@ import styles from './FornecedoresClient.module.css'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS = [
-  // Tons neutros: mantêm a variação que ajuda a bater o olho na lista, sem
-  // introduzir 8 matizes saturados numa paleta monocromática. O nome está do
-  // lado — a cor não precisa carregar identidade, só ritmo visual.
-  '#3F3F46', '#52525B', '#71717A', '#27272A', '#5B5B63', '#44444B', '#63636B', '#343439',
+  // Paleta de gemas — as pedras que ela vende. A variação de cor ajuda a bater
+  // o olho na lista, e sai do vocabulário do próprio negócio em vez de ser
+  // decoração aleatória.
+  'var(--gem-esmeralda)', 'var(--gem-safira)', 'var(--gem-ametista)',
+  'var(--gem-rubi)', 'var(--gem-topazio)', 'var(--gem-perola)',
 ]
 
 function getAvatarColor(id: string): string {

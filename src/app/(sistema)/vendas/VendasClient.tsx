@@ -230,7 +230,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
     <>
       {/* Page header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Vendas</h1>
+        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)' }}>Vendas</h1>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
           <a
             href="/pdv"

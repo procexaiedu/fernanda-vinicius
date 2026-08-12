@@ -94,6 +94,24 @@
   font-size: var(--table-fs);
 }
 
+/*
+ * Material vem longo e em maiúsculas ("BANHO DE OURO AMARELO"): sem limite a
+ * tarja quebra em três linhas e a linha da tabela sai de 63px para 77px — 20%
+ * menos produtos por tela, e a coluna rouba a largura que faltava no fim da
+ * tabela. Uma linha só, com reticências; o valor cheio fica no title do td.
+ */
+.materialCell {
+  max-width: 132px;
+}
+
+.materialCell > span {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .table thead th {
   position: sticky;
   top: 0;

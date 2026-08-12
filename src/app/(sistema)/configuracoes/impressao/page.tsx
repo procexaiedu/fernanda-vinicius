@@ -24,7 +24,7 @@ export default async function ImpressaoConfigPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>Impressão de etiquetas</h1>
+        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)' }}>Impressão de etiquetas</h1>
         <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
           Configure o agente local de impressão (<code>fv-print-agent</code>) que envia os jobs PPLA à impressora térmica Argox.
         </p>

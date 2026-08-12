@@ -329,7 +329,7 @@ export default function ProdutosClient({
                       </span>
                     </td>
 
-                    <td className={`${styles.mutedCell} col-tertiary`}>
+                    <td className={`${styles.mutedCell} ${styles.materialCell} col-tertiary`} title={prod.material}>
                       <Badge variant="muted">{prod.material}</Badge>
                     </td>
 

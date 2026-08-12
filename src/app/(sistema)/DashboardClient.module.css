@@ -183,6 +183,21 @@
   border-radius: var(--radius-lg);
   position: relative;
   overflow: hidden;
+  /* Levanta de leve no hover — dá profundidade, que é o que o fundo escuro pede */
+  transition:
+    transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.kpiCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-light);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpiCard:hover { transform: none; }
 }
 
 .kpiCard::before {
@@ -193,20 +208,26 @@
 }
 
 /*
- * As cinco tarjas de topo eram cinco cores diferentes — dourado, vermelho, azul,
- * laranja e verde — enfileiradas. Numa paleta monocromática isso passa a ser o
- * elemento que mais briga com o resto: cor sem significado, só decorativa, e
- * ainda por cima competindo com o gráfico ao lado, onde a cor QUER dizer algo.
+ * As tarjas voltaram a ter cor, mas agora com significado: cada indicador tem a
+ * sua, o que deixa o olho encontrar "lucro líquido" sem ler o rótulo. As cores
+ * saem da paleta de gemas — as pedras que ela vende.
  *
- * Agora a tarja é neutra em todos. O que diferencia cada card é o ícone e o
- * rótulo, que é informação de verdade. Cor no dashboard fica reservada para o
- * gráfico e para valor negativo.
+ * A tarja é fina (2px) de propósito: cor em faixa estreita marca sem pintar. Era
+ * o que faltava na versão monocromática, e o que evita o excesso da versão
+ * dourada.
  */
-.kpi_accent::before,
-.kpi_success::before,
-.kpi_danger::before,
-.kpi_warning::before,
-.kpi_info::before    { background: var(--border-light); }
+.kpi_accent::before  { background: var(--gem-safira); }
+.kpi_success::before { background: var(--gem-esmeralda); }
+.kpi_danger::before  { background: var(--gem-rubi); }
+.kpi_warning::before { background: var(--gem-topazio); }
+.kpi_info::before    { background: var(--gem-ametista); }
+
+/* O valor é o que ela vem buscar: ganha tamanho e tracking apertado. */
+.kpiValue {
+  font-size: clamp(22px, 1vw + 17px, 28px);
+  letter-spacing: var(--tracking-title);
+  font-variant-numeric: tabular-nums;
+}
 
 .kpiIcon {
   display: flex;

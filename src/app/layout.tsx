@@ -15,14 +15,13 @@ export default function RootLayout({
     <html lang="pt-BR">
       {/*
         Aplica o tema antes de qualquer render para evitar flash.
-        Invertido em 12/08/2026: o claro passou a ser o padrão, então o atributo
-        só é marcado quando a preferência salva é 'dark'. Quem já tinha 'light'
-        salvo continua no claro — que agora é o padrão de qualquer forma.
+        O escuro voltou a ser o padrao em 12/08/2026 (a versao clara ficou sem vida),
+        entao o atributo marca so o tema claro.
       */}
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem('fv-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}`
+            __html: `try{var t=localStorage.getItem('fv-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}`
           }}
         />
       </head>
