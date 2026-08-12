@@ -1,5 +1,6 @@
 import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import PdvClient from './PdvClient'
 import { buscarCaixaDoDia } from './actions'
 import { todaySP } from '@/lib/date'
@@ -11,14 +12,19 @@ export default async function PdvPage() {
 
   // Operadora só vende na própria loja → carrega apenas o catálogo dela (menos dados).
   const isOperator = profile.role === 'operator' && !!profile.store_id
-  let productsQuery = admin.from('products')
-    .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock, is_service')
-    .eq('is_active', true)
-  if (isOperator) productsQuery = productsQuery.eq('store_id', profile.store_id!)
+  // Paginado: o Supabase corta em 1000 linhas por requisição e já são 1.031
+  // produtos ativos — 31 ficavam invisíveis para o leitor. Ver lib/supabase/fetch-all.
+  const carregarProdutos = (de: number, ate: number) => {
+    let q = admin.from('products')
+      .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock, is_service')
+      .eq('is_active', true)
+    if (isOperator) q = q.eq('store_id', profile.store_id!)
+    return q.order('name').range(de, ate)
+  }
 
   const [storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
     admin.from('stores').select('id, name, city').eq('is_active', true).order('name'),
-    productsQuery.order('name'),
+    fetchAll(carregarProdutos),
     admin.from('customers').select('id, name, phone, cpf, birthday').order('name').limit(400),
     admin.from('settings').select('key, value').in('key', [
       'pix_discount_pct',
@@ -34,7 +40,7 @@ export default async function PdvPage() {
   ])
 
   const stores    = storesRes.data ?? []
-  const products  = productsRes.data ?? []
+  const products  = productsRes
   const customers = customersRes.data ?? []
   const users     = usersRes.data ?? []
 

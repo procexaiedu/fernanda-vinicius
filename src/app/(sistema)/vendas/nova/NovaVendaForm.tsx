@@ -529,7 +529,19 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Scanner HID ───────────────────────────────────────────────────────────
   const [scanFeedback, setScanFeedback] = useState<{ text: string; ok: boolean } | null>(null)
-  const scanBuffer   = useRef<{ chars: string[]; firstTs: number }>({ chars: [], firstTs: 0 })
+  /**
+   * `alvo`/`valorAntes`: o campo que estava com foco quando a leitura começou e
+   * o valor que ele tinha. O leitor digita como teclado, então os dígitos também
+   * entram no campo focado — bipar com o cursor na busca de cliente adicionava a
+   * peça E deixava "10100" escrito lá. Guardando o valor anterior, dá para
+   * desfazer ao reconhecer que foi o leitor.
+   */
+  const scanBuffer = useRef<{
+    chars: string[]
+    firstTs: number
+    alvo: HTMLInputElement | HTMLTextAreaElement | null
+    valorAntes: string
+  }>({ chars: [], firstTs: 0, alvo: null, valorAntes: '' })
   const scanStoreId  = useRef(storeId)
   const scanProducts = useRef(products)
 
@@ -547,27 +559,72 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
         const code    = buf.chars.join('')
         const elapsed = buf.firstTs ? now - buf.firstTs : 9999
         const nChars  = buf.chars.length
-        buf.chars = []; buf.firstTs = 0
+        const alvo    = buf.alvo
+        const antes   = buf.valorAntes
+        buf.chars = []; buf.firstTs = 0; buf.alvo = null; buf.valorAntes = ''
 
         // < 3 chars ou > 80ms/char = não é scanner
         if (nChars < 3 || (nChars > 1 && elapsed / nChars > 80)) return
 
+        // Foi o leitor: devolve o campo focado ao valor anterior (os dígitos do
+        // código foram digitados nele) e impede o Enter de submeter formulário.
+        e.preventDefault()
+        if (alvo && alvo.value !== antes) {
+          const proto = alvo instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement
+          const setter = Object.getOwnPropertyDescriptor(proto.prototype, 'value')?.set
+          setter?.call(alvo, antes)
+          alvo.dispatchEvent(new Event('input', { bubbles: true }))
+        }
+
         const storeProds = scanProducts.current.filter(p => p.store_id === scanStoreId.current)
-        // O leitor lê o barcode_number impresso na etiqueta (ex: 10100).
-        // Fallback no code (FV-MJ-C304) para entrada manual/digitada.
-        const match      = storeProds.find(p => p.barcode_number === code)
-                        ?? storeProds.find(p => p.code.toUpperCase() === code.toUpperCase())
+
+        // O leitor lê o barcode_number impresso na etiqueta (ex: 10100), que é
+        // único. O `code` (F+fornecedor+mês+custo) NÃO é único — 173 códigos
+        // cobrem produtos diferentes, um deles com 4 peças de R$ 68 a R$ 698.
+        // Por isso o fallback só resolve quando é inequívoco: escolher "o
+        // primeiro" venderia a peça errada com o preço errado, em silêncio.
+        let match = storeProds.find(p => p.barcode_number === code)
+        if (!match) {
+          const porCode = storeProds.filter(p => p.code.toUpperCase() === code.toUpperCase())
+          if (porCode.length === 1) {
+            match = porCode[0]
+          } else if (porCode.length > 1) {
+            setScanFeedback({
+              text: `"${code}" é o código de ${porCode.length} produtos diferentes — bipe o código de barras ou busque pelo nome`,
+              ok: false,
+            })
+            setTimeout(() => setScanFeedback(null), 4000)
+            return
+          }
+        }
 
         if (match) {
-          const price = match.promotional_active && match.promotional_price
-            ? match.promotional_price : match.sale_price
-          const newRow: SaleRow = {
-            productId: match.id, productName: match.name,
-            quantity: 1, unitPrice: price,
-            unitCost: match.cost_price, stockAvailable: match.quantity_in_stock,
-            isService: match.is_service,
-          }
+          const achado = match
+          const price = achado.promotional_active && achado.promotional_price
+            ? achado.promotional_price : achado.sale_price
+          let aviso: string | null = null
+
           setRows(prev => {
+            // Mesma peça bipada de novo soma quantidade, em vez de criar outra
+            // linha igual — comportamento esperado de PDV.
+            const iExistente = prev.findIndex(r => r.productId === achado.id)
+            if (iExistente >= 0) {
+              // `quantity` aceita string vazia enquanto a operadora digita
+              const qtdAtual = Number(prev[iExistente].quantity) || 0
+              const limite = achado.is_service ? Infinity : achado.quantity_in_stock
+              if (qtdAtual >= limite) {
+                aviso = `${achado.name}: só há ${limite} em estoque`
+                return prev
+              }
+              return prev.map((r, i) => i === iExistente ? { ...r, quantity: qtdAtual + 1 } : r)
+            }
+
+            const newRow: SaleRow = {
+              productId: achado.id, productName: achado.name,
+              quantity: 1, unitPrice: price,
+              unitCost: achado.cost_price, stockAvailable: achado.quantity_in_stock,
+              isService: achado.is_service,
+            }
             const last = prev[prev.length - 1]
             // preenche última linha se vazia; senão adiciona nova
             if (!last.productId && !last.productName.trim()) {
@@ -575,7 +632,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             }
             return [...prev, newRow]
           })
-          setScanFeedback({ text: `${match.name} adicionado`, ok: true })
+          setScanFeedback(aviso ? { text: aviso, ok: false } : { text: `${achado.name} adicionado`, ok: true })
         } else {
           setScanFeedback({ text: `Código "${code}" não encontrado`, ok: false })
         }
@@ -584,10 +641,20 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       }
 
       if (e.key.length === 1) {
-        if (!buf.chars.length) buf.firstTs = now
+        if (!buf.chars.length) {
+          buf.firstTs = now
+          const ativo = document.activeElement
+          if (ativo instanceof HTMLInputElement || ativo instanceof HTMLTextAreaElement) {
+            buf.alvo = ativo
+            buf.valorAntes = ativo.value
+          } else {
+            buf.alvo = null
+            buf.valorAntes = ''
+          }
+        }
         buf.chars.push(e.key)
       } else if (e.key !== 'Shift' && e.key !== 'CapsLock') {
-        buf.chars = []; buf.firstTs = 0
+        buf.chars = []; buf.firstTs = 0; buf.alvo = null; buf.valorAntes = ''
       }
     }
 

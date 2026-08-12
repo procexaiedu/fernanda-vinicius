@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import PageHeader from '@/components/ui/PageHeader'
 import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import NovaVendaForm from '../../nova/NovaVendaForm'
 import { buscarVendaParaEdicao } from '../../actions'
 
@@ -12,15 +13,20 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
   const admin = createAdminClient()
 
   const isOperator = profile.role === 'operator' && !!profile.store_id
-  let productsQuery = admin.from('products')
-    .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock, is_service')
-    .eq('is_active', true)
-  if (isOperator) productsQuery = productsQuery.eq('store_id', profile.store_id!)
+  // Paginado: o Supabase corta em 1000 linhas por requisição e já são 1.031
+  // produtos ativos — 31 ficavam invisíveis para o leitor. Ver lib/supabase/fetch-all.
+  const carregarProdutos = (de: number, ate: number) => {
+    let q = admin.from('products')
+      .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock, is_service')
+      .eq('is_active', true)
+    if (isOperator) q = q.eq('store_id', profile.store_id!)
+    return q.order('name').range(de, ate)
+  }
 
   const [saleRes, storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
     buscarVendaParaEdicao(id),
     admin.from('stores').select('id, name, city').eq('is_active', true).order('name'),
-    productsQuery.order('name'),
+    fetchAll(carregarProdutos),
     admin.from('customers').select('id, name, phone, cpf, birthday').order('name').limit(400),
     admin.from('settings').select('key, value').in('key', [
       'pix_discount_pct',
@@ -38,7 +44,7 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
   if (!saleRes.data) notFound()
 
   const stores    = storesRes.data ?? []
-  const products  = productsRes.data ?? []
+  const products  = productsRes
   const customers = customersRes.data ?? []
   const users     = usersRes.data ?? []
 
