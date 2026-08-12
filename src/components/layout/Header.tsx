@@ -19,6 +19,7 @@ interface HeaderProps {
 
 const ROUTE_LABELS: Record<string, string> = {
   '/':              'Dashboard',
+  '/pdv':           'PDV',
   '/vendas':        'Vendas',
   '/produtos':      'Produtos',
   '/clientes':      'Clientes',

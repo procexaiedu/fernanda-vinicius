@@ -5,7 +5,7 @@ import { usePersistedState } from '@/hooks/usePersistedState'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import {
-  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil, Plus,
+  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil, Plus, Monitor,
 } from 'lucide-react'
 import btn from '@/components/ui/Button.module.css'
 import Badge from '@/components/ui/Badge'
@@ -232,10 +232,10 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)' }}>Vendas</h1>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-          <a
+          {/* Navega no mesmo lugar: o PDV passou a viver dentro do layout, com
+              sidebar e trilha, em vez de ser uma superfície separada em outra aba. */}
+          <Link
             href="/pdv"
-            target="_blank"
-            rel="noopener"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               padding: '7px 16px',
@@ -244,10 +244,10 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
               borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
               textDecoration: 'none',
             }}
-            title="Abrir o PDV em uma nova aba (registro rápido + caixa do dia)"
+            title="Abrir o PDV (registro rápido + caixa do dia)"
           >
-            🖥 Abrir PDV
-          </a>
+            <Monitor size={14} /> Abrir PDV
+          </Link>
           {/* Usa as classes do Button em vez de estilo inline: fica idêntico aos
               botões das outras telas e continua sendo um link de verdade (abre em
               nova aba com o meio do mouse, o que um <button> perderia). */}

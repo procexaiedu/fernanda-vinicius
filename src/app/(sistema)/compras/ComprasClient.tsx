@@ -9,6 +9,8 @@ import Button from '@/components/ui/Button'
 import CompraDetalheModal from '@/components/compra/CompraDetalheModal'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { getItensCompraParaEtiquetas } from './actions'
+import ThOrdenavel from '@/components/ui/ThOrdenavel'
+import { useOrdenacao } from '@/hooks/useOrdenacao'
 import styles from './ComprasClient.module.css'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -90,6 +92,15 @@ export default function ComprasClient({ purchases, consignments }: Props) {
     })
   }, [purchases, consignments, typeFilter])
 
+  /*
+   * Compra e consignação têm nomes de campo diferentes para a mesma ideia (data,
+   * itens, custo), então a ordenação precisa normalizar antes de comparar — senão
+   * ordenar por "Data" só funcionaria para metade das linhas.
+   */
+  const dataDaLinha  = (r: Row) => r.type === 'purchase' ? r.purchase_date : r.received_date
+  const itensDaLinha = (r: Row) => r.type === 'purchase' ? r.total_items : r.total_pieces
+  const custoDaLinha = (r: Row) => r.type === 'purchase' ? r.total_cost : r.total_cost_value
+
   const filtered = useMemo(() => {
     return allRows.filter(row => {
       if (search) {
@@ -112,6 +123,15 @@ export default function ComprasClient({ purchases, consignments }: Props) {
       return true
     })
   }, [allRows, search, statusFilter])
+
+  const ord = useOrdenacao(filtered, {
+    data:          { valor: dataDaLinha, tipo: 'data' },
+    tipo:          { valor: r => r.type === 'purchase' ? 'Compra' : 'Consignação', tipo: 'texto' },
+    fornecedores:  { valor: r => r.type === 'purchase' ? (r.suppliers[0] ?? '') : '', tipo: 'texto' },
+    lojas:         { valor: r => r.type === 'purchase' ? (r.storeNames[0] ?? '') : r.storeName, tipo: 'texto' },
+    itens:         { valor: itensDaLinha, tipo: 'numero' },
+    custo:         { valor: custoDaLinha, tipo: 'numero' },
+  })
 
   const totalCompras  = purchases.length
   const totalConsign  = consignments.filter(c => c.status === 'active').length
@@ -177,20 +197,20 @@ export default function ComprasClient({ purchases, consignments }: Props) {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Data</th>
-                <th>Tipo</th>
-                <th>Fornecedores</th>
-                <th>Lojas</th>
+                <ThOrdenavel ord={ord} coluna="data" className="col-date">Data</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="tipo" className="col-center">Tipo</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="fornecedores">Fornecedores</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="lojas">Lojas</ThOrdenavel>
                 <th>NF</th>
-                <th className="col-num">Itens</th>
-                <th className="col-num">Custo total</th>
+                <ThOrdenavel ord={ord} coluna="itens" className="col-num">Itens</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="custo" className="col-num">Custo total</ThOrdenavel>
                 <th className="col-center">Status</th>
                 <th>Prazo devolução</th>
                 <th className="col-center" style={{ width: 36 }}></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(row => {
+              {ord.ordenados.map(row => {
                 if (row.type === 'purchase') {
                   return (
                     <tr

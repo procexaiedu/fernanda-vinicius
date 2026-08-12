@@ -210,19 +210,6 @@ export default function ProdutosClient({
     navigator.clipboard.writeText(code)
   }, [])
 
-  // ThOrdenavel já ligado ao estado — evita repetir 4 props em 9 colunas.
-  function Th({ coluna, className, children }: { coluna: Parameters<typeof ord.alternar>[0]; className?: string; children: React.ReactNode }) {
-    return (
-      <ThOrdenavel
-        coluna={coluna}
-        ordenandoPor={ord.chave}
-        direcao={ord.direcao}
-        onOrdenar={ord.alternar}
-        className={className}
-      >{children}</ThOrdenavel>
-    )
-  }
-
   return (
     <>
       {/* Toolbar */}
@@ -315,15 +302,15 @@ export default function ProdutosClient({
                     title="Selecionar todos da página"
                   />
                 </th>
-                <Th coluna="produto">Produto</Th>
-                <Th coluna="codigo">Código</Th>
-                <Th coluna="material" className="col-tertiary">Material</Th>
-                {isAdmin && <Th coluna="fornecedor" className="col-secondary">Fornecedor</Th>}
-                {isAdmin && <Th coluna="loja" className="col-tertiary">Loja</Th>}
-                {isAdmin && <Th coluna="custo" className="col-secondary col-num">Custo</Th>}
-                <Th coluna="venda" className="col-num">Venda</Th>
-                <Th coluna="promo" className="col-tertiary col-num">Promo</Th>
-                <Th coluna="qtd" className="col-num">Qtd.</Th>
+                <ThOrdenavel ord={ord} coluna="produto">Produto</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="codigo">Código</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="material" className="col-tertiary">Material</ThOrdenavel>
+                {isAdmin && <ThOrdenavel ord={ord} coluna="fornecedor" className="col-secondary">Fornecedor</ThOrdenavel>}
+                {isAdmin && <ThOrdenavel ord={ord} coluna="loja" className="col-tertiary">Loja</ThOrdenavel>}
+                {isAdmin && <ThOrdenavel ord={ord} coluna="custo" className="col-secondary col-num">Custo</ThOrdenavel>}
+                <ThOrdenavel ord={ord} coluna="venda" className="col-num">Venda</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="promo" className="col-tertiary col-num">Promo</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="qtd" className="col-num">Qtd.</ThOrdenavel>
                 <th className="col-center">Status</th>
                 {isAdmin && <th className={styles.actionsCol}>Ações</th>}
               </tr>

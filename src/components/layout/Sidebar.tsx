@@ -51,7 +51,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     itens: [
       { label: 'Dashboard', href: '/',    icon: <LayoutDashboard size={18} />, adminOnly: true },
-      { label: 'PDV',       href: '/pdv', icon: <Monitor size={18} />, newTab: true },
+      { label: 'PDV',       href: '/pdv', icon: <Monitor size={18} /> },
     ],
   },
   {
