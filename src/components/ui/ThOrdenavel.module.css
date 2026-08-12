@@ -1,0 +1,42 @@
+.th {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition-fast);
+}
+
+.th:hover {
+  color: var(--text-primary);
+}
+
+.ativa {
+  color: var(--accent) !important;
+}
+
+/*
+ * `inline-flex` no conteúdo, não no <th>: o alinhamento da coluna vem de
+ * `text-align` (col-num / col-center), e um flex no próprio th sobrescreveria isso,
+ * jogando todo cabeçalho ordenável para a esquerda.
+ */
+.conteudo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.iconeAtivo {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+/* Sempre visível, apagado: sem o ícone não há pista de que a coluna é clicável. */
+.iconeInativo {
+  flex-shrink: 0;
+  color: var(--text-disabled);
+  opacity: 0.55;
+  transition: opacity var(--transition-fast);
+}
+
+.th:hover .iconeInativo {
+  opacity: 1;
+}

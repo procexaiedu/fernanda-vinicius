@@ -10,6 +10,8 @@ import ProdutoDetalheModal from '@/components/produto/ProdutoDetalheModal'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import type { ProductWithRelations, StoreOption } from '../produtos/page'
 import Paginacao from '@/components/ui/Paginacao'
+import ThOrdenavel from '@/components/ui/ThOrdenavel'
+import { useOrdenacao } from '@/hooks/useOrdenacao'
 import { usePaginacaoServidor } from '@/hooks/usePaginacaoServidor'
 import styles from './EstoqueClient.module.css'
 
@@ -60,11 +62,24 @@ export default function EstoqueClient({
   const [detalhe, setDetalhe] = useState<ProductWithRelations | null>(null)
 
   /*
-   * 10 por tela, encadeada sobre os lotes de 50 do servidor: as 5 primeiras
-   * páginas de cada lote são instantâneas e só a virada consulta de novo.
+   * Ordena o lote que está na tela. Como a paginação é encadeada sobre lotes de 50
+   * do servidor, a ordenação vale o lote atual — é o que dá resposta instantânea ao
+   * clique. Para ordenar as 970 peças inteiras seria preciso mandar o `order` para
+   * o Supabase, e aí cada clique custaria uma ida de ~500ms.
    */
+  const ord = useOrdenacao(products, {
+    produto:     { valor: p => p.name, tipo: 'texto' },
+    codigo:      { valor: p => p.code, tipo: 'texto' },
+    fornecedor:  { valor: p => p.suppliers?.name, tipo: 'texto' },
+    loja:        { valor: p => p.stores?.name, tipo: 'texto' },
+    qtd:         { valor: p => p.quantity_in_stock, tipo: 'numero' },
+    venda:       { valor: p => p.sale_price, tipo: 'numero' },
+    promo:       { valor: p => p.promotional_price, tipo: 'numero' },
+    ultimaVenda: { valor: p => p.last_sale_date, tipo: 'data' },
+  })
+
   const pag = usePaginacaoServidor({
-    itens: products,
+    itens: ord.ordenados,
     paginaServidor: page,
     porLoteServidor: perPage,
     totalItens: total,
@@ -84,6 +99,19 @@ export default function EstoqueClient({
     const p = new URLSearchParams(searchParams.toString())
     p.set('page', String(n))
     startTransition(() => router.push(`?${p.toString()}`))
+  }
+
+  // Envolve o ThOrdenavel já ligado ao estado — evita repetir 4 props em 8 colunas.
+  function Th({ coluna, className, children }: { coluna: Parameters<typeof ord.alternar>[0]; className?: string; children: React.ReactNode }) {
+    return (
+      <ThOrdenavel
+        coluna={coluna}
+        ordenandoPor={ord.chave}
+        direcao={ord.direcao}
+        onOrdenar={ord.alternar}
+        className={className}
+      >{children}</ThOrdenavel>
+    )
   }
 
   return (
@@ -151,14 +179,14 @@ export default function EstoqueClient({
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Produto</th>
-                <th>Código</th>
-                {isAdmin && <th className="col-secondary col-truncate">Fornecedor</th>}
-                {isAdmin && <th className="col-tertiary col-truncate">Loja</th>}
-                <th className="col-num">Qtd.</th>
-                <th className="col-num">Venda</th>
-                <th className="col-tertiary col-num">Promo</th>
-                <th className="col-tertiary">Última venda</th>
+                <Th coluna="produto">Produto</Th>
+                <Th coluna="codigo">Código</Th>
+                {isAdmin && <Th coluna="fornecedor" className="col-secondary col-truncate">Fornecedor</Th>}
+                {isAdmin && <Th coluna="loja" className="col-tertiary col-truncate">Loja</Th>}
+                <Th coluna="qtd" className="col-num">Qtd.</Th>
+                <Th coluna="venda" className="col-num">Venda</Th>
+                <Th coluna="promo" className="col-tertiary col-num">Promo</Th>
+                <Th coluna="ultimaVenda" className="col-tertiary col-date">Última venda</Th>
                 <th className="col-center">Status</th>
                 <th></th>
               </tr>

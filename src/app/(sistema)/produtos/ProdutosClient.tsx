@@ -12,6 +12,8 @@ import { toggleProductStatus } from './actions'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import type { ProductWithRelations, StoreOption, SupplierOption } from './page'
 import Paginacao from '@/components/ui/Paginacao'
+import ThOrdenavel from '@/components/ui/ThOrdenavel'
+import { useOrdenacao } from '@/hooks/useOrdenacao'
 import { usePaginacaoServidor } from '@/hooks/usePaginacaoServidor'
 import styles from './ProdutosClient.module.css'
 
@@ -79,8 +81,25 @@ export default function ProdutosClient({
    * páginas de cada lote são instantâneas e só a virada consulta de novo.
    * (`pushPage` é declaração de função, então já está içada aqui.)
    */
+  /*
+   * Ordena o lote na tela. Vale o lote de 50 do servidor — é o que dá resposta
+   * instantânea ao clique; ordenar os 1031 inteiros exigiria mandar o `order` para
+   * o Supabase e cada clique custaria ~500ms.
+   */
+  const ord = useOrdenacao(products, {
+    produto:    { valor: p => p.name, tipo: 'texto' },
+    codigo:     { valor: p => p.code, tipo: 'texto' },
+    material:   { valor: p => p.material, tipo: 'texto' },
+    fornecedor: { valor: p => p.suppliers?.name, tipo: 'texto' },
+    loja:       { valor: p => p.stores?.name, tipo: 'texto' },
+    custo:      { valor: p => p.cost_price, tipo: 'numero' },
+    venda:      { valor: p => p.sale_price, tipo: 'numero' },
+    promo:      { valor: p => p.promotional_price, tipo: 'numero' },
+    qtd:        { valor: p => p.quantity_in_stock, tipo: 'numero' },
+  })
+
   const pag = usePaginacaoServidor({
-    itens: products,
+    itens: ord.ordenados,
     paginaServidor: page,
     porLoteServidor: perPage,
     totalItens: total,
@@ -191,6 +210,19 @@ export default function ProdutosClient({
     navigator.clipboard.writeText(code)
   }, [])
 
+  // ThOrdenavel já ligado ao estado — evita repetir 4 props em 9 colunas.
+  function Th({ coluna, className, children }: { coluna: Parameters<typeof ord.alternar>[0]; className?: string; children: React.ReactNode }) {
+    return (
+      <ThOrdenavel
+        coluna={coluna}
+        ordenandoPor={ord.chave}
+        direcao={ord.direcao}
+        onOrdenar={ord.alternar}
+        className={className}
+      >{children}</ThOrdenavel>
+    )
+  }
+
   return (
     <>
       {/* Toolbar */}
@@ -283,15 +315,15 @@ export default function ProdutosClient({
                     title="Selecionar todos da página"
                   />
                 </th>
-                <th>Produto</th>
-                <th>Código</th>
-                <th className="col-tertiary">Material</th>
-                {isAdmin && <th className="col-secondary">Fornecedor</th>}
-                {isAdmin && <th className="col-tertiary">Loja</th>}
-                {isAdmin && <th className="col-secondary col-num">Custo</th>}
-                <th className="col-num">Venda</th>
-                <th className="col-tertiary col-num">Promo</th>
-                <th className="col-num">Qtd.</th>
+                <Th coluna="produto">Produto</Th>
+                <Th coluna="codigo">Código</Th>
+                <Th coluna="material" className="col-tertiary">Material</Th>
+                {isAdmin && <Th coluna="fornecedor" className="col-secondary">Fornecedor</Th>}
+                {isAdmin && <Th coluna="loja" className="col-tertiary">Loja</Th>}
+                {isAdmin && <Th coluna="custo" className="col-secondary col-num">Custo</Th>}
+                <Th coluna="venda" className="col-num">Venda</Th>
+                <Th coluna="promo" className="col-tertiary col-num">Promo</Th>
+                <Th coluna="qtd" className="col-num">Qtd.</Th>
                 <th className="col-center">Status</th>
                 {isAdmin && <th className={styles.actionsCol}>Ações</th>}
               </tr>
