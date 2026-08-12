@@ -14,6 +14,7 @@ import CompraDetalheModal from '@/components/compra/CompraDetalheModal'
 import ComissaoDetalheModal from '@/components/comissao/ComissaoDetalheModal'
 import styles from './FinanceiroClient.module.css'
 import Paginacao from '@/components/ui/Paginacao'
+import PanoramaFinanceiro from './PanoramaFinanceiro'
 import { usePaginacaoLocal } from '@/hooks/usePaginacaoLocal'
 import {
   buscarTransacoes, buscarPendencias, marcarComoPago, criarDespesaManual, editarDespesaManual,
@@ -487,6 +488,11 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
           <span className={`${styles.statValue} ${styles.statPending}`}>{fmt(stats.aPagar)}</span>
         </div>
       </div>
+
+      {/* Panorama: a cascata mostra a subtração acontecendo, e as barras mostram
+          para onde o dinheiro vai. Quatro cartões de KPI lado a lado não dão isso,
+          porque números soltos não têm escala entre si. */}
+      <PanoramaFinanceiro transactions={transactions} />
 
       {/* Toolbar */}
       <div className={styles.toolbar}>
