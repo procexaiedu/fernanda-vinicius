@@ -74,7 +74,7 @@
   gap: 6px;
   margin-left: auto;
   background: var(--accent);
-  color: #000;
+  color: var(--accent-fg);
   border: none;
   border-radius: var(--radius-md);
   padding: 9px 16px;
@@ -220,7 +220,7 @@
   cursor: pointer;
   transition: filter var(--transition-fast), background var(--transition-fast);
 }
-.saveBtn { background: var(--accent); color: #000; }
+.saveBtn { background: var(--accent); color: var(--accent-fg); }
 .saveBtn:hover:not(:disabled) { filter: brightness(1.08); }
 .resetBtn { background: var(--bg-elevated); color: var(--text-muted); }
 .resetBtn:hover:not(:disabled) { color: var(--text-primary); }

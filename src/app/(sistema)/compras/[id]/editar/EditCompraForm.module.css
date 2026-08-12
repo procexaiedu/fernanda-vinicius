@@ -116,7 +116,7 @@
 }
 
 .table tbody tr:hover {
-  background: rgba(201, 168, 76, 0.02);
+  background: rgba(var(--accent-rgb), 0.02);
 }
 
 /* ── Células editáveis ──────────────────────────────────────────────────── */
@@ -241,11 +241,11 @@
 }
 
 .selectOption:hover {
-  background: rgba(201, 168, 76, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
 }
 
 .selectOptionActive {
-  background: rgba(201, 168, 76, 0.15);
+  background: rgba(var(--accent-rgb), 0.15);
   color: var(--accent);
   font-weight: 600;
 }
@@ -290,7 +290,7 @@
 
 .labelBtnActive {
   background: var(--accent);
-  color: #000;
+  color: var(--accent-fg);
   border-color: var(--accent);
 }
 
@@ -392,8 +392,8 @@
   align-items: center;
   gap: 5px;
   padding: 5px 12px;
-  background: rgba(201, 168, 76, 0.1);
-  border: 1px solid rgba(201, 168, 76, 0.3);
+  background: rgba(var(--accent-rgb), 0.1);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
   border-radius: var(--radius-md);
   color: var(--accent);
   font-size: 12px;
@@ -403,7 +403,7 @@
 }
 
 .recalcBtn:hover {
-  background: rgba(201, 168, 76, 0.18);
+  background: rgba(var(--accent-rgb), 0.18);
   border-color: var(--accent);
 }
 

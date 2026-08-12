@@ -15,7 +15,7 @@
 .tab { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: var(--text-muted);
   padding: 8px 16px; border-radius: 8px; border: none; background: none; cursor: pointer; transition: .15s; }
 .tab:hover { color: var(--text-primary); }
-.tabOn { background: var(--accent); color: #1a1508; font-weight: 600; }
+.tabOn { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
 
 .spacer { flex: 1; }
 .exit { font-size: 13px; color: var(--text-muted); text-decoration: none; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); }
@@ -103,7 +103,7 @@
 
 .err { display: flex; align-items: center; gap: 6px; color: var(--danger); font-size: 12.5px; padding: 10px 20px 0; }
 .finalize { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 16px 20px 8px; width: calc(100% - 40px);
-  background: var(--accent); color: #1a1508; font-weight: 700; font-size: 14px; padding: 13px; border: none; border-radius: 10px; cursor: pointer; transition: .15s; }
+  background: var(--accent); color: var(--accent-fg); font-weight: 700; font-size: 14px; padding: 13px; border: none; border-radius: 10px; cursor: pointer; transition: .15s; }
 .finalize:hover:not(:disabled) { background: var(--accent-hover); }
 .finalize:disabled { opacity: .5; cursor: not-allowed; }
 .hint { font-size: 11px; color: var(--text-muted); text-align: center; padding: 0 20px 18px; line-height: 1.5; }

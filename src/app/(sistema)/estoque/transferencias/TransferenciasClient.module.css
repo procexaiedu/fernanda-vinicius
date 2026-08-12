@@ -85,7 +85,7 @@
   font-family: 'SF Mono', 'Consolas', monospace;
   font-size: 11px;
   color: var(--accent);
-  background: rgba(201,168,76,0.1);
+  background: rgba(var(--accent-rgb), 0.1);
   padding: 1px 5px;
   border-radius: 3px;
   display: inline-block;
@@ -143,7 +143,7 @@
 }
 .pageBtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .pageBtn:disabled { opacity: 0.4; cursor: not-allowed; }
-.pageBtnActive { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+.pageBtnActive { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 700; }
 .pageDots { display: flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; font-size: 13px; color: var(--text-muted); }
 
 .empty {

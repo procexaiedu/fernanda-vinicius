@@ -192,11 +192,21 @@
   height: 2px;
 }
 
-.kpi_accent::before  { background: var(--accent); }
-.kpi_success::before { background: var(--success); }
-.kpi_danger::before  { background: var(--danger); }
-.kpi_warning::before { background: var(--warning); }
-.kpi_info::before    { background: #5B8DEF; }
+/*
+ * As cinco tarjas de topo eram cinco cores diferentes — dourado, vermelho, azul,
+ * laranja e verde — enfileiradas. Numa paleta monocromática isso passa a ser o
+ * elemento que mais briga com o resto: cor sem significado, só decorativa, e
+ * ainda por cima competindo com o gráfico ao lado, onde a cor QUER dizer algo.
+ *
+ * Agora a tarja é neutra em todos. O que diferencia cada card é o ícone e o
+ * rótulo, que é informação de verdade. Cor no dashboard fica reservada para o
+ * gráfico e para valor negativo.
+ */
+.kpi_accent::before,
+.kpi_success::before,
+.kpi_danger::before,
+.kpi_warning::before,
+.kpi_info::before    { background: var(--border-light); }
 
 .kpiIcon {
   display: flex;
@@ -249,7 +259,7 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  background: rgba(201,168,76,0.2);
+  background: rgba(var(--accent-rgb), 0.2);
   border-radius: var(--radius-md);
   color: var(--accent);
   flex-shrink: 0;
@@ -528,7 +538,7 @@
   color: var(--text-muted);
 }
 
-.pos1 { background: rgba(201,168,76,0.15); color: var(--accent); }
+.pos1 { background: rgba(var(--accent-rgb), 0.15); color: var(--accent); }
 .pos2 { background: rgba(187,187,187,0.12); color: #BBBBBB; }
 .pos3 { background: rgba(180,120,80,0.12); color: #B07850; }
 

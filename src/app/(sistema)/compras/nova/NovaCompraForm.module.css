@@ -69,7 +69,7 @@
 
 .typeBtnActive {
   background: var(--accent);
-  color: #000;
+  color: var(--accent-fg);
   font-weight: 700;
 }
 
@@ -193,7 +193,7 @@
 }
 
 .row:hover {
-  background: rgba(201, 168, 76, 0.03);
+  background: rgba(var(--accent-rgb), 0.03);
 }
 
 /* Column widths */
@@ -491,11 +491,11 @@
 }
 
 .comboOption:hover {
-  background: rgba(201, 168, 76, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
 }
 
 .comboOptionActive {
-  background: rgba(201, 168, 76, 0.15);
+  background: rgba(var(--accent-rgb), 0.15);
   color: var(--accent);
 }
 
@@ -515,7 +515,7 @@
 
 .comboCreate:hover,
 .comboCreateActive {
-  background: rgba(201, 168, 76, 0.15);
+  background: rgba(var(--accent-rgb), 0.15);
 }
 
 .storeBtn {
@@ -564,7 +564,7 @@
 
 .labelBtnActive {
   background: var(--accent);
-  color: #000;
+  color: var(--accent-fg);
   border-color: var(--accent);
 }
 
@@ -829,8 +829,8 @@
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  background: rgba(201, 168, 76, 0.1);
-  border: 1px solid rgba(201, 168, 76, 0.35);
+  background: rgba(var(--accent-rgb), 0.1);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
   border-radius: var(--radius-md);
   color: var(--accent);
   font-size: 13px;

@@ -105,7 +105,7 @@
   font-family: inherit;
 }
 
-.filterBtn:hover { border-color: rgba(201, 168, 76, 0.4); background: var(--bg-elevated); }
+.filterBtn:hover { border-color: rgba(var(--accent-rgb), 0.4); background: var(--bg-elevated); }
 .filterBtnOpen { border-color: var(--accent); background: var(--bg-elevated); }
 .filterBtnActive { color: var(--text-primary); }
 
@@ -132,8 +132,8 @@
   white-space: nowrap;
 }
 
-.filterOption:hover { background: rgba(201, 168, 76, 0.08); color: var(--text-primary); }
-.filterOptionActive { color: var(--accent); font-weight: 600; background: rgba(201, 168, 76, 0.06); }
+.filterOption:hover { background: rgba(var(--accent-rgb), 0.08); color: var(--text-primary); }
+.filterOptionActive { color: var(--accent); font-weight: 600; background: rgba(var(--accent-rgb), 0.06); }
 
 /* ── Date range ─────────────────────────────────────────────────────────── */
 
@@ -157,7 +157,7 @@
   height: 34px;
   padding: 0 14px;
   background: var(--accent);
-  color: #000;
+  color: var(--accent-fg);
   border: none;
   border-radius: var(--radius-md);
   font-size: 13px;
@@ -228,7 +228,7 @@
 .row:last-child td { border-bottom: none; }
 
 .row { transition: background var(--transition-fast); }
-.row:hover { background: rgba(201, 168, 76, 0.04); }
+.row:hover { background: rgba(var(--accent-rgb), 0.04); }
 
 .muted { color: var(--text-muted); font-size: 12px; }
 
@@ -259,7 +259,7 @@
 }
 
 .statusPending {
-  background: rgba(201, 168, 76, 0.12);
+  background: rgba(var(--accent-rgb), 0.12);
   color: var(--accent);
 }
 
@@ -293,7 +293,7 @@
   transition: all var(--transition-fast);
 }
 
-.iconBtn:hover { background: rgba(201, 168, 76, 0.1); color: var(--accent); }
+.iconBtn:hover { background: rgba(var(--accent-rgb), 0.1); color: var(--accent); }
 
 .iconBtnDanger:hover { background: rgba(224, 82, 82, 0.1); color: var(--danger); }
 
@@ -459,11 +459,11 @@
   font-family: inherit;
 }
 
-.radioBtn:hover { border-color: rgba(201, 168, 76, 0.4); color: var(--text-primary); }
+.radioBtn:hover { border-color: rgba(var(--accent-rgb), 0.4); color: var(--text-primary); }
 
 .radioBtnActive {
   border-color: var(--accent);
-  background: rgba(201, 168, 76, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
   color: var(--accent);
 }
 
@@ -490,8 +490,8 @@
 }
 
 .pnlCardHighlight {
-  border-color: rgba(201, 168, 76, 0.3);
-  background: rgba(201, 168, 76, 0.04);
+  border-color: rgba(var(--accent-rgb), 0.3);
+  background: rgba(var(--accent-rgb), 0.04);
 }
 
 .pnlCardDanger {

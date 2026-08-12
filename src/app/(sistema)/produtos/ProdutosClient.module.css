@@ -329,8 +329,8 @@
 }
 .pageBtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .pageBtn:disabled { opacity: 0.4; cursor: not-allowed; }
-.pageBtnActive { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
-.pageBtnActive:hover { background: var(--accent); color: #000; }
+.pageBtnActive { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 700; }
+.pageBtnActive:hover { background: var(--accent); color: var(--accent-fg); }
 
 .pageDots {
   display: flex;

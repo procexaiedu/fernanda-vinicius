@@ -109,7 +109,7 @@
 }
 
 .filterBtn:hover {
-  border-color: rgba(201, 168, 76, 0.4);
+  border-color: rgba(var(--accent-rgb), 0.4);
   background: var(--bg-elevated);
 }
 
@@ -175,14 +175,14 @@
 }
 
 .filterOption:hover {
-  background: rgba(201, 168, 76, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
   color: var(--text-primary);
 }
 
 .filterOptionActive {
   color: var(--accent);
   font-weight: 600;
-  background: rgba(201, 168, 76, 0.06);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
 .sellerTag {
@@ -243,7 +243,7 @@
 }
 
 .row:hover {
-  background: rgba(201, 168, 76, 0.04);
+  background: rgba(var(--accent-rgb), 0.04);
 }
 
 .muted { color: var(--text-muted); }
@@ -290,7 +290,7 @@
 }
 
 .iconBtn:hover {
-  background: rgba(201, 168, 76, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
   color: var(--accent);
 }
 

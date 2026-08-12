@@ -9,7 +9,7 @@
   /* Padrão sutil de fundo */
   background-image: radial-gradient(
     ellipse 80% 60% at 50% -10%,
-    rgba(201, 168, 76, 0.06) 0%,
+    rgba(var(--accent-rgb), 0.06) 0%,
     transparent 60%
   );
 }
@@ -122,7 +122,7 @@
   height: 42px;
   width: 100%;
   background: var(--accent);
-  color: #0D0D0D;
+  color: var(--accent-fg);
   border: none;
   border-radius: var(--radius-md);
   font-size: 14px;
@@ -147,7 +147,7 @@
   width: 16px;
   height: 16px;
   border: 2px solid rgba(13, 13, 13, 0.3);
-  border-top-color: #0D0D0D;
+  border-top-color: var(--accent-fg);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }

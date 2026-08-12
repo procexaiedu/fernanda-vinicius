@@ -80,7 +80,7 @@ export default function ComissaoDetalheModal({ transactionId, onClose, onDeleted
               </div>
 
               <div className={modalStyles.card}>
-                <div className={modalStyles.cardIcon} style={{ background: 'rgba(201,168,76,0.12)', color: 'var(--accent)' }}>
+                <div className={modalStyles.cardIcon} style={{ background: 'rgba(var(--accent-rgb), 0.12)', color: 'var(--accent)' }}>
                   <TrendingUp size={16} />
                 </div>
                 <div className={modalStyles.cardLabel}>Lucro Bruto</div>
@@ -127,7 +127,7 @@ export default function ComissaoDetalheModal({ transactionId, onClose, onDeleted
                         <td className={styles.muted}>{s.store_name ?? '—'}</td>
                         <td style={{ textAlign: 'right', color: '#4CAF7D', fontWeight: 600 }}>{fmt(s.total)}</td>
                         <td style={{ textAlign: 'right' }} className={styles.muted}>{fmt(s.total_cost)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600, color: s.profit >= 0 ? 'var(--accent)' : '#E05252' }}>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: s.profit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                           {fmt(s.profit)}
                         </td>
                       </tr>

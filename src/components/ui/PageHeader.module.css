@@ -26,7 +26,7 @@
 
 .back:hover {
   color: var(--accent);
-  background: rgba(201, 168, 76, 0.06);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
 .back svg {

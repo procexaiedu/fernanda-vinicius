@@ -81,7 +81,7 @@
 }
 
 .navBtn:hover {
-  background: rgba(201, 168, 76, 0.12);
+  background: rgba(var(--accent-rgb), 0.12);
   color: var(--accent);
 }
 
@@ -126,19 +126,19 @@
 }
 
 .day:hover {
-  background: rgba(201, 168, 76, 0.12);
+  background: rgba(var(--accent-rgb), 0.12);
   color: var(--accent);
 }
 
 .dayToday {
-  border: 1px solid rgba(201, 168, 76, 0.35);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
   color: var(--accent);
   font-weight: 600;
 }
 
 .daySelected {
   background: var(--accent) !important;
-  color: #000 !important;
+  color: var(--accent-fg) !important;
   font-weight: 700;
 }
 
@@ -165,5 +165,5 @@
 }
 
 .footerBtn:hover {
-  background: rgba(201, 168, 76, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
 }

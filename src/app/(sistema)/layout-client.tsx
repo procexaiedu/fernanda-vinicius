@@ -29,7 +29,7 @@ export default function SistemaLayoutClient({
   children,
 }: SistemaLayoutClientProps) {
   const [collapsed, setCollapsed] = useState(false)
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [theme, setTheme] = useState<'dark' | 'light'>('light')
   const [abrindoVenda, setAbrindoVenda] = useState<string | null>(null)
   const router = useRouter()
   const pathname = usePathname()
@@ -64,9 +64,10 @@ export default function SistemaLayoutClient({
     apply()
     mq.addEventListener('change', apply)
 
-    // Tema — sincroniza com o que o anti-flash script já aplicou
+    // Tema — sincroniza com o que o anti-flash script já aplicou.
+    // Claro é o padrão; só o 'dark' salvo precisa ser reaplicado.
     const savedTheme = localStorage.getItem('fv-theme')
-    if (savedTheme === 'light') setTheme('light')
+    if (savedTheme === 'dark') setTheme('dark')
 
     return () => mq.removeEventListener('change', apply)
   }, [])
@@ -84,8 +85,9 @@ export default function SistemaLayoutClient({
     const next = theme === 'dark' ? 'light' : 'dark'
     setTheme(next)
     localStorage.setItem('fv-theme', next)
-    if (next === 'light') {
-      document.documentElement.setAttribute('data-theme', 'light')
+    // Claro é o padrão do :root — o atributo marca só o escuro.
+    if (next === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark')
     } else {
       document.documentElement.removeAttribute('data-theme')
     }

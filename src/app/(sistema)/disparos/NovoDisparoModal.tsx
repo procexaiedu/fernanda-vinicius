@@ -252,7 +252,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
 
                   {clienteSearch && filteredClientes.length > 0 && (
                     <button type="button" onClick={selectFiltrados}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', height: 40, border: 'none', borderBottom: '1px solid var(--border)', background: 'var(--accent)', color: '#0D0D0D', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', height: 40, border: 'none', borderBottom: '1px solid var(--border)', background: 'var(--accent)', color: 'var(--accent-fg)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                       <Check size={16} /> Adicionar os {filteredClientes.length} resultados à seleção
                     </button>
                   )}

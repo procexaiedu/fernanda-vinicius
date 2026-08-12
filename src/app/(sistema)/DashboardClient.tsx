@@ -46,7 +46,9 @@ function fmtBirthday(s: string) {
 }
 
 function getAvatarColor(id: string) {
-  const colors = ['#C9A84C','#4CAF7D','#5B8DEF','#E05252','#9B59B6','#E0A352']
+  // Tons neutros — ver a nota em ClientesClient sobre por que o avatar não
+  // carrega matiz nesta paleta.
+  const colors = ['#3F3F46', '#52525B', '#71717A', '#27272A', '#5B5B63', '#44444B']
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
   return colors[Math.abs(hash) % colors.length]
@@ -395,7 +397,7 @@ export default function DashboardClient({
                   <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
                   <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                   <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 2" />
-                  <Line dataKey="faturamento"  name="Faturamento"   stroke="#C9A84C" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#C9A84C' }} type="monotone" />
+                  <Line dataKey="faturamento"  name="Faturamento"   stroke="var(--accent)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: 'var(--accent)' }} type="monotone" />
                   <Line dataKey="custoCompras" name="Custo Compras" stroke="#E05252" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#E05252' }} type="monotone" />
                   <Line dataKey="lucroLiquido" name="Lucro Líquido" stroke="#4CAF7D" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: '#4CAF7D' }} type="monotone" />
                 </LineChart>
@@ -430,7 +432,7 @@ export default function DashboardClient({
                     contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
                     labelStyle={{ color: 'var(--text-primary)' }}
                   />
-                  <Bar dataKey="receita" fill="#C9A84C" radius={[0,3,3,0]} label={{ position: 'right', fill: 'var(--text-muted)', fontSize: 10, formatter: (v: any) => fmt(Number(v)) }} />
+                  <Bar dataKey="receita" fill="var(--accent)" radius={[0,3,3,0]} label={{ position: 'right', fill: 'var(--text-muted)', fontSize: 10, formatter: (v: any) => fmt(Number(v)) }} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -449,8 +451,8 @@ export default function DashboardClient({
               <AreaChart data={evolucao} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="evolGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#C9A84C" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#C9A84C" stopOpacity={0} />
+                    <stop offset="5%"  stopColor="var(--accent)" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
@@ -462,7 +464,7 @@ export default function DashboardClient({
                   contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
                   labelStyle={{ color: 'var(--text-primary)' }}
                 />
-                <Area dataKey="receita" name="Faturamento" stroke="#C9A84C" strokeWidth={2} fill="url(#evolGrad)" dot={{ fill: '#C9A84C', r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                <Area dataKey="receita" name="Faturamento" stroke="var(--accent)" strokeWidth={2} fill="url(#evolGrad)" dot={{ fill: 'var(--accent)', r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>

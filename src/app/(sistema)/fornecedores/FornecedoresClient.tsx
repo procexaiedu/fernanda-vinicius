@@ -18,7 +18,10 @@ import styles from './FornecedoresClient.module.css'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS = [
-  '#C9A84C', '#4CAF7D', '#5B8DEF', '#E05252', '#9B59B6', '#E0A352', '#2196F3', '#FF7043',
+  // Tons neutros: mantêm a variação que ajuda a bater o olho na lista, sem
+  // introduzir 8 matizes saturados numa paleta monocromática. O nome está do
+  // lado — a cor não precisa carregar identidade, só ritmo visual.
+  '#3F3F46', '#52525B', '#71717A', '#27272A', '#5B5B63', '#44444B', '#63636B', '#343439',
 ]
 
 function getAvatarColor(id: string): string {

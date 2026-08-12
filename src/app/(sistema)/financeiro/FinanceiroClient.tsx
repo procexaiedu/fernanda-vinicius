@@ -436,7 +436,7 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
           style={{
             display: 'flex', alignItems: 'center', gap: 12, width: '100%',
             padding: '12px 16px', marginBottom: 16, cursor: 'pointer',
-            background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.35)',
+            background: 'rgba(var(--accent-rgb), 0.08)', border: '1px solid rgba(var(--accent-rgb), 0.35)',
             borderRadius: 10, color: 'var(--text-primary)', textAlign: 'left',
             font: 'inherit',
           }}
@@ -1089,7 +1089,7 @@ function PnlTab({ stores }: { stores: Store[] }) {
               <span className={data.lucroLiquido >= 0 ? styles.pnlLineGold : styles.pnlLineNeg}>{fmt(data.lucroLiquido)}</span>
             </div>
             {data.aPagar > 0 && (
-              <div className={styles.pnlLine} style={{ background: 'rgba(201,168,76,0.04)', color: 'var(--accent)' }}>
+              <div className={styles.pnlLine} style={{ background: 'rgba(var(--accent-rgb), 0.04)', color: 'var(--accent)' }}>
                 <span>A Pagar (pendentes no período)</span>
                 <span style={{ fontWeight: 700 }}>{fmt(data.aPagar)}</span>
               </div>

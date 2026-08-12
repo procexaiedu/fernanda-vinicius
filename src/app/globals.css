@@ -1,34 +1,53 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-/* ─── Design Tokens ─────────────────────────────────────────── */
+/* ─── Design Tokens ─────────────────────────────────────────────
+ *
+ * CLARO é o padrão (`:root`); escuro é a variante (`[data-theme="dark"]`).
+ * Era o contrário até 12/08/2026 — a Fernanda pediu algo clean, e "clean" para
+ * a maioria das pessoas significa fundo branco.
+ *
+ * A cor de marca é MONOCROMÁTICA: o acento é quase-preto no claro e
+ * quase-branco no escuro. Cor de verdade fica reservada para estado —
+ * verde/vermelho de pago, pendente, sucesso e erro. Assim nada compete com a
+ * foto da joia, que é o que precisa chamar atenção na tela.
+ *
+ * `--accent-fg` existe porque o acento agora é escuro no tema claro: texto
+ * sobre ele precisa inverter, senão o botão primário fica preto no preto.
+ * `--accent-rgb` permite qualquer opacidade sem cravar a cor —
+ * `rgba(var(--accent-rgb), 0.06)` acompanha o tema sozinho.
+ */
 :root {
-  /* Backgrounds */
-  --bg-base:     #0D0D0D;
-  --bg-surface:  #161616;
-  --bg-elevated: #1F1F1F;
+  color-scheme: light;
+
+  /* Backgrounds — branco neutro, sem bege */
+  --bg-base:     #FAFAFA;
+  --bg-surface:  #FFFFFF;
+  --bg-elevated: #F4F4F5;
 
   /* Borders */
-  --border:       #2A2A2A;
-  --border-light: #333333;
+  --border:       #E4E4E7;
+  --border-light: #D4D4D8;
 
-  /* Accent — Dourado */
-  --accent:        #C9A84C;
-  --accent-hover:  #B8922E;
-  --accent-subtle: rgba(201, 168, 76, 0.1);
+  /* Accent — grafite */
+  --accent:        #1A1A1A;
+  --accent-hover:  #000000;
+  --accent-subtle: rgba(26, 26, 26, 0.06);
+  --accent-fg:     #FFFFFF;
+  --accent-rgb:    26, 26, 26;
 
   /* Text */
-  --text-primary:  #F0F0F0;
-  --text-secondary: #BBBBBB;
-  --text-muted:    #888888;
-  --text-disabled: #555555;
+  --text-primary:  #18181B;
+  --text-secondary: #52525B;
+  --text-muted:    #71717A;
+  --text-disabled: #A1A1AA;
 
-  /* Semantic */
-  --success:       #4CAF7D;
-  --success-subtle: rgba(76, 175, 125, 0.1);
-  --danger:        #E05252;
-  --danger-subtle: rgba(224, 82, 82, 0.1);
-  --warning:       #E0A352;
-  --warning-subtle: rgba(224, 163, 82, 0.1);
+  /* Semantic — a única cor do sistema, e só para estado */
+  --success:       #15803D;
+  --success-subtle: rgba(21, 128, 61, 0.10);
+  --danger:        #DC2626;
+  --danger-subtle: rgba(220, 38, 38, 0.10);
+  --warning:       #B45309;
+  --warning-subtle: rgba(180, 83, 9, 0.10);
 
   /* Layout */
   --sidebar-width:          240px;
@@ -92,37 +111,42 @@
   }
 }
 
-/* ─── Modo Claro ─────────────────────────────────────────────── */
-[data-theme="light"] {
-  color-scheme: light;
+/* ─── Modo Escuro ────────────────────────────────────────────────
+ * Variante. O acento inverte para quase-branco, e `--accent-fg` inverte com
+ * ele, senão o texto do botão primário desaparece no próprio fundo.
+ */
+[data-theme="dark"] {
+  color-scheme: dark;
 
-  /* Backgrounds — off-white quente, premium */
-  --bg-base:     #F5F2EE;
-  --bg-surface:  #FFFFFF;
-  --bg-elevated: #EDE9E4;
+  /* Backgrounds */
+  --bg-base:     #0D0D0D;
+  --bg-surface:  #161616;
+  --bg-elevated: #1F1F1F;
 
   /* Borders */
-  --border:       #DDD9D3;
-  --border-light: #CBC7C1;
+  --border:       #2A2A2A;
+  --border-light: #383838;
+
+  /* Accent — grafite invertido */
+  --accent:        #F0F0F0;
+  --accent-hover:  #FFFFFF;
+  --accent-subtle: rgba(240, 240, 240, 0.08);
+  --accent-fg:     #0D0D0D;
+  --accent-rgb:    240, 240, 240;
 
   /* Text */
-  --text-primary:   #111111;
-  --text-secondary: #444444;
-  --text-muted:     #767676;
-  --text-disabled:  #AAAAAA;
+  --text-primary:   #F4F4F5;
+  --text-secondary: #A1A1AA;
+  --text-muted:     #71717A;
+  --text-disabled:  #52525B;
 
-  /* Semantic — versões mais escuras para contraste no fundo claro */
-  --success:        #2A7A4E;
-  --success-subtle: rgba(42, 122, 78, 0.12);
-  --danger:         #CC3535;
-  --danger-subtle:  rgba(204, 53, 53, 0.1);
-  --warning:        #B07A20;
-  --warning-subtle: rgba(176, 122, 32, 0.1);
-
-  /* Accent — dourado permanece igual */
-  --accent:        #C9A84C;
-  --accent-hover:  #B8922E;
-  --accent-subtle: rgba(201, 168, 76, 0.15);
+  /* Semantic — versões mais claras para contraste no fundo escuro */
+  --success:        #4ADE80;
+  --success-subtle: rgba(74, 222, 128, 0.12);
+  --danger:         #F87171;
+  --danger-subtle:  rgba(248, 113, 113, 0.12);
+  --warning:        #FBBF24;
+  --warning-subtle: rgba(251, 191, 36, 0.12);
 }
 
 /* ─── Reset ──────────────────────────────────────────────────── */

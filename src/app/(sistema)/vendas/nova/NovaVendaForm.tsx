@@ -292,7 +292,7 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontWeight: 600 }}>{c.name}</span>
-                {isBirthdayMonth(c.birthday) && <Cake size={12} style={{ color: '#C9A84C' }} />}
+                {isBirthdayMonth(c.birthday) && <Cake size={12} style={{ color: 'var(--accent)' }} />}
               </div>
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.phone}{c.cpf ? ` · CPF: ${c.cpf}` : ''}</span>
             </div>
@@ -1194,9 +1194,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                           style={{
                             display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer',
                             fontSize: 11, fontWeight: 600, padding: '4px 9px', borderRadius: 6,
-                            border: `1px solid ${on ? '#C9A84C' : 'var(--border, rgba(128,128,128,.35))'}`,
-                            background: on ? 'rgba(201,168,76,.14)' : 'transparent',
-                            color: on ? '#C9A84C' : 'var(--text-muted)',
+                            border: `1px solid ${on ? 'var(--accent)' : 'var(--border, rgba(128,128,128,.35))'}`,
+                            background: on ? 'rgba(var(--accent-rgb), .14)' : 'transparent',
+                            color: on ? 'var(--accent)' : 'var(--text-muted)',
                           }}
                         >
                           <span style={{ width: 8, height: 8, borderRadius: 2, background: b.color, display: 'inline-block' }} />
