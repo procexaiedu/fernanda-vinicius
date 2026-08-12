@@ -182,11 +182,11 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                 <th>Fornecedores</th>
                 <th>Lojas</th>
                 <th>NF</th>
-                <th style={{ textAlign: 'right' }}>Itens</th>
-                <th style={{ textAlign: 'right' }}>Custo total</th>
-                <th>Status</th>
+                <th className="col-num">Itens</th>
+                <th className="col-num">Custo total</th>
+                <th className="col-center">Status</th>
                 <th>Prazo devolução</th>
-                <th style={{ width: 36 }}></th>
+                <th className="col-center" style={{ width: 36 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -223,15 +223,15 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                             </span>
                           : <span className={styles.muted}>—</span>}
                       </td>
-                      <td style={{ textAlign: 'right' }} className={styles.muted}>{row.total_items}</td>
-                      <td style={{ textAlign: 'right' }} className={styles.cost}>{fmt(row.total_cost)}</td>
-                      <td>
+                      <td className={`col-num ${styles.muted}`}>{row.total_items}</td>
+                      <td className={`col-num ${styles.cost}`}>{fmt(row.total_cost)}</td>
+                      <td className="col-center">
                         {row.paymentStatus === 'paid'
                           ? <span className={styles.statusPaid}><CheckCircle size={12} /> Pago</span>
                           : <span className={styles.statusPending}><Clock size={12} /> Pendente</span>}
                       </td>
                       <td className={styles.muted}>—</td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td className="col-center">
                         <button
                           className={styles.reprintBtn}
                           title="Reimprimir etiquetas"
@@ -251,8 +251,8 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                       <td className={styles.muted}>—</td>
                       <td className={styles.muted}>{row.storeName}</td>
                       <td className={styles.muted}>—</td>
-                      <td style={{ textAlign: 'right' }} className={styles.muted}>{row.total_pieces}</td>
-                      <td style={{ textAlign: 'right' }} className={styles.cost}>{fmt(row.total_cost_value)}</td>
+                      <td className={`col-num ${styles.muted}`}>{row.total_pieces}</td>
+                      <td className={`col-num ${styles.cost}`}>{fmt(row.total_cost_value)}</td>
                       <td>
                         {row.status === 'active'
                           ? <span className={styles.statusActive}><RefreshCw size={12} /> Ativa</span>

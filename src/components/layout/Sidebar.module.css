@@ -17,12 +17,12 @@
   width: var(--sidebar-width-collapsed);
 }
 
-/* Logo */
-.logo {
+/* ─── Topo: marca + recolher ───────────────────────────────────── */
+.topo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 16px;
+  gap: 8px;
+  padding: 0 8px 0 16px;
   height: var(--header-height);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -30,12 +30,26 @@
   white-space: nowrap;
 }
 
+/* Recolhida sobram 48px úteis: marca + botão não caberiam lado a lado, então a
+ * marca sai e o botão fica sozinho e centrado — que é também o alvo maior. */
+.collapsed .topo {
+  padding: 0 8px;
+  justify-content: center;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
 /*
  * Monograma da marca. A logo entra como MÁSCARA e a cor vem de `--accent`, não
- * do arquivo: assim assume o dourado do tema atual sozinha, sem precisar de um
- * arquivo por tema, e mantém exatamente a cor que o ícone genérico tinha antes.
- * O PNG servido já é transparente (gerado a partir do original opaco), então não
- * há quadrado de fundo.
+ * do arquivo: assim assume a cor do tema atual sozinha, sem precisar de um
+ * arquivo por tema. O PNG servido já é transparente, então não há quadrado de
+ * fundo.
  */
 .logoMark {
   width: 22px;
@@ -50,6 +64,8 @@
   font-size: 13px;
   color: var(--text-muted);
   letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .logoText strong {
@@ -57,15 +73,65 @@
   font-weight: 600;
 }
 
-/* Nav */
+.collapseBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.collapseBtn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* ─── Navegação ────────────────────────────────────────────────── */
 .nav {
   flex: 1;
-  padding: 12px 8px;
+  padding: 10px 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.grupo + .grupo {
+  margin-top: 12px;
+}
+
+/* Rótulo de coleção: pequeno, em maiúsculas e apagado. Ele organiza sem
+ * competir com os itens — quem lê a sidebar procura o item, não a seção. */
+.grupoTitulo {
+  padding: 6px 10px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-disabled);
+}
+
+/* Recolhida, o rótulo vira um traço: mantém a separação entre coleções sem
+ * texto cortado nem tooltip inútil. */
+.grupoTraco {
+  display: block;
+  height: 1px;
+  margin: 8px 10px 6px;
+  background: var(--border);
 }
 
 .navItem {
@@ -79,6 +145,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-decoration: none;
+}
+
+.collapsed .navItem {
+  justify-content: center;
+  padding: 9px 0;
 }
 
 .navItem:hover {
@@ -105,23 +176,96 @@
   font-weight: 500;
 }
 
-/* Botão colapsar */
-.collapseBtn {
+/* ─── Rodapé: usuário logado ───────────────────────────────────── */
+.rodape {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Recolhida empilha: avatar em cima, as duas ações embaixo lado a lado. */
+.collapsed .rodape {
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 6px;
+}
+
+.usuario {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  flex: 1;
+}
+
+.collapsed .usuario {
+  flex: none;
+  justify-content: center;
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 44px;
-  width: 100%;
-  background: none;
-  border: none;
-  border-top: 1px solid var(--border);
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.usuarioInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.usuarioNome {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usuarioPapel {
+  font-size: 10.5px;
   color: var(--text-muted);
-  cursor: pointer;
-  transition: color var(--transition-fast), background var(--transition-fast);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rodapeAcoes {
+  display: flex;
+  gap: 2px;
   flex-shrink: 0;
 }
 
-.collapseBtn:hover {
+.acaoBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.acaoBtn:hover {
   background: var(--bg-elevated);
   color: var(--text-primary);
 }

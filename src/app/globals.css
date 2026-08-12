@@ -270,15 +270,93 @@ input, textarea, select {
 }
 
 /* ─── Prioridade de colunas de tabela (responsivo) ───────────────
-   Aplicar a <th> E <td> da coluna. Essenciais nunca recebem classe.
-   .col-tertiary  → some em telas compactas (≤1366)
-   .col-secondary → some em telas apertadas (≤1180)
-   Classes GLOBAIS — usar como string literal no className (não via CSS Module). */
+ *
+ * Aplicar a <th> E <td> da coluna. Essenciais nunca recebem classe.
+ * .col-tertiary  → primeira a sair
+ * .col-secondary → sai depois, quando aperta de verdade
+ * Classes GLOBAIS — usar como string literal no className (não via CSS Module).
+ *
+ * OS LIMITES DEPENDEM DA SIDEBAR, e é por isso que existe `data-sidebar`.
+ *
+ * O que estava errado antes: os limites eram 1366px e 1180px medidos na JANELA,
+ * mas o que precisa caber é a ÁREA DE CONTEÚDO — janela menos a sidebar, que
+ * ocupa 240px aberta ou 64px fechada. Medido no DevTools, em /produtos:
+ *
+ *   janela 1280 → 1153px úteis → 9 colunas somam 1153px → cabe
+ *   janela 1440 → 1137px úteis → 12 colunas somam 1189px → TRANSBORDA 52px
+ *   janela 1600 → 1297px úteis → 12 colunas somam 1297px → cabe
+ *
+ * Ou seja: existia uma zona morta de ~1367px a ~1520px onde a regra já liberava
+ * todas as colunas e o espaço ainda não comportava. 1440×900 é resolução comum
+ * de notebook e cai no meio dela — daí o problema aparecer em todas as abas.
+ *
+ * Os valores abaixo são os antigos + a largura da sidebar, que é o que os torna
+ * comparáveis com a largura real disponível:
+ *   aberta  (240px): 1280+240 = 1520  ·  1180+240 = 1420
+ *   fechada (64px):  1280+64  = 1344  ·  1180+64  = 1244
+ */
+@media (max-width: 1520px) {
+  [data-sidebar="expanded"] .col-tertiary { display: none !important; }
+}
+@media (max-width: 1420px) {
+  [data-sidebar="expanded"] .col-secondary { display: none !important; }
+}
+
+@media (max-width: 1344px) {
+  [data-sidebar="collapsed"] .col-tertiary { display: none !important; }
+}
+@media (max-width: 1244px) {
+  [data-sidebar="collapsed"] .col-secondary { display: none !important; }
+}
+
+/* Rede de segurança: se o atributo não chegou (JS desligado, ou uma tela fora do
+ * layout do sistema, como o /pdv), vale o comportamento antigo baseado na janela.
+ * Sem isto, sem JS nenhuma coluna sairia e toda tabela transbordaria. */
 @media (max-width: 1366px) {
-  .col-tertiary { display: none !important; }
+  html:not([data-sidebar]) .col-tertiary { display: none !important; }
 }
 @media (max-width: 1180px) {
-  .col-secondary { display: none !important; }
+  html:not([data-sidebar]) .col-secondary { display: none !important; }
+}
+
+/* ─── Alinhamento de coluna (responsivo a conteúdo, não a tela) ───
+ *
+ * Aplicar a MESMA classe no <th> e no <td> da coluna. É isso que garante que
+ * cabeçalho e valor nunca divirjam — o defeito que existia em /clientes e
+ * /disparos, onde o valor estava à direita e o cabeçalho tinha ficado à esquerda.
+ *
+ * `tabular-nums` é o que faz os dígitos ocuparem a mesma largura, então R$ 96,00
+ * e R$ 281,00 alinham a vírgula. Sem isso, alinhar à direita ainda deixa a coluna
+ * parecendo torta, porque o "1" é mais estreito que o "8" na Inter.
+ *
+ * Regra de uso:
+ *   .col-num    → dinheiro, quantidade, percentual, contagem
+ *   .col-center → colunas curtas e categóricas (status, promo, um traço)
+ */
+.col-num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.col-center {
+  text-align: center !important;
+}
+
+/*
+ * Coluna de texto que pode ser longa (fornecedor, loja, descrição): uma linha só,
+ * com reticências. Sem isto, "RAVIC SEMIJOIAS" quebra em duas linhas dentro de uma
+ * coluna de 136px e a tabela fica visualmente irregular, mesmo quando a altura da
+ * linha não muda. Ponha `title` no <td> para o valor cheio ficar acessível.
+ */
+.col-truncate {
+  /* O limite explícito é obrigatório, não estética: `nowrap` sozinho faz a tabela
+   * ALARGAR a coluna para caber o texto, o que reintroduz o transbordo que
+   * acabamos de eliminar. 160px cobre nome de fornecedor e de loja. */
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── Movimento ──────────────────────────────────────────────────

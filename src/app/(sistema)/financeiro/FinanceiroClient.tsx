@@ -520,8 +520,8 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
               <th>Categoria</th>
               <th>Loja</th>
               <th>Método</th>
-              <th>Valor</th>
-              <th>Status</th>
+              <th className="col-num">Valor</th>
+              <th className="col-center">Status</th>
               <th></th>
             </tr>
           </thead>
@@ -554,12 +554,12 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
                 <td><span className={styles.categoryBadge}>{tx.category}</span></td>
                 <td className={styles.muted}>{tx.store_name ?? 'Geral'}</td>
                 <td className={styles.muted}>{METHOD_LABELS[tx.payment_method ?? ''] ?? tx.payment_method ?? '—'}</td>
-                <td>
+                <td className="col-num">
                   <span className={tx.type === 'income' ? styles.amountIncome : styles.amountExpense}>
                     {tx.type === 'income' ? '+' : '−'} {fmt(tx.amount)}
                   </span>
                 </td>
-                <td>
+                <td className="col-center">
                   <span className={`${styles.statusBadge} ${tx.status === 'completed' ? styles.statusCompleted : styles.statusPending}`}>
                     {tx.status === 'completed' ? 'Pago' : 'Pendente'}
                   </span>
@@ -718,7 +718,7 @@ function PendenciasModal({
                     <th>Categoria</th>
                     <th>Origem</th>
                     <th>Método</th>
-                    <th style={{ textAlign: 'right' }}>Valor</th>
+                    <th className="col-num">Valor</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -737,7 +737,7 @@ function PendenciasModal({
                         <td><span className={styles.categoryBadge}>{p.category}</span></td>
                         <td className={styles.muted}>{origemLabel(p.reference_type)}</td>
                         <td className={styles.muted}>{METHOD_LABELS[p.payment_method ?? ''] ?? p.payment_method ?? '—'}</td>
-                        <td style={{ color: 'var(--accent)', fontWeight: 700, textAlign: 'right' }}>{fmt(p.amount)}</td>
+                        <td className="col-num" style={{ color: 'var(--accent)', fontWeight: 700 }}>{fmt(p.amount)}</td>
                         <td onClick={e => e.stopPropagation()}>
                           <div className={styles.actionsCell}>
                             <button
@@ -1105,7 +1105,7 @@ function PnlTab({ stores }: { stores: Store[] }) {
                   <thead>
                     <tr>
                       <th>Categoria</th>
-                      <th>Valor</th>
+                      <th className="col-num">Valor</th>
                       <th style={{ width: '200px' }}>% das Despesas</th>
                     </tr>
                   </thead>
@@ -1144,7 +1144,7 @@ function PnlTab({ stores }: { stores: Store[] }) {
                       <th>Descrição</th>
                       <th>Categoria</th>
                       <th>Origem</th>
-                      <th style={{ textAlign: 'right' }}>Valor</th>
+                      <th className="col-num">Valor</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1158,14 +1158,14 @@ function PnlTab({ stores }: { stores: Store[] }) {
                            p.reference_type === 'manual'   ? 'Manual/Recorrente' :
                            p.reference_type}
                         </td>
-                        <td style={{ color: 'var(--accent)', fontWeight: 700, textAlign: 'right' }}>
+                        <td className="col-num" style={{ color: 'var(--accent)', fontWeight: 700 }}>
                           {fmt(p.amount)}
                         </td>
                       </tr>
                     ))}
                     <tr style={{ background: 'var(--bg-elevated)' }}>
                       <td colSpan={4} style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Total</td>
-                      <td style={{ color: 'var(--accent)', fontWeight: 700, textAlign: 'right' }}>
+                      <td className="col-num" style={{ color: 'var(--accent)', fontWeight: 700 }}>
                         {fmt(data.aPagar)}
                       </td>
                     </tr>
@@ -1246,7 +1246,7 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
               <th>Descrição</th>
               <th>Categoria</th>
               <th>Loja</th>
-              <th>Valor</th>
+              <th className="col-num">Valor</th>
               <th>Vence dia</th>
               <th>Recorrência</th>
               <th>Ativo</th>

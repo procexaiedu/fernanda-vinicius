@@ -226,19 +226,19 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
                 </th>
                 <th className="col-tertiary">Responsável</th>
                 <th className="col-tertiary">WhatsApp</th>
-                <th className={styles.thSortable} onClick={() => toggleSort('products')}>
+                <th className={`${styles.thSortable} col-num`} onClick={() => toggleSort('products')}>
                   Produtos <SortIcon col="products" />
                 </th>
-                <th className={styles.thSortable} onClick={() => toggleSort('invested')}>
+                <th className={`${styles.thSortable} col-num`} onClick={() => toggleSort('invested')}>
                   Total investido <SortIcon col="invested" />
                 </th>
-                <th className={styles.thSortable} onClick={() => toggleSort('pending')}>
+                <th className={`${styles.thSortable} col-num`} onClick={() => toggleSort('pending')}>
                   Em aberto <SortIcon col="pending" />
                 </th>
                 <th className={`${styles.thSortable} col-tertiary`} onClick={() => toggleSort('last_purchase')}>
                   Última compra <SortIcon col="last_purchase" />
                 </th>
-                <th>Status</th>
+                <th className="col-center">Status</th>
                 <th className={styles.actionsCol}>Ações</th>
               </tr>
             </thead>
@@ -293,17 +293,17 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
                       })()}
                     </td>
 
-                    <td className={styles.mutedCell}>
+                    <td className={`${styles.mutedCell} col-num`}>
                       <span className={styles.productCount}>{s.product_count}</span>
                     </td>
 
-                    <td className={styles.mutedCell}>
+                    <td className={`${styles.mutedCell} col-num`}>
                       {s.total_invested > 0
                         ? <span className={styles.investedValue}>{formatCurrency(s.total_invested)}</span>
                         : '—'}
                     </td>
 
-                    <td className={styles.mutedCell}>
+                    <td className={`${styles.mutedCell} col-num`}>
                       {s.pending_amount > 0
                         ? <span className={styles.pendingBadge}>{formatCurrency(s.pending_amount)}</span>
                         : <span>—</span>}
@@ -313,7 +313,7 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
                       {s.last_purchase_date ? formatPurchaseDate(s.last_purchase_date) : '—'}
                     </td>
 
-                    <td>
+                    <td className="col-center">
                       {s.is_active
                         ? <Badge variant="success">Ativo</Badge>
                         : <Badge variant="muted">Inativo</Badge>}

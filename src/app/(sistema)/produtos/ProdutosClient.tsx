@@ -282,11 +282,11 @@ export default function ProdutosClient({
                 <th className="col-tertiary">Material</th>
                 {isAdmin && <th className="col-secondary">Fornecedor</th>}
                 {isAdmin && <th className="col-tertiary">Loja</th>}
-                {isAdmin && <th className="col-secondary">Custo</th>}
-                <th>Venda</th>
-                <th className="col-tertiary">Promo</th>
-                <th>Qtd.</th>
-                <th>Status</th>
+                {isAdmin && <th className="col-secondary col-num">Custo</th>}
+                <th className="col-num">Venda</th>
+                <th className="col-tertiary col-num">Promo</th>
+                <th className="col-num">Qtd.</th>
+                <th className="col-center">Status</th>
                 {isAdmin && <th className={styles.actionsCol}>Ações</th>}
               </tr>
             </thead>
@@ -334,37 +334,41 @@ export default function ProdutosClient({
                     </td>
 
                     {isAdmin && (
-                      <td className={`${styles.mutedCell} col-secondary`}>{prod.suppliers?.name ?? '—'}</td>
+                      <td className={`${styles.mutedCell} col-secondary col-truncate`} title={prod.suppliers?.name ?? undefined}>
+                        {prod.suppliers?.name ?? '—'}
+                      </td>
                     )}
 
                     {isAdmin && (
-                      <td className={`${styles.mutedCell} col-tertiary`}>{prod.stores?.name ?? '—'}</td>
+                      <td className={`${styles.mutedCell} col-tertiary col-truncate`} title={prod.stores?.name ?? undefined}>
+                        {prod.stores?.name ?? '—'}
+                      </td>
                     )}
 
                     {isAdmin && (
-                      <td className="col-secondary">
+                      <td className="col-secondary col-num">
                         <span className={styles.costPrice}>{formatCurrency(prod.cost_price)}</span>
                       </td>
                     )}
 
-                    <td>
+                    <td className="col-num">
                       <span className={styles.salePrice}>{formatCurrency(prod.sale_price)}</span>
                     </td>
 
-                    <td className="col-tertiary">
+                    <td className="col-tertiary col-num">
                       {prod.promotional_price
                         ? <span className={styles.promoPrice}>{formatCurrency(prod.promotional_price)}</span>
                         : <span className={styles.mutedCell}>—</span>}
                     </td>
 
-                    <td>
+                    <td className="col-num">
                       <span className={`${styles.qty} ${prod.quantity_in_stock === 0 ? styles.qtyZero : ''}`}>
                         {prod.quantity_in_stock}
                       </span>
                     </td>
 
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <td className="col-center">
+                      <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 3, alignItems: 'center' }}>
                         {prod.is_active
                           ? <Badge variant="success">Ativo</Badge>
                           : <Badge variant="muted">Inativo</Badge>}

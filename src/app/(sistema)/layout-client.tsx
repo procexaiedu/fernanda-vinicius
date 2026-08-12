@@ -72,6 +72,18 @@ export default function SistemaLayoutClient({
     return () => mq.removeEventListener('change', apply)
   }, [])
 
+  /*
+   * Espelha o estado da sidebar no <html>.
+   *
+   * A prioridade de colunas das tabelas (`.col-secondary` / `.col-tertiary` em
+   * globals.css) precisa saber a largura da ÁREA DE CONTEÚDO, não da janela — e a
+   * diferença entre as duas é exatamente a sidebar (240px aberta, 64px fechada).
+   * Media query não enxerga o estado de um componente, daí o atributo.
+   */
+  useEffect(() => {
+    document.documentElement.setAttribute('data-sidebar', collapsed ? 'collapsed' : 'expanded')
+  }, [collapsed])
+
   // Toggle manual — funciona em qualquer tela e persiste a preferência.
   function toggleSidebar() {
     setCollapsed(prev => {
@@ -95,16 +107,17 @@ export default function SistemaLayoutClient({
 
   return (
     <div className={styles.root}>
-      <Sidebar userRole={userRole} collapsed={collapsed} onToggle={toggleSidebar} />
+      <Sidebar
+        userRole={userRole}
+        userName={userName}
+        storeName={storeName}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        collapsed={collapsed}
+        onToggle={toggleSidebar}
+      />
       <div className={`${styles.main} ${collapsed ? styles.mainCollapsed : ''}`}>
-        <Header
-          userName={userName}
-          userRole={userRole}
-          storeName={storeName}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          collapsed={collapsed}
-        />
+        <Header collapsed={collapsed} />
         <main className={styles.content}>
           {children}
         </main>

@@ -136,11 +136,11 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
             <thead>
               <tr>
                 <th>Título</th>
-                <th>Loja</th>
-                <th>Status</th>
-                <th className={styles.num}>Enviados</th>
-                <th className={styles.num}>Entregues</th>
-                <th className={styles.num}>Lidos</th>
+                <th className="col-truncate">Loja</th>
+                <th className="col-center">Status</th>
+                <th className="col-num">Enviados</th>
+                <th className="col-num">Entregues</th>
+                <th className="col-num">Lidos</th>
                 <th>Data</th>
                 <th className={styles.actionsCol}>Ações</th>
               </tr>
@@ -154,10 +154,10 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
                   <tr key={d.disparo_id} className={styles.row} onClick={() => setDetalhe(d)} title="Ver detalhes">
                     <td className={styles.titleCell}>{d.titulo}</td>
                     <td className={styles.mutedCell}>{d.store_name}</td>
-                    <td><Badge variant={badge.variant}>{badge.label}</Badge></td>
-                    <td className={`${styles.num} ${styles.mutedCell}`}>{d.total ? `${d.enviados}/${d.total}` : '—'}</td>
-                    <td className={`${styles.num} ${styles.mutedCell}`}>{d.enviados ? d.entregues : '—'}</td>
-                    <td className={`${styles.num}`}>{d.enviados ? <span className={styles.lidos}>{d.lidos}</span> : '—'}</td>
+                    <td className="col-center"><Badge variant={badge.variant}>{badge.label}</Badge></td>
+                    <td className={`col-num ${styles.mutedCell}`}>{d.total ? `${d.enviados}/${d.total}` : '—'}</td>
+                    <td className={`col-num ${styles.mutedCell}`}>{d.enviados ? d.entregues : '—'}</td>
+                    <td className="col-num">{d.enviados ? <span className={styles.lidos}>{d.lidos}</span> : '—'}</td>
                     <td className={styles.mutedCell}>{formatDate(d.created_at)}</td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className={styles.actions}>

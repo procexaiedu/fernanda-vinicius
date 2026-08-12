@@ -238,7 +238,7 @@ export default function ClientesClient({
                 <th className={styles.thSortable} onClick={() => toggleSort('last_sale_date')}>
                   Última compra <SortIcon col="last_sale_date" />
                 </th>
-                <th className={styles.rightCol}>Total gasto</th>
+                <th className="col-num">Total gasto</th>
                 <th className={styles.actionsCol}>Ações</th>
               </tr>
             </thead>
@@ -298,7 +298,7 @@ export default function ClientesClient({
                     </td>
 
                     {/* Total gasto */}
-                    <td className={`${styles.mutedCell} ${styles.rightCol}`}>
+                    <td className={`${styles.mutedCell} col-num`}>
                       {c.total_spent > 0 ? (
                         <span className={styles.totalValue}>{formatCurrency(c.total_spent)}</span>
                       ) : '—'}

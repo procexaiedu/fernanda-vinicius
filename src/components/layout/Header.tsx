@@ -1,16 +1,18 @@
 'use client'
 
-import { usePathname, useRouter } from 'next/navigation'
-import { LogOut, ChevronRight, Store, Sun, Moon } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { usePathname } from 'next/navigation'
+import { ChevronRight } from 'lucide-react'
 import styles from './Header.module.css'
 
+/**
+ * Header = trilha de navegação, e nada mais.
+ *
+ * O bloco de usuário (nome, papel, loja, tema, sair) desceu para o rodapé da
+ * sidebar: é informação de SESSÃO, e sessão pertence ao mesmo lugar que a
+ * navegação. Aqui ficava disputando a barra com o breadcrumb e empurrando o
+ * conteúdo da página para baixo sem necessidade.
+ */
 interface HeaderProps {
-  userName?: string
-  userRole?: 'admin' | 'operator'
-  storeName?: string
-  theme?: 'dark' | 'light'
-  onToggleTheme?: () => void
   /** Precisa saber: o header é `fixed` e alinha o `left` com a sidebar. */
   collapsed?: boolean
 }
@@ -20,7 +22,10 @@ const ROUTE_LABELS: Record<string, string> = {
   '/vendas':        'Vendas',
   '/produtos':      'Produtos',
   '/clientes':      'Clientes',
+  '/estoque':       'Estoque',
   '/compras':       'Compras',
+  '/fornecedores':  'Fornecedores',
+  '/disparos':      'Disparos',
   '/financeiro':    'Financeiro',
   '/configuracoes': 'Configurações',
 }
@@ -32,21 +37,12 @@ function getBreadcrumb(pathname: string): string[] {
   return ['Dashboard', label]
 }
 
-export default function Header({ userName, userRole, storeName, theme = 'dark', onToggleTheme, collapsed = false }: HeaderProps) {
+export default function Header({ collapsed = false }: HeaderProps) {
   const pathname = usePathname()
-  const router = useRouter()
   const breadcrumb = getBreadcrumb(pathname)
-  const supabase = createClient()
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
-  }
 
   return (
     <header className={`${styles.header} ${collapsed ? styles.headerCollapsed : ''}`}>
-      {/* Breadcrumb */}
       <nav className={styles.breadcrumb} aria-label="Breadcrumb">
         {breadcrumb.map((crumb, i) => (
           <span key={i} className={styles.breadcrumbItem}>
@@ -57,44 +53,6 @@ export default function Header({ userName, userRole, storeName, theme = 'dark', 
           </span>
         ))}
       </nav>
-
-      {/* Lado direito */}
-      <div className={styles.right}>
-        {/* Loja */}
-        {storeName && (
-          <div className={styles.storeTag}>
-            <Store size={13} />
-            <span>{storeName}</span>
-          </div>
-        )}
-
-        {/* Toggle de tema */}
-        <button
-          className={styles.themeBtn}
-          onClick={onToggleTheme}
-          title={theme === 'dark' ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
-          aria-label="Alternar tema"
-        >
-          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-        </button>
-
-        {/* Usuário + logout */}
-        <div className={styles.user}>
-          <div className={styles.userInfo}>
-            <span className={styles.userName}>{userName ?? 'Usuário'}</span>
-            <span className={styles.userRole}>
-              {userRole === 'admin' ? 'Administrador' : 'Operadora'}
-            </span>
-          </div>
-          <button
-            className={styles.logoutBtn}
-            onClick={handleLogout}
-            title="Sair"
-          >
-            <LogOut size={15} />
-          </button>
-        </div>
-      </div>
     </header>
   )
 }

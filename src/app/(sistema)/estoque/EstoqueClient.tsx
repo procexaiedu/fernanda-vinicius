@@ -152,13 +152,13 @@ export default function EstoqueClient({
               <tr>
                 <th>Produto</th>
                 <th>Código</th>
-                {isAdmin && <th className="col-secondary">Fornecedor</th>}
-                {isAdmin && <th className="col-tertiary">Loja</th>}
-                <th>Qtd.</th>
-                <th>Venda</th>
-                <th className="col-tertiary">Promo</th>
+                {isAdmin && <th className="col-secondary col-truncate">Fornecedor</th>}
+                {isAdmin && <th className="col-tertiary col-truncate">Loja</th>}
+                <th className="col-num">Qtd.</th>
+                <th className="col-num">Venda</th>
+                <th className="col-tertiary col-num">Promo</th>
                 <th className="col-tertiary">Última venda</th>
-                <th>Status</th>
+                <th className="col-center">Status</th>
                 <th></th>
               </tr>
             </thead>
@@ -189,18 +189,26 @@ export default function EstoqueClient({
                       <span className={styles.code}>{prod.code}</span>
                     </td>
 
-                    {isAdmin && <td className={`${styles.mutedCell} col-secondary`}>{prod.suppliers?.name ?? '—'}</td>}
-                    {isAdmin && <td className={`${styles.mutedCell} col-tertiary`}>{prod.stores?.name ?? '—'}</td>}
+                    {isAdmin && (
+                      <td className={`${styles.mutedCell} col-secondary col-truncate`} title={prod.suppliers?.name ?? undefined}>
+                        {prod.suppliers?.name ?? '—'}
+                      </td>
+                    )}
+                    {isAdmin && (
+                      <td className={`${styles.mutedCell} col-tertiary col-truncate`} title={prod.stores?.name ?? undefined}>
+                        {prod.stores?.name ?? '—'}
+                      </td>
+                    )}
 
-                    <td>
+                    <td className="col-num">
                       <span className={`${styles.qty} ${prod.quantity_in_stock <= 1 ? styles.qtyLow : ''}`}>
                         {prod.quantity_in_stock}
                       </span>
                     </td>
 
-                    <td><span className={styles.salePrice}>{fmt(prod.sale_price)}</span></td>
+                    <td className="col-num"><span className={styles.salePrice}>{fmt(prod.sale_price)}</span></td>
 
-                    <td className="col-tertiary">
+                    <td className="col-tertiary col-num">
                       {prod.promotional_price
                         ? <span className={styles.promoPrice}>{fmt(prod.promotional_price)}</span>
                         : <span className={styles.mutedCell}>—</span>}
@@ -208,7 +216,7 @@ export default function EstoqueClient({
 
                     <td className={`${styles.mutedCell} col-tertiary`}>{fmtDate(prod.last_sale_date)}</td>
 
-                    <td>
+                    <td className="col-center">
                       {statusVenda === 'parado' && <span className={styles.statusParado}>Parado</span>}
                       {statusVenda === 'critico' && <span className={styles.statusCritico}>Crítico</span>}
                       {!statusVenda && <span className={styles.mutedCell}>—</span>}
