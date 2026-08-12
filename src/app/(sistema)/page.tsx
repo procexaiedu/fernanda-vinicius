@@ -24,26 +24,38 @@ export default async function DashboardPage() {
   const month = now.getMonth() + 1
   const year  = now.getFullYear()
 
-  const admin = createAdminClient()
-  const [lojas, settings, inactiveSetting] = await Promise.all([
-    buscarLojas(),
-    buscarDashboardSettings(),
-    admin.from('settings').select('value').eq('key', 'inactive_customer_days').maybeSingle(),
-  ])
-  const inactiveDays = Number(inactiveSetting.data?.value ?? 180)
+  /*
+   * Tudo dispara em t=0, numa onda só.
+   *
+   * Antes eram DUAS ondas: primeiro `settings` + `lojas`, e só quando chegavam é
+   * que as 12 consultas de dado partiam. Como cada ida ao Supabase custa ~190ms
+   * de rede (o banco resolve em 16ms), essa espera era ~190ms de tela branca sem
+   * nada acontecendo.
+   *
+   * O `settingsP` vai adiante SEM await: as ações que precisam de
+   * `purchaseReservePct`/`staleDays` recebem a Promise e cobram o número só na
+   * hora de fazer a conta, depois que as próprias linhas já voltaram.
+   */
+  const settingsP = buscarDashboardSettings()
+  const staleDaysP   = settingsP.then(s => s.staleDays)
+  const reservePctP  = settingsP.then(s => s.purchaseReservePct)
 
-  const [kpis, estoque, grafico, topVendedoras, pecasParadas, contasVencer, aniversariantes, categorias, evolucao] =
-    await Promise.all([
-      buscarKpis(storeId, month, year, settings.purchaseReservePct),
-      buscarEstoque(storeId, settings.staleDays),
-      buscarGrafico(storeId, 6),
-      buscarTopVendedoras(storeId, month, year),
-      buscarPecasParadas(storeId, settings.staleDays),
-      buscarContasVencer(storeId),
-      buscarAniversariantes(storeId),
-      buscarVendasPorCategoria(storeId, month, year),
-      buscarEvolucaoVendas(storeId, 6),
-    ])
+  const [
+    lojas, settings,
+    kpis, estoque, grafico, topVendedoras, pecasParadas, contasVencer, aniversariantes, categorias, evolucao,
+  ] = await Promise.all([
+    buscarLojas(),
+    settingsP,
+    buscarKpis(storeId, month, year, reservePctP),
+    buscarEstoque(storeId, staleDaysP),
+    buscarGrafico(storeId, 6),
+    buscarTopVendedoras(storeId, month, year),
+    buscarPecasParadas(storeId, staleDaysP),
+    buscarContasVencer(storeId),
+    buscarAniversariantes(storeId),
+    buscarVendasPorCategoria(storeId, month, year),
+    buscarEvolucaoVendas(storeId, 6),
+  ])
 
   return (
     <DashboardClient
@@ -51,7 +63,7 @@ export default async function DashboardPage() {
       initialStoreId={storeId}
       lojas={lojas}
       settings={settings}
-      inactiveDays={inactiveDays}
+      inactiveDays={settings.inactiveDays}
       initialKpis={kpis}
       initialEstoque={estoque}
       initialGrafico={grafico}

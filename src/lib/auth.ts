@@ -1,6 +1,8 @@
 import { cache } from 'react'
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { CABECALHO_USUARIO } from '@/lib/auth-header'
 
 /**
  * Autenticação deduplicada por requisição.
@@ -27,11 +29,23 @@ export interface UserProfile {
   store_name?: string
 }
 
-/** Usuário autenticado (ou null). Uma única chamada de rede por requisição. */
-export const getAuthUser = cache(async () => {
+/**
+ * Id do usuário autenticado (ou null), sem chamada de rede no caminho normal.
+ *
+ * O proxy já validou o JWT nesta mesma requisição e passou o id no cabeçalho
+ * interno (ver src/lib/auth-header.ts) — `getUser()` custa ~200ms de REDE, não é
+ * validação local, e repetir aqui era pagar isso duas vezes por navegação.
+ *
+ * O fallback existe para o caso de a rota não passar pelo proxy: aí volta a
+ * chamar a rede. Falha para o lado lento, nunca para o lado inseguro.
+ */
+export const getAuthUser = cache(async (): Promise<{ id: string } | null> => {
+  const doProxy = (await headers()).get(CABECALHO_USUARIO)
+  if (doProxy) return { id: doProxy }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  return user
+  return user ? { id: user.id } : null
 })
 
 /**

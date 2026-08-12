@@ -1,6 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ export interface StoreOption {
 export interface DashboardSettings {
   purchaseReservePct: number
   staleDays: number
+  inactiveDays: number
 }
 
 export interface DashboardKpis {
@@ -96,25 +98,17 @@ export interface TopVendedora {
   totalVendido: number
 }
 
+/*
+ * Só os campos que o card de alerta realmente mostra (nome, categoria · código e
+ * os dias parados). Antes esse tipo era o Product inteiro com os joins de
+ * fornecedor e loja, o que fazia a query baixar 627 KB de 1031 produtos para
+ * renderizar 8 linhas de 4 campos.
+ */
 export interface AlertPecaParada {
   id: string
   name: string
   code: string
   category: string
-  material: string
-  supplier_id: string
-  store_id: string
-  cost_price: number
-  sale_price: number
-  promotional_price: number | null
-  quantity_in_stock: number
-  ownership_type: 'own' | 'consignment'
-  last_sale_date: string | null
-  photo_url: string | null
-  is_active: boolean
-  created_at: string
-  suppliers: { id: string; name: string; initials: string } | null
-  stores: { id: string; name: string } | null
   diasParada: number
 }
 
@@ -152,10 +146,13 @@ function monthBounds(year: number, month: number) {
 
 export async function buscarDashboardSettings(): Promise<DashboardSettings> {
   const admin = createAdminClient()
+  // Os três num só `in`: antes `inactive_customer_days` era uma segunda ida à
+  // MESMA tabela, direto da página. Cada ida ao Supabase custa ~190ms de rede
+  // (o banco resolve em 16ms), então requisição a menos vale mais que byte a menos.
   const { data } = await admin
     .from('settings')
     .select('key, value')
-    .in('key', ['purchase_reserve_pct', 'stale_product_days'])
+    .in('key', ['purchase_reserve_pct', 'stale_product_days', 'inactive_customer_days'])
 
   const map: Record<string, number> = {}
   for (const row of data ?? []) map[row.key] = Number(row.value)
@@ -163,6 +160,7 @@ export async function buscarDashboardSettings(): Promise<DashboardSettings> {
   return {
     purchaseReservePct: map['purchase_reserve_pct'] ?? 30,
     staleDays: map['stale_product_days'] ?? 60,
+    inactiveDays: map['inactive_customer_days'] ?? 180,
   }
 }
 
@@ -180,11 +178,21 @@ export async function buscarLojas(): Promise<StoreOption[]> {
 
 // ─── KPIs Financeiros ─────────────────────────────────────────────────────────
 
+/*
+ * `reservePct` e `staleDays` aceitam Promise de propósito.
+ *
+ * Cada ida ao Supabase custa ~190ms de REDE (o banco resolve em 16ms), então o
+ * que pesa é quantas ondas sequenciais a página faz, não quantos bytes traz.
+ * Antes a dashboard esperava o `settings` chegar para só então disparar as 12
+ * consultas — duas ondas, ~190ms jogados fora. Esses dois valores só entram em
+ * conta DEPOIS que as linhas chegaram, então recebê-los como Promise deixa a
+ * consulta partir em t=0 e cobrar o número na hora de usar.
+ */
 export async function buscarKpis(
   storeId: string | null,
   month: number,
   year: number,
-  reservePct: number,
+  reservePct: number | Promise<number>,
 ): Promise<DashboardKpis> {
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
@@ -224,31 +232,47 @@ export async function buscarKpis(
   const cmv          = cmvBruto - cmvCredito
   const lucroBruto   = receitaBruta - cmv
   const lucroLiquido = lucroBruto - despesasOp
-  const disponivelCompra = lucroLiquido * (1 - reservePct / 100)
 
-  return { receitaBruta, cmv, lucroBruto, despesasOp, lucroLiquido, disponivelCompra, reservePct }
+  // Só aqui a reserva é cobrada — as 3 consultas acima já foram e voltaram.
+  const pct = await reservePct
+  const disponivelCompra = lucroLiquido * (1 - pct / 100)
+
+  return { receitaBruta, cmv, lucroBruto, despesasOp, lucroLiquido, disponivelCompra, reservePct: pct }
 }
 
 // ─── Estoque ──────────────────────────────────────────────────────────────────
 
 export async function buscarEstoque(
   storeId: string | null,
-  staleDays: number,
+  staleDays: number | Promise<number>,
 ): Promise<DashboardStock> {
   const admin = createAdminClient()
+
+  /*
+   * Paginado de propósito: são 970 SKUs com estoque e o teto do PostgREST é 1000.
+   * Não está truncando hoje, mas está a 30 SKUs de truncar EM SILÊNCIO — e o
+   * número que ele truncaria é justamente o total de peças e o valor de estoque,
+   * que é o que se usa para conferir se o estoque está batendo. Cada mala de SP
+   * traz ~150 produtos novos, então isso estoura na próxima viagem.
+   */
+  const rows = await fetchAll<{
+    quantity_in_stock: number; cost_price: number; sale_price: number
+    last_sale_date: string | null; created_at: string
+  }>((de, ate) => {
+    let q = admin
+      .from('products')
+      .select('id, quantity_in_stock, cost_price, sale_price, last_sale_date, created_at')
+      .eq('is_active', true)
+      .gt('quantity_in_stock', 0)
+    if (storeId) q = q.eq('store_id', storeId)
+    return q.order('id').range(de, ate)
+  })
+
+  // Só aqui o staleDays é cobrado — a consulta acima já foi e voltou.
+  const dias = await staleDays
   const staleDate = new Date()
-  staleDate.setDate(staleDate.getDate() - staleDays)
+  staleDate.setDate(staleDate.getDate() - dias)
   const staleDateStr = staleDate.toISOString().slice(0, 10)
-
-  let q = admin
-    .from('products')
-    .select('id, quantity_in_stock, cost_price, sale_price, last_sale_date, created_at')
-    .eq('is_active', true)
-    .gt('quantity_in_stock', 0)
-  if (storeId) q = q.eq('store_id', storeId)
-
-  const { data } = await q
-  const rows = data ?? []
 
   const totalPecas         = rows.reduce((s, r) => s + Number(r.quantity_in_stock), 0)
   const totalSkus          = rows.length
@@ -261,7 +285,7 @@ export async function buscarEstoque(
     return ref < staleDateStr
   }).length
 
-  return { totalPecas, totalSkus, valorEstoque, valorEstoqueVenda, pecasParadas, staleDays }
+  return { totalPecas, totalSkus, valorEstoque, valorEstoqueVenda, pecasParadas, staleDays: dias }
 }
 
 // ─── Gráfico mensal ───────────────────────────────────────────────────────────
@@ -549,35 +573,62 @@ export async function buscarTopVendedoras(
 
 export async function buscarPecasParadas(
   storeId: string | null,
-  staleDays: number,
+  staleDays: number | Promise<number>,
 ): Promise<AlertPecaParada[]> {
   const admin = createAdminClient()
+  // Esta é a única que precisa do staleDays ANTES de consultar (ele entra no
+  // WHERE). Como o settings já está voando desde t=0, aqui só se paga a espera
+  // que sobra, e as outras 11 consultas não ficam presas nela.
   const staleDate = new Date()
-  staleDate.setDate(staleDate.getDate() - staleDays)
+  staleDate.setDate(staleDate.getDate() - (await staleDays))
   const staleDateStr = staleDate.toISOString().slice(0, 10)
 
-  let q = admin
-    .from('products')
-    .select('id, code, name, category, material, supplier_id, store_id, cost_price, sale_price, promotional_price, quantity_in_stock, ownership_type, last_sale_date, photo_url, is_active, created_at, suppliers(id, name, initials), stores(id, name)')
-    .eq('is_active', true)
-    .gt('quantity_in_stock', 0)
-  if (storeId) q = q.eq('store_id', storeId)
+  const LIMITE = 8
 
-  const { data } = await q
-  const today = new Date().toISOString().slice(0, 10)
+  /*
+   * A peça "para" desde `last_sale_date` ou, se nunca vendeu, desde `created_at`.
+   * Ordenar por esse coalesce não é expressável no PostgREST — daí a versão
+   * anterior baixar TODOS os produtos ativos com estoque (1031 linhas, 18 colunas
+   * e 2 joins = 627 KB) só para ordenar e cortar 8 no Node.
+   *
+   * Aqui a lista sai particionada em duas: nunca vendidas (ordena por created_at)
+   * e já vendidas (ordena por last_sale_date). O top-8 global obrigatoriamente
+   * está dentro do top-8 de cada partição, então trazer 8 de cada e escolher os 8
+   * melhores dá o MESMO resultado — em ~1,5 KB, e sem depender do teto de 1000
+   * linhas do PostgREST, que essa query já roçava.
+   */
+  const base = () => {
+    let q = admin
+      .from('products')
+      .select('id, code, name, category, last_sale_date, created_at')
+      .eq('is_active', true)
+      .gt('quantity_in_stock', 0)
+    if (storeId) q = q.eq('store_id', storeId)
+    return q
+  }
 
-  return (data ?? [])
-    .filter((r: any) => {
-      const ref = r.last_sale_date ? r.last_sale_date.slice(0, 10) : r.created_at.slice(0, 10)
-      return ref < staleDateStr
+  const [nuncaVendidas, jaVendidas] = await Promise.all([
+    base().is('last_sale_date', null).lt('created_at', staleDateStr)
+      .order('created_at', { ascending: true }).limit(LIMITE),
+    base().not('last_sale_date', 'is', null).lt('last_sale_date', staleDateStr)
+      .order('last_sale_date', { ascending: true }).limit(LIMITE),
+  ])
+
+  const hoje = new Date(new Date().toISOString().slice(0, 10)).getTime()
+
+  return [...(nuncaVendidas.data ?? []), ...(jaVendidas.data ?? [])]
+    .map(r => {
+      const ref = (r.last_sale_date ?? r.created_at).slice(0, 10)
+      return {
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        category: r.category,
+        diasParada: Math.floor((hoje - new Date(ref).getTime()) / 86400000),
+      }
     })
-    .map((r: any) => {
-      const ref = r.last_sale_date ? r.last_sale_date.slice(0, 10) : r.created_at.slice(0, 10)
-      const diasParada = Math.floor((new Date(today).getTime() - new Date(ref).getTime()) / 86400000)
-      return { ...r, suppliers: r.suppliers ?? null, stores: r.stores ?? null, diasParada }
-    })
-    .sort((a: AlertPecaParada, b: AlertPecaParada) => b.diasParada - a.diasParada)
-    .slice(0, 8)
+    .sort((a, b) => b.diasParada - a.diasParada)
+    .slice(0, LIMITE)
 }
 
 export async function buscarContasVencer(storeId: string | null): Promise<AlertConta[]> {

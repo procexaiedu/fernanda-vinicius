@@ -1,10 +1,21 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { publicUrl } from '@/lib/request-url'
+import { CABECALHO_USUARIO } from '@/lib/auth-header'
 
 export async function proxy(request: NextRequest) {
-  const response = NextResponse.next()
   const pathname = request.nextUrl.pathname
+
+  // Cabeçalhos que seguem para a aplicação. O valor que veio do cliente é
+  // apagado ANTES de qualquer coisa: quem escreve esse cabeçalho é só este
+  // proxy, depois de validar o token. Ver src/lib/auth-header.ts.
+  const headers = new Headers(request.headers)
+  headers.delete(CABECALHO_USUARIO)
+
+  // A sessão é renovada durante o getUser() abaixo, e os cookies novos precisam
+  // ir na response — que só pode ser criada DEPOIS, porque os cabeçalhos da
+  // requisição dependem de quem o usuário é. Daí guardar e aplicar no fim.
+  const cookiesParaGravar: Array<{ name: string; value: string; options?: object }> = []
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,8 +23,7 @@ export async function proxy(request: NextRequest) {
     {
       cookies: {
         getAll: () => request.cookies.getAll(),
-        setAll: (cs) =>
-          cs.forEach((c) => response.cookies.set(c.name, c.value, c.options)),
+        setAll: (cs) => cs.forEach((c) => cookiesParaGravar.push(c)),
       },
     }
   )
@@ -25,13 +35,23 @@ export async function proxy(request: NextRequest) {
 
   // /login e /api/* são sempre acessíveis — sem autenticação prévia necessária
   if (!user && pathname !== '/login' && !pathname.startsWith('/api/')) {
-    return NextResponse.redirect(publicUrl(request, '/login'))
+    const redirecionamento = NextResponse.redirect(publicUrl(request, '/login'))
+    // Os cookies renovados vão também no redirect: sem isso, uma sessão que
+    // acabou de ser renovada perderia a renovação ao ser mandada para /login.
+    for (const c of cookiesParaGravar) redirecionamento.cookies.set(c.name, c.value, c.options)
+    return redirecionamento
   }
+
+  // Este token já está validado. A página lê o id daqui em vez de fazer a mesma
+  // chamada de rede de novo (~200ms economizados por navegação).
+  if (user) headers.set(CABECALHO_USUARIO, user.id)
 
   // A checagem de conta inativa saiu daqui: custava um round trip ao banco em
   // TODA navegação. Agora é feita uma vez por requisição em `requireProfile()`
   // (src/lib/auth.ts), que toda página protegida usa — inclusive /pdv, que antes
   // não validava `is_active` e dependia só deste ponto.
+  const response = NextResponse.next({ request: { headers } })
+  for (const c of cookiesParaGravar) response.cookies.set(c.name, c.value, c.options)
   return response
 }
 
