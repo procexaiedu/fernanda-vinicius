@@ -197,37 +197,29 @@ export default function DashboardClient({
   const [evolucao, setEvolucao]       = useState(initialEvolucao)
 
   const [grafMeses, setGrafMeses]   = useState(6)
-  /*
-   * Só a evolução responde a clique, e a resposta é o valor escrito em cima da
-   * bolinha do mês. O Vendas × Compras é leitura visual: as três séries já se
-   * comparam pela forma, e o valor exato de cada mês sai no tooltip do hover.
-   */
-  const [mesEvolucao, setMesEvolucao] = useState<string | null>(null)
 
-  /* O melhor mês da série — vem rotulado antes de qualquer clique. */
+  /* O melhor mês da série — o único ponto que já vem com o valor escrito. */
   const picoEvolucao = evolucao.reduce<EvolucaoChartData | null>(
     (melhor, p) => (p.receita > 0 && (!melhor || p.receita > melhor.receita) ? p : melhor),
     null,
   )
 
-  /*
-   * Quais meses aparecem com o valor escrito.
-   *
-   * Enquanto ninguém clica, é o pico. Ao escolher um mês, ele TROCA o pico em vez
-   * de somar: dois rótulos em meses vizinhos se sobrepõem e viram um borrão de
-   * texto — foi por isso que a versão anterior colocava o valor numa faixa fora
-   * do gráfico.
-   */
-  const mesEscolhido = mesEvolucao ? evolucao.find(p => p.label === mesEvolucao) ?? null : null
-  const rotulosEvolucao = [mesEscolhido ?? picoEvolucao].filter(
-    (p): p is EvolucaoChartData => p !== null,
-  )
-
   // Modais
   const [vendedoraModal, setVendedoraModal] = useState<TopVendedora | null>(null)
-  /* Qual número está sendo destrinchado. Um só estado para os dez pontos
-   * clicáveis — abrir um fecha o anterior, que é o comportamento esperado. */
-  const [detalhe, setDetalhe] = useState<ChaveDetalhe | null>(null)
+  /*
+   * Qual número está sendo destrinchado. Um só estado para todos os pontos
+   * clicáveis — abrir um fecha o anterior, que é o comportamento esperado.
+   *
+   * O período viaja junto porque nem todo clique fala do mês da tela: o gráfico
+   * de evolução mostra seis meses, e clicar em Mai/26 tem que abrir a receita de
+   * MAIO, não a do mês selecionado lá em cima.
+   */
+  const [detalhe, setDetalhe] = useState<{ chave: ChaveDetalhe; mes: number; ano: number } | null>(null)
+
+  /** Abre o detalhamento; sem período informado, usa o mês da tela. */
+  function abrirDetalhe(chave: ChaveDetalhe, mes = month, ano = year) {
+    setDetalhe({ chave, mes, ano })
+  }
   const [produtoModal, setProdutoModal] = useState<ProdutoParaDetalhe | null>(null)
 
   /**
@@ -350,7 +342,7 @@ export default function DashboardClient({
             resultado={kpis.lucroLiquido}
             pctReceita={`${kpis.receitaBruta > 0 ? ((kpis.lucroLiquido / kpis.receitaBruta) * 100).toFixed(0) : '0'}%`}
             periodo={`${MONTHS_PT[month - 1]} ${year}`}
-            onClick={() => setDetalhe('resultado')}
+            onClick={() => abrirDetalhe('resultado')}
           />
         )}
 
@@ -360,7 +352,7 @@ export default function DashboardClient({
           icon={<TrendingUp size={16} />}
           color="accent"
           hint="Vendas do mês"
-          onClick={() => setDetalhe('receita')}
+          onClick={() => abrirDetalhe('receita')}
         />
         {isAdmin && (
           <KpiCard
@@ -369,7 +361,7 @@ export default function DashboardClient({
             icon={<ShoppingCart size={16} />}
             color="danger"
             hint="Custo dos produtos vendidos"
-            onClick={() => setDetalhe('cmv')}
+            onClick={() => abrirDetalhe('cmv')}
           />
         )}
         {isAdmin && (
@@ -379,7 +371,7 @@ export default function DashboardClient({
             icon={<DollarSign size={16} />}
             color={kpis.lucroBruto >= 0 ? 'info' : 'danger'}
             hint={`${kpis.receitaBruta > 0 ? ((kpis.lucroBruto / kpis.receitaBruta) * 100).toFixed(1) : '0'}% da receita`}
-            onClick={() => setDetalhe('lucroBruto')}
+            onClick={() => abrirDetalhe('lucroBruto')}
           />
         )}
         {isAdmin && (
@@ -389,7 +381,7 @@ export default function DashboardClient({
             icon={<TrendingDown size={16} />}
             color="warning"
             hint="Despesas pagas no mês"
-            onClick={() => setDetalhe('despesas')}
+            onClick={() => abrirDetalhe('despesas')}
           />
         )}
       </div>
@@ -425,23 +417,23 @@ export default function DashboardClient({
           </div>
           <div className={styles.stockGrid}>
             <StockCard label="Total de Peças" value={estoque.totalPecas.toLocaleString('pt-BR')}
-              onClick={() => setDetalhe('pecas')} />
+              onClick={() => abrirDetalhe('pecas')} />
             <StockCard label="SKUs Únicos" value={estoque.totalSkus.toLocaleString('pt-BR')}
-              onClick={() => setDetalhe('skus')} />
+              onClick={() => abrirDetalhe('skus')} />
             {isAdmin && (
               <StockCard label="Valor em Custo" value={fmt(estoque.valorEstoque)} small
-                onClick={() => setDetalhe('custo')} />
+                onClick={() => abrirDetalhe('custo')} />
             )}
             {isAdmin && (
               <StockCard label="Valor em Venda" value={fmt(estoque.valorEstoqueVenda)} small
-                onClick={() => setDetalhe('venda')} />
+                onClick={() => abrirDetalhe('venda')} />
             )}
             <StockCard
               label="Peças Paradas"
               value={estoque.pecasParadas.toLocaleString('pt-BR')}
               alert={estoque.pecasParadas > 0}
               hint={`+${estoque.staleDays} dias sem venda`}
-              onClick={() => setDetalhe('parados')}
+              onClick={() => abrirDetalhe('parados')}
             />
           </div>
         </div>
@@ -566,51 +558,41 @@ export default function DashboardClient({
                   `activeTooltipIndex` no instante do clique, e ele nem sempre tem;
                   ficava sem responder sem erro nenhum no console. Preso ao próprio
                   <circle>, o alvo do clique é o que a pessoa está vendo e mirando.
+
+                  Clicar abre a lista de lançamentos DAQUELE mês, não do mês
+                  selecionado no topo da tela — o gráfico mostra seis.
                 */}
                 <Area dataKey="receita" name="Faturamento" stroke="var(--gem-safira)" strokeWidth={2}
                   fill="url(#evolGrad)"
                   dot={(props: { cx?: number; cy?: number; index?: number; payload?: EvolucaoChartData }) => {
-                    const mes = props.payload?.label
-                    const escolhido = mesEvolucao === mes
+                    const p = props.payload
                     return (
                       <g
                         key={`dot-${props.index}`}
                         style={{ cursor: 'pointer' }}
-                        onClick={() => setMesEvolucao(a => (a === mes ? null : mes ?? null))}
+                        onClick={() => p && abrirDetalhe('receita', p.mes, p.ano)}
                       >
                         {/* Alvo invisível de 13px: a bolinha visível tem 3,5px de raio
                             e acertar isso com o trackpad é sorte, não mira. */}
                         <circle cx={props.cx} cy={props.cy} r={13} fill="transparent" />
-                        <circle
-                          cx={props.cx} cy={props.cy} r={escolhido ? 5.5 : 3.5}
-                          fill="var(--gem-safira)"
-                          stroke={escolhido ? 'var(--bg-elevated)' : 'none'}
-                          strokeWidth={escolhido ? 2 : 0}
-                        />
+                        <circle cx={props.cx} cy={props.cy} r={3.5} fill="var(--gem-safira)" />
                       </g>
                     )
                   }}
                   activeDot={{ r: 5.5, fill: 'var(--gem-safira)', stroke: 'var(--bg-elevated)', strokeWidth: 2 }} />
                 {/*
-                  O valor sai escrito EM CIMA da bolinha, não numa faixa embaixo.
-                  A faixa era um cartãozinho solto no rodapé do painel: ocupava
-                  altura, precisava de um "x" para fechar e ainda obrigava a ligar
-                  com o olho qual mês ela descrevia. Escrito no ponto, o mês e o
-                  valor já estão no mesmo lugar.
-
-                  O pico aparece rotulado desde o início — responde "qual foi o
-                  melhor mês e quanto" sem exigir clique. Ao escolher outro mês, o
-                  rótulo do pico sai para os dois não se sobreporem.
+                  Só o mês de pico vem com o valor escrito, e sempre o mesmo:
+                  responde "qual foi o melhor mês e quanto" sem exigir clique. O
+                  clique não mexe mais nos rótulos — ele abre a lista.
                 */}
-                {rotulosEvolucao.map(p => (
+                {picoEvolucao && (
                   <ReferenceDot
-                    key={p.label}
-                    x={p.label} y={p.receita} r={5}
+                    x={picoEvolucao.label} y={picoEvolucao.receita} r={5}
                     fill="var(--gem-safira)" stroke="none"
-                    label={{ value: fmtCurto(p.receita), position: 'top', offset: 10,
+                    label={{ value: fmtCurto(picoEvolucao.receita), position: 'top', offset: 10,
                              fill: 'var(--text-primary)', fontSize: 11.5, fontWeight: 600 }}
                   />
-                ))}
+                )}
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -760,10 +742,15 @@ export default function DashboardClient({
 
       {detalhe && (
         <DashboardDetalhe
-          chave={detalhe}
+          chave={detalhe.chave}
           storeId={storeId}
-          month={month}
-          year={year}
+          month={detalhe.mes}
+          year={detalhe.ano}
+          /* Os KPIs são SEMPRE os do mês da tela. Só as chaves que fecham conta
+           * com eles ('resultado', 'cmv', 'lucroBruto') os usam, e essas só são
+           * abertas pelos cartões do topo, que falam do mesmo mês. O clique no
+           * gráfico de evolução abre 'receita', cujo resumo é somado da própria
+           * lista — por isso funciona para qualquer um dos seis meses. */
           kpis={kpis}
           estoque={estoque}
           staleDays={estoque.staleDays}

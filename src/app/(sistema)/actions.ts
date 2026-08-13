@@ -716,6 +716,10 @@ export interface CategoryChartData {
 export interface EvolucaoChartData {
   label: string
   receita: number
+  /* Mês e ano em número, para o clique no ponto abrir a lista daquele período.
+   * O `label` é "Jul/26" — bom de ler, imprestável para consultar. */
+  ano: number
+  mes: number
 }
 
 export async function buscarVendasPorCategoria(
@@ -787,7 +791,7 @@ export async function buscarEvolucaoVendas(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, receita]) => {
       const [y, m] = key.split('-').map(Number)
-      return { label: `${MONTHS_PT_SHORT[m - 1]}/${String(y).slice(2)}`, receita }
+      return { label: `${MONTHS_PT_SHORT[m - 1]}/${String(y).slice(2)}`, receita, ano: y, mes: m }
     })
 }
 
