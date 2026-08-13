@@ -746,7 +746,9 @@ export async function buscarVendasPorCategoria(
   return Array.from(map.entries())
     .map(([category, v]) => ({ category, ...v }))
     .sort((a, b) => b.receita - a.receita)
-    .slice(0, 7)
+    // Seis, não sete: a paleta de gemas tem seis passos distintos e a sétima cor
+    // caía num cinza que o olho não separa da pérola.
+    .slice(0, 6)
 }
 
 export async function buscarEvolucaoVendas(
@@ -787,4 +789,193 @@ export async function buscarEvolucaoVendas(
       const [y, m] = key.split('-').map(Number)
       return { label: `${MONTHS_PT_SHORT[m - 1]}/${String(y).slice(2)}`, receita }
     })
+}
+
+/* ─── Detalhamento: a lista por trás de cada número ──────────────────────────
+ *
+ * Todo número da dashboard é um total, e total sem origem não se confere. Antes,
+ * ver DE ONDE saíram os R$ 27.439,91 de despesa exigia sair da dashboard, ir ao
+ * financeiro, filtrar o mês e somar de cabeça — e como o filtro de lá não é o
+ * mesmo recorte daqui, nem sempre batia.
+ *
+ * Cada função abaixo devolve exatamente as linhas que compõem um dos números
+ * mostrados, usando os MESMOS filtros de `buscarKpis` e `buscarEstoque`. Se o
+ * filtro divergir, a lista não soma o total e a tela perde a credibilidade toda.
+ */
+
+export interface LinhaMovimento {
+  id: string
+  data: string
+  descricao: string
+  categoria: string
+  loja: string | null
+  valor: number
+  /** 'income' | 'expense' — só usado na lista do resultado, que mistura os dois. */
+  tipo: 'income' | 'expense'
+}
+
+/** Lançamentos do ledger no mês. `tipo: null` traz entradas E saídas. */
+export async function buscarMovimentosDoMes(
+  storeId: string | null,
+  month: number,
+  year: number,
+  tipo: 'income' | 'expense' | null,
+): Promise<LinhaMovimento[]> {
+  const admin = createAdminClient()
+  const { dateFrom, dateTo } = monthBounds(year, month)
+
+  let q = admin
+    .from('transactions')
+    .select('id, type, amount, category, description, transaction_date, stores(name)')
+    .eq('status', 'completed')
+    .gte('transaction_date', dateFrom)
+    .lte('transaction_date', dateTo)
+  if (storeId) q = q.eq('store_id', storeId)
+  if (tipo)    q = q.eq('type', tipo)
+
+  const { data } = await q.order('transaction_date', { ascending: false })
+
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    data: String(r.transaction_date).slice(0, 10),
+    descricao: r.description,
+    categoria: r.category,
+    loja: r.stores?.name ?? null,
+    valor: Number(r.amount),
+    tipo: r.type,
+  }))
+}
+
+export interface LinhaVendaCusto {
+  id: string
+  data: string
+  cliente: string
+  vendedora: string
+  loja: string | null
+  total: number
+  custo: number
+}
+
+/**
+ * As vendas do mês com o custo de cada uma — é a lista que soma o CMV.
+ *
+ * O crédito de troca que `buscarKpis` desconta do CMV NÃO entra aqui: ele não é
+ * uma venda, é a devolução de uma. Por isso a soma da coluna "custo" pode ficar
+ * acima do CMV do cartão quando houve troca no mês; o modal mostra os dois
+ * números para que a diferença fique explícita em vez de parecer erro.
+ */
+export async function buscarVendasDoMes(
+  storeId: string | null,
+  month: number,
+  year: number,
+): Promise<LinhaVendaCusto[]> {
+  const admin = createAdminClient()
+  const { dateFrom, dateTo } = monthBounds(year, month)
+
+  let q = admin
+    .from('sales')
+    .select('id, sale_date, total, total_cost, customers(name), users(full_name), stores(name)')
+    .neq('status', 'cancelled')
+    .gte('sale_date', dateFrom)
+    .lte('sale_date', dateTo)
+  if (storeId) q = q.eq('store_id', storeId)
+
+  const { data } = await q.order('sale_date', { ascending: false })
+
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    data: String(r.sale_date).slice(0, 10),
+    // Venda avulsa não tem cliente — é o balcão, e escrever isso é mais honesto
+    // que deixar um traço que parece dado faltando.
+    cliente: r.customers?.name ?? 'Venda avulsa',
+    vendedora: r.users?.full_name ?? '—',
+    loja: r.stores?.name ?? null,
+    total: Number(r.total),
+    custo: Number(r.total_cost ?? 0),
+  }))
+}
+
+export interface LinhaProdutoEstoque {
+  id: string
+  code: string
+  name: string
+  category: string
+  quantidade: number
+  custoUnit: number
+  vendaUnit: number
+  diasParado: number
+}
+
+/**
+ * Os produtos que compõem os números do painel de estoque.
+ *
+ * `filtro: 'parados'` reproduz o mesmo corte de `buscarEstoque` — sem venda há
+ * mais de `staleDays`, contando de `last_sale_date` ou, se nunca vendeu, da data
+ * de cadastro.
+ */
+export async function buscarProdutosDoEstoque(
+  storeId: string | null,
+  filtro: 'todos' | 'parados',
+  staleDays: number,
+): Promise<LinhaProdutoEstoque[]> {
+  const admin = createAdminClient()
+
+  // Mesma paginação de `buscarEstoque`: 970 SKUs com o teto do PostgREST em 1000.
+  const rows = await fetchAll<{
+    id: string; code: string; name: string; category: string
+    quantity_in_stock: number; cost_price: number; sale_price: number
+    last_sale_date: string | null; created_at: string
+  }>((de, ate) => {
+    let q = admin
+      .from('products')
+      .select('id, code, name, category, quantity_in_stock, cost_price, sale_price, last_sale_date, created_at')
+      .eq('is_active', true)
+      .gt('quantity_in_stock', 0)
+    if (storeId) q = q.eq('store_id', storeId)
+    return q.order('id').range(de, ate)
+  })
+
+  const corte = new Date()
+  corte.setDate(corte.getDate() - staleDays)
+  const corteStr = corte.toISOString().slice(0, 10)
+  const hoje = new Date(new Date().toISOString().slice(0, 10)).getTime()
+
+  return rows
+    .map(r => {
+      const ref = (r.last_sale_date ?? r.created_at).slice(0, 10)
+      return {
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        category: r.category,
+        quantidade: Number(r.quantity_in_stock),
+        custoUnit: Number(r.cost_price),
+        vendaUnit: Number(r.sale_price),
+        diasParado: Math.floor((hoje - new Date(ref).getTime()) / 86400000),
+        _parado: ref < corteStr,
+      }
+    })
+    .filter(r => filtro === 'todos' || r._parado)
+    .sort((a, b) => filtro === 'parados'
+      ? b.diasParado - a.diasParado
+      : b.custoUnit * b.quantidade - a.custoUnit * a.quantidade)
+    .map(({ _parado, ...r }) => r)
+}
+
+/**
+ * A ficha completa de um produto, para abrir o modal de detalhe a partir da
+ * dashboard — tanto da lista de peças paradas quanto do detalhamento do estoque.
+ *
+ * As listas da dashboard trazem só o que a tabela mostra; o modal precisa de
+ * fornecedor, loja, preço promocional e etiqueta. Carregar tudo isso nas listas
+ * seria pagar por 970 produtos o que só se usa em um.
+ */
+export async function buscarProdutoParaDetalhe(id: string) {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('products')
+    .select('*, suppliers(id, name, initials), stores(id, name)')
+    .eq('id', id)
+    .single()
+  return data
 }

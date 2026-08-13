@@ -2,20 +2,21 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
-  ResponsiveContainer, LineChart, Line, BarChart, Bar, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
+  ResponsiveContainer, LineChart, Line, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ReferenceDot,
 } from 'recharts'
 import {
   ChevronLeft, ChevronRight, ChevronDown,
   TrendingUp, TrendingDown, Package, AlertTriangle, Users, Calendar,
-  DollarSign, ShoppingCart, Gem, Award, Clock, ArrowRight, X,
+  DollarSign, ShoppingCart, Award, Clock, ArrowRight, X,
 } from 'lucide-react'
 
-import ProdutoDetalheModal from '@/components/produto/ProdutoDetalheModal'
+import ProdutoDetalheModal, { type ProdutoParaDetalhe } from '@/components/produto/ProdutoDetalheModal'
 import VendedoraDetalheModal from '@/components/vendedora/VendedoraDetalheModal'
+import DashboardDetalhe, { type ChaveDetalhe } from './DashboardDetalhe'
 import {
   buscarKpis, buscarEstoque, buscarGrafico,
-  buscarTopVendedoras,
+  buscarTopVendedoras, buscarProdutoParaDetalhe,
   buscarPecasParadas, buscarContasVencer, buscarAniversariantes,
   buscarVendasPorCategoria, buscarEvolucaoVendas,
   type StoreOption, type DashboardSettings, type DashboardKpis,
@@ -46,19 +47,32 @@ function fmtBirthday(s: string) {
   return `${d}/${m}`
 }
 
-function getAvatarColor(id: string) {
-  // Paleta de gemas — ver a nota em ClientesClient.
-  const colors = ['var(--gem-esmeralda)','var(--gem-safira)','var(--gem-ametista)','var(--gem-rubi)','var(--gem-topazio)','var(--gem-perola)']
-  let hash = 0
-  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash)
-  return colors[Math.abs(hash) % colors.length]
+/** "R$ 5.940" — valor cheio sem centavos, para rótulo colado no dado. */
+function fmtCurto(v: number) {
+  return `R$ ${Math.round(v).toLocaleString('pt-BR')}`
 }
 
-function getInitials(name: string) {
-  const parts = name.trim().split(' ').filter(Boolean)
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+/** Eixo Y em português: 16000 → "16 mil". "16k" é jargão que ela não usa. */
+function fmtEixo(v: number) {
+  if (Math.abs(v) >= 1000) return `${Math.round(v / 1000)} mil`
+  return String(v)
 }
+
+/*
+ * Ordem categórica FIXA das cores — a mesma do protótipo.
+ *
+ * Fixa porque a cor tem que seguir a posição no ranking de forma estável: se num
+ * mês "Colar" é a primeira e no outro cai para terceira, ela troca de cor e o
+ * olho entende que mudou de coisa. A ordem é sempre a mesma lista, sem ciclar.
+ */
+const CORES_CATEGORIA = [
+  'var(--gem-esmeralda)',
+  'var(--gem-safira)',
+  'var(--gem-ametista)',
+  'var(--gem-rubi)',
+  'var(--gem-topazio)',
+  'var(--gem-perola)',
+]
 
 // ─── Dropdown customizado (padrão do sistema) ─────────────────────────────────
 
@@ -193,11 +207,11 @@ const SERIES_VENDAS_COMPRAS: Serie[] = [
   { chave: 'custoCompras', nome: 'Custo Compras', cor: 'var(--gem-rubi)' },
   { chave: 'lucroLiquido', nome: 'Lucro Líquido', cor: 'var(--gem-esmeralda)' },
 ]
-const SERIES_CATEGORIA: Serie[] = [
-  { chave: 'receita', nome: 'Receita', cor: 'var(--gem-safira)' },
-]
+/* Safira, não o accent: `--accent` é #f4f4f5, quase branco. No gráfico de linhas
+ * ele funciona como a série principal entre duas coloridas, mas sozinho numa área
+ * preenchida vira um borrão cinza. Aqui a série é única e precisa de cor própria. */
 const SERIES_EVOLUCAO: Serie[] = [
-  { chave: 'receita', nome: 'Faturamento', cor: 'var(--accent)' },
+  { chave: 'receita', nome: 'Faturamento', cor: 'var(--gem-safira)' },
 ]
 
 function FaixaFixada({ ponto, onFechar }: { ponto: PontoFixado; onFechar: () => void }) {
@@ -268,8 +282,13 @@ export default function DashboardClient({
   // Um ponto fixado por gráfico — fixar em um não apaga o do outro, então dá para
   // comparar o mês no gráfico de linhas com o mesmo mês na evolução.
   const [fixadoLinhas, setFixadoLinhas]     = useState<PontoFixado | null>(null)
-  const [fixadoCategoria, setFixadoCategoria] = useState<PontoFixado | null>(null)
   const [fixadoEvolucao, setFixadoEvolucao]   = useState<PontoFixado | null>(null)
+
+  /* O melhor mês da série — é o único ponto que ganha marca e rótulo no gráfico. */
+  const picoEvolucao = evolucao.reduce<EvolucaoChartData | null>(
+    (melhor, p) => (p.receita > 0 && (!melhor || p.receita > melhor.receita) ? p : melhor),
+    null,
+  )
 
   /** Clicar no mesmo ponto solta; em outro, troca. */
   function alternarFixado(atual: PontoFixado | null, novo: PontoFixado | null): PontoFixado | null {
@@ -279,6 +298,21 @@ export default function DashboardClient({
 
   // Modais
   const [vendedoraModal, setVendedoraModal] = useState<TopVendedora | null>(null)
+  /* Qual número está sendo destrinchado. Um só estado para os dez pontos
+   * clicáveis — abrir um fecha o anterior, que é o comportamento esperado. */
+  const [detalhe, setDetalhe] = useState<ChaveDetalhe | null>(null)
+  const [produtoModal, setProdutoModal] = useState<ProdutoParaDetalhe | null>(null)
+
+  /**
+   * Abre a ficha do produto a partir de qualquer lista da dashboard.
+   *
+   * As listas daqui trazem só o que a tabela mostra — a ficha precisa de
+   * fornecedor, loja, promoção e etiqueta, então o resto vem sob demanda.
+   */
+  const abrirProduto = useCallback(async (id: string) => {
+    const p = await buscarProdutoParaDetalhe(id)
+    if (p) setProdutoModal(p as unknown as ProdutoParaDetalhe)
+  }, [])
 
   const reload = useCallback(async (sid: string | null, m: number, y: number, meses: number) => {
     setLoading(true)
@@ -370,13 +404,32 @@ export default function DashboardClient({
         </div>
       </div>
 
-      {/* ── Seção 1: KPIs Financeiros ──────────────────────────────────────── */}
-      <div className={styles.kpiGrid}>
+      {/*
+        ── Seção 1: resultado do mês + indicadores ──────────────────────────
+        Layout bento: o bloco do resultado ocupa 2 colunas e as 2 linhas, e os
+        outros indicadores ficam em cartões menores ao lado. A hierarquia vem do
+        TAMANHO — antes eram cinco cartões idênticos, e o lucro líquido (a única
+        coisa que ela abre o sistema para ver) tinha o mesmo peso do CMV.
+      */}
+      <div className={styles.bentoKpis}>
+        {isAdmin && (
+          <ResultadoDoMes
+            receita={kpis.receitaBruta}
+            saidas={kpis.cmv + kpis.despesasOp}
+            resultado={kpis.lucroLiquido}
+            pctReceita={`${kpis.receitaBruta > 0 ? ((kpis.lucroLiquido / kpis.receitaBruta) * 100).toFixed(0) : '0'}%`}
+            periodo={`${MONTHS_PT[month - 1]} ${year}`}
+            onClick={() => setDetalhe('resultado')}
+          />
+        )}
+
         <KpiCard
           label="Receita Bruta"
           value={fmt(kpis.receitaBruta)}
           icon={<TrendingUp size={16} />}
           color="accent"
+          hint="Vendas do mês"
+          onClick={() => setDetalhe('receita')}
         />
         {isAdmin && (
           <KpiCard
@@ -385,6 +438,7 @@ export default function DashboardClient({
             icon={<ShoppingCart size={16} />}
             color="danger"
             hint="Custo dos produtos vendidos"
+            onClick={() => setDetalhe('cmv')}
           />
         )}
         {isAdmin && (
@@ -394,6 +448,7 @@ export default function DashboardClient({
             icon={<DollarSign size={16} />}
             color={kpis.lucroBruto >= 0 ? 'info' : 'danger'}
             hint={`${kpis.receitaBruta > 0 ? ((kpis.lucroBruto / kpis.receitaBruta) * 100).toFixed(1) : '0'}% da receita`}
+            onClick={() => setDetalhe('lucroBruto')}
           />
         )}
         {isAdmin && (
@@ -403,39 +458,33 @@ export default function DashboardClient({
             icon={<TrendingDown size={16} />}
             color="warning"
             hint="Despesas pagas no mês"
-          />
-        )}
-        {isAdmin && (
-          <KpiCard
-            label="Lucro Líquido"
-            value={fmt(kpis.lucroLiquido)}
-            icon={<Award size={16} />}
-            color={kpis.lucroLiquido >= 0 ? 'success' : 'danger'}
-            hint={`${kpis.receitaBruta > 0 ? ((kpis.lucroLiquido / kpis.receitaBruta) * 100).toFixed(1) : '0'}% da receita`}
+            onClick={() => setDetalhe('despesas')}
           />
         )}
       </div>
 
-      {/* ── Card de Disponível para Compra ─────────────────────────────────── */}
-      {isAdmin && (
-        <div className={styles.disponivelCard}>
-          <div className={styles.disponivelIcon}><Gem size={20} /></div>
-          <div className={styles.disponivelContent}>
-            <div className={styles.disponivelTitle}>Disponível para Compra</div>
-            <div className={styles.disponivelBreakdown}>
-              <span>Lucro Líquido: <strong>{fmt(kpis.lucroLiquido)}</strong></span>
-              <span className={styles.disponivelMinus}>−</span>
-              <span>Reserva ({kpis.reservePct}%): <strong>{fmt(kpis.lucroLiquido * kpis.reservePct / 100)}</strong></span>
+      {/* ── Seção 2: Disponível para compra + Estoque, lado a lado ────────── */}
+      <div className={`${styles.midRow} ${isAdmin ? '' : styles.midRowSolo}`}>
+
+        {/* Disponível para Compra */}
+        {isAdmin && (
+          <div className={styles.disponivelCard}>
+            <div className={styles.disponivelTopo}>
+              <span className={styles.disponivelTitle}>Disponível para compra</span>
+              <span className={styles.disponivelTag}>Reserva {kpis.reservePct}%</span>
+            </div>
+            <div className={`${styles.disponivelValue} ${kpis.disponivelCompra <= 0 ? styles.disponivelNeg : ''}`}>
+              {fmt(Math.max(0, kpis.disponivelCompra))}
+            </div>
+            {/* A conta em uma linha só. Antes eram três blocos com um ícone de
+                diamante ocupando o canto — decoração no lugar do dado. */}
+            <div className={styles.disponivelConta}>
+              {kpis.disponivelCompra <= 0
+                ? 'Sem caixa livre para reposição neste mês'
+                : <>Lucro líquido {fmt(kpis.lucroLiquido)} menos {fmt(kpis.lucroLiquido * kpis.reservePct / 100)} de reserva</>}
             </div>
           </div>
-          <div className={`${styles.disponivelValue} ${kpis.disponivelCompra < 0 ? styles.disponivelNeg : ''}`}>
-            {fmt(Math.max(0, kpis.disponivelCompra))}
-          </div>
-        </div>
-      )}
-
-      {/* ── Seções 2+3: Estoque + Gráfico ─────────────────────────────────── */}
-      <div className={styles.midRow}>
+        )}
 
         {/* Estoque */}
         <div className={styles.stockPanel}>
@@ -444,72 +493,80 @@ export default function DashboardClient({
             <span className={styles.panelTitle}>Estoque</span>
           </div>
           <div className={styles.stockGrid}>
-            <StockCard label="Total de Peças" value={estoque.totalPecas.toLocaleString('pt-BR')} />
-            <StockCard label="SKUs Únicos" value={estoque.totalSkus.toLocaleString('pt-BR')} />
+            <StockCard label="Total de Peças" value={estoque.totalPecas.toLocaleString('pt-BR')}
+              onClick={() => setDetalhe('pecas')} />
+            <StockCard label="SKUs Únicos" value={estoque.totalSkus.toLocaleString('pt-BR')}
+              onClick={() => setDetalhe('skus')} />
             {isAdmin && (
-              <StockCard label="Valor em Custo" value={fmt(estoque.valorEstoque)} small />
+              <StockCard label="Valor em Custo" value={fmt(estoque.valorEstoque)} small
+                onClick={() => setDetalhe('custo')} />
             )}
             {isAdmin && (
-              <StockCard label="Valor em Venda" value={fmt(estoque.valorEstoqueVenda)} small />
+              <StockCard label="Valor em Venda" value={fmt(estoque.valorEstoqueVenda)} small
+                onClick={() => setDetalhe('venda')} />
             )}
             <StockCard
               label="Peças Paradas"
               value={estoque.pecasParadas.toLocaleString('pt-BR')}
               alert={estoque.pecasParadas > 0}
               hint={`+${estoque.staleDays} dias sem venda`}
+              onClick={() => setDetalhe('parados')}
             />
           </div>
         </div>
 
-        {/* Gráfico */}
-        {isAdmin && (
-          <div className={styles.chartPanel}>
-            <div className={styles.panelHeader}>
-              <TrendingUp size={15} className={styles.panelIcon} />
-              <span className={styles.panelTitle}>Vendas × Compras</span>
-              <div className={styles.chartControls}>
-                <FilterDropdown
-                  label="Período"
-                  value={String(grafMeses)}
-                  options={[
-                    { value: '3', label: 'Últimos 3 meses' },
-                    { value: '6', label: 'Últimos 6 meses' },
-                    { value: '12', label: 'Últimos 12 meses' },
-                  ]}
-                  onChange={changeMeses}
-                />
-              </div>
-            </div>
-            <div className={styles.chartWrap}>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart
-                  data={grafico}
-                  margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
-                  onClick={e => setFixadoLinhas(a => alternarFixado(a, pontoDoClique(e, grafico, SERIES_VENDAS_COMPRAS)))}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
-                    tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v < -1000 ? `-${(Math.abs(v)/1000).toFixed(0)}k` : String(v)} width={42} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
-                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                  <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 2" />
-                  {/* Marca qual mês está fixado — sem isso a faixa embaixo mostra
-                      valores sem dizer de onde vieram. */}
-                  {fixadoLinhas && (
-                    <ReferenceLine x={fixadoLinhas.label} stroke="var(--accent)" strokeDasharray="3 3" strokeOpacity={0.6} />
-                  )}
-                  <Line dataKey="faturamento"  name="Faturamento"   stroke="var(--accent)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: 'var(--accent)' }} type="monotone" />
-                  <Line dataKey="custoCompras" name="Custo Compras" stroke="var(--gem-rubi)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: 'var(--gem-rubi)' }} type="monotone" />
-                  <Line dataKey="lucroLiquido" name="Lucro Líquido" stroke="var(--gem-esmeralda)" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: 'var(--gem-esmeralda)' }} type="monotone" />
-                </LineChart>
-              </ResponsiveContainer>
-              {fixadoLinhas && <FaixaFixada ponto={fixadoLinhas} onFechar={() => setFixadoLinhas(null)} />}
+      </div>
+
+      {/* ── Seção 3: Vendas × Compras, largura total ──────────────────────── */}
+      {isAdmin && (
+        <div className={styles.chartPanel}>
+          <div className={styles.panelHeader}>
+            <TrendingUp size={15} className={styles.panelIcon} />
+            <span className={styles.panelTitle}>Vendas × Compras</span>
+            <div className={styles.chartControls}>
+              <FilterDropdown
+                label="Período"
+                value={String(grafMeses)}
+                options={[
+                  { value: '3', label: 'Últimos 3 meses' },
+                  { value: '6', label: 'Últimos 6 meses' },
+                  { value: '12', label: 'Últimos 12 meses' },
+                ]}
+                onChange={changeMeses}
+              />
             </div>
           </div>
-        )}
-      </div>
+          <div className={styles.chartWrap}>
+            {/* Mais alto agora que ocupa a linha inteira: numa faixa larga e baixa as
+                três séries se achatam e a variação entre os meses some. */}
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart
+                data={grafico}
+                margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
+                onClick={e => setFixadoLinhas(a => alternarFixado(a, pontoDoClique(e, grafico, SERIES_VENDAS_COMPRAS)))}
+                style={{ cursor: 'pointer' }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
+                  tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v < -1000 ? `-${(Math.abs(v)/1000).toFixed(0)}k` : String(v)} width={42} />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 2" />
+                {/* Marca qual mês está fixado — sem isso a faixa embaixo mostra
+                    valores sem dizer de onde vieram. */}
+                {fixadoLinhas && (
+                  <ReferenceLine x={fixadoLinhas.label} stroke="var(--accent)" strokeDasharray="3 3" strokeOpacity={0.6} />
+                )}
+                <Line dataKey="faturamento"  name="Faturamento"   stroke="var(--accent)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: 'var(--accent)' }} type="monotone" />
+                <Line dataKey="custoCompras" name="Custo Compras" stroke="var(--gem-rubi)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: 'var(--gem-rubi)' }} type="monotone" />
+                <Line dataKey="lucroLiquido" name="Lucro Líquido" stroke="var(--gem-esmeralda)" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: 'var(--gem-esmeralda)' }} type="monotone" />
+              </LineChart>
+            </ResponsiveContainer>
+            {fixadoLinhas && <FaixaFixada ponto={fixadoLinhas} onFechar={() => setFixadoLinhas(null)} />}
+          </div>
+        </div>
+      )}
 
       {/* ── Seção 4: Gráficos de desempenho + Ranking vendedoras ────────── */}
       <div className={styles.perfRow}>
@@ -518,36 +575,21 @@ export default function DashboardClient({
         <div className={styles.perfPanel}>
           <div className={styles.panelHeader}>
             <Award size={15} className={styles.panelIcon} />
-            <span className={styles.panelTitle}>Vendas por Categoria</span>
-            <span className={styles.panelSub}>{MONTHS_PT[month - 1]}</span>
+            <span className={styles.panelTitle}>Vendas por categoria</span>
+            <span className={styles.panelSub}>{MONTHS_PT[month - 1]} {year}</span>
           </div>
           {categorias.length === 0 ? (
             <div className={styles.chartEmpty}>Nenhuma venda no período</div>
           ) : (
-            <div className={styles.chartWrapSm}>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart
-                  data={categorias}
-                  layout="vertical"
-                  margin={{ top: 2, right: 48, left: 4, bottom: 2 }}
-                  barSize={10}
-                  onClick={e => setFixadoCategoria(a => alternarFixado(a, pontoDoClique(e, categorias, SERIES_CATEGORIA, 'category')))}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-                  <XAxis type="number" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
-                    tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} />
-                  <YAxis type="category" dataKey="category" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} axisLine={false} tickLine={false} width={72} />
-                  <Tooltip
-                    formatter={(v: any) => [fmt(Number(v)), 'Receita']}
-                    contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
-                    labelStyle={{ color: 'var(--text-primary)' }}
-                  />
-                  <Bar dataKey="receita" fill="var(--gem-safira)" radius={[0,3,3,0]} label={{ position: 'right', fill: 'var(--text-muted)', fontSize: 10, formatter: (v: any) => fmt(Number(v)) }} />
-                </BarChart>
-              </ResponsiveContainer>
-              {fixadoCategoria && <FaixaFixada ponto={fixadoCategoria} onFechar={() => setFixadoCategoria(null)} />}
-            </div>
+            /*
+             * Barras em HTML, não em recharts.
+             *
+             * São cinco valores e um eixo — recharts trazia grade, eixo numérico e
+             * rótulo flutuante para dizer o que cabe em "nome, barra, valor". Com o
+             * valor SEMPRE visível ao lado da barra, some também a necessidade do
+             * clique-para-fixar que existia aqui: não há mais nada escondido.
+             */
+            <CategoriaBarras dados={categorias} />
           )}
         </div>
 
@@ -555,33 +597,50 @@ export default function DashboardClient({
         <div className={styles.perfPanel}>
           <div className={styles.panelHeader}>
             <TrendingUp size={15} className={styles.panelIcon} />
-            <span className={styles.panelTitle}>Evolução de Vendas</span>
-            <span className={styles.panelSub}>Últimos {grafMeses} meses</span>
+            <span className={styles.panelTitle}>Evolução de vendas</span>
+            <span className={styles.panelSub}>Receita dos últimos {grafMeses} meses</span>
           </div>
           <div className={styles.chartWrapSm}>
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={190}>
               <AreaChart
                 data={evolucao}
-                margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
+                margin={{ top: 24, right: 14, left: 0, bottom: 0 }}
                 onClick={e => setFixadoEvolucao(a => alternarFixado(a, pontoDoClique(e, evolucao, SERIES_EVOLUCAO)))}
                 style={{ cursor: 'pointer' }}
               >
                 <defs>
                   <linearGradient id="evolGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="var(--accent)" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
+                    <stop offset="0%"   stopColor="var(--gem-safira)" stopOpacity={0.32} />
+                    <stop offset="100%" stopColor="var(--gem-safira)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                {/* Grade contínua e discreta, como no protótipo: o tracejado
+                    competia por atenção com a própria série. */}
+                <CartesianGrid stroke="var(--border)" strokeOpacity={0.55} vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
-                  tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v)} width={38} />
+                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10.5 }} axisLine={false} tickLine={false}
+                  tickFormatter={fmtEixo} width={52} />
                 <Tooltip
                   formatter={(v: any) => [fmt(Number(v)), 'Faturamento']}
                   contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
                   labelStyle={{ color: 'var(--text-primary)' }}
                 />
-                <Area dataKey="receita" name="Faturamento" stroke="var(--accent)" strokeWidth={2} fill="url(#evolGrad)" dot={{ fill: 'var(--accent)', r: 3, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+                <Area dataKey="receita" name="Faturamento" stroke="var(--gem-safira)" strokeWidth={2}
+                  fill="url(#evolGrad)" dot={false} activeDot={{ r: 5 }} />
+                {/*
+                  Um ponto marcado só: o mês de pico, com o valor escrito em cima.
+                  Marcar todos — que era o comportamento anterior — enche a linha de
+                  bolinhas e nenhuma delas diz nada; marcar o maior responde de
+                  imediato "quanto foi o melhor mês e qual foi".
+                */}
+                {picoEvolucao && (
+                  <ReferenceDot
+                    x={picoEvolucao.label} y={picoEvolucao.receita} r={5}
+                    fill="var(--gem-safira)" stroke="none"
+                    label={{ value: fmtCurto(picoEvolucao.receita), position: 'top', offset: 10,
+                             fill: 'var(--text-primary)', fontSize: 11.5, fontWeight: 600 }}
+                  />
+                )}
               </AreaChart>
             </ResponsiveContainer>
             {fixadoEvolucao && <FaixaFixada ponto={fixadoEvolucao} onFechar={() => setFixadoEvolucao(null)} />}
@@ -593,26 +652,41 @@ export default function DashboardClient({
           <div className={styles.panelHeader}>
             <Users size={15} className={styles.panelIcon} />
             <span className={styles.panelTitle}>Vendedoras</span>
-            <span className={styles.panelSub}>{MONTHS_PT[month - 1]}</span>
+            <span className={styles.panelSub}>{MONTHS_PT[month - 1]} {year}</span>
           </div>
-          <RankTable
-            headers={['#','Vendedora','Loja','Vendas','Total','']}
-            rows={topVendedoras.map((v, i) => ({
-              cells: [
-                <RankPos key="pos" n={i+1} />,
-                <div key="name" className={styles.rankAvatarRow}>
-                  <div className={styles.rankAvatar} style={{ background: getAvatarColor(v.id) }}>{getInitials(v.name)}</div>
-                  <span className={styles.rankName}>{v.name}</span>
-                </div>,
-                <span key="loja" className={styles.rankMuted}>{v.store_name ?? '—'}</span>,
-                <span key="nr"   className={styles.rankBold}>{v.nrVendas}</span>,
-                <span key="tot"  className={styles.rankAccent}>{fmt(v.totalVendido)}</span>,
-                <ArrowRight key="arr" size={14} className={styles.rankArrow} />,
-              ],
-              onClick: () => setVendedoraModal(v),
-            }))}
-            empty="Nenhuma venda no período"
-          />
+          {/*
+            Tabela seca: número, nome, loja, quantidade e total.
+            Saíram o avatar colorido e a seta da direita — as duas colunas que não
+            carregavam dado nenhum e que, somadas, empurravam a de "Total" para fora
+            do painel, obrigando a rolar na horizontal para ver justamente o número
+            pelo qual a tabela está ordenada.
+          */}
+          {topVendedoras.length === 0 ? (
+            <div className={styles.chartEmpty}>Nenhuma venda no período</div>
+          ) : (
+            <table className={styles.vendTabela}>
+              <thead>
+                <tr>
+                  <th className={styles.vendThPos}>#</th>
+                  <th>Vendedora</th>
+                  <th>Loja</th>
+                  <th className={styles.vendNum}>Vendas</th>
+                  <th className={styles.vendNum}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topVendedoras.map((v, i) => (
+                  <tr key={v.id} onClick={() => setVendedoraModal(v)} title="Ver detalhes da vendedora">
+                    <td><span className={`${styles.vendPos} ${i === 0 ? styles.vendPosTopo : ''}`}>{i + 1}</span></td>
+                    <td className={styles.vendNome}>{v.name}</td>
+                    <td>{v.store_name ?? '—'}</td>
+                    <td className={styles.vendNum}>{v.nrVendas}</td>
+                    <td className={`${styles.vendNum} ${styles.vendTotal}`}>{fmt(v.totalVendido)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
       </div>
@@ -633,14 +707,21 @@ export default function DashboardClient({
             {pecasParadas.length === 0 ? (
               <div className={styles.alertEmpty}>Nenhuma peça parada</div>
             ) : pecasParadas.map(p => (
-              <div key={p.id} className={styles.alertRow}>
+              /* A seta já estava aqui prometendo que dava para clicar, e não dava:
+                 abrir a ficha do produto era exatamente o que se esperava da linha. */
+              <button
+                key={p.id}
+                type="button"
+                className={`${styles.alertRow} ${styles.alertRowBtn}`}
+                onClick={() => abrirProduto(p.id)}
+              >
                 <div className={styles.alertRowInfo}>
                   <span className={styles.alertRowName}>{p.name}</span>
                   <span className={styles.alertRowSub}>{p.category} · {p.code}</span>
                 </div>
                 <span className={styles.alertRowDays}>{p.diasParada}d</span>
                 <ArrowRight size={13} className={styles.rankArrow} />
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -707,69 +788,183 @@ export default function DashboardClient({
           onClose={() => setVendedoraModal(null)}
         />
       )}
+
+      {detalhe && (
+        <DashboardDetalhe
+          chave={detalhe}
+          storeId={storeId}
+          month={month}
+          year={year}
+          kpis={kpis}
+          estoque={estoque}
+          staleDays={estoque.staleDays}
+          onClose={() => setDetalhe(null)}
+          onProduto={abrirProduto}
+        />
+      )}
+
+      {produtoModal && (
+        <ProdutoDetalheModal
+          produto={produtoModal}
+          isAdmin={isAdmin}
+          onClose={() => setProdutoModal(null)}
+        />
+      )}
     </div>
   )
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, icon, color, hint }: {
+/*
+ * Todo cartão que mostra um total é um botão.
+ *
+ * Um número sozinho não se confere: para saber de onde saíam os R$ 27.439,91 de
+ * despesa era preciso sair da dashboard, ir ao financeiro, filtrar o mês e somar
+ * de cabeça. Clicando, a lista que forma o número abre por cima.
+ */
+function KpiCard({ label, value, icon, color, hint, onClick }: {
   label: string; value: string; icon: React.ReactNode
   color: 'accent' | 'success' | 'danger' | 'warning' | 'info'; hint?: string
+  onClick?: () => void
 }) {
   return (
-    <div className={`${styles.kpiCard} ${styles[`kpi_${color}`]}`}>
+    <button
+      type="button"
+      className={`${styles.kpiCard} ${styles[`kpi_${color}`]}`}
+      onClick={onClick}
+      title={`Ver o que compõe ${label.toLocaleLowerCase('pt-BR')}`}
+    >
       <div className={styles.kpiIcon}>{icon}</div>
       <div className={styles.kpiLabel}>{label}</div>
       <div className={styles.kpiValue}>{value}</div>
       {hint && <div className={styles.kpiHint}>{hint}</div>}
+    </button>
+  )
+}
+
+/**
+ * Vendas por categoria — barras em HTML, valor sempre visível.
+ *
+ * A escala é a maior categoria, não a soma: a pergunta aqui é "qual vende mais e
+ * por quanto de diferença", e normalizar pelo total esmagaria todas as barras
+ * contra a esquerda quando houver uma categoria dominante.
+ */
+function CategoriaBarras({ dados }: { dados: CategoryChartData[] }) {
+  const maior = Math.max(...dados.map(d => d.receita), 1)
+  return (
+    <div className={styles.catLista}>
+      {dados.map((c, i) => (
+        <div key={c.category} className={styles.catLinha}
+             title={`${c.category} — ${fmt(c.receita)} · ${c.qtd} ${c.qtd === 1 ? 'peça' : 'peças'}`}>
+          <span className={styles.catNome}>{c.category}</span>
+          <span className={styles.catTrilho}>
+            <span
+              className={styles.catBarra}
+              style={{
+                // Piso de 2%: categoria com venda pequena vira uma barra de zero
+                // pixel e some, o que lê como "não vendeu nada" em vez de "vendeu pouco".
+                width: `${Math.max((c.receita / maior) * 100, 2)}%`,
+                background: CORES_CATEGORIA[i % CORES_CATEGORIA.length],
+              }}
+            />
+          </span>
+          <span className={styles.catValor}>{fmtCurto(c.receita)}</span>
+        </div>
+      ))}
     </div>
   )
 }
 
-function StockCard({ label, value, alert, hint, small }: {
+/**
+ * Bloco de destaque do resultado do mês.
+ *
+ * É o maior da tela porque é a única pergunta que a dona do negócio faz antes de
+ * qualquer outra: sobrou ou faltou. E, diferente de um cartão de indicador comum,
+ * ele traz a CONTA dentro de si — duas barras comparando o que entrou com o que
+ * saiu — para o número não precisar de fé: dá para ver de onde ele veio sem sair
+ * da tela.
+ *
+ * As barras dividem a mesma escala (o maior dos dois valores), senão a comparação
+ * mente. É por isso que não uso duas escalas independentes aqui.
+ */
+function ResultadoDoMes({ receita, saidas, resultado, pctReceita, periodo, onClick }: {
+  receita: number; saidas: number; resultado: number; pctReceita: string; periodo: string
+  onClick?: () => void
+}) {
+  /*
+   * Três estados, não dois.
+   *
+   * Mês sem movimento nenhum não é "Lucro R$ 0,00" em verde — isso é o sistema
+   * dando parabéns por não ter vendido nada, e foi o que a primeira versão fazia.
+   * Sem movimento, o bloco fica neutro e diz o que de fato aconteceu.
+   */
+  const semMovimento = receita === 0 && saidas === 0
+  const negativo = resultado < 0
+  const escala = Math.max(receita, saidas, 1)
+  const tom = semMovimento ? 'neutro' : negativo ? 'neg' : 'pos'
+
+  return (
+    <button
+      type="button"
+      className={`${styles.heroCard} ${tom === 'neg' ? styles.heroNeg : tom === 'pos' ? styles.heroPos : styles.heroNeutro}`}
+      onClick={onClick}
+      title="Ver os lançamentos que formam o resultado"
+    >
+      <div className={styles.heroTopo}>
+        <div>
+          <div className={styles.heroLabel}>Resultado do mês</div>
+          <div className={styles.heroPeriodo}>{periodo}</div>
+        </div>
+        {!semMovimento && (
+          <span className={`${styles.heroTag} ${negativo ? styles.heroTagNeg : styles.heroTagPos}`}>
+            {negativo ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
+            {negativo ? 'Prejuízo' : 'Lucro'}
+          </span>
+        )}
+      </div>
+
+      <div className={styles.heroValor}>{fmt(resultado)}</div>
+      <div className={styles.heroPct}>
+        {semMovimento ? 'Nenhuma venda ou despesa registrada neste mês' : `${pctReceita} da receita`}
+      </div>
+
+      {/* A conta, visível: entrou contra saiu, na mesma escala. */}
+      <div className={styles.heroBarras}>
+        <div className={styles.heroLinha}>
+          <span className={styles.heroLinhaRotulo}>Entrou</span>
+          <div className={styles.heroTrilho}>
+            <div className={`${styles.heroBarra} ${styles.heroBarraEntrou}`} style={{ width: `${(receita / escala) * 100}%` }} />
+          </div>
+          <span className={styles.heroLinhaValor}>{fmt(receita)}</span>
+        </div>
+        <div className={styles.heroLinha}>
+          <span className={styles.heroLinhaRotulo}>Saiu</span>
+          <div className={styles.heroTrilho}>
+            <div className={`${styles.heroBarra} ${styles.heroBarraSaiu}`} style={{ width: `${(saidas / escala) * 100}%` }} />
+          </div>
+          <span className={styles.heroLinhaValor}>{fmt(saidas)}</span>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function StockCard({ label, value, alert, hint, small, onClick }: {
   label: string; value: string; alert?: boolean; hint?: string; small?: boolean
+  onClick?: () => void
 }) {
   return (
-    <div className={`${styles.stockCard} ${alert ? styles.stockAlert : ''}`}>
+    <button
+      type="button"
+      className={`${styles.stockCard} ${alert ? styles.stockAlert : ''}`}
+      onClick={onClick}
+      title={`Ver os produtos por trás de ${label.toLocaleLowerCase('pt-BR')}`}
+    >
       <div className={styles.stockValue} style={{ fontSize: small ? 15 : undefined }}>{value}</div>
       <div className={styles.stockLabel}>{label}</div>
       {hint && <div className={styles.stockHint}>{hint}</div>}
-    </div>
+    </button>
   )
 }
 
-function RankPos({ n }: { n: number }) {
-  return <span className={`${styles.rankPos} ${n <= 3 ? styles[`pos${n}`] : ''}`}>{n}</span>
-}
-
-function RankTable({ headers, rows, empty }: {
-  headers: string[]
-  rows: { cells: React.ReactNode[]; onClick?: () => void }[]
-  empty: string
-}) {
-  return (
-    <div className={styles.rankTableWrap}>
-      <table className={styles.rankTable}>
-        <thead>
-          <tr>
-            {headers.map((h, i) => (
-              <th key={i} className={styles.rankTh}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr><td colSpan={headers.length} className={styles.rankEmpty}>{empty}</td></tr>
-          ) : rows.map((row, i) => (
-            <tr key={i} className={`${styles.rankTr} ${row.onClick ? styles.rankTrClickable : ''}`} onClick={row.onClick}>
-              {row.cells.map((cell, j) => (
-                <td key={j} className={styles.rankTd}>{cell}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
