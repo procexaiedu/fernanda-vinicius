@@ -1,13 +1,7 @@
-.grade {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
+/* Um painel só, largura total. Era uma grade de duas colunas quando existia o
+ * painel de "há mais tempo sem voltar" ao lado. */
+.painelUnico {
   margin-bottom: 18px;
-}
-
-/* Empilha antes de a coluna ficar estreita demais para os cartões respirarem. */
-@media (max-width: 1180px) {
-  .grade { grid-template-columns: 1fr; }
 }
 
 .painel {
@@ -42,66 +36,48 @@
   font-variant-numeric: tabular-nums;
 }
 
-.subtituloCabecalho {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--text-disabled);
-}
-
-/* ─── Curva ABC ─────────────────────────────────────────────────── */
+/* ─── De onde vem o faturamento ─────────────────────────────────── */
 .faixas {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .faixa {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  flex-direction: column;
+  gap: 5px;
 }
 
-.faixaRotulo {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 800;
-  /* Texto escuro sobre a cor da gema: as três são claras o suficiente nos dois
-   * temas, então fixar o escuro evita contraste ruim no tema claro. */
-  color: #0D0D0D;
-}
-
-.faixaCorpo {
-  flex: 1;
-  min-width: 0;
-}
-
-.faixaLinha {
+/*
+ * O grupo é identificado pelo NOME, não por uma letra num quadrado. A letra
+ * (A/B/C, da curva ABC) é jargão: obriga a decorar uma legenda que a tela não
+ * tem. O ponto colorido só amarra o nome à barra.
+ */
+.faixaTopo {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
   gap: 8px;
-  margin-bottom: 5px;
 }
 
-.faixaClientes {
-  font-size: 12.5px;
+.faixaPonto {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  /* Alinha com a linha de base do texto, não com o topo da caixa. */
+  transform: translateY(-1px);
+}
+
+.faixaNome {
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-primary);
-  font-weight: 500;
-}
-
-.faixaPctClientes {
-  color: var(--text-muted);
-  font-weight: 400;
 }
 
 .faixaValor {
-  font-size: 12.5px;
+  margin-left: auto;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
@@ -109,7 +85,7 @@
 }
 
 .barraTrilho {
-  height: 7px;
+  height: 8px;
   border-radius: 999px;
   background: var(--bg-elevated);
   overflow: hidden;
@@ -121,12 +97,39 @@
   transition: width 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.faixaPct {
-  display: block;
-  margin-top: 4px;
-  font-size: 10.5px;
+.faixaRodape {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.faixaRodape strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.faixaPct {
+  white-space: nowrap;
+}
+
+/* A leitura pronta, para a pessoa não precisar interpretar as barras sozinha. */
+.conclusao {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  background: var(--accent-subtle);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.conclusao strong {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .rodapePainel {
@@ -137,120 +140,5 @@
   color: var(--text-muted);
 }
 
-/* ─── Cartões de recuperação ────────────────────────────────────── */
-.cartoes {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
 
-@media (max-width: 1420px) {
-  .cartoes { grid-template-columns: 1fr; }
-}
 
-.cartao {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  min-width: 0;
-}
-
-.avatar {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent-subtle);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.cartaoInfo {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
-
-.cartaoNome {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cartaoMeta {
-  font-size: 10.5px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cartaoNumeros {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  line-height: 1.3;
-}
-
-.cartaoValor {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--gem-esmeralda);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Vermelho só para quem passou do limite configurado de inatividade — se tudo
- * fosse vermelho, o vermelho não avisaria nada. */
-.cartaoDias {
-  font-size: 10.5px;
-  color: var(--danger);
-  white-space: nowrap;
-}
-
-.cartaoDiasOk {
-  font-size: 10.5px;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.botaoDisparo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  width: 100%;
-  height: 34px;
-  margin-top: 10px;
-  background: var(--accent);
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--accent-fg);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.botaoDisparo:hover { background: var(--accent-hover); }
-
-.vazio {
-  padding: 18px 0;
-  text-align: center;
-  font-size: 12.5px;
-  color: var(--text-muted);
-}

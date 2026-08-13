@@ -3,7 +3,6 @@
 import { usePersistedState } from '@/hooks/usePersistedState'
 
 import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
 import { Plus, Pencil, Trash2, Eye, Search, Users, Cake, Clock, ChevronUp, ChevronDown } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
@@ -86,7 +85,6 @@ export default function ClientesClient({
   currentUserRole,
   currentUserStoreId,
 }: Props) {
-  const router = useRouter()
   const [customers, setCustomers]         = useState(initial)
   const [search, setSearch]               = useState('')
   const [filter, setFilter]               = usePersistedState<FilterType>('fv-filtros-clientes-filter', 'todos')
@@ -169,14 +167,9 @@ export default function ClientesClient({
 
   return (
     <>
-      {/* Panorama: de onde vem o faturamento, e quem compravam e pararam. A tabela
-          responde "quem é a cliente X"; isto responde as duas perguntas que a dona
-          do negócio faz de verdade. */}
-      <PanoramaClientes
-        customers={customers}
-        inactiveDays={inactiveDays}
-        onDisparar={ids => router.push(`/disparos?clientes=${ids.join(',')}`)}
-      />
+      {/* De onde vem o faturamento. A tabela responde "quem é a cliente X"; isto
+          responde de quem vem o dinheiro, que é o que decide a quem dar atenção. */}
+      <PanoramaClientes customers={customers} />
 
       {/* Toolbar */}
       <div className={styles.toolbar}>
