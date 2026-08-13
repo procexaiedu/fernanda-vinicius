@@ -42,26 +42,32 @@ function fmt(v: number) {
  * A ordem também importa: quem mais gasta primeiro, porque é a linha que a dona do
  * negócio precisa ver antes de qualquer outra.
  */
+/*
+ * O tom importa: são clientes reais da loja, e a tela pode ser aberta na frente
+ * delas. Os nomes DESCREVEM a posição no faturamento, sem adjetivo de julgamento
+ * — "Gastam pouco" virou "Demais clientes", que diz a mesma coisa sem soar como
+ * avaliação da pessoa. Vale também para os textos de motivo, mais abaixo.
+ *
+ * Nomeados por VALOR, não por frequência: a divisão é por faturamento acumulado, e
+ * no dado real nenhuma cliente comprou mais de uma vez (25 clientes, 25 compras).
+ */
 const FAIXAS = [
   {
     chave: 'A',
-    nome: 'As que mais gastam',
-    ajuda: 'Poucas clientes, a maior parte do faturamento. São as que não podem sumir.',
+    nome: 'Maiores clientes',
+    ajuda: 'Poucas clientes que respondem pela maior parte do faturamento.',
     cor: 'var(--gem-esmeralda)',
   },
   {
     chave: 'B',
-    // Nomeado por VALOR, não por frequência. A versão anterior dizia "compram com
-    // frequência" — errado por dois motivos: a divisão é por valor acumulado, e no
-    // dado real NENHUMA cliente comprou mais de uma vez (25 clientes, 25 compras).
-    nome: 'Gasto médio',
-    ajuda: 'O meio da base: gastam menos que as maiores, mas bem acima do resto.',
+    nome: 'Clientes intermediárias',
+    ajuda: 'O meio da base — entre as maiores e as demais.',
     cor: 'var(--gem-safira)',
   },
   {
     chave: 'C',
-    nome: 'Gastam pouco',
-    ajuda: 'Muitas clientes somando pouco. Compra de valor baixo.',
+    nome: 'Demais clientes',
+    ajuda: 'Compras de valor menor, somando a parte final do faturamento.',
     cor: 'var(--gem-perola)',
   },
 ] as const
@@ -79,14 +85,19 @@ function motivo(c: CustomerWithStats, ticketMedioDaLoja: number): { texto: strin
   const gastaAlto = ticket >= ticketMedioDaLoja * 1.3
   const voltaSempre = compras >= 3
 
-  // Cada frase é escrita para o caso dela. Uma fórmula só produz texto torto:
-  // "poucas compras, mas caras" para quem comprou UMA vez, ou "1 compra em média",
-  // que é redundante.
-  if (voltaSempre && gastaAlto) return { texto: `volta sempre e gasta alto — ${compras} compras de ${fmt(ticket)}`, tom: 'ambos' }
-  if (voltaSempre)              return { texto: `volta sempre — ${compras} compras de ${fmt(ticket)}`, tom: 'freq' }
-  if (compras === 1 && gastaAlto) return { texto: `uma compra só, mas alta: ${fmt(ticket)}`, tom: 'caro' }
+  /*
+   * Descreve, não avalia. "poucas compras, mas caras" e "gasta alto" comentam a
+   * pessoa; "acima da média da loja" é o mesmo fato dito como referência, e é o que
+   * a Fernanda precisa para decidir o atendimento.
+   *
+   * Cada frase é escrita para o caso dela, não montada por fórmula — senão sai
+   * "1 compra em média", que é média de um número só.
+   */
+  if (voltaSempre && gastaAlto) return { texto: `compra sempre, acima da média — ${compras} compras de ${fmt(ticket)}`, tom: 'ambos' }
+  if (voltaSempre)              return { texto: `compra com frequência — ${compras} compras de ${fmt(ticket)}`, tom: 'freq' }
+  if (compras === 1 && gastaAlto) return { texto: `uma compra, acima da média: ${fmt(ticket)}`, tom: 'caro' }
   if (compras === 1)              return { texto: `uma compra de ${fmt(ticket)}`, tom: 'neutro' }
-  if (gastaAlto)                  return { texto: `${compras} compras altas, ${fmt(ticket)} cada`, tom: 'caro' }
+  if (gastaAlto)                  return { texto: `${compras} compras acima da média, ${fmt(ticket)} cada`, tom: 'caro' }
   return { texto: `${compras} compras de ${fmt(ticket)} cada`, tom: 'neutro' }
 }
 
@@ -101,6 +112,13 @@ function fmtData(iso: string | null): string {
   if (!iso) return 'nunca'
   const [a, m, d] = iso.slice(0, 10).split('-')
   return `${d}/${m}/${a.slice(2)}`
+}
+
+/** "01/07/2026" → "1º de julho"; usado para dizer de quando é o número. */
+function porExtenso(iso: string): string {
+  const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
+  const [a, m, d] = iso.slice(0, 10).split('-')
+  return `${Number(d)} de ${MESES[Number(m) - 1]} de ${a}`
 }
 
 export default function PanoramaClientes({ customers }: Props) {
@@ -129,7 +147,23 @@ export default function PanoramaClientes({ customers }: Props) {
       faixas[faixa].max = Math.max(faixas[faixa].max, c.total_spent)
       faixas[faixa].clientes.push(c)
     }
-    return { total, faixas, comGastoN: comGasto.length, semCompra: customers.length - comGasto.length }
+    /*
+     * O período de onde o número saiu.
+     *
+     * Este total NÃO é "o mês": é tudo que está registrado, da primeira à última
+     * venda com cliente vinculado. Sem dizer isso, o número não bate com nenhuma
+     * outra tela e não há como conferir — foi exatamente a dúvida levantada.
+     */
+    const datas = comGasto.map(c => c.last_sale_date).filter(Boolean).sort() as string[]
+
+    return {
+      total,
+      faixas,
+      comGastoN: comGasto.length,
+      semCompra: customers.length - comGasto.length,
+      de: datas[0] ?? null,
+      ate: datas[datas.length - 1] ?? null,
+    }
   }, [customers])
 
   /*
@@ -152,7 +186,18 @@ export default function PanoramaClientes({ customers }: Props) {
       <section className={styles.painel}>
         <header className={styles.cabecalho}>
           <TrendingUp size={14} />
-          <span className={styles.titulo}>De onde vem o faturamento</span>
+          <div className={styles.tituloBloco}>
+            <span className={styles.titulo}>De onde vem o faturamento</span>
+            {/* De onde o número saiu e de quando ele é. Sem isso não há como
+                conferir com nenhuma outra tela — e ele não é "do mês". */}
+            <span className={styles.periodo}>
+              {abc.de && abc.ate
+                ? (abc.de === abc.ate
+                    ? `Vendas de ${porExtenso(abc.de)}`
+                    : `Todas as vendas registradas — de ${porExtenso(abc.de)} a ${porExtenso(abc.ate)}`)
+                : 'Todas as vendas registradas'}
+            </span>
+          </div>
           <span className={styles.total}>{fmt(abc.total)}</span>
         </header>
 
@@ -242,11 +287,15 @@ export default function PanoramaClientes({ customers }: Props) {
           </p>
         )}
 
-        {abc.semCompra > 0 && (
-          <footer className={styles.rodapePainel}>
-            {abc.semCompra} cadastrada{abc.semCompra !== 1 ? 's' : ''} sem nenhuma compra registrada
-          </footer>
-        )}
+        <footer className={styles.rodapePainel}>
+          {/* Por que este total difere do faturamento do financeiro: venda sem
+              cliente vinculado não entra aqui, porque este painel divide POR
+              cliente. Sem a ressalva, a diferença parece erro de cálculo. */}
+          Conta apenas vendas com cliente identificado — venda avulsa não entra.
+          {abc.semCompra > 0 && (
+            <> Outras {abc.semCompra} cadastradas ainda não têm compra lançada.</>
+          )}
+        </footer>
       </section>
 
     </div>

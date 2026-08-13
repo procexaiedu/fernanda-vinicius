@@ -15,10 +15,24 @@
 
 .cabecalho {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 7px;
   margin-bottom: 14px;
   color: var(--text-muted);
+}
+
+/* Título e período empilhados; o total continua alinhado à direita. */
+.tituloBloco {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.periodo {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .titulo {
@@ -30,6 +44,7 @@
 
 .total {
   margin-left: auto;
+  padding-top: 1px;
   font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
