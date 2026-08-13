@@ -369,10 +369,20 @@ input, textarea, select {
   text-align: center !important;
 }
 
-/* Data: à direita como as numéricas, e nunca quebrada. À esquerda ela encostava
- * no número da coluna anterior, que é alinhado à direita — os dois grudavam. */
+/*
+ * Data: alinhada à ESQUERDA, nunca quebrada, com dígitos de largura fixa.
+ *
+ * A primeira versão alinhava à direita, tratando data como número. Errado por dois
+ * motivos. Primeiro, `dd/mm/aaaa` tem largura FIXA — alinhar à direita serve para
+ * número de largura variável, onde é preciso casar a casa decimal; com largura
+ * fixa os dois alinhamentos empilham igual, e à esquerda se lê antes. Segundo, e
+ * pior: o `!important` valia só no cabeçalho, porque a classe foi aplicada só no
+ * <th>. O resultado foi título à direita sobre coluna à esquerda — exatamente a
+ * tabela torta do /financeiro em Data e Vencimento.
+ *
+ * `tabular-nums` fica: é o que faz as datas empilharem coluna a coluna.
+ */
 .col-date {
-  text-align: right !important;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   min-width: 92px;

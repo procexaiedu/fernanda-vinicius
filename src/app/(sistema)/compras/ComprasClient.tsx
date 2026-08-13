@@ -201,11 +201,11 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                 <ThOrdenavel ord={ord} coluna="tipo" className="col-center">Tipo</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="fornecedores">Fornecedores</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="lojas">Lojas</ThOrdenavel>
-                <th>NF</th>
+                <th className="col-tertiary">NF</th>
                 <ThOrdenavel ord={ord} coluna="itens" className="col-num">Itens</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="custo" className="col-num">Custo total</ThOrdenavel>
                 <th className="col-center">Status</th>
-                <th>Prazo devolução</th>
+                <th className="col-tertiary col-date">Prazo devolução</th>
                 <th className="col-center" style={{ width: 36 }}></th>
               </tr>
             </thead>
@@ -220,7 +220,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                       title="Clique para ver detalhes"
                     >
                       <td className={styles.date}>{fmtDate(row.purchase_date)}</td>
-                      <td><span className={styles.badgeMuted}>Própria</span></td>
+                      <td className="col-center"><span className={styles.badgeMuted}>Própria</span></td>
                       <td className={styles.suppliers}>
                         {row.suppliers.length > 0
                           ? row.suppliers.length === 1
@@ -231,7 +231,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                       <td className={styles.muted}>
                         {row.storeNames.length > 0 ? row.storeNames.join(', ') : '—'}
                       </td>
-                      <td>
+                      <td className="col-tertiary">
                         {row.nf_number
                           ? <span className={styles.nf}>
                               {row.nf_number}
@@ -250,7 +250,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                           ? <span className={styles.statusPaid}><CheckCircle size={12} /> Pago</span>
                           : <span className={styles.statusPending}><Clock size={12} /> Pendente</span>}
                       </td>
-                      <td className={styles.muted}>—</td>
+                      <td className={`col-tertiary ${styles.muted}`}>—</td>
                       <td className="col-center">
                         <button
                           className={styles.reprintBtn}
@@ -267,10 +267,10 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                   return (
                     <tr key={row.id} className={styles.row}>
                       <td className={styles.date}>{fmtDate(row.received_date)}</td>
-                      <td><span className={styles.badgeAccent}>Consignação</span></td>
+                      <td className="col-center"><span className={styles.badgeAccent}>Consignação</span></td>
                       <td className={styles.muted}>—</td>
                       <td className={styles.muted}>{row.storeName}</td>
-                      <td className={styles.muted}>—</td>
+                      <td className={`col-tertiary ${styles.muted}`}>—</td>
                       <td className={`col-num ${styles.muted}`}>{row.total_pieces}</td>
                       <td className={`col-num ${styles.cost}`}>{fmt(row.total_cost_value)}</td>
                       <td>
@@ -280,7 +280,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                           ? <span className={styles.statusPaid}><CheckCircle size={12} /> Acertada</span>
                           : <span className={styles.muted}>Devolvida</span>}
                       </td>
-                      <td>
+                      <td className="col-tertiary col-date">
                         {row.return_deadline
                           ? <span style={{ color: isOverdue ? 'var(--danger)' : 'var(--text-secondary)', fontSize: 13 }}>
                               {isOverdue && <AlertTriangle size={11} style={{ marginRight: 4 }} />}
