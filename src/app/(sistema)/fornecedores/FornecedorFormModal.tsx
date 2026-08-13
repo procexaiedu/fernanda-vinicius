@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { AtSign, AlertTriangle, Plus, Trash2, MessageCircle, Loader2 } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
@@ -9,6 +9,7 @@ import { createSupplier, updateSupplier, type SupplierFormData, type SupplierPho
 import type { SupplierWithCount } from './page'
 import styles from './FornecedorFormModal.module.css'
 import { mascararTelefone } from '@/lib/telefone'
+import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
 
 interface NominatimResult {
   display_name: string
@@ -128,6 +129,34 @@ export default function FornecedorFormModal({ supplier, allInitials, onClose }: 
       : null
     )
   }, [form.initials, allInitials])
+
+  /*
+   * Fornecedor com o mesmo NOME já cadastrado.
+   *
+   * É o aviso que de fato importa: iniciais repetidas convivem bem (duas empresas
+   * diferentes podem começar igual), mas o mesmo fornecedor cadastrado duas vezes
+   * divide os produtos, as compras e o total investido entre dois cadastros — e aí
+   * não dá para saber quanto se compra de cada um. Foi assim que a base acumulou
+   * SANTA PRATA três vezes e PONTO K, BEE, IREAN e THE MADAM duas.
+   *
+   * Compara ignorando acento, caixa e pontuação, e também pega o caso de um nome
+   * conter o outro ("PK" dentro de "PONTO K") — que é como a duplicata costuma
+   * entrar de verdade, com o nome abreviado.
+   */
+  const nomeJaExiste = useMemo(() => {
+    const alvo = normalizarNomeFornecedor(form.name)
+    if (alvo.length < 2) return null
+    return allInitials.find(s => {
+      if (supplier && s.id === supplier.id) return false   // editando: ele mesmo não conta
+      const outro = normalizarNomeFornecedor(s.name)
+      if (!outro) return false
+      if (outro === alvo) return true
+      // "PK" × "PONTO K": só considera se a parte curta tiver ao menos 3 letras,
+      // senão "BT" casaria com metade da lista.
+      const [curto, longo] = alvo.length <= outro.length ? [alvo, outro] : [outro, alvo]
+      return curto.length >= 3 && longo.startsWith(curto + ' ')
+    }) ?? null
+  }, [form.name, allInitials, supplier])
 
   const set = useCallback(<K extends keyof SupplierFormData>(key: K, value: SupplierFormData[K]) => {
     setForm(f => ({ ...f, [key]: value }))
@@ -278,6 +307,19 @@ export default function FornecedorFormModal({ supplier, allInitials, onClose }: 
               error={errors.initials} placeholder="MJ" maxLength={2} />
           </div>
         </div>
+
+        {/* Nome repetido vem ANTES do aviso de iniciais e com peso maior: é o que
+            de fato cria problema, enquanto iniciais iguais convivem sem atrapalhar. */}
+        {nomeJaExiste && (
+          <div className={styles.nomeDupeAlert}>
+            <AlertTriangle size={14} />
+            <span>
+              Já existe um fornecedor chamado <strong>{nomeJaExiste.name}</strong>.
+              {' '}Se for o mesmo, feche e edite o cadastro existente em vez de criar outro —
+              cadastro repetido divide os produtos e o total investido entre os dois.
+            </span>
+          </div>
+        )}
 
         {dupeWarning && (
           <div className={styles.dupeAlert}>

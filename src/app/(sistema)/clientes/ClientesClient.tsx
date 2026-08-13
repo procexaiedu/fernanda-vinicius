@@ -9,7 +9,7 @@ import Badge from '@/components/ui/Badge'
 import ClienteFormModal from './ClienteFormModal'
 import ClienteDetalheModal from './ClienteDetalheModal'
 import { deleteCustomer } from './actions'
-import type { CustomerWithStats, StoreOption } from './page'
+import type { CustomerWithStats, StoreOption, VendaAvulsa } from './page'
 import PanoramaClientes from './PanoramaClientes'
 import styles from './ClientesClient.module.css'
 import { formatarTelefone } from '@/lib/telefone'
@@ -70,6 +70,8 @@ type SortDir    = 'asc'  | 'desc'
 
 interface Props {
   customers: CustomerWithStats[]
+  /** Vendas sem cliente vinculado — entram no total do painel de faturamento. */
+  vendaAvulsa: VendaAvulsa
   stores: StoreOption[]
   inactiveDays: number
   currentUserRole: string
@@ -80,6 +82,7 @@ interface Props {
 
 export default function ClientesClient({
   customers: initial,
+  vendaAvulsa,
   stores,
   inactiveDays,
   currentUserRole,
@@ -169,7 +172,7 @@ export default function ClientesClient({
     <>
       {/* De onde vem o faturamento. A tabela responde "quem é a cliente X"; isto
           responde de quem vem o dinheiro, que é o que decide a quem dar atenção. */}
-      <PanoramaClientes customers={customers} />
+      <PanoramaClientes customers={customers} vendaAvulsa={vendaAvulsa} />
 
       {/* Toolbar */}
       <div className={styles.toolbar}>

@@ -5,12 +5,14 @@ import { usePersistedState } from '@/hooks/usePersistedState'
 import { useState, useEffect, useMemo } from 'react'
 import {
   Plus, Pencil, Power, BarChart2, AlertTriangle,
-  MessageCircle, ChevronUp, ChevronDown, Download,
+  MessageCircle, ChevronUp, ChevronDown, Download, Merge,
 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import FornecedorFormModal from './FornecedorFormModal'
 import FornecedorDetalheModal from './FornecedorDetalheModal'
+import MesclarDuplicadosModal from './MesclarDuplicadosModal'
+import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
 import { toggleSupplierStatus } from './actions'
 import type { SupplierWithCount } from './page'
 import styles from './FornecedoresClient.module.css'
@@ -71,6 +73,23 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
   const [detalhe, setDetalhe]                         = useState<SupplierWithCount | null>(null)
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null)
   const [togglingId, setTogglingId]                   = useState<string | null>(null)
+  const [mesclarAberto, setMesclarAberto]             = useState(false)
+
+  /*
+   * Quantos fornecedores estão cadastrados mais de uma vez (pelo NOME).
+   *
+   * Diferente do aviso de iniciais que já existia: iniciais iguais convivem sem
+   * atrapalhar, mas o mesmo fornecedor em dois cadastros divide produtos, compras
+   * e total investido entre eles.
+   */
+  const duplicadosPorNome = useMemo(() => {
+    const porNome = new Map<string, number>()
+    for (const s of suppliers) {
+      const k = normalizarNomeFornecedor(s.name)
+      if (k) porNome.set(k, (porNome.get(k) ?? 0) + 1)
+    }
+    return [...porNome.values()].filter(n => n > 1).length
+  }, [suppliers])
 
   useEffect(() => { setSuppliers(initial) }, [initial])
 
@@ -202,6 +221,18 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
           </label>
         </div>
         <div className={styles.toolbarRight}>
+          {/* Só aparece quando há duplicado de fato — botão que nunca tem o que
+              fazer vira ruído permanente na barra. */}
+          {duplicadosPorNome > 0 && (
+            <button
+              className={styles.mesclarBtn}
+              onClick={() => setMesclarAberto(true)}
+              title="Resolver fornecedores cadastrados em duplicidade"
+            >
+              <Merge size={14} />
+              {duplicadosPorNome} duplicado{duplicadosPorNome !== 1 ? 's' : ''}
+            </button>
+          )}
           <button className={styles.exportBtn} onClick={exportCSV} title="Exportar CSV">
             <Download size={14} />
             Exportar
@@ -372,6 +403,13 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
         rotuloPlural="fornecedores"
         onIr={irPara}
       />
+
+      {mesclarAberto && (
+        <MesclarDuplicadosModal
+          onClose={() => setMesclarAberto(false)}
+          onMesclado={() => window.location.reload()}
+        />
+      )}
 
       {formOpen && (
         <FornecedorFormModal

@@ -341,3 +341,28 @@
   gap: 8px;
   padding-top: 4px;
 }
+
+/* Aviso de NOME repetido. Mais forte que o de iniciais (dupeAlert): iniciais
+ * iguais convivem sem atrapalhar, cadastro repetido divide os dados do fornecedor
+ * em dois e distorce o total investido. */
+.nomeDupeAlert {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 13px;
+  margin-bottom: 12px;
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.nomeDupeAlert svg {
+  color: var(--danger);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.nomeDupeAlert strong { font-weight: 700; }

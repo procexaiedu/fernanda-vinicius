@@ -2,6 +2,12 @@ import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ClientesClient from './ClientesClient'
 
+/** Vendas sem cliente vinculado — parte do faturamento, fora da divisão por cliente. */
+export interface VendaAvulsa {
+  quantidade: number
+  total: number
+}
+
 export interface CustomerWithStats {
   id: string
   name: string
@@ -36,7 +42,10 @@ export default async function ClientesPage() {
   const [customersRes, storesRes, salesRes, settingRes] = await Promise.all([
     admin.from('customers').select('*, stores(name)').order('name'),
     admin.from('stores').select('id, name').eq('is_active', true).order('name'),
-    admin.from('sales').select('customer_id, sale_date, total').not('customer_id', 'is', null),
+    // Traz TAMBÉM as vendas sem cliente vinculado: elas fazem parte do
+    // faturamento e o painel precisa mostrá-las, senão o total não bate com o
+    // financeiro e a diferença parece erro de cálculo.
+    admin.from('sales').select('customer_id, sale_date, total').neq('status', 'cancelled'),
     admin.from('settings').select('value').eq('key', 'inactive_customer_days').maybeSingle(),
   ])
 
@@ -44,6 +53,14 @@ export default async function ClientesPage() {
   const stores: StoreOption[] = storesRes.data ?? []
   const sales       = salesRes.data ?? []
   const inactiveDays = Number(settingRes.data?.value ?? 180)
+
+  // Venda sem cliente vinculado — o que o painel de faturamento precisa somar à
+  // parte para chegar ao faturamento real.
+  const avulsas = sales.filter(s => !s.customer_id)
+  const vendaAvulsa = {
+    quantidade: avulsas.length,
+    total: avulsas.reduce((soma, s) => soma + Number(s.total ?? 0), 0),
+  }
 
   // Build per-customer sales stats
   const statsMap = new Map<string, { count: number; last: string; total: number }>()
@@ -96,6 +113,7 @@ export default async function ClientesPage() {
       </div>
       <ClientesClient
         customers={customersWithStats}
+        vendaAvulsa={vendaAvulsa}
         stores={stores}
         inactiveDays={inactiveDays}
         currentUserRole={profile?.role ?? 'operator'}

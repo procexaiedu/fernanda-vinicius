@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { TrendingUp, ChevronDown } from 'lucide-react'
-import type { CustomerWithStats } from './page'
+import type { CustomerWithStats, VendaAvulsa } from './page'
 import { formatarTelefone } from '@/lib/telefone'
 import styles from './PanoramaClientes.module.css'
 
@@ -25,6 +25,7 @@ import styles from './PanoramaClientes.module.css'
 
 interface Props {
   customers: CustomerWithStats[]
+  vendaAvulsa: VendaAvulsa
 }
 
 function fmt(v: number) {
@@ -121,13 +122,22 @@ function porExtenso(iso: string): string {
   return `${Number(d)} de ${MESES[Number(m) - 1]} de ${a}`
 }
 
-export default function PanoramaClientes({ customers }: Props) {
+export default function PanoramaClientes({ customers, vendaAvulsa }: Props) {
   // Qual grupo está aberto. Um por vez: abrir os três de uma vez devolveria a
   // lista inteira, que é justamente o que a tabela abaixo já faz.
   const [aberto, setAberto] = useState<string | null>(null)
   const abc = useMemo(() => {
     const comGasto = customers.filter(c => c.total_spent > 0).sort((a, b) => b.total_spent - a.total_spent)
-    const total = comGasto.reduce((s, c) => s + c.total_spent, 0)
+    const deClientes = comGasto.reduce((s, c) => s + c.total_spent, 0)
+    /*
+     * O total inclui a venda avulsa.
+     *
+     * Antes somava só o que veio de cliente identificado, e aí o número não batia
+     * com o financeiro — a diferença parecia erro de conta. Com o avulso dentro, o
+     * total É o faturamento, e a fatia sem cliente vira informação útil: mostra
+     * quanto do caixa não dá para atribuir a ninguém.
+     */
+    const total = deClientes + vendaAvulsa.total
     if (!total) return null
 
     // Cada grupo guarda as CLIENTES, não só a contagem: é o que permite abrir e ver
@@ -137,10 +147,16 @@ export default function PanoramaClientes({ customers }: Props) {
     let acumulado = 0
     for (const c of comGasto) {
       acumulado += c.total_spent
-      const pctAcumulado = acumulado / total
+      /*
+       * O corte 70/90 é sobre `deClientes`, NÃO sobre o total com avulso: ele
+       * divide as clientes entre si, e misturar a venda sem dono aqui deslocaria a
+       * régua e mudaria quem cai em cada grupo. O avulso entra depois, só na
+       * exibição — que é onde ele de fato pertence.
+       */
+      const pctAcumulado = acumulado / deClientes
       // O corte olha o acumulado ANTES desta cliente, senão a primeira já estouraria
       // 70% em bases pequenas e o primeiro grupo ficaria com uma pessoa só.
-      const faixa = pctAcumulado - c.total_spent / total < 0.7 ? 'A' : pctAcumulado - c.total_spent / total < 0.9 ? 'B' : 'C'
+      const faixa = pctAcumulado - c.total_spent / deClientes < 0.7 ? 'A' : pctAcumulado - c.total_spent / deClientes < 0.9 ? 'B' : 'C'
       faixas[faixa].n++
       faixas[faixa].valor += c.total_spent
       faixas[faixa].min = Math.min(faixas[faixa].min, c.total_spent)
@@ -158,13 +174,14 @@ export default function PanoramaClientes({ customers }: Props) {
 
     return {
       total,
+      deClientes,
       faixas,
       comGastoN: comGasto.length,
       semCompra: customers.length - comGasto.length,
       de: datas[0] ?? null,
       ate: datas[datas.length - 1] ?? null,
     }
-  }, [customers])
+  }, [customers, vendaAvulsa])
 
   /*
    * Ticket médio da loja: a régua para dizer se uma cliente "compra caro". Sem
@@ -274,10 +291,36 @@ export default function PanoramaClientes({ customers }: Props) {
               </div>
             )
           })}
+          {/*
+            Venda sem cliente vinculado. Aparece como quarta faixa porque FAZ PARTE
+            do faturamento — é o que faz o total do painel fechar com o financeiro.
+            Não abre ao clicar: não há cliente para listar, e é justamente esse o
+            ponto dela.
+          */}
+          {vendaAvulsa.total > 0 && (
+            <div className={`${styles.faixa} ${styles.faixaAvulsa}`}>
+              <div className={styles.faixaTopo}>
+                <span className={`${styles.faixaPonto} ${styles.pontoAvulso}`} aria-hidden="true" />
+                <span className={styles.faixaNome}>Sem cliente identificado</span>
+                <span className={styles.faixaValor}>{fmt(vendaAvulsa.total)}</span>
+              </div>
+
+              <div className={styles.barraTrilho}>
+                <div className={`${styles.barra} ${styles.barraAvulsa}`} style={{ width: `${(vendaAvulsa.total / abc.total) * 100}%` }} />
+              </div>
+
+              <div className={styles.faixaRodape}>
+                <span>
+                  <strong>{vendaAvulsa.quantidade}</strong> venda{vendaAvulsa.quantidade !== 1 ? 's' : ''} sem cliente vinculado na hora do registro
+                </span>
+                <span className={styles.faixaPct}>{((vendaAvulsa.total / abc.total) * 100).toFixed(0)}% do faturamento</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* A conclusão que a tela existe para dar, escrita por extenso: sem ela, a
-            pessoa vê três barras e precisa fazer a leitura sozinha. */}
+            pessoa vê as barras e precisa fazer a leitura sozinha. */}
         {abc.faixas.A.n > 0 && (
           <p className={styles.conclusao}>
             <strong>{abc.faixas.A.n} cliente{abc.faixas.A.n !== 1 ? 's' : ''}</strong>
@@ -287,15 +330,11 @@ export default function PanoramaClientes({ customers }: Props) {
           </p>
         )}
 
-        <footer className={styles.rodapePainel}>
-          {/* Por que este total difere do faturamento do financeiro: venda sem
-              cliente vinculado não entra aqui, porque este painel divide POR
-              cliente. Sem a ressalva, a diferença parece erro de cálculo. */}
-          Conta apenas vendas com cliente identificado — venda avulsa não entra.
-          {abc.semCompra > 0 && (
-            <> Outras {abc.semCompra} cadastradas ainda não têm compra lançada.</>
-          )}
-        </footer>
+        {abc.semCompra > 0 && (
+          <footer className={styles.rodapePainel}>
+            Outras {abc.semCompra} cadastradas ainda não têm compra lançada no sistema.
+          </footer>
+        )}
       </section>
 
     </div>
