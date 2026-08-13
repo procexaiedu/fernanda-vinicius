@@ -1227,6 +1227,10 @@
 
 .vendTabela th {
   text-align: left;
+  /* Respiro entre o cabeçalho do painel e o da tabela. Sem o padding-top, os dois
+   * títulos ficavam colados e a linha "# VENDEDORA…" parecia parte do cabeçalho
+   * do bloco, não da tabela. */
+  padding-top: 16px;
   padding-bottom: 10px;
   /* Em `--text-disabled` com 10,5px e 0.1em de espaçamento, os títulos quase
    * sumiam contra o fundo — dava para ver que havia algo escrito, não o quê.
