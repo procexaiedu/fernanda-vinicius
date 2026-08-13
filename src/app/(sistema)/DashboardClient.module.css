@@ -459,8 +459,20 @@
   gap: 14px;
   padding: 20px 22px;
   min-height: 168px;
-  background: linear-gradient(140deg, var(--accent-subtle), transparent 78%);
-  border: 1px solid var(--accent);
+  /*
+   * Mesmo material dos outros painéis: superfície chapada e borda comum.
+   *
+   * Antes era `linear-gradient(140deg, var(--accent-subtle), transparent)` com
+   * borda em `--accent`. Isso só funcionava no escuro, onde `--accent` é #f4f4f5 e
+   * o brilho passa por sofisticação. No tema claro o mesmo token vale #18181b —
+   * quase preto — então a borda ficava pesada e o degradê virava uma mancha cinza
+   * descendo pelo card. Tema não é inversão de cor; token que serve de destaque
+   * num vira contorno duro no outro.
+   *
+   * A hierarquia não se perde: continua vindo do TAMANHO do número.
+   */
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
 }
 
@@ -472,10 +484,12 @@
   gap: 12px;
 }
 
+/* Rótulo em cinza, como o do bloco de resultado. Em --accent ele ficava preto
+   chapado no tema claro e brigava com o próprio número logo abaixo. */
 .disponivelTitle {
   font-size: 11px;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.09em;
 }
@@ -497,7 +511,7 @@
   grid-area: valor;
   font-size: clamp(28px, 1.8vw + 12px, 38px);
   font-weight: 700;
-  color: var(--accent);
+  color: var(--text-primary);
   letter-spacing: -0.03em;
   line-height: 1.05;
   font-variant-numeric: tabular-nums;

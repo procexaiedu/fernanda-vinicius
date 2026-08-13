@@ -837,7 +837,10 @@ export async function buscarMovimentosDoMes(
   if (storeId) q = q.eq('store_id', storeId)
   if (tipo)    q = q.eq('type', tipo)
 
-  const { data } = await q.order('transaction_date', { ascending: false })
+  const { data, error } = await q.order('transaction_date', { ascending: false })
+  // Ver a nota em `buscarVendasDoMes`: lista vazia por erro engolido é pior que
+  // erro na cara, porque parece dado.
+  if (error) throw new Error(`Falha ao buscar movimentos do mês: ${error.message}`)
 
   return (data ?? []).map((r: any) => ({
     id: r.id,
@@ -876,15 +879,32 @@ export async function buscarVendasDoMes(
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
+  /*
+   * O join com `users` PRECISA dizer por qual coluna.
+   *
+   * `sales` tem duas FKs para `users` — `seller_id` (quem vendeu) e `user_id`
+   * (quem operou o caixa). Pedir `users(full_name)` sem qualificar devolve
+   * PGRST201 ("more than one relationship was found") com HTTP 300, e como a
+   * resposta não é 2xx o `data` vem null. Resultado: a lista aparecia VAZIA
+   * enquanto o cartão de CMV do mesmo mês somava as 26 vendas normalmente.
+   */
   let q = admin
     .from('sales')
-    .select('id, sale_date, total, total_cost, customers(name), users(full_name), stores(name)')
+    .select('id, sale_date, total, total_cost, customers(name), vendedora:users!seller_id(full_name), operador:users!user_id(full_name), stores(name)')
     .neq('status', 'cancelled')
     .gte('sale_date', dateFrom)
     .lte('sale_date', dateTo)
   if (storeId) q = q.eq('store_id', storeId)
 
-  const { data } = await q.order('sale_date', { ascending: false })
+  const { data, error } = await q.order('sale_date', { ascending: false })
+  /*
+   * Erro vira exceção em vez de lista vazia.
+   *
+   * Foi engolindo o `error` que o bug acima passou: a tela mostrava "Nenhuma
+   * venda neste mês" ao lado de um CMV de R$ 5.218,72 — dois fatos que não podem
+   * ser verdade ao mesmo tempo, e nada no console.
+   */
+  if (error) throw new Error(`Falha ao buscar vendas do mês: ${error.message}`)
 
   return (data ?? []).map((r: any) => ({
     id: r.id,
@@ -892,7 +912,8 @@ export async function buscarVendasDoMes(
     // Venda avulsa não tem cliente — é o balcão, e escrever isso é mais honesto
     // que deixar um traço que parece dado faltando.
     cliente: r.customers?.name ?? 'Venda avulsa',
-    vendedora: r.users?.full_name ?? '—',
+    // Mesma regra do ranking de vendedoras: vale quem vendeu; sem isso, quem operou.
+    vendedora: r.vendedora?.full_name ?? r.operador?.full_name ?? '—',
     loja: r.stores?.name ?? null,
     total: Number(r.total),
     custo: Number(r.total_cost ?? 0),
@@ -976,10 +997,66 @@ export async function buscarProdutosDoEstoque(
  */
 export async function buscarProdutoParaDetalhe(id: string) {
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error } = await admin
     .from('products')
     .select('*, suppliers(id, name, initials), stores(id, name)')
     .eq('id', id)
     .single()
+  if (error) throw new Error(`Falha ao carregar o produto: ${error.message}`)
   return data
+}
+
+export interface VendaDaVendedora {
+  id: string
+  sale_date: string
+  total: number
+  total_cost: number
+  status: string
+  items_count: number
+  store_name: string
+}
+
+/**
+ * As vendas de uma vendedora no mês — a lista por trás do card do ranking.
+ *
+ * Usa a MESMA regra do ranking: vale o `seller_id`; só quando ele é nulo é que o
+ * `user_id` responde. As duas colunas apontam para `users`, mas significam coisas
+ * diferentes — `seller_id` é quem vendeu, `user_id` é quem estava logado no caixa.
+ * Como as lojas operam com um login compartilhado, filtrar por `user_id` (o que
+ * esta tela fazia) atribuía TODAS as vendas a quem abriu o caixa: em julho/26 a
+ * Rosi aparecia com 16 vendas no ranking e a lista dela vinha vazia, enquanto a
+ * Fernanda mostrava as 26 do mês sob um cabeçalho que dizia 10.
+ *
+ * Roda no servidor com o client admin, igual ao ranking. Antes era consulta do
+ * navegador com a chave anônima, sujeita a RLS — duas fontes de verdade para o
+ * mesmo número, e a de baixo sem ninguém olhando o `error`.
+ */
+export async function buscarVendasDaVendedora(
+  vendedoraId: string,
+  month: number,
+  year: number,
+): Promise<VendaDaVendedora[]> {
+  const admin = createAdminClient()
+  const { dateFrom, dateTo } = monthBounds(year, month)
+
+  const { data, error } = await admin
+    .from('sales')
+    .select('id, sale_date, total, total_cost, status, stores(name), sale_items(id)')
+    .or(`seller_id.eq.${vendedoraId},and(seller_id.is.null,user_id.eq.${vendedoraId})`)
+    .neq('status', 'cancelled')
+    .gte('sale_date', dateFrom)
+    .lte('sale_date', dateTo)
+    .order('sale_date', { ascending: false })
+
+  if (error) throw new Error(`Falha ao buscar as vendas da vendedora: ${error.message}`)
+
+  return (data ?? []).map((s: any) => ({
+    id: s.id,
+    sale_date: s.sale_date,
+    total: Number(s.total),
+    total_cost: Number(s.total_cost),
+    status: s.status,
+    items_count: Array.isArray(s.sale_items) ? s.sale_items.length : 0,
+    store_name: (s.stores as { name: string } | null)?.name ?? '—',
+  }))
 }

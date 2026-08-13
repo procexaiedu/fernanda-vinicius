@@ -144,8 +144,10 @@ export default function DashboardDetalhe({
     const resumo: ItemResumo[] = chave === 'cmv'
       ? [
           { rotulo: `Custo das ${vendas.length} vendas do mês`, valor: fmt(custoVendas) },
+          // `fmt(-credito)` já traz o sinal. Escrever um "−" na frente somava com o
+          // menos do próprio número quando o crédito era negativo: "− -R$ 5.218,72".
           ...(Math.abs(credito) > 0.005
-            ? [{ rotulo: 'Crédito de trocas (itens devolvidos)', valor: `− ${fmt(credito)}`, tom: 'pos' as const }]
+            ? [{ rotulo: 'Crédito de trocas (itens devolvidos)', valor: fmt(-credito), tom: 'pos' as const }]
             : []),
           { rotulo: 'Custo (CMV)', valor: fmt(kpis.cmv), total: true, tom: 'neg' },
         ]
