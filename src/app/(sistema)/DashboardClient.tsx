@@ -8,7 +8,7 @@ import {
 import {
   ChevronLeft, ChevronRight, ChevronDown,
   TrendingUp, TrendingDown, Package, AlertTriangle, Users, Calendar,
-  DollarSign, ShoppingCart, Award, Clock, ArrowRight, X,
+  DollarSign, ShoppingCart, Award, Clock, ArrowRight,
 } from 'lucide-react'
 
 import ProdutoDetalheModal, { type ProdutoParaDetalhe } from '@/components/produto/ProdutoDetalheModal'
@@ -150,82 +150,6 @@ function CustomTooltip({ active, payload, label }: any) {
   )
 }
 
-/*
- * ─── Dado fixado por clique ───────────────────────────────────────────────────
- *
- * O tooltip de hover some quando o dedo sai do trackpad, então ler três valores e
- * comparar meses exigia manter a mão parada em cima do ponto. Clicar FIXA os
- * valores numa faixa embaixo do gráfico, que só sai ao clicar em outro ponto ou no
- * mesmo de novo.
- *
- * O hover continua existindo — não custa nada e serve a quem usa mouse. Não usei o
- * `trigger="click"` do recharts porque ele TROCA o hover pelo clique em vez de
- * somar, e o tooltip continuaria desaparecendo ao mexer o ponteiro.
- */
-interface PontoFixado {
-  label: string
-  itens: Array<{ nome: string; valor: number; cor: string }>
-}
-
-/** Uma série do gráfico: de onde tirar o valor, como chamar e com que cor. */
-interface Serie {
-  chave: string
-  nome: string
-  cor: string
-}
-
-/**
- * Monta o ponto fixado a partir do clique.
- *
- * O valor vem dos PRÓPRIOS DADOS, não do evento. A primeira versão lia
- * `e.activePayload`, que existia no recharts 2 e foi removido do handler no 3 — o
- * clique disparava, `activePayload` vinha `undefined`, a função devolvia null e
- * nada acontecia, sem erro nenhum no console. Usar `activeTooltipIndex` + os dados
- * também deixa isto imune à próxima mudança de forma desse objeto.
- */
-function pontoDoClique(
-  e: any,
-  dados: any[],
-  series: Serie[],
-  chaveRotulo = 'label',
-): PontoFixado | null {
-  if (!dados?.length) return null
-  const idx = typeof e?.activeTooltipIndex === 'number' ? e.activeTooltipIndex : -1
-  const linha = idx >= 0 && idx < dados.length
-    ? dados[idx]
-    : dados.find((d: any) => String(d?.[chaveRotulo]) === String(e?.activeLabel))
-  if (!linha) return null
-  return {
-    label: String(linha[chaveRotulo] ?? e?.activeLabel ?? ''),
-    itens: series.map(s => ({ nome: s.nome, valor: Number(linha[s.chave] ?? 0), cor: s.cor })),
-  }
-}
-
-/* Safira, não o accent: `--accent` é #f4f4f5, quase branco. No gráfico de linhas
- * ele funciona como a série principal entre duas coloridas, mas sozinho numa área
- * preenchida vira um borrão cinza. Aqui a série é única e precisa de cor própria. */
-const SERIES_EVOLUCAO: Serie[] = [
-  { chave: 'receita', nome: 'Faturamento', cor: 'var(--gem-safira)' },
-]
-
-function FaixaFixada({ ponto, onFechar }: { ponto: PontoFixado; onFechar: () => void }) {
-  return (
-    <div className={styles.fixado}>
-      <span className={styles.fixadoLabel}>{ponto.label}</span>
-      {ponto.itens.map(i => (
-        <span key={i.nome} className={styles.fixadoItem}>
-          <span className={styles.fixadoDot} style={{ background: i.cor }} />
-          <span className={styles.fixadoNome}>{i.nome}</span>
-          <strong className={styles.fixadoValor}>{fmt(i.valor)}</strong>
-        </span>
-      ))}
-      <button type="button" className={styles.fixadoFechar} onClick={onFechar} title="Soltar">
-        <X size={12} />
-      </button>
-    </div>
-  )
-}
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -273,21 +197,31 @@ export default function DashboardClient({
   const [evolucao, setEvolucao]       = useState(initialEvolucao)
 
   const [grafMeses, setGrafMeses]   = useState(6)
-  // Só a evolução fixa ponto. O Vendas × Compras é leitura visual: as três séries
-  // já se comparam pela forma, e o valor exato de cada mês sai no tooltip do hover.
-  const [fixadoEvolucao, setFixadoEvolucao]   = useState<PontoFixado | null>(null)
+  /*
+   * Só a evolução responde a clique, e a resposta é o valor escrito em cima da
+   * bolinha do mês. O Vendas × Compras é leitura visual: as três séries já se
+   * comparam pela forma, e o valor exato de cada mês sai no tooltip do hover.
+   */
+  const [mesEvolucao, setMesEvolucao] = useState<string | null>(null)
 
-  /* O melhor mês da série — é o único ponto que ganha marca e rótulo no gráfico. */
+  /* O melhor mês da série — vem rotulado antes de qualquer clique. */
   const picoEvolucao = evolucao.reduce<EvolucaoChartData | null>(
     (melhor, p) => (p.receita > 0 && (!melhor || p.receita > melhor.receita) ? p : melhor),
     null,
   )
 
-  /** Clicar no mesmo ponto solta; em outro, troca. */
-  function alternarFixado(atual: PontoFixado | null, novo: PontoFixado | null): PontoFixado | null {
-    if (!novo) return atual
-    return atual?.label === novo.label ? null : novo
-  }
+  /*
+   * Quais meses aparecem com o valor escrito.
+   *
+   * Enquanto ninguém clica, é o pico. Ao escolher um mês, ele TROCA o pico em vez
+   * de somar: dois rótulos em meses vizinhos se sobrepõem e viram um borrão de
+   * texto — foi por isso que a versão anterior colocava o valor numa faixa fora
+   * do gráfico.
+   */
+  const mesEscolhido = mesEvolucao ? evolucao.find(p => p.label === mesEvolucao) ?? null : null
+  const rotulosEvolucao = [mesEscolhido ?? picoEvolucao].filter(
+    (p): p is EvolucaoChartData => p !== null,
+  )
 
   // Modais
   const [vendedoraModal, setVendedoraModal] = useState<TopVendedora | null>(null)
@@ -301,11 +235,15 @@ export default function DashboardClient({
    *
    * As listas daqui trazem só o que a tabela mostra — a ficha precisa de
    * fornecedor, loja, promoção e etiqueta, então o resto vem sob demanda.
+   *
+   * Sem useCallback: nenhum consumidor a usa como dependência, e o React Compiler
+   * recusava a memoização manual (deduzia `setProdutoModal` na lista vazia), o que
+   * fazia ele DESISTIR de otimizar o componente inteiro — caro para não ganhar nada.
    */
-  const abrirProduto = useCallback(async (id: string) => {
+  async function abrirProduto(id: string) {
     const p = await buscarProdutoParaDetalhe(id)
     if (p) setProdutoModal(p as unknown as ProdutoParaDetalhe)
-  }, [])
+  }
 
   const reload = useCallback(async (sid: string | null, m: number, y: number, meses: number) => {
     setLoading(true)
@@ -590,8 +528,20 @@ export default function DashboardClient({
               <AreaChart
                 data={evolucao}
                 margin={{ top: 24, right: 14, left: 0, bottom: 0 }}
-                onClick={e => setFixadoEvolucao(a => alternarFixado(a, pontoDoClique(e, evolucao, SERIES_EVOLUCAO)))}
-                style={{ cursor: 'pointer' }}
+                /*
+                 * `accessibilityLayer={false}` é o que mata a moldura branca de vez.
+                 *
+                 * O recharts 3 liga essa camada por padrão e põe tabIndex=0 no <svg>;
+                 * o clique dá foco e o navegador desenha o anel dele — branco porque o
+                 * projeto declara `color-scheme: dark`. Anular só o `:focus` no CSS não
+                 * bastava: o Chrome ainda casava `:focus-visible` no clique e o anel
+                 * voltava. Sem tabIndex não há foco, e sem foco não há anel.
+                 *
+                 * O custo é perder o Tab para dentro do gráfico. Aceitável aqui: o mesmo
+                 * faturamento está no cartão "Receita Bruta", que é um <button> de
+                 * verdade e abre a lista mês a mês pelo teclado.
+                 */
+                accessibilityLayer={false}
               >
                 <defs>
                   <linearGradient id="evolGrad" x1="0" y1="0" x2="0" y2="1">
@@ -610,42 +560,59 @@ export default function DashboardClient({
                   contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
                   labelStyle={{ color: 'var(--text-primary)' }}
                 />
-                {/* Uma bolinha por mês: é o alvo do clique. Sem elas o gráfico não
-                    dizia onde clicar — a área inteira respondia, mas nada indicava
-                    isso. A do mês fixado cresce e ganha anel, para o clique ter
-                    resposta visível sem precisar da moldura de foco do navegador. */}
+                {/*
+                  Uma bolinha por mês, e o clique vai NA BOLINHA — não no gráfico.
+                  O `onClick` do AreaChart depende de o recharts ter um
+                  `activeTooltipIndex` no instante do clique, e ele nem sempre tem;
+                  ficava sem responder sem erro nenhum no console. Preso ao próprio
+                  <circle>, o alvo do clique é o que a pessoa está vendo e mirando.
+                */}
                 <Area dataKey="receita" name="Faturamento" stroke="var(--gem-safira)" strokeWidth={2}
                   fill="url(#evolGrad)"
                   dot={(props: { cx?: number; cy?: number; index?: number; payload?: EvolucaoChartData }) => {
-                    const fixado = fixadoEvolucao?.label === props.payload?.label
+                    const mes = props.payload?.label
+                    const escolhido = mesEvolucao === mes
                     return (
-                      <circle
+                      <g
                         key={`dot-${props.index}`}
-                        cx={props.cx} cy={props.cy} r={fixado ? 5.5 : 3.5}
-                        fill="var(--gem-safira)"
-                        stroke={fixado ? 'var(--bg-elevated)' : 'none'}
-                        strokeWidth={fixado ? 2 : 0}
-                      />
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setMesEvolucao(a => (a === mes ? null : mes ?? null))}
+                      >
+                        {/* Alvo invisível de 13px: a bolinha visível tem 3,5px de raio
+                            e acertar isso com o trackpad é sorte, não mira. */}
+                        <circle cx={props.cx} cy={props.cy} r={13} fill="transparent" />
+                        <circle
+                          cx={props.cx} cy={props.cy} r={escolhido ? 5.5 : 3.5}
+                          fill="var(--gem-safira)"
+                          stroke={escolhido ? 'var(--bg-elevated)' : 'none'}
+                          strokeWidth={escolhido ? 2 : 0}
+                        />
+                      </g>
                     )
                   }}
                   activeDot={{ r: 5.5, fill: 'var(--gem-safira)', stroke: 'var(--bg-elevated)', strokeWidth: 2 }} />
                 {/*
-                  O mês de pico é o único com o valor escrito em cima: responde
-                  "qual foi o melhor mês e quanto" sem exigir clique. As bolinhas
-                  dos demais meses são alvo de clique, não rótulo — por isso ficam
-                  menores e mudas.
+                  O valor sai escrito EM CIMA da bolinha, não numa faixa embaixo.
+                  A faixa era um cartãozinho solto no rodapé do painel: ocupava
+                  altura, precisava de um "x" para fechar e ainda obrigava a ligar
+                  com o olho qual mês ela descrevia. Escrito no ponto, o mês e o
+                  valor já estão no mesmo lugar.
+
+                  O pico aparece rotulado desde o início — responde "qual foi o
+                  melhor mês e quanto" sem exigir clique. Ao escolher outro mês, o
+                  rótulo do pico sai para os dois não se sobreporem.
                 */}
-                {picoEvolucao && (
+                {rotulosEvolucao.map(p => (
                   <ReferenceDot
-                    x={picoEvolucao.label} y={picoEvolucao.receita} r={5}
+                    key={p.label}
+                    x={p.label} y={p.receita} r={5}
                     fill="var(--gem-safira)" stroke="none"
-                    label={{ value: fmtCurto(picoEvolucao.receita), position: 'top', offset: 10,
+                    label={{ value: fmtCurto(p.receita), position: 'top', offset: 10,
                              fill: 'var(--text-primary)', fontSize: 11.5, fontWeight: 600 }}
                   />
-                )}
+                ))}
               </AreaChart>
             </ResponsiveContainer>
-            {fixadoEvolucao && <FaixaFixada ponto={fixadoEvolucao} onFechar={() => setFixadoEvolucao(null)} />}
           </div>
         </div>
 

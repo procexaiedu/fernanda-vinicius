@@ -662,26 +662,26 @@
 /*
  * Tira a moldura branca que aparecia ao clicar no gráfico.
  *
- * Não era CSS nosso: o recharts 3 liga `accessibilityLayer` por padrão e põe
- * tabIndex=0 no <svg> raiz, então o clique dá foco nele e o navegador desenha o
- * próprio anel — branco porque declaramos `color-scheme: dark`.
+ * Não é CSS nosso: o recharts 3.8 põe `tabindex="-1"` em TODOS os <g> de camada
+ * interna (`recharts-zIndex-layer_*`, treze deles). Elemento com tabindex=-1 é
+ * focável por clique, então o clique foca uma dessas camadas e o navegador
+ * desenha o `outline: auto` dele — branco porque o projeto declara
+ * `color-scheme: dark`. A moldura acompanhava a área da camada, não o gráfico,
+ * o que dava aquele retângulo torto por cima do desenho.
  *
- * Só o foco por clique some. O `:focus-visible` (teclado) mantém um anel, senão
- * quem navega por Tab perde a única pista de onde está.
+ * Duas tentativas anteriores erraram o alvo: mirar em `.recharts-surface` /
+ * `.recharts-wrapper` não pega as camadas, e `accessibilityLayer={false}` só
+ * tira o tabIndex do <svg> raiz — as camadas continuam com o delas.
+ *
+ * Anular o anel aqui não custa acessibilidade: tabindex=-1 nunca é alcançável
+ * por Tab, então nenhuma dessas camadas jamais recebe foco de teclado. Por isso
+ * o `:focus-visible` também vai embora, em vez de virar um anel colorido.
  */
-.chartWrap :global(.recharts-surface):focus,
-.chartWrap :global(.recharts-wrapper):focus,
-.chartWrapSm :global(.recharts-surface):focus,
-.chartWrapSm :global(.recharts-wrapper):focus {
+.chartWrap :global(*):focus,
+.chartWrap :global(*):focus-visible,
+.chartWrapSm :global(*):focus,
+.chartWrapSm :global(*):focus-visible {
   outline: none;
-}
-
-.chartWrap :global(.recharts-surface):focus-visible,
-.chartWrap :global(.recharts-wrapper):focus-visible,
-.chartWrapSm :global(.recharts-surface):focus-visible,
-.chartWrapSm :global(.recharts-wrapper):focus-visible {
-  outline: 2px solid var(--gem-safira);
-  outline-offset: 2px;
 }
 
 .chartTooltip {
