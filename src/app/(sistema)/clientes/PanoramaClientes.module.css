@@ -142,3 +142,143 @@
 
 
 
+
+/* ─── Grupo clicável ─────────────────────────────────────────────
+ * A linha inteira vira botão: alvo grande e óbvio. Sem `background`/`border`
+ * próprios — ela precisa continuar parecendo parte do painel, não um botão
+ * empilhado dentro dele.
+ */
+.faixaBotao {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.faixaBotao:hover,
+.faixaBotaoAberta {
+  background: var(--bg-elevated);
+}
+
+.faixaSeta {
+  color: var(--text-disabled);
+  flex-shrink: 0;
+  transition: transform var(--transition-fast), color var(--transition-fast);
+}
+
+.faixaBotao:hover .faixaSeta { color: var(--text-secondary); }
+.faixaSetaAberta { transform: rotate(180deg); color: var(--text-secondary); }
+
+/* ─── Quem são ───────────────────────────────────────────────── */
+.lista {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 8px 0 2px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--border);
+  animation: fv-fade-up 180ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  background: var(--bg-elevated);
+  min-width: 0;
+}
+
+.itemAvatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  /* Escuro sobre a cor do grupo: as três gemas são claras nos dois temas. */
+  color: #0D0D0D;
+}
+
+.itemInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.3;
+}
+
+.itemNome {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * O motivo é a informação que responde "por que ela gasta mais", então tem cor
+ * própria por tipo: quem volta sempre e quem compra caro pedem tratamentos
+ * diferentes, e a cor deixa isso visível sem precisar ler tudo.
+ */
+.itemMotivo {
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemMotivo[data-tom="ambos"] { color: var(--gem-esmeralda); font-weight: 600; }
+.itemMotivo[data-tom="caro"]  { color: var(--gem-ametista); }
+.itemMotivo[data-tom="freq"]   { color: var(--gem-safira); }
+.itemMotivo[data-tom="neutro"] { color: var(--text-muted); }
+
+.itemNumeros {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  line-height: 1.3;
+}
+
+.itemValor {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.itemData {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.itemTelefone {
+  flex-shrink: 0;
+  width: 152px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Em tela estreita o telefone é a primeira informação a sair: nome, motivo e
+ * valor respondem a pergunta; o telefone é para a ação seguinte. */
+@media (max-width: 1280px) {
+  .itemTelefone { display: none; }
+}
