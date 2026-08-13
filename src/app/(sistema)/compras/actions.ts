@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { generateCode } from '@/lib/productCode'
 import { validatePaymentGroups } from '@/lib/compras/validate-payments'
+import { formatarNomeProprio } from '@/lib/nomeProprio'
 
 export interface ActionResult {
   success: boolean
@@ -134,7 +135,7 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
 
     const { data: created, error } = await admin
       .from('suppliers')
-      .insert({ name: row.supplierName.trim(), initials: row.supplierInitials.trim().toUpperCase() })
+      .insert({ name: formatarNomeProprio(row.supplierName), initials: row.supplierInitials.trim().toUpperCase() })
       .select('id, initials')
       .single()
 

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { formatarNomeProprio } from '@/lib/nomeProprio'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,7 +65,7 @@ export async function createUser(data: CreateUserData): Promise<ActionResult> {
   // 2. Inserir em fv.users
   const { error: dbErr } = await admin.from('users').insert({
     id: authData.user.id,
-    full_name: data.full_name.trim(),
+    full_name: formatarNomeProprio(data.full_name),
     role: data.role,
     store_id: data.store_id || null,
     is_active: true,
@@ -88,7 +89,7 @@ export async function updateUser(id: string, data: UpdateUserData): Promise<Acti
   const { error: dbErr } = await admin
     .from('users')
     .update({
-      full_name: data.full_name.trim(),
+      full_name: formatarNomeProprio(data.full_name),
       role: data.role,
       store_id: data.store_id || null,
     })

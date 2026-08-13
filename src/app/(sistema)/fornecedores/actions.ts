@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
+import { formatarNomeProprio } from '@/lib/nomeProprio'
 
 export interface ActionResult {
   success: boolean
@@ -53,9 +54,9 @@ export async function createSupplier(data: SupplierFormData): Promise<ActionResu
 
   const admin = createAdminClient()
   const { error } = await admin.from('suppliers').insert({
-    name:                data.name.trim(),
+    name:                formatarNomeProprio(data.name),
     initials:            data.initials.trim().toUpperCase(),
-    contact_name:        data.contact_name.trim() || null,
+    contact_name:        formatarNomeProprio(data.contact_name) || null,
     phones:              data.phones.filter(p => p.number.trim()),
     instagram:           data.instagram.trim() || null,
     email:               data.email.trim() || null,
@@ -80,9 +81,9 @@ export async function updateSupplier(id: string, data: SupplierFormData): Promis
 
   const admin = createAdminClient()
   const { error } = await admin.from('suppliers').update({
-    name:                data.name.trim(),
+    name:                formatarNomeProprio(data.name),
     initials:            data.initials.trim().toUpperCase(),
-    contact_name:        data.contact_name.trim() || null,
+    contact_name:        formatarNomeProprio(data.contact_name) || null,
     phones:              data.phones.filter(p => p.number.trim()),
     instagram:           data.instagram.trim() || null,
     email:               data.email.trim() || null,
