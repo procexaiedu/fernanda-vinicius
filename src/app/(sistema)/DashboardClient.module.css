@@ -1204,26 +1204,46 @@
 .vendTabela {
   width: 100%;
   border-collapse: collapse;
-  /* Sem largura mínima e sem wrapper com overflow: era o `overflow-x: auto` de
-   * antes que empurrava a coluna "Total" para fora e obrigava a rolar na
-   * horizontal dentro do painel para ver o número que ordena a tabela. */
-  table-layout: auto;
+  /*
+   * `fixed`, não `auto`.
+   *
+   * Em `auto` o navegador dimensiona pelo conteúdo e simplesmente estoura: a
+   * tabela ficava com 452px dentro de um painel de 401px, e o `overflow: hidden`
+   * do painel decepava a coluna "Total" — justamente o número pelo qual a tabela
+   * está ordenada. Com larguras declaradas, o que não cabe TRUNCA em vez de sumir.
+   *
+   * Só o padding somava 160px (16px × 2 × 5 colunas). Ele cai para 8px por dentro
+   * e fica em 16px só nas pontas, que é o que alinha com o cabeçalho do painel.
+   */
+  table-layout: fixed;
 }
+
+.vendTabela th,
+.vendTabela td { padding-left: 8px; padding-right: 8px; }
+.vendTabela th:first-child,
+.vendTabela td:first-child { padding-left: 16px; }
+.vendTabela th:last-child,
+.vendTabela td:last-child { padding-right: 16px; }
 
 .vendTabela th {
   text-align: left;
-  padding: 0 16px 10px;
-  font-size: 10.5px;
+  padding-bottom: 10px;
+  /* Em `--text-disabled` com 10,5px e 0.1em de espaçamento, os títulos quase
+   * sumiam contra o fundo — dava para ver que havia algo escrito, não o quê.
+   * Um passo acima na escala de texto e meio ponto a mais já resolve, sem que
+   * eles passem a competir com os números da tabela. */
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-disabled);
+  color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 
 .vendTabela td {
-  padding: 12px 16px;
+  padding-top: 12px;
+  padding-bottom: 12px;
   font-size: 13.5px;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
@@ -1238,12 +1258,31 @@
 
 .vendTabela tbody tr:hover { background: var(--accent-subtle); }
 
-.vendThPos { width: 52px; }
+/* Larguras declaradas; o que sobra vai para o nome, o único campo que pode
+ * quebrar em duas linhas sem prejuízo. */
+.vendThPos { width: 42px; }
+.vendColLoja { width: 86px; }
+.vendColVendas { width: 62px; }
+.vendColTotal { width: 104px; }
+
+/* A loja trunca com reticências; o nome quebra. Nome cortado deixa duas
+ * vendedoras de sobrenome parecido indistinguíveis — a loja, não. */
+.vendLoja {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .vendNum {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* `.vendTabela th` já declara `text-align: left` e ganha de `.vendNum` na
+ * especificidade — sem esta linha, "Vendas" e "Total" ficam na esquerda com os
+ * números na direita, cada um apontando para um lado. Mesmo descasamento que
+ * existia na tabela de metas. */
+.vendTabela th.vendNum { text-align: right; }
 
 .vendNome {
   color: var(--text-primary);

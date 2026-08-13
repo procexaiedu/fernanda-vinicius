@@ -171,6 +171,11 @@
 .refCell { color: var(--color-text-secondary); font-family: var(--font-mono, monospace); font-size: 12px; }
 .numCol { text-align: right; }
 
+/* O `.table thead th` acima já declara `text-align: left` e vence o `.numCol` na
+ * especificidade — sem esta linha, "Preço", "Formato" e "Qtd" ficam à esquerda
+ * enquanto os números da coluna vão para a direita. */
+.table thead th.numCol { text-align: right; }
+
 /* Coluna de seleção */
 .checkCol {
   width: 40px;

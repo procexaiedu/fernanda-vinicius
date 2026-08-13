@@ -140,6 +140,17 @@
 .table tbody tr:last-child td { border-bottom: none; }
 
 .numCol { text-align: right; white-space: nowrap; }
+
+/*
+ * O título tem que ir junto com a coluna.
+ *
+ * `.table thead th` já declara `text-align: left` e tem especificidade (0,2,1)
+ * contra os (0,1,0) do `.numCol` — então as quatro colunas numéricas ficavam com
+ * o número à direita e o rótulo lá na esquerda, cada um apontando para um lugar
+ * diferente. Qualificar com `.table thead th` empata o seletor e o alinhamento
+ * volta a ser um só por coluna.
+ */
+.table thead th.numCol { text-align: right; }
 .progressCol { width: 180px; }
 .actionsCol { width: 70px; }
 

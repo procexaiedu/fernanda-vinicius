@@ -620,9 +620,9 @@ export default function DashboardClient({
                 <tr>
                   <th className={styles.vendThPos}>#</th>
                   <th>Vendedora</th>
-                  <th>Loja</th>
-                  <th className={styles.vendNum}>Vendas</th>
-                  <th className={styles.vendNum}>Total</th>
+                  <th className={styles.vendColLoja}>Loja</th>
+                  <th className={`${styles.vendNum} ${styles.vendColVendas}`}>Vendas</th>
+                  <th className={`${styles.vendNum} ${styles.vendColTotal}`}>Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -630,7 +630,7 @@ export default function DashboardClient({
                   <tr key={v.id} onClick={() => setVendedoraModal(v)} title="Ver detalhes da vendedora">
                     <td><span className={`${styles.vendPos} ${i === 0 ? styles.vendPosTopo : ''}`}>{i + 1}</span></td>
                     <td className={styles.vendNome}>{v.name}</td>
-                    <td>{v.store_name ?? '—'}</td>
+                    <td className={styles.vendLoja} title={v.store_name ?? undefined}>{v.store_name ?? '—'}</td>
                     <td className={styles.vendNum}>{v.nrVendas}</td>
                     <td className={`${styles.vendNum} ${styles.vendTotal}`}>{fmt(v.totalVendido)}</td>
                   </tr>
