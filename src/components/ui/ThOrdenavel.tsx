@@ -19,20 +19,31 @@ import styles from './ThOrdenavel.module.css'
  * Genérico na chave da coluna de propósito: assim o TypeScript garante que o
  * `coluna` passado aqui existe no mapa entregue ao `useOrdenacao`. Com `string`
  * solto, errar o nome de uma coluna compilava e só falhava em silêncio na tela.
+ *
+ * Recebe o `ord` inteiro em vez de três props separadas. Não é só economia de
+ * digitação: a primeira versão pedia `ordenandoPor`/`direcao`/`onOrdenar`, e para
+ * não repetir isso em nove colunas cada página declarava um wrapper `<Th>` DENTRO
+ * do componente. Função declarada no corpo do componente é um TIPO novo a cada
+ * render, então o React desmontava e remontava todos os <th> a cada mudança de
+ * estado — perdia foco e descartava o nó em que o clique tinha acabado de cair.
  */
 interface Props<K extends string> {
   children: React.ReactNode
   /** Identificador da coluna, igual à chave passada ao useOrdenacao. */
   coluna: K
-  ordenandoPor: K | null
-  direcao: Direcao
-  onOrdenar: (coluna: K) => void
+  /** O retorno do useOrdenacao, inteiro. */
+  ord: {
+    chave: K | null
+    direcao: Direcao
+    alternar: (coluna: K) => void
+  }
   className?: string
 }
 
 export default function ThOrdenavel<K extends string>({
-  children, coluna, ordenandoPor, direcao, onOrdenar, className,
+  children, coluna, ord, className,
 }: Props<K>) {
+  const { chave: ordenandoPor, direcao, alternar: onOrdenar } = ord
   const ativa = ordenandoPor === coluna
 
   return (

@@ -163,17 +163,191 @@
 
 /* ── KPI Cards ─────────────────────────────────────────────────────────────── */
 
-.kpiGrid {
+/*
+ * ── Grade bento ─────────────────────────────────────────────────────────────
+ *
+ * Blocos de tamanhos diferentes, não uma fileira de cartões iguais. O tamanho É a
+ * hierarquia: o resultado do mês ocupa 2 colunas × 2 linhas porque é a única
+ * pergunta que a dona do negócio faz antes de qualquer outra — sobrou ou faltou.
+ *
+ * Antes eram cinco cartões idênticos lado a lado, e o lucro líquido tinha
+ * exatamente o mesmo peso visual do CMV. Numa tela onde tudo grita igual, nada
+ * grita.
+ */
+.bentoKpis {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: minmax(112px, auto);
   gap: 12px;
 }
 
+/* O bloco do resultado: 2 colunas, 2 linhas. */
+.bentoKpis > .heroCard {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+/* Abaixo de 1200 a grade vira 2 colunas e o destaque ocupa a largura toda —
+ * espremer o bloco do resultado em meia tela derrubaria as barras da conta. */
 @media (max-width: 1200px) {
-  .kpiGrid { grid-template-columns: repeat(3, 1fr); }
+  .bentoKpis { grid-template-columns: repeat(2, 1fr); }
+  .bentoKpis > .heroCard { grid-column: 1 / -1; grid-row: auto; }
+}
+
+/* ── Bloco de destaque: resultado do mês ──────────────────────────────────── */
+.heroCard {
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 22px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  position: relative;
+  overflow: hidden;
+}
+
+/*
+ * O brilho de fundo carrega o sinal: avermelhado no prejuízo, esverdeado no
+ * lucro. É um radial suave no canto, não um fundo chapado — cor chapada num bloco
+ * grande vira ruído e briga com o número.
+ */
+.heroNeg {
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(251, 113, 133, 0.13), transparent 60%),
+    var(--bg-surface);
+  border-color: rgba(251, 113, 133, 0.28);
+}
+
+.heroPos {
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(52, 211, 153, 0.13), transparent 60%),
+    var(--bg-surface);
+  border-color: rgba(52, 211, 153, 0.28);
+}
+
+/* Mês sem movimento: sem brilho e sem cor. Não há resultado para comemorar nem
+ * para alarmar — pintar de verde seria dar parabéns por não ter vendido. */
+.heroNeutro {
+  background: var(--bg-surface);
+  border-color: var(--border);
+}
+
+.heroTopo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.heroLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.heroPeriodo {
+  font-size: 11.5px;
+  color: var(--text-disabled);
+  margin-top: 2px;
+}
+
+.heroTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.heroTagNeg { background: var(--danger-subtle); color: var(--danger); }
+.heroTagPos { background: var(--success-subtle); color: var(--success); }
+
+/* O número é o maior da tela inteira. É para ser lido do outro lado da mesa. */
+.heroValor {
+  font-size: clamp(30px, 2.4vw + 14px, 46px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.heroNeg .heroValor { color: var(--danger); }
+.heroPos .heroValor { color: var(--success); }
+/* Neutro herda --text-primary do .heroValor: número normal, sem juízo de valor. */
+
+.heroPct {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ── A conta, dentro do bloco ─────────────────────────────────────────────── */
+.heroBarras {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: auto;
+  padding-top: 18px;
+}
+
+.heroLinha {
+  display: grid;
+  /* Rótulo em largura fixa: é o que alinha as duas barras entre si. Com largura
+   * automática, "Entrou" e "Saiu" empurrariam as barras para posições diferentes
+   * e a comparação — o ponto do bloco — se perderia. */
+  grid-template-columns: 54px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.heroLinhaRotulo {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.heroTrilho {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.heroBarra {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 480ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.heroBarraEntrou { background: var(--text-secondary); }
+.heroBarraSaiu   { background: var(--gem-rubi); }
+
+.heroLinhaValor {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .kpiCard {
+  /* É um <button>: sem isto herda fundo, borda e fonte do agente e alinha ao centro. */
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -264,85 +438,121 @@
 
 /* ── Disponível para Compra ────────────────────────────────────────────────── */
 
+/*
+ * De faixa larga a bloco bento.
+ *
+ * Enquanto ocupava a largura toda, o valor cabia à direita numa linha só. Agora que
+ * divide a linha com o estoque, ele desce para baixo do rótulo e cresce — é o número
+ * que decide se ela compra ou não neste mês, e merece o corpo maior da seção.
+ */
 .disponivelCard {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 18px 24px;
-  background: var(--accent-subtle);
-  border: 1px solid var(--accent);
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "titulo"
+    "valor"
+    "conta";
+  /* space-between, não center: o card estica para acompanhar a altura do painel
+   * de estoque ao lado, e centralizar deixava tudo num bloco no meio com vazio
+   * igual em cima e embaixo. Distribuído, o título ancora no topo e a conta no pé. */
+  align-content: space-between;
+  gap: 14px;
+  padding: 20px 22px;
+  min-height: 168px;
+  /*
+   * Mesmo material dos outros painéis: superfície chapada e borda comum.
+   *
+   * Antes era `linear-gradient(140deg, var(--accent-subtle), transparent)` com
+   * borda em `--accent`. Isso só funcionava no escuro, onde `--accent` é #f4f4f5 e
+   * o brilho passa por sofisticação. No tema claro o mesmo token vale #18181b —
+   * quase preto — então a borda ficava pesada e o degradê virava uma mancha cinza
+   * descendo pelo card. Tema não é inversão de cor; token que serve de destaque
+   * num vira contorno duro no outro.
+   *
+   * A hierarquia não se perde: continua vindo do TAMANHO do número.
+   */
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
 }
 
-.disponivelIcon {
+.disponivelTopo {
+  grid-area: titulo;
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: rgba(var(--accent-rgb), 0.2);
-  border-radius: var(--radius-md);
-  color: var(--accent);
-  flex-shrink: 0;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.disponivelContent {
-  flex: 1;
-  min-width: 0;
-}
-
+/* Rótulo em cinza, como o do bloco de resultado. Em --accent ele ficava preto
+   chapado no tema claro e brigava com o próprio número logo abaixo. */
 .disponivelTitle {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--accent);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
-}
-
-.disponivelBreakdown {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  flex-wrap: wrap;
-}
-
-.disponivelBreakdown strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.disponivelMinus {
   color: var(--text-muted);
-  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+/* A reserva como etiqueta, não como parte da frase: é um parâmetro de
+   configuração, e repeti-lo no meio da conta engrossava a linha sem necessidade. */
+.disponivelTag {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .disponivelValue {
-  font-size: 26px;
-  font-weight: 800;
-  color: var(--accent);
-  letter-spacing: -1px;
-  flex-shrink: 0;
+  grid-area: valor;
+  font-size: clamp(28px, 1.8vw + 12px, 38px);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
 }
 
-.disponivelNeg {
-  color: var(--danger);
+.disponivelConta {
+  grid-area: conta;
+  font-size: 12px;
+  color: var(--text-muted);
 }
+
+/* Zerado não é erro — é "não tem caixa livre". Fica na cor de texto apagado, não
+   em vermelho: vermelho aqui competiria com o prejuízo do bloco de resultado. */
+.disponivelNeg {
+  color: var(--text-disabled);
+}
+
 
 /* ── Mid row: Estoque + Gráfico ────────────────────────────────────────────── */
 
+/*
+ * Estoque e "disponível para compra" dividem a linha; o gráfico grande desce para
+ * a linha seguinte, com a largura toda.
+ *
+ * Antes o gráfico ficava espremido ao lado de um painel de estoque de 280px, o que
+ * deixava a série de 6 meses estreita justamente onde ela precisa de largura para
+ * a leitura funcionar. No bento, bloco largo é para dado que se lê na horizontal.
+ */
 .midRow {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 @media (max-width: 1100px) {
   .midRow { grid-template-columns: 1fr; }
 }
+
+/* Sem o "disponível para compra" (operadora) sobra só o estoque — ele toma a linha. */
+.midRowSolo { grid-template-columns: 1fr; }
 
 /* ── Panel base ────────────────────────────────────────────────────────────── */
 
@@ -353,7 +563,14 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  transition: border-color var(--transition-fast);
 }
+
+/* A borda acende no hover — confirma que o bloco é uma unidade, sem o custo de
+ * levantar o card (que num bloco grande fica pesado). */
+.stockPanel:hover,
+.chartPanel:hover,
+.rankPanel:hover { border-color: var(--border-light); }
 
 .panelHeader {
   display: flex;
@@ -378,24 +595,53 @@
 
 /* ── Stock grid ────────────────────────────────────────────────────────────── */
 
+/*
+ * Sub-cartões, não células de tabela.
+ *
+ * Antes era uma grade de 2 colunas separada por linhas de 1px, o que fazia o bloco
+ * ler como planilha. No bento cada número é um cartãozinho com fundo próprio, um
+ * nível acima do fundo do painel — o mesmo princípio do resto da tela.
+ */
 .stockGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  background: var(--border);
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 14px 16px 16px;
 }
 
 .stockCard {
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 16px;
-  background: var(--bg-surface);
-  transition: background var(--transition-fast);
+  gap: 3px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
+.stockCard:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+/*
+ * Peça parada ocupa DUAS colunas: o tamanho é o que diz que ela pesa mais que as
+ * outras. São 601 de 1.301 peças — quase metade do estoque encalhado, e o número
+ * precisa do espaço para ser levado a sério.
+ */
 .stockCard.stockAlert {
-  background: var(--danger-subtle);
+  grid-column: span 2;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(120deg, rgba(251, 191, 36, 0.10), rgba(251, 191, 36, 0.02));
+  border-color: rgba(251, 191, 36, 0.28);
 }
 
 .stockValue {
@@ -405,7 +651,9 @@
   letter-spacing: -0.5px;
 }
 
-.stockAlert .stockValue { color: var(--danger); }
+/* Âmbar, não vermelho: estoque parado é aviso que pede ação, não falha do
+ * sistema. Vermelho aqui competiria com o prejuízo, que é o alerta de verdade. */
+.stockAlert .stockValue { color: var(--warning); font-size: 22px; }
 
 .stockLabel {
   font-size: 11px;
@@ -423,6 +671,31 @@
 
 .chartWrap {
   padding: 16px 12px 12px;
+}
+
+/*
+ * Tira a moldura branca que aparecia ao clicar no gráfico.
+ *
+ * Não é CSS nosso: o recharts 3.8 põe `tabindex="-1"` em TODOS os <g> de camada
+ * interna (`recharts-zIndex-layer_*`, treze deles). Elemento com tabindex=-1 é
+ * focável por clique, então o clique foca uma dessas camadas e o navegador
+ * desenha o `outline: auto` dele — branco porque o projeto declara
+ * `color-scheme: dark`. A moldura acompanhava a área da camada, não o gráfico,
+ * o que dava aquele retângulo torto por cima do desenho.
+ *
+ * Duas tentativas anteriores erraram o alvo: mirar em `.recharts-surface` /
+ * `.recharts-wrapper` não pega as camadas, e `accessibilityLayer={false}` só
+ * tira o tabIndex do <svg> raiz — as camadas continuam com o delas.
+ *
+ * Anular o anel aqui não custa acessibilidade: tabindex=-1 nunca é alcançável
+ * por Tab, então nenhuma dessas camadas jamais recebe foco de teclado. Por isso
+ * o `:focus-visible` também vai embora, em vez de virar um anel colorido.
+ */
+.chartWrap :global(*):focus,
+.chartWrap :global(*):focus-visible,
+.chartWrapSm :global(*):focus,
+.chartWrapSm :global(*):focus-visible {
+  outline: none;
 }
 
 .chartTooltip {
@@ -682,6 +955,18 @@
   font-size: 12px;
 }
 
+/* A linha de peça parada virou <button> — precisa desfazer a herança. */
+.alertRowBtn {
+  appearance: none;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
 .alertRow {
   display: flex;
   align-items: center;
@@ -785,4 +1070,251 @@
   font-size: 13px;
   color: var(--text-muted);
   text-align: center;
+}
+
+/* ─── Dado fixado por clique no gráfico ──────────────────────────
+ *
+ * Uma faixa, não um card: ela mora colada ao gráfico e precisa ler como legenda
+ * dele, não como um bloco novo competindo por atenção.
+ */
+.fixado {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 10px;
+  padding: 9px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  animation: fv-fade 140ms ease both;
+}
+
+.fixadoLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.fixadoItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+.fixadoDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.fixadoNome { color: var(--text-muted); }
+
+.fixadoValor {
+  color: var(--text-primary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Empurrado para a direita: fechar é ação secundária e não deve disputar a
+ * leitura dos valores. */
+.fixadoFechar {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.fixadoFechar:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+/* ── Vendas por categoria: barras em HTML ─────────────────────────────────── */
+
+/*
+ * Grade de três colunas em vez de SVG ou biblioteca: nome à esquerda com largura
+ * fixa, trilho elástico no meio, valor à direita.
+ *
+ * A largura fixa do nome é o que alinha o começo de TODAS as barras. Com largura
+ * automática, "Conserto" e "Pulseira" empurrariam a barra para posições
+ * diferentes e a comparação — o único motivo de existir deste bloco — se perderia.
+ */
+.catLista {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 18px 20px;
+}
+
+.catLinha {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.catNome {
+  /* O cadastro grava "colar", "brinco" em minúscula. Capitalizar na exibição
+   * conserta a leitura sem mexer no dado — o código do produto usa o valor cru. */
+  text-transform: capitalize;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.catTrilho {
+  display: block;
+  height: 20px;
+  border-radius: 4px;
+}
+
+.catBarra {
+  display: block;
+  height: 100%;
+  /* Só as pontas da direita arredondadas: a base fica esquadrejada contra o
+   * eixo, senão a barra parece flutuar e o zero deixa de ser um ponto comum. */
+  border-radius: 0 4px 4px 0;
+  transition: width var(--transition-base);
+}
+
+.catValor {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Ranking de vendedoras ────────────────────────────────────────────────── */
+
+.vendTabela {
+  width: 100%;
+  border-collapse: collapse;
+  /*
+   * `fixed`, não `auto`.
+   *
+   * Em `auto` o navegador dimensiona pelo conteúdo e simplesmente estoura: a
+   * tabela ficava com 452px dentro de um painel de 401px, e o `overflow: hidden`
+   * do painel decepava a coluna "Total" — justamente o número pelo qual a tabela
+   * está ordenada. Com larguras declaradas, o que não cabe TRUNCA em vez de sumir.
+   *
+   * Só o padding somava 160px (16px × 2 × 5 colunas). Ele cai para 8px por dentro
+   * e fica em 16px só nas pontas, que é o que alinha com o cabeçalho do painel.
+   */
+  table-layout: fixed;
+}
+
+.vendTabela th,
+.vendTabela td { padding-left: 8px; padding-right: 8px; }
+.vendTabela th:first-child,
+.vendTabela td:first-child { padding-left: 16px; }
+.vendTabela th:last-child,
+.vendTabela td:last-child { padding-right: 16px; }
+
+.vendTabela th {
+  text-align: left;
+  /* Respiro entre o cabeçalho do painel e o da tabela. Sem o padding-top, os dois
+   * títulos ficavam colados e a linha "# VENDEDORA…" parecia parte do cabeçalho
+   * do bloco, não da tabela. */
+  padding-top: 16px;
+  padding-bottom: 10px;
+  /* Em `--text-disabled` com 10,5px e 0.1em de espaçamento, os títulos quase
+   * sumiam contra o fundo — dava para ver que havia algo escrito, não o quê.
+   * Um passo acima na escala de texto e meio ponto a mais já resolve, sem que
+   * eles passem a competir com os números da tabela. */
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.vendTabela td {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.vendTabela tbody tr:last-child td { border-bottom: 0; }
+
+.vendTabela tbody tr {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.vendTabela tbody tr:hover { background: var(--accent-subtle); }
+
+/* Larguras declaradas; o que sobra vai para o nome, o único campo que pode
+ * quebrar em duas linhas sem prejuízo. */
+.vendThPos { width: 42px; }
+.vendColLoja { width: 86px; }
+.vendColVendas { width: 62px; }
+.vendColTotal { width: 104px; }
+
+/* A loja trunca com reticências; o nome quebra. Nome cortado deixa duas
+ * vendedoras de sobrenome parecido indistinguíveis — a loja, não. */
+.vendLoja {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vendNum {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* `.vendTabela th` já declara `text-align: left` e ganha de `.vendNum` na
+ * especificidade — sem esta linha, "Vendas" e "Total" ficam na esquerda com os
+ * números na direita, cada um apontando para um lado. Mesmo descasamento que
+ * existia na tabela de metas. */
+.vendTabela th.vendNum { text-align: right; }
+
+.vendNome {
+  color: var(--text-primary);
+  font-weight: 550;
+}
+
+.vendTotal {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Posição em quadrado, não em círculo colorido: o número é o dado, a cor era
+ * enfeite. Só a primeira ganha destaque — é a informação que a tabela dá. */
+.vendPos {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.vendPosTopo {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.30);
+  color: var(--warning);
 }

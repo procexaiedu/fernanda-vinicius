@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { ShoppingCart, Receipt, CheckCircle2 } from 'lucide-react'
-import NovaVendaForm from '../(sistema)/vendas/nova/NovaVendaForm'
+import NovaVendaForm from '../vendas/nova/NovaVendaForm'
 import CaixaDoDia from './CaixaDoDia'
+import PageHeader from '@/components/ui/PageHeader'
 import { buscarCaixaDoDia, type CaixaDoDia as CaixaData } from './actions'
 import styles from './pdv.module.css'
 
@@ -28,17 +29,6 @@ export default function PdvClient({
   const [saleKey, setSaleKey] = useState(0)      // bump p/ remontar (resetar) o form
   const [toast, setToast]     = useState(false)
   const [caixa, setCaixa]     = useState<CaixaData>(initialCaixa)
-  const [clock, setClock]     = useState('')
-
-  useEffect(() => {
-    function tick() {
-      const d = new Date()
-      setClock(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`)
-    }
-    tick()
-    const id = setInterval(tick, 30000)
-    return () => clearInterval(id)
-  }, [])
 
   async function handleSaved() {
     setToast(true)
@@ -49,23 +39,23 @@ export default function PdvClient({
 
   return (
     <div className={styles.app}>
-      <header className={styles.topbar}>
-        <div className={styles.brand}>
-          <span className={styles.brandName}>Fernanda <b>Vinícius</b></span>
-          <span className={styles.brandSub}>PDV</span>
-        </div>
-        <nav className={styles.tabs}>
-          <button className={`${styles.tab} ${tab === 'venda' ? styles.tabOn : ''}`} onClick={() => setTab('venda')}>
-            <ShoppingCart size={16} /> Nova venda
-          </button>
-          <button className={`${styles.tab} ${tab === 'caixa' ? styles.tabOn : ''}`} onClick={() => setTab('caixa')}>
-            <Receipt size={16} /> Caixa do dia
-          </button>
-        </nav>
-        <div className={styles.spacer} />
-        <a href="/vendas" className={styles.exit}>Sair do PDV</a>
-        <span className={styles.clock}>{clock}</span>
-      </header>
+      {/*
+        A barra própria do PDV saiu: marca, "Sair do PDV" e relógio existiam porque
+        a tela era uma superfície separada, aberta em outra aba. Agora ela vive
+        dentro do layout do sistema, então a sidebar já dá a marca e a navegação, e
+        sair é só clicar em outro item do menu. Ficaram as duas abas, que são do
+        PDV e não do sistema.
+      */}
+      <PageHeader title="PDV" subtitle="Registro rápido de venda e caixa do dia" />
+
+      <nav className={styles.tabs}>
+        <button className={`${styles.tab} ${tab === 'venda' ? styles.tabOn : ''}`} onClick={() => setTab('venda')}>
+          <ShoppingCart size={16} /> Nova venda
+        </button>
+        <button className={`${styles.tab} ${tab === 'caixa' ? styles.tabOn : ''}`} onClick={() => setTab('caixa')}>
+          <Receipt size={16} /> Caixa do dia
+        </button>
+      </nav>
 
       <main className={styles.main}>
         {/* Ambas ficam montadas (display toggle) p/ não perder a venda em andamento ao trocar de aba */}

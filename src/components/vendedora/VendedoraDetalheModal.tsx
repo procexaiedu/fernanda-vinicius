@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react'
 import { X, TrendingUp, ShoppingBag, Store, Award } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
-import { createClient } from '@/lib/supabase/client'
-import type { TopVendedora } from '@/app/(sistema)/actions'
+import { buscarVendasDaVendedora, type TopVendedora, type VendaDaVendedora } from '@/app/(sistema)/actions'
 import styles from './VendedoraDetalheModal.module.css'
 
 function fmt(v: number) {
@@ -16,15 +15,7 @@ function fmtDate(s: string) {
   return `${d}/${m}/${y}`
 }
 
-interface SaleRow {
-  id: string
-  sale_date: string
-  total: number
-  total_cost: number
-  status: string
-  items_count: number
-  store_name: string
-}
+type SaleRow = VendaDaVendedora
 
 interface Props {
   vendedora: TopVendedora
@@ -38,34 +29,22 @@ export default function VendedoraDetalheModal({ vendedora, month, year, isAdmin 
   const [sales, setSales]     = useState<SaleRow[]>([])
   const [loading, setLoading] = useState(true)
 
+  /*
+   * A lista vem da MESMA fonte do ranking: server action com client admin e o
+   * critério `seller_id ?? user_id`.
+   *
+   * Antes era consulta do navegador filtrando só por `user_id`. Como as lojas
+   * operam com um login compartilhado, `user_id` é quem abriu o caixa, não quem
+   * vendeu — a Rosi tinha 16 vendas no ranking e a lista vinha vazia, e a Fernanda
+   * mostrava as 26 do mês sob um cabeçalho que dizia 10.
+   */
   useEffect(() => {
-    async function load() {
-      const supabase = createClient()
-      const dateFrom = `${year}-${String(month).padStart(2,'0')}-01`
-      const lastDay  = new Date(year, month, 0).getDate()
-      const dateTo   = `${year}-${String(month).padStart(2,'0')}-${lastDay}`
-
-      const { data } = await supabase
-        .from('sales')
-        .select('id, sale_date, total, total_cost, status, stores(name), sale_items(id)')
-        .eq('user_id', vendedora.id)
-        .neq('status', 'cancelled')
-        .gte('sale_date', dateFrom)
-        .lte('sale_date', dateTo)
-        .order('sale_date', { ascending: false })
-
-      setSales((data ?? []).map((s: any) => ({
-        id:          s.id,
-        sale_date:   s.sale_date,
-        total:       Number(s.total),
-        total_cost:  Number(s.total_cost),
-        status:      s.status,
-        items_count: Array.isArray(s.sale_items) ? s.sale_items.length : 0,
-        store_name:  (s.stores as { name: string } | null)?.name ?? '—',
-      })))
-      setLoading(false)
-    }
-    load()
+    let cancelado = false
+    setLoading(true)
+    buscarVendasDaVendedora(vendedora.id, month, year)
+      .then(r => { if (!cancelado) setSales(r) })
+      .finally(() => { if (!cancelado) setLoading(false) })
+    return () => { cancelado = true }
   }, [vendedora.id, month, year])
 
   const totalReceita = sales.reduce((s, r) => s + r.total, 0)

@@ -101,18 +101,6 @@ export default function EstoqueClient({
     startTransition(() => router.push(`?${p.toString()}`))
   }
 
-  // Envolve o ThOrdenavel já ligado ao estado — evita repetir 4 props em 8 colunas.
-  function Th({ coluna, className, children }: { coluna: Parameters<typeof ord.alternar>[0]; className?: string; children: React.ReactNode }) {
-    return (
-      <ThOrdenavel
-        coluna={coluna}
-        ordenandoPor={ord.chave}
-        direcao={ord.direcao}
-        onOrdenar={ord.alternar}
-        className={className}
-      >{children}</ThOrdenavel>
-    )
-  }
 
   return (
     <>
@@ -121,7 +109,7 @@ export default function EstoqueClient({
         <div className={styles.toolbarLeft}>
           <input
             className={styles.search}
-            placeholder="Buscar por nome, código ou código de barras..."
+            placeholder="Buscar nome, código ou barras…"
             defaultValue={filters.q}
             onChange={e => pushFilter('q', e.target.value)}
           />
@@ -130,7 +118,7 @@ export default function EstoqueClient({
               value={filters.store_id}
               onChange={v => pushFilter('store_id', v)}
               options={stores.map(s => ({ value: s.id, label: s.name }))}
-              placeholder="Todas as lojas"
+              placeholder="Loja"
               searchable={stores.length > 5}
             />
           )}
@@ -138,16 +126,16 @@ export default function EstoqueClient({
             value={filters.category}
             onChange={v => pushFilter('category', v)}
             options={categories.map(c => ({ value: c, label: c }))}
-            placeholder="Todas as categorias"
+            placeholder="Categoria"
           />
           <SearchableSelect
             value={filters.material}
             onChange={v => pushFilter('material', v)}
             options={materials.map(m => ({ value: m, label: m }))}
-            placeholder="Todos os materiais"
+            placeholder="Material"
           />
           {isAdmin && (
-            <label className={styles.toggle}>
+            <label className="filtro-toggle">
               <input
                 type="checkbox"
                 checked={filters.qty_zero === 'true'}
@@ -179,14 +167,14 @@ export default function EstoqueClient({
           <table className={styles.table}>
             <thead>
               <tr>
-                <Th coluna="produto">Produto</Th>
-                <Th coluna="codigo">Código</Th>
-                {isAdmin && <Th coluna="fornecedor" className="col-secondary col-truncate">Fornecedor</Th>}
-                {isAdmin && <Th coluna="loja" className="col-tertiary col-truncate">Loja</Th>}
-                <Th coluna="qtd" className="col-num">Qtd.</Th>
-                <Th coluna="venda" className="col-num">Venda</Th>
-                <Th coluna="promo" className="col-tertiary col-num">Promo</Th>
-                <Th coluna="ultimaVenda" className="col-tertiary col-date">Última venda</Th>
+                <ThOrdenavel ord={ord} coluna="produto">Produto</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="codigo">Código</ThOrdenavel>
+                {isAdmin && <ThOrdenavel ord={ord} coluna="fornecedor" className="col-secondary col-truncate">Fornecedor</ThOrdenavel>}
+                {isAdmin && <ThOrdenavel ord={ord} coluna="loja" className="col-tertiary col-truncate">Loja</ThOrdenavel>}
+                <ThOrdenavel ord={ord} coluna="qtd" className="col-num">Qtd.</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="venda" className="col-num">Venda</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="promo" className="col-tertiary col-num">Promo</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="ultimaVenda" className="col-tertiary col-date">Última venda</ThOrdenavel>
                 <th className="col-center">Status</th>
                 <th></th>
               </tr>

@@ -9,6 +9,8 @@ import Button from '@/components/ui/Button'
 import CompraDetalheModal from '@/components/compra/CompraDetalheModal'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { getItensCompraParaEtiquetas } from './actions'
+import ThOrdenavel from '@/components/ui/ThOrdenavel'
+import { useOrdenacao } from '@/hooks/useOrdenacao'
 import styles from './ComprasClient.module.css'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -90,6 +92,15 @@ export default function ComprasClient({ purchases, consignments }: Props) {
     })
   }, [purchases, consignments, typeFilter])
 
+  /*
+   * Compra e consignação têm nomes de campo diferentes para a mesma ideia (data,
+   * itens, custo), então a ordenação precisa normalizar antes de comparar — senão
+   * ordenar por "Data" só funcionaria para metade das linhas.
+   */
+  const dataDaLinha  = (r: Row) => r.type === 'purchase' ? r.purchase_date : r.received_date
+  const itensDaLinha = (r: Row) => r.type === 'purchase' ? r.total_items : r.total_pieces
+  const custoDaLinha = (r: Row) => r.type === 'purchase' ? r.total_cost : r.total_cost_value
+
   const filtered = useMemo(() => {
     return allRows.filter(row => {
       if (search) {
@@ -112,6 +123,15 @@ export default function ComprasClient({ purchases, consignments }: Props) {
       return true
     })
   }, [allRows, search, statusFilter])
+
+  const ord = useOrdenacao(filtered, {
+    data:          { valor: dataDaLinha, tipo: 'data' },
+    tipo:          { valor: r => r.type === 'purchase' ? 'Compra' : 'Consignação', tipo: 'texto' },
+    fornecedores:  { valor: r => r.type === 'purchase' ? (r.suppliers[0] ?? '') : '', tipo: 'texto' },
+    lojas:         { valor: r => r.type === 'purchase' ? (r.storeNames[0] ?? '') : r.storeName, tipo: 'texto' },
+    itens:         { valor: itensDaLinha, tipo: 'numero' },
+    custo:         { valor: custoDaLinha, tipo: 'numero' },
+  })
 
   const totalCompras  = purchases.length
   const totalConsign  = consignments.filter(c => c.status === 'active').length
@@ -177,20 +197,20 @@ export default function ComprasClient({ purchases, consignments }: Props) {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Data</th>
-                <th>Tipo</th>
-                <th>Fornecedores</th>
-                <th>Lojas</th>
-                <th>NF</th>
-                <th className="col-num">Itens</th>
-                <th className="col-num">Custo total</th>
+                <ThOrdenavel ord={ord} coluna="data" className="col-date">Data</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="tipo" className="col-center">Tipo</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="fornecedores">Fornecedores</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="lojas">Lojas</ThOrdenavel>
+                <th className="col-tertiary">NF</th>
+                <ThOrdenavel ord={ord} coluna="itens" className="col-num">Itens</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="custo" className="col-num">Custo total</ThOrdenavel>
                 <th className="col-center">Status</th>
-                <th>Prazo devolução</th>
+                <th className="col-tertiary col-date">Prazo devolução</th>
                 <th className="col-center" style={{ width: 36 }}></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(row => {
+              {ord.ordenados.map(row => {
                 if (row.type === 'purchase') {
                   return (
                     <tr
@@ -200,7 +220,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                       title="Clique para ver detalhes"
                     >
                       <td className={styles.date}>{fmtDate(row.purchase_date)}</td>
-                      <td><span className={styles.badgeMuted}>Própria</span></td>
+                      <td className="col-center"><span className={styles.badgeMuted}>Própria</span></td>
                       <td className={styles.suppliers}>
                         {row.suppliers.length > 0
                           ? row.suppliers.length === 1
@@ -211,7 +231,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                       <td className={styles.muted}>
                         {row.storeNames.length > 0 ? row.storeNames.join(', ') : '—'}
                       </td>
-                      <td>
+                      <td className="col-tertiary">
                         {row.nf_number
                           ? <span className={styles.nf}>
                               {row.nf_number}
@@ -230,7 +250,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                           ? <span className={styles.statusPaid}><CheckCircle size={12} /> Pago</span>
                           : <span className={styles.statusPending}><Clock size={12} /> Pendente</span>}
                       </td>
-                      <td className={styles.muted}>—</td>
+                      <td className={`col-tertiary ${styles.muted}`}>—</td>
                       <td className="col-center">
                         <button
                           className={styles.reprintBtn}
@@ -247,10 +267,10 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                   return (
                     <tr key={row.id} className={styles.row}>
                       <td className={styles.date}>{fmtDate(row.received_date)}</td>
-                      <td><span className={styles.badgeAccent}>Consignação</span></td>
+                      <td className="col-center"><span className={styles.badgeAccent}>Consignação</span></td>
                       <td className={styles.muted}>—</td>
                       <td className={styles.muted}>{row.storeName}</td>
-                      <td className={styles.muted}>—</td>
+                      <td className={`col-tertiary ${styles.muted}`}>—</td>
                       <td className={`col-num ${styles.muted}`}>{row.total_pieces}</td>
                       <td className={`col-num ${styles.cost}`}>{fmt(row.total_cost_value)}</td>
                       <td>
@@ -260,7 +280,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                           ? <span className={styles.statusPaid}><CheckCircle size={12} /> Acertada</span>
                           : <span className={styles.muted}>Devolvida</span>}
                       </td>
-                      <td>
+                      <td className="col-tertiary col-date">
                         {row.return_deadline
                           ? <span style={{ color: isOverdue ? 'var(--danger)' : 'var(--text-secondary)', fontSize: 13 }}>
                               {isOverdue && <AlertTriangle size={11} style={{ marginRight: 4 }} />}

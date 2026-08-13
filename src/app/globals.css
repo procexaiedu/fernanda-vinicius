@@ -295,14 +295,35 @@ input, textarea, select {
  *   aberta  (240px): 1280+240 = 1520  ·  1180+240 = 1420
  *   fechada (64px):  1280+64  = 1344  ·  1180+64  = 1244
  */
-@media (max-width: 1520px) {
+/*
+ * ATENÇÃO ao mexer: estes números são MEDIDOS, não escolhidos.
+ *
+ * Eles dependem da largura que as colunas realmente precisam, então mudar o
+ * CONTEÚDO do cabeçalho os invalida. Já aconteceu: ao tornar as colunas
+ * ordenáveis, cada cabeçalho ganhou um ícone (11px + 4px de gap) e a tabela de
+ * /produtos passou a precisar de 1270px em vez de 1189px. Com o limite antigo de
+ * 1520 isso reabriu uma zona morta de 1521 a 1579px — 37px de transbordo em
+ * 1530px, com a coluna "Ações" cortada.
+ *
+ * Medido em /produtos (a tabela mais larga, 12 colunas, precisa de 1270px):
+ *   sidebar expandida:  1520 cabe 9 col · 1540 transborda 33 · 1560 transborda 13 · 1580 cabe 12
+ *   sidebar recolhida:  1380 transborda 17 · 1400 cabe 12
+ *
+ * Daí 1580 e 1400. A diferença de 180px entre os dois bate com os 176px de
+ * diferença entre sidebar aberta (240px) e fechada (64px).
+ *
+ * Como refazer a medição: abrir /produtos, variar a largura da janela e ler
+ * `wrap.scrollWidth - wrap.clientWidth` do container da tabela; o limite é a menor
+ * largura em que isso dá zero com todas as colunas visíveis.
+ */
+@media (max-width: 1580px) {
   [data-sidebar="expanded"] .col-tertiary { display: none !important; }
 }
 @media (max-width: 1420px) {
   [data-sidebar="expanded"] .col-secondary { display: none !important; }
 }
 
-@media (max-width: 1344px) {
+@media (max-width: 1400px) {
   [data-sidebar="collapsed"] .col-tertiary { display: none !important; }
 }
 @media (max-width: 1244px) {
@@ -348,10 +369,20 @@ input, textarea, select {
   text-align: center !important;
 }
 
-/* Data: à direita como as numéricas, e nunca quebrada. À esquerda ela encostava
- * no número da coluna anterior, que é alinhado à direita — os dois grudavam. */
+/*
+ * Data: alinhada à ESQUERDA, nunca quebrada, com dígitos de largura fixa.
+ *
+ * A primeira versão alinhava à direita, tratando data como número. Errado por dois
+ * motivos. Primeiro, `dd/mm/aaaa` tem largura FIXA — alinhar à direita serve para
+ * número de largura variável, onde é preciso casar a casa decimal; com largura
+ * fixa os dois alinhamentos empilham igual, e à esquerda se lê antes. Segundo, e
+ * pior: o `!important` valia só no cabeçalho, porque a classe foi aplicada só no
+ * <th>. O resultado foi título à direita sobre coluna à esquerda — exatamente a
+ * tabela torta do /financeiro em Data e Vencimento.
+ *
+ * `tabular-nums` fica: é o que faz as datas empilharem coluna a coluna.
+ */
 .col-date {
-  text-align: right !important;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   min-width: 92px;
@@ -372,6 +403,68 @@ input, textarea, select {
  * coluna de 136px e a tabela fica visualmente irregular, mesmo quando a altura da
  * linha não muda. Ponha `title` no <td> para o valor cheio ficar acessível.
  */
+/* ─── Barra de filtros ───────────────────────────────────────────
+ *
+ * Toda barra de filtro do sistema usa a MESMA altura de controle. Medido antes de
+ * padronizar, os controles conviviam em cinco alturas: 13px e 20px (o checkbox
+ * cru e seu rótulo), 30px (Button size="sm"), 32px e 34px (inputs e selects). Com
+ * alturas diferentes na mesma linha nada alinha, e a barra parece montada aos
+ * pedaços — que é a queixa. `/financeiro` já era o certo: 8 controles, altura
+ * única, uma linha.
+ *
+ * `--altura-controle` existe para o número morar num lugar só.
+ */
+:root {
+  --altura-controle: 34px;
+}
+
+/*
+ * Alternador de filtro (era `<label><input type=checkbox>Texto</label>`).
+ *
+ * Virou chip da mesma altura dos outros controles. O checkbox nativo tem 13px e
+ * arrasta o rótulo para 20px, o que criava justamente as duas alturas órfãs da
+ * barra. O input continua lá dentro, invisível mas real, então o clique no rótulo,
+ * o foco por teclado e o leitor de tela seguem funcionando.
+ */
+.filtro-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: var(--altura-controle);
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.filtro-toggle:hover {
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+
+/* Ligado: assume o acento, como qualquer outro estado ativo do sistema. */
+.filtro-toggle:has(input:checked) {
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.filtro-toggle input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
 .col-truncate {
   /* O limite explícito é obrigatório, não estética: `nowrap` sozinho faz a tabela
    * ALARGAR a coluna para caber o texto, o que reintroduz o transbordo que

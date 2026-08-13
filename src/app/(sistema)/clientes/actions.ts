@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { formatarNomeProprio } from '@/lib/nomeProprio'
 
 export interface ActionResult {
   success: boolean
@@ -46,7 +47,7 @@ export async function createCustomer(data: CustomerFormData): Promise<ActionResu
 
   const admin = createAdminClient()
   const { data: created, error } = await admin.from('customers').insert({
-    name:            data.name.trim(),
+    name:            formatarNomeProprio(data.name),
     phone:           data.phone.trim(),
     cpf:             data.cpf.trim() || null,
     email:           data.email.trim() || null,
@@ -71,7 +72,7 @@ export async function updateCustomer(id: string, data: CustomerFormData): Promis
 
   const admin = createAdminClient()
   const { error } = await admin.from('customers').update({
-    name:            data.name.trim(),
+    name:            formatarNomeProprio(data.name),
     phone:           data.phone.trim(),
     cpf:             data.cpf.trim() || null,
     email:           data.email.trim() || null,

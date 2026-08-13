@@ -315,9 +315,10 @@ Portanto, o Escopo 1 NÃO são 4 módulos separados — é **um sistema integrad
 | Banco de dados | **Supabase** (Postgres) | Infra Procex, auth, realtime |
 | Storage | **MinIO** (infra Procex) | Fotos de produtos, NFs eletrônicas |
 | Auth | **Supabase Auth** | Fernanda = admin, funcionárias = operadoras |
-| Hosting (sistema) | **Vercel** | Frontend Next.js, deploy automático |
+| Hosting (sistema) | **Docker Swarm na VPS Procex** (145.223.94.118), serviço `fevinicius_web`, roteado por Traefik | ⚠️ Corrigido em 12/08/2026 — **não é Vercel**. A linha anterior dizia Vercel; verificado via API do Docker. `fernandavinicius.vercel.app` é resíduo de deploy antigo e retorna 404. |
+| Deploy | `git push` na `main` → o container **reconstrói do zero no boot** (`git clone` + `npm install` + `npm run build` + `next start`) | Não há imagem pré-construída nem registry. Consequência: cada deploy custa ~2 min de 502, e um reinício do daemon do Docker derruba tudo por vários minutos, com ~15 builds de Next disputando 8 CPUs. Ver §"Infra" da auditoria. |
 | Hosting (workers) | **Portainer** (VPS Procex) | Crons, workers, agentes futuros |
-| Domínio | Subdomínio Procex: `fv.procexai.tech` | Confirmado |
+| Domínio | `fevinicius.procexai.tech` | ⚠️ Corrigido: `fv.procexai.tech` (o que constava aqui) **não responde**. |
 
 ### Princípios de Design
 
@@ -356,7 +357,7 @@ Portanto, o Escopo 1 NÃO são 4 módulos separados — é **um sistema integrad
 | 8 | ~~Materiais~~ | ~~Atributos do produto~~ | ✅ Resolvido — Gerenciável via sistema, iniciar com: prata, banhado |
 | 9 | ~~Ticket médio~~ | ~~Validação do modelo~~ | ✅ Resolvido — Calculado automaticamente pelo sistema |
 | 10 | ~~Notebook na loja~~ | ~~Dispositivo de operação~~ | ✅ Resolvido — Sim, confirmado |
-| 11 | ~~Hosting~~ | ~~Infra de deploy~~ | ✅ Resolvido — Vercel (sistema) + Portainer (workers) |
+| 11 | ~~Hosting~~ | ~~Infra de deploy~~ | ✅ Resolvido — **Docker Swarm na VPS Procex** (sistema) + Portainer (workers). Corrigido em 12/08/2026: dizia Vercel, mas o deploy nunca foi para lá. |
 
 ### Pontos resolvidos nesta rodada
 

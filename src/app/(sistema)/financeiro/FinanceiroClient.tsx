@@ -14,6 +14,8 @@ import CompraDetalheModal from '@/components/compra/CompraDetalheModal'
 import ComissaoDetalheModal from '@/components/comissao/ComissaoDetalheModal'
 import styles from './FinanceiroClient.module.css'
 import Paginacao from '@/components/ui/Paginacao'
+import ThOrdenavel from '@/components/ui/ThOrdenavel'
+import { useOrdenacao } from '@/hooks/useOrdenacao'
 import PanoramaFinanceiro from './PanoramaFinanceiro'
 import { usePaginacaoLocal } from '@/hooks/usePaginacaoLocal'
 import {
@@ -398,7 +400,20 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
   }, [transactions])
 
   // 10 por página, corte local — as transações do período já vieram todas.
-  const { fatia, pagina, totalPaginas, totalItens, irPara } = usePaginacaoLocal(transactions)
+  const ord = useOrdenacao(transactions, {
+    data:       { valor: t => t.transaction_date, tipo: 'data' },
+    vencimento: { valor: t => t.due_date, tipo: 'data' },
+    descricao:  { valor: t => t.description, tipo: 'texto' },
+    categoria:  { valor: t => t.category, tipo: 'texto' },
+    loja:       { valor: t => t.store_name, tipo: 'texto' },
+    metodo:     { valor: t => t.payment_method, tipo: 'texto' },
+    // Entrada e saída ordenam pela MESMA escala, com sinal: sem isso uma despesa
+    // de R$ 500 apareceria como "maior" que uma receita de R$ 400.
+    valor:      { valor: t => (t.type === 'income' ? 1 : -1) * t.amount, tipo: 'numero' },
+    status:     { valor: t => t.status, tipo: 'texto' },
+  })
+
+  const { fatia, pagina, totalPaginas, totalItens, irPara } = usePaginacaoLocal(ord.ordenados)
 
   const catOptions: DropdownOption[] = [
     { value: '', label: 'Categoria' },
@@ -527,14 +542,14 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Data</th>
-              <th>Vencimento</th>
-              <th>Descrição</th>
-              <th>Categoria</th>
-              <th>Loja</th>
-              <th>Método</th>
-              <th className="col-num">Valor</th>
-              <th className="col-center">Status</th>
+              <ThOrdenavel ord={ord} coluna="data" className="col-date">Data</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="vencimento" className="col-date">Vencimento</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="descricao">Descrição</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="categoria">Categoria</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="loja" className="col-truncate">Loja</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="metodo">Método</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="valor" className="col-num">Valor</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="status" className="col-center">Status</ThOrdenavel>
               <th></th>
             </tr>
           </thead>

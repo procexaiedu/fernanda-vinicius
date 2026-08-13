@@ -19,7 +19,12 @@
   text-align: left;
   transition: border-color 0.15s;
   white-space: nowrap;
-  min-width: 140px;
+  /* 112px, não 140: os 140 vinham de quando o rótulo era a frase inteira ("Todos
+   * os fornecedores"). Com o rótulo curto sobravam ~60px de vazio em cada um, e são
+   * quatro deles na barra do /produtos — o suficiente para empurrar a barra para
+   * uma segunda linha. O valor selecionado, que é mais longo, continua caber porque
+   * o controle cresce com o conteúdo; o min-width só impede que fique estreito. */
+  min-width: 112px;
 }
 .trigger:hover { border-color: var(--accent); }
 .triggerOpen { border-color: var(--accent); }

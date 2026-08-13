@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard · Fernanda Vinícius</title>
+<style>
+/* ==========================================================================
+   TOKENS
+   ========================================================================== */
+:root{
+  --bg-base:#0B0B0E;
+  --bg-surface:#14141A;
+  --bg-elevated:#1C1C24;
+  --border:#23232B;
+  --border-light:#32323C;
+
+  --text-primary:#F4F4F5;
+  --text-secondary:#A1A1AA;
+  --text-muted:#71717A;
+  --text-disabled:#52525B;
+
+  --success:#4ADE80;
+  --danger:#F87171;
+  --warning:#FBBF24;
+  --info:#60A5FA;
+
+  /* paleta de dados "gemas" — ordem categórica FIXA, nunca ciclada */
+  --esmeralda:#34D399;
+  --safira:#60A5FA;
+  --ametista:#A78BFA;
+  --rubi:#FB7185;
+  --topazio:#FBBF24;
+  --perola:#D4D4D8;
+
+  --r-lg:20px;   /* raio dos blocos bento grandes */
+  --r-md:16px;   /* raio dos blocos bento normais */
+  --r-sm:10px;
+  --gap:16px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg-base);}
+body{
+  font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color:var(--text-primary);
+  -webkit-font-smoothing:antialiased;
+  font-feature-settings:"tnum" 1; /* numerais tabulares: colunas de R$ alinham */
+  overflow-x:hidden;              /* garante zero scroll horizontal */
+}
+
+/* ==========================================================================
+   SHELL: sidebar fixa 240 + área de conteúdo
+   ========================================================================== */
+.app{display:flex;min-height:100vh}
+
+.sidebar{
+  width:240px;flex:0 0 240px;
+  background:var(--bg-surface);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;
+}
+.brand{
+  padding:22px 20px 18px;
+  border-bottom:1px solid var(--border);
+}
+.brand-name{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.brand-sub{font-size:11px;color:var(--text-muted);margin-top:2px;letter-spacing:.08em;text-transform:uppercase}
+
+.nav{padding:14px 12px;flex:1;overflow-y:auto}
+.nav-group{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-disabled);padding:14px 10px 6px}
+.nav a{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 10px;border-radius:var(--r-sm);
+  color:var(--text-secondary);text-decoration:none;font-size:13.5px;
+  transition:background .15s ease,color .15s ease;
+}
+.nav a:hover{background:var(--bg-elevated);color:var(--text-primary)}
+.nav a.active{background:var(--bg-elevated);color:var(--text-primary);font-weight:550}
+.nav a.active .dot{background:var(--esmeralda)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--text-disabled);flex:0 0 6px}
+
+.side-foot{
+  border-top:1px solid var(--border);
+  padding:14px 16px;display:flex;align-items:center;gap:10px;
+}
+.avatar{
+  width:34px;height:34px;border-radius:50%;
+  background:linear-gradient(140deg,#2B2B36,#1C1C24);
+  border:1px solid var(--border-light);
+  display:grid;place-items:center;font-size:13px;font-weight:600;color:var(--text-primary);
+}
+.side-foot .n{font-size:13px;font-weight:550;line-height:1.2}
+.side-foot .r{font-size:11px;color:var(--text-muted)}
+
+.main{flex:1;min-width:0;padding:28px 32px 44px}
+
+/* ==========================================================================
+   TOPO
+   ========================================================================== */
+.topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:24px}
+h1{font-size:26px;font-weight:600;letter-spacing:-.02em}
+.subtitle{font-size:13.5px;color:var(--text-muted);margin-top:4px}
+.controls{display:flex;align-items:center;gap:10px}
+.select,.monthnav{
+  background:var(--bg-surface);border:1px solid var(--border);
+  border-radius:12px;height:38px;display:flex;align-items:center;
+  color:var(--text-secondary);font-size:13px;
+}
+.select{padding:0 14px;gap:10px}
+.select .caret{color:var(--text-disabled);font-size:10px}
+.monthnav{padding:0 6px;gap:2px}
+.monthnav button{
+  width:28px;height:28px;border:0;border-radius:8px;background:transparent;
+  color:var(--text-muted);font-size:15px;cursor:pointer;
+}
+.monthnav button:hover{background:var(--bg-elevated);color:var(--text-primary)}
+.monthnav .label{padding:0 8px;color:var(--text-primary);font-weight:550;font-size:13px;min-width:96px;text-align:center}
+
+/* ==========================================================================
+   BENTO GRID
+   Blocos de tamanhos diferentes encaixados: a variação de tamanho É o design.
+   4 colunas; o herói (Lucro Líquido) ocupa 2x2 e domina a tela.
+   ========================================================================== */
+.bento{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:var(--gap);
+  grid-template-areas:
+    "hero   hero   receita  cmv"
+    "hero   hero   bruto    despesas"
+    "disp   disp   estoque  estoque"
+    "linha  linha  linha    linha"
+    "categ  categ  evol     evol"
+    "vend   vend   paradas  paradas"
+    "venc   aniv   paradas  paradas";
+}
+
+/* cartão bento base: fundo levemente mais claro que a página, borda quase invisível */
+.b{
+  background:var(--bg-surface);
+  border:1px solid var(--border);
+  border-radius:var(--r-md);
+  padding:20px 22px;
+  position:relative;
+  overflow:hidden;
+  transition:border-color .18s ease,transform .18s ease;
+}
+.b:hover{border-color:var(--border-light)}
+
+.b-label{
+  font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--text-muted);font-weight:600;
+}
+.b-title{font-size:14.5px;font-weight:600;letter-spacing:-.01em}
+.b-sub{font-size:11.5px;color:var(--text-muted);margin-top:3px}
+.b-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+
+/* KPIs pequenos (1x1) */
+.kpi{display:flex;flex-direction:column;justify-content:space-between;min-height:118px}
+.kpi .val{font-size:25px;font-weight:600;letter-spacing:-.025em;margin-top:auto}
+.kpi .leg{font-size:11.5px;color:var(--text-muted);margin-top:5px}
+
+.a-receita{grid-area:receita}
+.a-cmv{grid-area:cmv}
+.a-bruto{grid-area:bruto}
+.a-despesas{grid-area:despesas}
+
+/* ---- HERÓI 2x2: Lucro Líquido negativo. Único bloco com gradiente/brilho. ---- */
+.hero{
+  grid-area:hero;
+  border-radius:var(--r-lg);
+  background:
+    radial-gradient(120% 90% at 6% 0%, rgba(248,113,113,.16) 0%, rgba(248,113,113,0) 58%),
+    linear-gradient(160deg,#1A1418 0%, var(--bg-surface) 55%);
+  border-color:#3A222A;                 /* borda levemente avermelhada: sinal de perda */
+  padding:26px 28px;
+  display:flex;flex-direction:column;
+}
+.hero .val{
+  font-size:56px;font-weight:650;letter-spacing:-.035em;line-height:1;
+  color:var(--danger);margin-top:14px;
+}
+.hero .leg{font-size:13px;color:var(--text-secondary);margin-top:10px}
+.hero .pill{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);
+  color:var(--danger);font-size:11px;font-weight:600;letter-spacing:.04em;
+  padding:4px 9px;border-radius:999px;
+}
+
+/* mini-comparativo dentro do herói: entrou x saiu (explica o sinal negativo) */
+.flow{margin-top:auto;padding-top:22px;display:flex;flex-direction:column;gap:12px}
+.flow-row{display:grid;grid-template-columns:66px 1fr auto;align-items:center;gap:12px}
+.flow-row .k{font-size:11px;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase}
+.flow-bar{height:10px;background:#111116;border-radius:5px;overflow:hidden}
+.flow-bar i{display:block;height:100%;border-radius:0 4px 4px 0} /* ponta do dado arredondada 4px */
+.flow-row .v{font-size:12.5px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+
+/* ---- Disponível para compra (faixa 2x1) ---- */
+.disp{grid-area:disp;display:flex;align-items:center;justify-content:space-between;gap:20px}
+.disp .val{font-size:34px;font-weight:600;letter-spacing:-.03em;color:var(--text-disabled)}
+.calc{
+  background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:12px;padding:11px 14px;font-size:11.5px;color:var(--text-muted);
+  line-height:1.7;text-align:right;white-space:nowrap;
+}
+.calc b{color:var(--text-secondary);font-weight:550}
+.calc .neg{color:var(--danger);font-weight:600}
+
+/* ---- Estoque (2x1) ---- */
+.estoque{grid-area:estoque}
+.est-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.est{
+  background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:12px;padding:12px 14px;
+}
+.est .n{font-size:19px;font-weight:600;letter-spacing:-.02em}
+.est .l{font-size:11px;color:var(--text-muted);margin-top:3px}
+/* peça parada = alerta: ocupa 2 colunas e ganha cor de aviso */
+.est.alert{
+  grid-column:span 2;
+  background:linear-gradient(120deg,rgba(251,191,36,.10),rgba(251,191,36,.02));
+  border-color:rgba(251,191,36,.28);
+  display:flex;align-items:center;gap:14px;
+}
+.est.alert .n{color:var(--warning);font-size:22px}
+
+/* ---- Blocos de gráfico ---- */
+.linha{grid-area:linha}
+.categ{grid-area:categ}
+.evol{grid-area:evol}
+svg{display:block;width:100%;height:auto}
+
+/* legenda: presente sempre que houver 2+ séries; texto em cor de TEXTO */
+.legend{display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--text-secondary)}
+.swatch{width:12px;height:3px;border-radius:2px;flex:0 0 12px}
+.swatch.dash{background-image:linear-gradient(90deg,var(--esmeralda) 0 5px,transparent 5px 8px,var(--esmeralda) 8px 12px);background-color:transparent!important}
+
+/* ---- Vendedoras (2x1) ---- */
+.vend{grid-area:vend}
+table{width:100%;border-collapse:collapse}
+th{
+  text-align:left;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text-disabled);font-weight:600;padding:0 0 10px;
+  border-bottom:1px solid var(--border);
+}
+td{padding:12px 0;font-size:13.5px;border-bottom:1px solid var(--border);color:var(--text-secondary)}
+tr:last-child td{border-bottom:0}
+td.name{color:var(--text-primary);font-weight:550}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.rank{
+  display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;
+  background:var(--bg-elevated);border:1px solid var(--border);
+  font-size:11.5px;font-weight:600;color:var(--text-secondary);
+}
+tr:first-child .rank{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.3);color:var(--warning)}
+
+/* ---- Peças paradas (2x2, coluna alta do mosaico) ---- */
+.paradas{grid-area:paradas}
+.badge{
+  font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;
+  background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-secondary);
+}
+.badge.warn{background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.3);color:var(--warning)}
+.list{display:flex;flex-direction:column}
+.item{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 0;border-bottom:1px solid var(--border);
+}
+.item:last-child{border-bottom:0}
+.item .t{font-size:13.5px;font-weight:550}
+.item .m{font-size:11.5px;color:var(--text-muted);margin-top:2px}
+.days{
+  font-size:12px;font-weight:600;color:var(--warning);font-variant-numeric:tabular-nums;
+  background:rgba(251,191,36,.10);padding:4px 9px;border-radius:8px;
+}
+
+/* ---- Estados vazios (1x1 cada) ---- */
+.venc{grid-area:venc}
+.aniv{grid-area:aniv}
+.empty{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;padding:22px 0 8px;text-align:center;
+}
+.empty .glyph{
+  width:38px;height:38px;border-radius:12px;
+  background:var(--bg-elevated);border:1px solid var(--border);
+  display:grid;place-items:center;color:var(--text-disabled);font-size:16px;
+}
+.empty p{font-size:12.5px;color:var(--text-muted)}
+
+/* ---- SVG: grade recessiva, eixos discretos ---- */
+.grid-line{stroke:var(--border);stroke-width:1}
+.zero-line{stroke:var(--border-light);stroke-width:1.5}
+.axis-txt{fill:var(--text-muted);font-size:11px;font-family:inherit}
+.axis-txt.strong{fill:var(--text-secondary)}
+.serie{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.mark{stroke:var(--bg-surface);stroke-width:2}  /* anel de 2px separa o marcador da linha */
+.bar:hover{opacity:.82}
+.dlabel{fill:var(--text-primary);font-size:11.5px;font-weight:600;font-family:inherit}
+.dlabel.sub{fill:var(--text-secondary);font-weight:500}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================ SIDEBAR ============================ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-name">Fernanda Vinícius</div>
+      <div class="brand-sub">Gestão</div>
+    </div>
+    <nav class="nav">
+      <a class="active" href="#"><span class="dot"></span>Dashboard</a>
+      <a href="#"><span class="dot"></span>PDV</a>
+
+      <div class="nav-group">Vendas</div>
+      <a href="#"><span class="dot"></span>Vendas</a>
+      <a href="#"><span class="dot"></span>Clientes</a>
+      <a href="#"><span class="dot"></span>Disparos</a>
+
+      <div class="nav-group">Estoque</div>
+      <a href="#"><span class="dot"></span>Produtos</a>
+      <a href="#"><span class="dot"></span>Estoque</a>
+
+      <div class="nav-group">Compras</div>
+      <a href="#"><span class="dot"></span>Compras</a>
+      <a href="#"><span class="dot"></span>Fornecedores</a>
+
+      <div class="nav-group">Gestão</div>
+      <a href="#"><span class="dot"></span>Financeiro</a>
+      <a href="#"><span class="dot"></span>Configurações</a>
+    </nav>
+    <div class="side-foot">
+      <div class="avatar">P</div>
+      <div>
+        <div class="n">ProceX</div>
+        <div class="r">Administrador</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============================ CONTEÚDO ============================ -->
+  <main class="main">
+
+    <div class="topbar">
+      <div>
+        <h1>Dashboard</h1>
+        <div class="subtitle">Visão geral do seu negócio</div>
+      </div>
+      <div class="controls">
+        <div class="select">Todas as lojas <span class="caret">▾</span></div>
+        <div class="monthnav">
+          <button aria-label="Mês anterior">‹</button>
+          <span class="label">Julho 2026</span>
+          <button aria-label="Próximo mês">›</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bento">
+
+      <!-- ===== HERÓI 2x2 — o fato mais importante da tela ===== -->
+      <section class="b hero">
+        <div class="b-head" style="margin-bottom:0">
+          <div>
+            <div class="b-label">Lucro Líquido</div>
+            <div class="b-sub" style="margin-top:6px">Julho 2026 · todas as lojas</div>
+          </div>
+          <span class="pill">▼ Prejuízo</span>
+        </div>
+        <div class="val">−R$&nbsp;17.994,82</div>
+        <div class="leg">−123% da receita</div>
+
+        <!-- Entrou x saiu: duas barras na MESMA escala explicam o sinal negativo -->
+        <div class="flow">
+          <div class="flow-row">
+            <span class="k">Entrou</span>
+            <span class="flow-bar"><i style="width:44.9%;background:var(--perola)"></i></span>
+            <span class="v">R$&nbsp;14.663,90</span>
+          </div>
+          <div class="flow-row">
+            <span class="k">Saiu</span>
+            <span class="flow-bar"><i style="width:100%;background:var(--rubi)"></i></span>
+            <span class="v">R$&nbsp;32.658,72</span>
+          </div>
+          <div style="font-size:11.5px;color:var(--text-muted);padding-top:2px">
+            Saídas = CMV R$&nbsp;5.218,72 + Despesas operacionais R$&nbsp;27.440,00
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== KPIs 1x1 ===== -->
+      <section class="b kpi a-receita">
+        <div class="b-label">Receita Bruta</div>
+        <div class="val">R$&nbsp;14.663,90</div>
+        <div class="leg">Vendas do mês</div>
+      </section>
+
+      <section class="b kpi a-cmv">
+        <div class="b-label">Custo (CMV)</div>
+        <div class="val">R$&nbsp;5.218,72</div>
+        <div class="leg">Custo dos produtos vendidos</div>
+      </section>
+
+      <section class="b kpi a-bruto">
+        <div class="b-label">Lucro Bruto</div>
+        <div class="val" style="color:var(--success)">R$&nbsp;9.445,18</div>
+        <div class="leg">64% da receita</div>
+      </section>
+
+      <section class="b kpi a-despesas">
+        <div class="b-label">Despesas Op.</div>
+        <div class="val" style="color:var(--danger)">R$&nbsp;27.440,00</div>
+        <div class="leg">Despesas pagas no mês</div>
+      </section>
+
+      <!-- ===== Disponível para compra (2x1) ===== -->
+      <section class="b disp">
+        <div>
+          <div class="b-label">Disponível para compra</div>
+          <div class="val">R$&nbsp;0,00</div>
+          <div class="b-sub">Sem caixa livre para reposição neste mês</div>
+        </div>
+        <div class="calc">
+          Lucro Líquido: <span class="neg">−R$&nbsp;17.994,82</span><br>
+          − Reserva (30%): <b>R$&nbsp;0,00</b>
+        </div>
+      </section>
+
+      <!-- ===== Estoque (2x1) ===== -->
+      <section class="b estoque">
+        <div class="b-head">
+          <div>
+            <div class="b-title">Estoque</div>
+            <div class="b-sub">Posição atual do inventário</div>
+          </div>
+        </div>
+        <div class="est-grid">
+          <div class="est"><div class="n">1.301</div><div class="l">Total de peças</div></div>
+          <div class="est"><div class="n">970</div><div class="l">SKUs únicos</div></div>
+          <div class="est"><div class="n">R$&nbsp;96.797,24</div><div class="l">Valor em custo</div></div>
+          <div class="est"><div class="n">R$&nbsp;281.831,00</div><div class="l">Valor em venda</div></div>
+          <div class="est alert">
+            <div>
+              <div class="n">601</div>
+              <div class="l">Peças paradas</div>
+            </div>
+            <div style="font-size:11.5px;color:var(--text-secondary);line-height:1.5">
+              +30 dias sem venda —<br>46% do estoque encalhado
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Gráfico principal: Vendas x Compras (4 colunas) ===== -->
+      <section class="b linha">
+        <div class="b-head">
+          <div>
+            <div class="b-title">Vendas × Compras</div>
+            <div class="b-sub">Últimos 6 meses · eixo único em R$</div>
+          </div>
+          <div class="legend">
+            <span><i class="swatch" style="background:var(--text-primary)"></i>Faturamento</span>
+            <span><i class="swatch" style="background:var(--rubi)"></i>Custo de compras</span>
+            <span><i class="swatch dash"></i>Lucro líquido</span>
+          </div>
+        </div>
+
+        <svg viewBox="0 0 1100 300" role="img" aria-label="Faturamento, custo de compras e lucro líquido nos últimos 6 meses">
+          <!-- área negativa levemente tingida: torna o prejuízo óbvio de longe -->
+          <rect x="70" y="137" width="1000" height="113" fill="#F87171" opacity="0.045"/>
+
+          <!-- grade recessiva -->
+          <line class="grid-line" x1="70" y1="36.56"  x2="1070" y2="36.56"/>
+          <line class="grid-line" x1="70" y1="86.78"  x2="1070" y2="86.78"/>
+          <line class="grid-line" x1="70" y1="187.22" x2="1070" y2="187.22"/>
+          <line class="grid-line" x1="70" y1="237.44" x2="1070" y2="237.44"/>
+          <line class="zero-line" x1="70" y1="137"    x2="1070" y2="137"/>
+
+          <text class="axis-txt" x="60" y="40.5"  text-anchor="end">40 mil</text>
+          <text class="axis-txt" x="60" y="90.8"  text-anchor="end">20 mil</text>
+          <text class="axis-txt strong" x="60" y="141" text-anchor="end">0</text>
+          <text class="axis-txt" x="60" y="191.2" text-anchor="end">−20 mil</text>
+          <text class="axis-txt" x="60" y="241.4" text-anchor="end">−40 mil</text>
+
+          <!-- Lucro líquido (tracejado, esmeralda) -->
+          <polyline class="serie" stroke="#34D399" stroke-dasharray="7 5"
+            points="70,137 270,137 470,137 670,237.55 870,169.08 1070,137"/>
+          <!-- Custo de compras (rubi) -->
+          <polyline class="serie" stroke="#FB7185"
+            points="70,137 270,137 470,137 670,36.46 870,68.10 1070,137"/>
+          <!-- Faturamento (branco / text-primary) -->
+          <polyline class="serie" stroke="#F4F4F5"
+            points="70,137 270,137 470,137 670,137 870,100.17 1070,137"/>
+
+          <!-- marcadores: só nos pontos que contam história -->
+          <circle class="mark" cx="670" cy="36.46"  r="5" fill="#FB7185"><title>Jun/26 — Compras R$ 40.040,00</title></circle>
+          <circle class="mark" cx="870" cy="68.10"  r="5" fill="#FB7185"><title>Jul/26 — Compras R$ 27.440,00</title></circle>
+          <circle class="mark" cx="670" cy="237.55" r="5" fill="#34D399"><title>Jun/26 — Lucro −R$ 40.040,00</title></circle>
+          <circle class="mark" cx="870" cy="169.08" r="5" fill="#34D399"><title>Jul/26 — Lucro −R$ 12.776,00</title></circle>
+          <circle class="mark" cx="870" cy="100.17" r="5" fill="#F4F4F5"><title>Jul/26 — Faturamento R$ 14.663,90</title></circle>
+
+          <!-- rótulos diretos, seletivos (nunca em todo ponto) -->
+          <text class="dlabel" x="670" y="24" text-anchor="middle">R$ 40.040</text>
+          <text class="dlabel sub" x="870" y="90" text-anchor="middle">R$ 14.664</text>
+          <text class="dlabel" x="670" y="256" text-anchor="middle" fill="#F4F4F5">−R$ 40.040</text>
+
+          <!-- eixo X -->
+          <text class="axis-txt" x="70"   y="278" text-anchor="middle">Mar/26</text>
+          <text class="axis-txt" x="270"  y="278" text-anchor="middle">Abr/26</text>
+          <text class="axis-txt" x="470"  y="278" text-anchor="middle">Mai/26</text>
+          <text class="axis-txt" x="670"  y="278" text-anchor="middle">Jun/26</text>
+          <text class="axis-txt strong" x="870" y="278" text-anchor="middle">Jul/26</text>
+          <text class="axis-txt" x="1070" y="278" text-anchor="middle">Ago/26</text>
+        </svg>
+      </section>
+
+      <!-- ===== Vendas por categoria (2x1) ===== -->
+      <section class="b categ">
+        <div class="b-head">
+          <div>
+            <div class="b-title">Vendas por categoria</div>
+            <div class="b-sub">Julho 2026</div>
+          </div>
+        </div>
+        <svg viewBox="0 0 520 210" role="img" aria-label="Vendas por categoria em julho de 2026">
+          <!-- Colar -->
+          <text class="axis-txt strong" x="0" y="30">Colar</text>
+          <rect class="bar" x="92" y="16" width="338" height="20" rx="4" fill="#34D399"><title>Colar — R$ 5.940,00</title></rect>
+          <rect x="92" y="16" width="7" height="20" fill="#34D399"/><!-- esquadreja a base da barra -->
+          <text class="dlabel" x="520" y="30" text-anchor="end">R$ 5.940</text>
+
+          <!-- Brinco -->
+          <text class="axis-txt strong" x="0" y="68">Brinco</text>
+          <rect class="bar" x="92" y="54" width="198" height="20" rx="4" fill="#60A5FA"><title>Brinco — R$ 3.480,00</title></rect>
+          <rect x="92" y="54" width="7" height="20" fill="#60A5FA"/>
+          <text class="dlabel" x="520" y="68" text-anchor="end">R$ 3.480</text>
+
+          <!-- Anel -->
+          <text class="axis-txt strong" x="0" y="106">Anel</text>
+          <rect class="bar" x="92" y="92" width="166" height="20" rx="4" fill="#A78BFA"><title>Anel — R$ 2.910,00</title></rect>
+          <rect x="92" y="92" width="7" height="20" fill="#A78BFA"/>
+          <text class="dlabel" x="520" y="106" text-anchor="end">R$ 2.910</text>
+
+          <!-- Pulseira -->
+          <text class="axis-txt strong" x="0" y="144">Pulseira</text>
+          <rect class="bar" x="92" y="130" width="96" height="20" rx="4" fill="#FB7185"><title>Pulseira — R$ 1.680,00</title></rect>
+          <rect x="92" y="130" width="7" height="20" fill="#FB7185"/>
+          <text class="dlabel" x="520" y="144" text-anchor="end">R$ 1.680</text>
+
+          <!-- Conserto -->
+          <text class="axis-txt strong" x="0" y="182">Conserto</text>
+          <rect class="bar" x="92" y="168" width="37" height="20" rx="4" fill="#FBBF24"><title>Conserto — R$ 654,00</title></rect>
+          <rect x="92" y="168" width="7" height="20" fill="#FBBF24"/>
+          <text class="dlabel" x="520" y="182" text-anchor="end">R$ 654</text>
+        </svg>
+      </section>
+
+      <!-- ===== Evolução de vendas (2x1) — série única, sem legenda ===== -->
+      <section class="b evol">
+        <div class="b-head">
+          <div>
+            <div class="b-title">Evolução de vendas</div>
+            <div class="b-sub">Receita dos últimos 6 meses</div>
+          </div>
+        </div>
+        <svg viewBox="0 0 520 210" role="img" aria-label="Evolução da receita nos últimos 6 meses">
+          <defs>
+            <linearGradient id="fadeReceita" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stop-color="#60A5FA" stop-opacity="0.32"/>
+              <stop offset="100%" stop-color="#60A5FA" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+
+          <line class="grid-line" x1="60" y1="20"  x2="500" y2="20"/>
+          <line class="grid-line" x1="60" y1="95"  x2="500" y2="95"/>
+          <line class="zero-line" x1="60" y1="170" x2="500" y2="170"/>
+          <text class="axis-txt" x="50" y="24"  text-anchor="end">16 mil</text>
+          <text class="axis-txt" x="50" y="99"  text-anchor="end">8 mil</text>
+          <text class="axis-txt strong" x="50" y="174" text-anchor="end">0</text>
+
+          <!-- área + linha da mesma série -->
+          <path d="M60,170 L148,170 L236,170 L324,170 L412,32.5 L500,170 Z" fill="url(#fadeReceita)"/>
+          <polyline class="serie" stroke="#60A5FA" points="60,170 148,170 236,170 324,170 412,32.5 500,170"/>
+          <circle class="mark" cx="412" cy="32.5" r="5" fill="#60A5FA"><title>Jul/26 — R$ 14.663,90</title></circle>
+          <text class="dlabel" x="412" y="22" text-anchor="middle">R$ 14.664</text>
+
+          <text class="axis-txt" x="60"  y="192" text-anchor="middle">Mar</text>
+          <text class="axis-txt" x="148" y="192" text-anchor="middle">Abr</text>
+          <text class="axis-txt" x="236" y="192" text-anchor="middle">Mai</text>
+          <text class="axis-txt" x="324" y="192" text-anchor="middle">Jun</text>
+          <text class="axis-txt strong" x="412" y="192" text-anchor="middle">Jul</text>
+          <text class="axis-txt" x="500" y="192" text-anchor="middle">Ago</text>
+        </svg>
+      </section>
+
+      <!-- ===== Vendedoras (2x1) ===== -->
+      <section class="b vend">
+        <div class="b-head">
+          <div>
+            <div class="b-title">Vendedoras</div>
+            <div class="b-sub">Julho 2026</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:44px">#</th>
+              <th>Vendedora</th>
+              <th>Loja</th>
+              <th class="num">Vendas</th>
+              <th class="num">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="rank">1</span></td>
+              <td class="name">Rosimeire</td>
+              <td>Campinas</td>
+              <td class="num">14</td>
+              <td class="num" style="color:var(--text-primary);font-weight:550">R$&nbsp;8.240,00</td>
+            </tr>
+            <tr>
+              <td><span class="rank">2</span></td>
+              <td class="name">Juliana</td>
+              <td>Campinas</td>
+              <td class="num">8</td>
+              <td class="num" style="color:var(--text-primary);font-weight:550">R$&nbsp;4.180,00</td>
+            </tr>
+            <tr>
+              <td><span class="rank">3</span></td>
+              <td class="name">Patrícia</td>
+              <td>Brasília</td>
+              <td class="num">4</td>
+              <td class="num" style="color:var(--text-primary);font-weight:550">R$&nbsp;2.243,90</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ===== Peças paradas (2x2 — bloco alto do mosaico) ===== -->
+      <section class="b paradas">
+        <div class="b-head">
+          <div>
+            <div class="b-title">Peças paradas</div>
+            <div class="b-sub">Sem venda há mais de 30 dias</div>
+          </div>
+          <span class="badge warn">8</span>
+        </div>
+        <div class="list">
+          <div class="item"><div><div class="t">BR PEDRA</div><div class="m">brinco · FPB0626</div></div><span class="days">52d</span></div>
+          <div class="item"><div><div class="t">BR PEDRA</div><div class="m">brinco · FLB06495</div></div><span class="days">52d</span></div>
+          <div class="item"><div><div class="t">BR PEDRA</div><div class="m">brinco · FNO062499</div></div><span class="days">52d</span></div>
+          <div class="item"><div><div class="t">P BR FLOR</div><div class="m">brinco · FAL0679</div></div><span class="days">52d</span></div>
+          <div class="item"><div><div class="t">P BR GOTA</div><div class="m">brinco · FAL0699</div></div><span class="days">52d</span></div>
+          <div class="item"><div><div class="t">BR PEDRA</div><div class="m">brinco · FL0642</div></div><span class="days">52d</span></div>
+          <div class="item"><div><div class="t">BR PONTO DE LUZ</div><div class="m">brinco · FWG0675</div></div><span class="days">52d</span></div>
+          <div class="item"><div><div class="t">BR PEDRA</div><div class="m">brinco · FNO06499</div></div><span class="days">52d</span></div>
+        </div>
+      </section>
+
+      <!-- ===== Estados vazios (1x1 cada) ===== -->
+      <section class="b venc">
+        <div class="b-head">
+          <div>
+            <div class="b-title">Vence em 15 dias</div>
+            <div class="b-sub">Contas a pagar</div>
+          </div>
+          <span class="badge">0</span>
+        </div>
+        <div class="empty">
+          <div class="glyph">✓</div>
+          <p>Nenhuma conta a vencer</p>
+        </div>
+      </section>
+
+      <section class="b aniv">
+        <div class="b-head">
+          <div>
+            <div class="b-title">Aniversariantes do mês</div>
+            <div class="b-sub">Clientes</div>
+          </div>
+          <span class="badge">0</span>
+        </div>
+        <div class="empty">
+          <div class="glyph">♡</div>
+          <p>Nenhuma aniversariante</p>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+</body>
+</html>

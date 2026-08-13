@@ -1,5 +1,8 @@
 /* ── Shell do PDV ─────────────────────────────────────────── */
-.app { min-height: 100vh; background: var(--bg-base); color: var(--text-primary); display: flex; flex-direction: column; }
+/* Dentro do layout do sistema o PDV é uma página como as outras: quem dá altura,
+ * fundo e cor é o shell. O min-height de 100vh que estava aqui somava com o header
+ * do layout e sobrava barra de rolagem no fim da página. */
+.app { display: flex; flex-direction: column; }
 
 .topbar {
   display: flex; align-items: center; gap: 16px; padding: 12px 24px;
@@ -11,7 +14,9 @@
 .brandName b { color: var(--accent); font-weight: 600; }
 .brandSub { font-size: 10px; color: var(--text-muted); letter-spacing: 1.8px; text-transform: uppercase; }
 
-.tabs { display: flex; gap: 4px; margin-left: 10px; background: var(--bg-elevated); padding: 4px; border-radius: 11px; border: 1px solid var(--border); }
+/* As abas ficaram (são do PDV, não do sistema), mas saíram da barra superior:
+ * agora são um grupo próprio abaixo do título da página. */
+.tabs { display: flex; gap: 4px; margin: 0 0 18px; align-self: flex-start; background: var(--bg-elevated); padding: 4px; border-radius: 11px; border: 1px solid var(--border); }
 .tab { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: var(--text-muted);
   padding: 8px 16px; border-radius: 8px; border: none; background: none; cursor: pointer; transition: .15s; }
 .tab:hover { color: var(--text-primary); }
@@ -23,7 +28,9 @@
 .clock { font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
 
 .main { flex: 1; }
-.vendaWrap { max-width: 1200px; margin: 0 auto; padding: 20px 24px; }
+/* O padding da página vem do layout (--page-padding); repetir aqui empurrava o
+ * conteudo para dentro duas vezes. */
+.vendaWrap { max-width: 1200px; }
 
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
@@ -33,7 +40,7 @@
 }
 
 /* ── Caixa do dia ─────────────────────────────────────────── */
-.caixaWrap { max-width: 1300px; margin: 0 auto; padding: 20px 24px 40px; }
+.caixaWrap { max-width: 1300px; }
 
 .caixaHead { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
 .storeSel, .storeFixed {

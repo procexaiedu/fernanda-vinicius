@@ -12,6 +12,8 @@ import { enviarDisparo, excluirDisparo, duplicarDisparo } from './actions'
 import type { DisparoRow, StoreOption } from './page'
 import styles from './DisparosClient.module.css'
 import Paginacao from '@/components/ui/Paginacao'
+import ThOrdenavel from '@/components/ui/ThOrdenavel'
+import { useOrdenacao } from '@/hooks/useOrdenacao'
 import { usePaginacaoLocal } from '@/hooks/usePaginacaoLocal'
 
 type FilterType = 'todos' | 'rascunhos' | 'enviados'
@@ -68,7 +70,16 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
   }, [disparos, search, filter])
 
   // 10 por página, corte local
-  const { fatia, pagina, totalPaginas, totalItens, irPara } = usePaginacaoLocal(filtered)
+  const ord = useOrdenacao(filtered, {
+    titulo:    { valor: d => d.titulo, tipo: 'texto' },
+    loja:      { valor: d => d.store_name, tipo: 'texto' },
+    enviados:  { valor: d => d.enviados, tipo: 'numero' },
+    entregues: { valor: d => d.entregues, tipo: 'numero' },
+    lidos:     { valor: d => d.lidos, tipo: 'numero' },
+    data:      { valor: d => d.created_at, tipo: 'data' },
+  })
+
+  const { fatia, pagina, totalPaginas, totalItens, irPara } = usePaginacaoLocal(ord.ordenados)
 
   const counts = useMemo(() => ({
     rascunhos: disparos.filter(d => d.status === 'rascunho').length,
@@ -94,6 +105,7 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
     setDeletingId(null)
     window.location.reload()
   }
+
 
   return (
     <>
@@ -140,13 +152,13 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Título</th>
-                <th className="col-truncate">Loja</th>
+                <ThOrdenavel ord={ord} coluna="titulo">Título</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="loja" className="col-truncate">Loja</ThOrdenavel>
                 <th className="col-center">Status</th>
-                <th className="col-num">Enviados</th>
-                <th className="col-num">Entregues</th>
-                <th className="col-num">Lidos</th>
-                <th>Data</th>
+                <ThOrdenavel ord={ord} coluna="enviados" className="col-num">Enviados</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="entregues" className="col-num">Entregues</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="lidos" className="col-num">Lidos</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="data" className="col-date">Data</ThOrdenavel>
                 <th className={styles.actionsCol}>Ações</th>
               </tr>
             </thead>

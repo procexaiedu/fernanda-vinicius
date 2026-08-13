@@ -1,0 +1,169 @@
+.corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.subtitulo {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: -4px 0 0;
+}
+
+/* ── A conta que o cartão mostra, decomposta ─────────────────────────────── */
+
+.resumo {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.resumoLinha {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* A linha que fecha a conta: separada por um filete e com o peso do resultado. */
+.resumoTotal {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.resumoRotulo { color: var(--text-muted); }
+
+.resumoValor {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.resumoTotal .resumoValor { font-size: 16px; }
+
+.pos { color: var(--success); }
+.neg { color: var(--danger); }
+
+/* ── Busca ───────────────────────────────────────────────────────────────── */
+
+.buscaCampo {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.buscaIcone {
+  position: absolute;
+  left: 11px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.buscaInput {
+  width: 100%;
+  height: 34px;
+  padding: 0 12px 0 32px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.buscaInput:focus { border-color: var(--accent); }
+.buscaInput::placeholder { color: var(--text-disabled); }
+
+/* ── Tabela ──────────────────────────────────────────────────────────────── */
+
+/*
+ * Altura fixa em vez de deixar o modal crescer: com 970 produtos o diálogo
+ * passaria da altura da tela e o rodapé com a soma — a razão de existir do modal
+ * — ficaria fora de vista.
+ */
+.tabelaWrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tabela th {
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-disabled);
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.tabela td {
+  padding: 11px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.tabela tbody tr:last-child td { border-bottom: 0; }
+
+.dir {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.forte {
+  color: var(--text-primary);
+  font-weight: 550;
+}
+
+.clicavel { cursor: pointer; }
+.clicavel:hover td { background: var(--bg-elevated); }
+
+@media (max-width: 720px) {
+  .secundaria { display: none; }
+}
+
+/* ── Rodapé com a soma ───────────────────────────────────────────────────── */
+
+.rodape {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* ── Estados ─────────────────────────────────────────────────────────────── */
+
+.estado {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.girando { animation: girar 1s linear infinite; }
+
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}

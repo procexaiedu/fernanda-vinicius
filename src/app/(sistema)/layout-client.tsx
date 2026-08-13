@@ -11,9 +11,13 @@ import styles from './layout.module.css'
 /**
  * Telas que já tratam o bipe por conta própria (o formulário de venda adiciona a
  * peça na lista). Aqui a captura global fica quieta para não agir duas vezes.
- * O /pdv está fora deste layout, então nem chega aqui.
+ *
+ * `/pdv` entrou nesta lista quando deixou de ser uma superfície separada e passou a
+ * viver dentro deste layout: ele monta o MESMO NovaVendaForm, que já captura o
+ * leitor. Sem esta guarda, bipar no PDV adicionaria a peça E navegaria para
+ * /vendas/nova ao mesmo tempo, jogando fora a venda em andamento.
  */
-const TELAS_QUE_JA_TRATAM_O_BIPE = ['/vendas/nova', '/vendas/']
+const TELAS_QUE_JA_TRATAM_O_BIPE = ['/vendas/nova', '/vendas/', '/pdv']
 
 interface SistemaLayoutClientProps {
   userName: string
