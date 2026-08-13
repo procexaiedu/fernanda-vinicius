@@ -1,0 +1,104 @@
+.wrap {
+  animation: fv-fade 120ms ease both;
+}
+
+.titulo,
+.subtitulo,
+.cartao,
+.controle,
+.avatar,
+.texto,
+.curta,
+.numero {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  animation: esqueleto-pulsar 1400ms ease-in-out infinite;
+}
+
+/* Altura igual à do título real (--fs-page-title chega a 32px), para o conteúdo
+ * não pular quando substituir o esqueleto. */
+.titulo {
+  height: 32px;
+  width: 220px;
+  margin-bottom: 10px;
+}
+
+.subtitulo {
+  height: 14px;
+  width: 360px;
+  margin-bottom: 22px;
+}
+
+.cartoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.cartao {
+  height: 92px;
+  border-radius: var(--radius-lg);
+}
+
+.barra {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.controle {
+  height: var(--altura-controle);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.tabela {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+/* Cabeçalho não pulsa: ele é uma barra sólida no conteúdo real também, então
+ * pulsar aqui sugeriria que vai virar outra coisa. */
+.cabecalho {
+  height: 38px;
+  background: var(--bg-elevated);
+}
+
+.linha {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px;
+  /* 63px é a altura real da linha, medida em /produtos. */
+  height: 63px;
+  border-bottom: 1px solid var(--border);
+}
+
+.linha:last-child { border-bottom: none; }
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.texto  { height: 13px; flex: 1; max-width: 260px; }
+.curta  { height: 13px; width: 90px; flex-shrink: 0; }
+.numero { height: 13px; width: 70px; margin-left: auto; flex-shrink: 0; }
+
+@keyframes esqueleto-pulsar {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .titulo, .subtitulo, .cartao, .controle,
+  .avatar, .texto, .curta, .numero {
+    animation: none;
+  }
+}

@@ -295,14 +295,35 @@ input, textarea, select {
  *   aberta  (240px): 1280+240 = 1520  ·  1180+240 = 1420
  *   fechada (64px):  1280+64  = 1344  ·  1180+64  = 1244
  */
-@media (max-width: 1520px) {
+/*
+ * ATENÇÃO ao mexer: estes números são MEDIDOS, não escolhidos.
+ *
+ * Eles dependem da largura que as colunas realmente precisam, então mudar o
+ * CONTEÚDO do cabeçalho os invalida. Já aconteceu: ao tornar as colunas
+ * ordenáveis, cada cabeçalho ganhou um ícone (11px + 4px de gap) e a tabela de
+ * /produtos passou a precisar de 1270px em vez de 1189px. Com o limite antigo de
+ * 1520 isso reabriu uma zona morta de 1521 a 1579px — 37px de transbordo em
+ * 1530px, com a coluna "Ações" cortada.
+ *
+ * Medido em /produtos (a tabela mais larga, 12 colunas, precisa de 1270px):
+ *   sidebar expandida:  1520 cabe 9 col · 1540 transborda 33 · 1560 transborda 13 · 1580 cabe 12
+ *   sidebar recolhida:  1380 transborda 17 · 1400 cabe 12
+ *
+ * Daí 1580 e 1400. A diferença de 180px entre os dois bate com os 176px de
+ * diferença entre sidebar aberta (240px) e fechada (64px).
+ *
+ * Como refazer a medição: abrir /produtos, variar a largura da janela e ler
+ * `wrap.scrollWidth - wrap.clientWidth` do container da tabela; o limite é a menor
+ * largura em que isso dá zero com todas as colunas visíveis.
+ */
+@media (max-width: 1580px) {
   [data-sidebar="expanded"] .col-tertiary { display: none !important; }
 }
 @media (max-width: 1420px) {
   [data-sidebar="expanded"] .col-secondary { display: none !important; }
 }
 
-@media (max-width: 1344px) {
+@media (max-width: 1400px) {
   [data-sidebar="collapsed"] .col-tertiary { display: none !important; }
 }
 @media (max-width: 1244px) {
