@@ -201,12 +201,6 @@ function pontoDoClique(
   }
 }
 
-/** As séries de cada gráfico, no mesmo lugar em que as cores das linhas são definidas. */
-const SERIES_VENDAS_COMPRAS: Serie[] = [
-  { chave: 'faturamento',  nome: 'Faturamento',   cor: 'var(--accent)' },
-  { chave: 'custoCompras', nome: 'Custo Compras', cor: 'var(--gem-rubi)' },
-  { chave: 'lucroLiquido', nome: 'Lucro Líquido', cor: 'var(--gem-esmeralda)' },
-]
 /* Safira, não o accent: `--accent` é #f4f4f5, quase branco. No gráfico de linhas
  * ele funciona como a série principal entre duas coloridas, mas sozinho numa área
  * preenchida vira um borrão cinza. Aqui a série é única e precisa de cor própria. */
@@ -279,9 +273,8 @@ export default function DashboardClient({
   const [evolucao, setEvolucao]       = useState(initialEvolucao)
 
   const [grafMeses, setGrafMeses]   = useState(6)
-  // Um ponto fixado por gráfico — fixar em um não apaga o do outro, então dá para
-  // comparar o mês no gráfico de linhas com o mesmo mês na evolução.
-  const [fixadoLinhas, setFixadoLinhas]     = useState<PontoFixado | null>(null)
+  // Só a evolução fixa ponto. O Vendas × Compras é leitura visual: as três séries
+  // já se comparam pela forma, e o valor exato de cada mês sai no tooltip do hover.
   const [fixadoEvolucao, setFixadoEvolucao]   = useState<PontoFixado | null>(null)
 
   /* O melhor mês da série — é o único ponto que ganha marca e rótulo no gráfico. */
@@ -543,8 +536,6 @@ export default function DashboardClient({
               <LineChart
                 data={grafico}
                 margin={{ top: 4, right: 16, left: 0, bottom: 0 }}
-                onClick={e => setFixadoLinhas(a => alternarFixado(a, pontoDoClique(e, grafico, SERIES_VENDAS_COMPRAS)))}
-                style={{ cursor: 'pointer' }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -553,17 +544,11 @@ export default function DashboardClient({
                 <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                 <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 2" />
-                {/* Marca qual mês está fixado — sem isso a faixa embaixo mostra
-                    valores sem dizer de onde vieram. */}
-                {fixadoLinhas && (
-                  <ReferenceLine x={fixadoLinhas.label} stroke="var(--accent)" strokeDasharray="3 3" strokeOpacity={0.6} />
-                )}
                 <Line dataKey="faturamento"  name="Faturamento"   stroke="var(--accent)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: 'var(--accent)' }} type="monotone" />
                 <Line dataKey="custoCompras" name="Custo Compras" stroke="var(--gem-rubi)" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: 'var(--gem-rubi)' }} type="monotone" />
                 <Line dataKey="lucroLiquido" name="Lucro Líquido" stroke="var(--gem-esmeralda)" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: 'var(--gem-esmeralda)' }} type="monotone" />
               </LineChart>
             </ResponsiveContainer>
-            {fixadoLinhas && <FaixaFixada ponto={fixadoLinhas} onFechar={() => setFixadoLinhas(null)} />}
           </div>
         </div>
       )}
@@ -625,13 +610,30 @@ export default function DashboardClient({
                   contentStyle={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
                   labelStyle={{ color: 'var(--text-primary)' }}
                 />
+                {/* Uma bolinha por mês: é o alvo do clique. Sem elas o gráfico não
+                    dizia onde clicar — a área inteira respondia, mas nada indicava
+                    isso. A do mês fixado cresce e ganha anel, para o clique ter
+                    resposta visível sem precisar da moldura de foco do navegador. */}
                 <Area dataKey="receita" name="Faturamento" stroke="var(--gem-safira)" strokeWidth={2}
-                  fill="url(#evolGrad)" dot={false} activeDot={{ r: 5 }} />
+                  fill="url(#evolGrad)"
+                  dot={(props: { cx?: number; cy?: number; index?: number; payload?: EvolucaoChartData }) => {
+                    const fixado = fixadoEvolucao?.label === props.payload?.label
+                    return (
+                      <circle
+                        key={`dot-${props.index}`}
+                        cx={props.cx} cy={props.cy} r={fixado ? 5.5 : 3.5}
+                        fill="var(--gem-safira)"
+                        stroke={fixado ? 'var(--bg-elevated)' : 'none'}
+                        strokeWidth={fixado ? 2 : 0}
+                      />
+                    )
+                  }}
+                  activeDot={{ r: 5.5, fill: 'var(--gem-safira)', stroke: 'var(--bg-elevated)', strokeWidth: 2 }} />
                 {/*
-                  Um ponto marcado só: o mês de pico, com o valor escrito em cima.
-                  Marcar todos — que era o comportamento anterior — enche a linha de
-                  bolinhas e nenhuma delas diz nada; marcar o maior responde de
-                  imediato "quanto foi o melhor mês e qual foi".
+                  O mês de pico é o único com o valor escrito em cima: responde
+                  "qual foi o melhor mês e quanto" sem exigir clique. As bolinhas
+                  dos demais meses são alvo de clique, não rótulo — por isso ficam
+                  menores e mudas.
                 */}
                 {picoEvolucao && (
                   <ReferenceDot

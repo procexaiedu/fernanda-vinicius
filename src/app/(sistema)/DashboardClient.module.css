@@ -659,6 +659,31 @@
   padding: 16px 12px 12px;
 }
 
+/*
+ * Tira a moldura branca que aparecia ao clicar no gráfico.
+ *
+ * Não era CSS nosso: o recharts 3 liga `accessibilityLayer` por padrão e põe
+ * tabIndex=0 no <svg> raiz, então o clique dá foco nele e o navegador desenha o
+ * próprio anel — branco porque declaramos `color-scheme: dark`.
+ *
+ * Só o foco por clique some. O `:focus-visible` (teclado) mantém um anel, senão
+ * quem navega por Tab perde a única pista de onde está.
+ */
+.chartWrap :global(.recharts-surface):focus,
+.chartWrap :global(.recharts-wrapper):focus,
+.chartWrapSm :global(.recharts-surface):focus,
+.chartWrapSm :global(.recharts-wrapper):focus {
+  outline: none;
+}
+
+.chartWrap :global(.recharts-surface):focus-visible,
+.chartWrap :global(.recharts-wrapper):focus-visible,
+.chartWrapSm :global(.recharts-surface):focus-visible,
+.chartWrapSm :global(.recharts-wrapper):focus-visible {
+  outline: 2px solid var(--gem-safira);
+  outline-offset: 2px;
+}
+
 .chartTooltip {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
