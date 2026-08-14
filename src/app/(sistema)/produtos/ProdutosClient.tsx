@@ -302,7 +302,10 @@ export default function ProdutosClient({
                     title="Selecionar todos da página"
                   />
                 </th>
-                <ThOrdenavel ord={ord} coluna="produto">Produto</ThOrdenavel>
+                {/* Coluna de identidade: a esquerda, como em /fornecedores. Aqui ela nao e a
+                    primeira (a caixa de selecao e), entao a excecao automatica nao pegava e o
+                    titulo ficava centralizado sobre nomes que comecam na esquerda. */}
+                <ThOrdenavel ord={ord} coluna="produto" className="col-esq">Produto</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="codigo">Código</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="material" className="col-tertiary">Material</ThOrdenavel>
                 {isAdmin && <ThOrdenavel ord={ord} coluna="fornecedor" className="col-secondary">Fornecedor</ThOrdenavel>}
@@ -332,7 +335,7 @@ export default function ProdutosClient({
                         onChange={e => toggleSelect(prod.id, e)}
                       />
                     </td>
-                    <td>
+                    <td className="col-esq">
                       <div className={styles.productCell}>
                         {prod.photo_url ? (
                           <img src={prod.photo_url} alt={prod.name} className={styles.photo} />

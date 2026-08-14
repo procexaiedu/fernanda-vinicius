@@ -233,7 +233,9 @@ export default function EstoqueClient({
                         : <span className={styles.mutedCell}>—</span>}
                     </td>
 
-                    <td className={`${styles.mutedCell} col-tertiary`}>{fmtDate(prod.last_sale_date)}</td>
+                    {/* `col-date` também aqui: o <th> já a tinha, o <td> não — título e
+                        coluna acabavam em alinhamentos diferentes. */}
+                    <td className={`${styles.mutedCell} col-tertiary col-date`}>{fmtDate(prod.last_sale_date)}</td>
 
                     <td className="col-center">
                       {statusVenda === 'parado' && <span className={styles.statusParado}>Parado</span>}

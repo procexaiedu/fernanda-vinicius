@@ -379,7 +379,7 @@ export default function LojaDetalheModal({ store, onClose, onEdit }: Props) {
                 <tbody>
                   {data?.transactions.map((t) => (
                     <tr key={t.id}>
-                      <td className={styles.mutedCell}>{formatDate(t.transaction_date)}</td>
+                      <td className={`${styles.mutedCell} col-date`}>{formatDate(t.transaction_date)}</td>
                       <td>{t.description}</td>
                       <td className={styles.mutedCell}>{t.category}</td>
                       <td className={`${styles.rightCol} ${t.type === 'income' ? styles.incomeText : styles.expenseText}`}>

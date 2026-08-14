@@ -378,8 +378,17 @@ table td {
   vertical-align: middle;
 }
 
-table th:first-child,
-table td:first-child {
+/*
+ * A exceção vale só quando a primeira coluna NÃO declara alinhamento próprio.
+ *
+ * Sem o `:not`, `td:first-child` (0,1,1) vencia `.col-date` (0,1,0) e atropelava
+ * a classe explícita: em /financeiro a coluna "Data" ficava à esquerda e
+ * "Vencimento" no centro — duas datas na mesma tabela apontando para lados
+ * diferentes. Quem escreveu `.col-date` no <th> pediu o alinhamento de data, e
+ * esse pedido tem que ganhar de uma regra posicional.
+ */
+table th:first-child:not([class*="col-"]),
+table td:first-child:not([class*="col-"]) {
   text-align: left !important;
 }
 

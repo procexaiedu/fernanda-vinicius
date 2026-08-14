@@ -414,7 +414,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                   onClick={() => setDetalheId(s.id)}
                   title="Clique para ver detalhes"
                 >
-                  <td className={styles.dateCell}>{fmtDate(s.sale_date)}</td>
+                  <td className={`${styles.dateCell} col-date`}>{fmtDate(s.sale_date)}</td>
                   <td>{s.customer_name ?? <span className={styles.muted}>—</span>}</td>
                   {userRole === 'admin' && <td className={styles.muted}>{s.store_name}</td>}
                   {userRole === 'admin' && (

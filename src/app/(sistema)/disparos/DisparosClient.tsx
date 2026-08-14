@@ -175,7 +175,8 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
                     <td className={`col-num ${styles.mutedCell}`}>{d.total ? `${d.enviados}/${d.total}` : '—'}</td>
                     <td className={`col-num ${styles.mutedCell}`}>{d.enviados ? d.entregues : '—'}</td>
                     <td className="col-num">{d.enviados ? <span className={styles.lidos}>{d.lidos}</span> : '—'}</td>
-                    <td className={styles.mutedCell}>{formatDate(d.created_at)}</td>
+                    {/* `col-date` também aqui: estava só no <th>. */}
+                    <td className={`${styles.mutedCell} col-date`}>{formatDate(d.created_at)}</td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className={styles.actions}>
                         {confirming ? (

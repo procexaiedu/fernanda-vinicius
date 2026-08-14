@@ -122,7 +122,7 @@ export default function ComissaoDetalheModal({ transactionId, onClose, onDeleted
                   <tbody>
                     {detail.sales.map(s => (
                       <tr key={s.id}>
-                        <td className={styles.muted}>{fmtDate(s.sale_date)}</td>
+                        <td className={`${styles.muted} col-date`}>{fmtDate(s.sale_date)}</td>
                         <td style={{ fontWeight: 500 }}>{s.client_name ?? '—'}</td>
                         <td className={styles.muted}>{s.store_name ?? '—'}</td>
                         <td style={{ textAlign: 'right', color: '#4CAF7D', fontWeight: 600 }}>{fmt(s.total)}</td>

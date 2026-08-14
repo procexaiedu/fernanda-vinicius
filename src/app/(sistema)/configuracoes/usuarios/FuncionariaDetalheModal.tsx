@@ -379,7 +379,7 @@ export default function FuncionariaDetalheModal({ user, onClose, onEdit }: Props
                     <tbody>
                       {data?.recentSales.map(s => (
                         <tr key={s.id}>
-                          <td className={styles.mutedCell}>{formatDate(s.sale_date)}</td>
+                          <td className={`${styles.mutedCell} col-date`}>{formatDate(s.sale_date)}</td>
                           <td>{s.customers?.name ?? <span className={styles.mutedCell}>—</span>}</td>
                           <td className={styles.mutedCell}>{s.payment_summary ?? '—'}</td>
                           <td className={`${styles.rightCol} ${styles.mutedCell}`}>
@@ -437,7 +437,7 @@ export default function FuncionariaDetalheModal({ user, onClose, onEdit }: Props
                       <tbody>
                         {data?.exchanges.map(e => (
                           <tr key={e.id}>
-                            <td className={styles.mutedCell}>{formatDate(e.exchange_date)}</td>
+                            <td className={`${styles.mutedCell} col-date`}>{formatDate(e.exchange_date)}</td>
                             <td>{e.reason ?? '—'}</td>
                             <td className={`${styles.rightCol} ${Number(e.price_difference) > 0 ? styles.incomeText : Number(e.price_difference) < 0 ? styles.expenseText : styles.mutedCell}`}>
                               {Number(e.price_difference) === 0 ? '—' :
@@ -471,7 +471,7 @@ export default function FuncionariaDetalheModal({ user, onClose, onEdit }: Props
                       <tbody>
                         {data?.cashClosings.map(c => (
                           <tr key={c.id}>
-                            <td className={styles.mutedCell}>{formatDate(c.closing_date)}</td>
+                            <td className={`${styles.mutedCell} col-date`}>{formatDate(c.closing_date)}</td>
                             <td className={`${styles.rightCol} ${styles.mutedCell}`}>{c.sales_count}</td>
                             <td className={`${styles.rightCol} ${styles.valueText}`}>
                               {formatCurrency(Number(c.total_sales))}

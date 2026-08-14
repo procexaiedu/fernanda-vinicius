@@ -219,7 +219,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                       onClick={() => setSelectedId(row.id)}
                       title="Clique para ver detalhes"
                     >
-                      <td className={styles.date}>{fmtDate(row.purchase_date)}</td>
+                      <td className={`${styles.date} col-date`}>{fmtDate(row.purchase_date)}</td>
                       <td className="col-center"><span className={styles.badgeMuted}>Própria</span></td>
                       <td className={styles.suppliers}>
                         {row.suppliers.length > 0
@@ -266,7 +266,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                   const isOverdue = row.return_deadline && row.return_deadline < new Date().toISOString().slice(0, 10)
                   return (
                     <tr key={row.id} className={styles.row}>
-                      <td className={styles.date}>{fmtDate(row.received_date)}</td>
+                      <td className={`${styles.date} col-date`}>{fmtDate(row.received_date)}</td>
                       <td className="col-center"><span className={styles.badgeAccent}>Consignação</span></td>
                       <td className={styles.muted}>—</td>
                       <td className={styles.muted}>{row.storeName}</td>

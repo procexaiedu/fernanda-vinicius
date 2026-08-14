@@ -139,7 +139,7 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
                       <tr key={pay.id}>
                         <td>{methodLabel(pay.payment_method)}</td>
                         <td className={styles.muted}>{pay.installment_number ? `${pay.installment_number}x` : '—'}</td>
-                        <td className={styles.muted}>{fmtDate(pay.due_date)}</td>
+                        <td className={`${styles.muted} col-date`}>{fmtDate(pay.due_date)}</td>
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(pay.amount)}</td>
                         <td>
                           {pay.status === 'completed'
