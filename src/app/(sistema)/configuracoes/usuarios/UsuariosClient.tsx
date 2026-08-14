@@ -163,11 +163,11 @@ export default function UsuariosClient({ users: initialUsers, stores, currentUse
           <thead>
             <tr>
               <th>Usuária</th>
-              <th>E-mail</th>
-              <th>Loja</th>
+              <th className="col-secondary">E-mail</th>
+              <th className="col-secondary">Loja</th>
               <th>Papel</th>
-              <th className={styles.metricCol}>Vendas/mês</th>
-              <th className={styles.metricCol}>Fat./mês</th>
+              <th className={`${styles.metricCol} col-tertiary`}>Vendas/mês</th>
+              <th className={`${styles.metricCol} col-tertiary`}>Fat./mês</th>
               <th>Status</th>
               <th className={styles.actionsCol}>Ações</th>
             </tr>
@@ -210,10 +210,10 @@ export default function UsuariosClient({ users: initialUsers, stores, currentUse
                   </td>
 
                   {/* E-mail */}
-                  <td className={styles.mutedCell}>{u.email}</td>
+                  <td className={`${styles.mutedCell} col-secondary`}>{u.email}</td>
 
                   {/* Loja */}
-                  <td>
+                  <td className="col-secondary">
                     {u.store_name ? (
                       <span
                         className={styles.storeBadge}
@@ -234,7 +234,7 @@ export default function UsuariosClient({ users: initialUsers, stores, currentUse
                   </td>
 
                   {/* Vendas/mês */}
-                  <td className={styles.metricCol}>
+                  <td className={`${styles.metricCol} col-tertiary`}>
                     {u.role === 'operator' ? (
                       <div className={styles.metricCell}>
                         <span className={styles.metricValue}>{u.month_sales}</span>
@@ -246,7 +246,7 @@ export default function UsuariosClient({ users: initialUsers, stores, currentUse
                   </td>
 
                   {/* Fat./mês */}
-                  <td className={styles.metricCol}>
+                  <td className={`${styles.metricCol} col-tertiary`}>
                     {u.role === 'operator' ? (
                       <div className={styles.metricCell}>
                         <span className={styles.metricValue}>{formatCurrency(u.month_revenue)}</span>

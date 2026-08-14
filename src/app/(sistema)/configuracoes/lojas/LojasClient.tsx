@@ -159,9 +159,9 @@ export default function LojasClient({ stores: initialStores }: Props) {
             <thead>
               <tr>
                 <th>Nome</th>
-                <th>Cidade / UF</th>
-                <th>CNPJ</th>
-                <th>Telefone</th>
+                <th className="col-secondary">Cidade / UF</th>
+                <th className="col-tertiary">CNPJ</th>
+                <th className="col-secondary">Telefone</th>
                 <th>Status</th>
                 <th className={styles.actionsCol}>Ações</th>
               </tr>
@@ -175,11 +175,11 @@ export default function LojasClient({ stores: initialStores }: Props) {
                   title="Clique para ver detalhes"
                 >
                   <td className={styles.nameCell}>{store.name}</td>
-                  <td className={styles.mutedCell}>
+                  <td className={`${styles.mutedCell} col-secondary`}>
                     {store.city} / {store.state}
                   </td>
-                  <td className={styles.mutedCell}>{store.cnpj || '—'}</td>
-                  <td className={styles.mutedCell}>{store.phone ? formatPhone(store.phone) : '—'}</td>
+                  <td className={`${styles.mutedCell} col-tertiary`}>{store.cnpj || '—'}</td>
+                  <td className={`${styles.mutedCell} col-secondary`}>{store.phone ? formatPhone(store.phone) : '—'}</td>
                   <td>
                     {store.is_active
                       ? <Badge variant="success">Ativa</Badge>

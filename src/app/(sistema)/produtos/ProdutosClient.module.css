@@ -374,3 +374,31 @@
 }
 
 .emptyHint { font-size: 12px; color: var(--text-muted); opacity: 0.7; }
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ * Só teto de largura; o cartão do produto continua igual.
+ */
+@media (max-width: 700px) {
+  /* Sem teto, o nome do produto tomava 182px dos 364 disponíveis — metade da
+   * tabela para uma coluna, empurrando Venda e Qtd. para fora. */
+  .productCell { max-width: 150px; }
+  .productCell > div { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+  /* A miniatura sai: é decorativa na listagem e custa 40px de largura em uma
+   * tela onde a mesma foto está a um toque de distância, na ficha do produto. */
+  .photo, .photoPlaceholder { display: none; }
+}
+
+/* A coluna de seleção sai no telefone.
+ *
+ * Ela existe para marcar vários produtos e imprimir etiquetas em lote — tarefa de
+ * notebook, com a impressora ao lado, não de celular. No telefone ela só gastava
+ * 25px e um alvo de toque de 13px, que é menor que a ponta do dedo.
+ *
+ * `col-tertiary` no <th> e no <td> faria isso, mas as duas células são geradas
+ * por trechos diferentes do JSX; a regra aqui é mais direta e some junto com o
+ * cabeçalho, sem risco de desalinhar. */
+@media (max-width: 700px) {
+  .table thead th:first-child,
+  .table tbody td:first-child { display: none; }
+}

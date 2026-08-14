@@ -306,7 +306,7 @@ export default function ProdutosClient({
                     primeira (a caixa de selecao e), entao a excecao automatica nao pegava e o
                     titulo ficava centralizado sobre nomes que comecam na esquerda. */}
                 <ThOrdenavel ord={ord} coluna="produto" className="col-esq">Produto</ThOrdenavel>
-                <ThOrdenavel ord={ord} coluna="codigo">Código</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="codigo" className="col-secondary">Código</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="material" className="col-tertiary">Material</ThOrdenavel>
                 {isAdmin && <ThOrdenavel ord={ord} coluna="fornecedor" className="col-secondary">Fornecedor</ThOrdenavel>}
                 {isAdmin && <ThOrdenavel ord={ord} coluna="loja" className="col-tertiary">Loja</ThOrdenavel>}
@@ -351,7 +351,7 @@ export default function ProdutosClient({
                       </div>
                     </td>
 
-                    <td>
+                    <td className="col-secondary">
                       <span className={styles.code} onClick={e => copyCode(prod.code, e)} title="Clique para copiar">
                         {prod.code}
                       </span>

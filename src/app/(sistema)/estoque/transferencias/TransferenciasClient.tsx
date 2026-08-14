@@ -96,28 +96,28 @@ export default function TransferenciasClient({
               <tr>
                 <th>Data</th>
                 <th>Produto</th>
-                <th>De → Para</th>
+                <th className="col-secondary">De → Para</th>
                 <th>Qtd.</th>
-                <th>Responsável</th>
-                <th>Observações</th>
+                <th className="col-tertiary">Responsável</th>
+                <th className="col-tertiary">Observações</th>
               </tr>
             </thead>
             <tbody>
               {transfers.map(t => (
                 <tr key={t.id}>
-                  <td>{fmtDate(t.created_at)}</td>
+                  <td className="col-date">{fmtDate(t.created_at)}</td>
                   <td>
                     <div className={styles.prodCell}>
                       <span className={styles.prodCode}>{t.products?.code ?? '—'}</span>
                       <span className={styles.prodName}>{t.products?.name ?? '—'}</span>
                     </div>
                   </td>
-                  <td>
+                  <td className="col-secondary">
                     {t.from_store?.name ?? '—'} <span className={styles.arrow}>→</span> {t.to_store?.name ?? '—'}
                   </td>
                   <td><span className={styles.qty}>{t.quantity}</span></td>
-                  <td>{t.users?.name ?? '—'}</td>
-                  <td>{t.notes ?? '—'}</td>
+                  <td className="col-tertiary">{t.users?.name ?? '—'}</td>
+                  <td className="col-tertiary">{t.notes ?? '—'}</td>
                 </tr>
               ))}
             </tbody>

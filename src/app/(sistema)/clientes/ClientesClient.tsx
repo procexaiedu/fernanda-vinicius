@@ -248,9 +248,9 @@ export default function ClientesClient({
                 <th className={styles.thSortable} onClick={() => toggleSort('name')}>
                   Cliente <SortIcon col="name" />
                 </th>
-                <th>Telefone</th>
-                <th>Aniversário</th>
-                <th className={styles.thSortable} onClick={() => toggleSort('last_sale_date')}>
+                <th className="col-secondary">Telefone</th>
+                <th className="col-tertiary">Aniversário</th>
+                <th className={`${styles.thSortable} col-secondary`} onClick={() => toggleSort('last_sale_date')}>
                   Última compra <SortIcon col="last_sale_date" />
                 </th>
                 <th className="col-num">Total gasto</th>
@@ -294,10 +294,10 @@ export default function ClientesClient({
                     </td>
 
                     {/* Telefone */}
-                    <td className={styles.mutedCell}>{formatarTelefone(c.phone)}</td>
+                    <td className={`${styles.mutedCell} col-secondary`}>{formatarTelefone(c.phone)}</td>
 
                     {/* Aniversário */}
-                    <td className={styles.mutedCell}>
+                    <td className={`${styles.mutedCell} col-tertiary`}>
                       {c.birthday ? (
                         <span className={birthday ? styles.birthdayHighlight : ''}>
                           {formatBirthdayShort(c.birthday)}
@@ -306,7 +306,7 @@ export default function ClientesClient({
                     </td>
 
                     {/* Última compra */}
-                    <td className={styles.mutedCell}>
+                    <td className={`${styles.mutedCell} col-secondary col-date`}>
                       {c.last_sale_date ? formatDate(c.last_sale_date) : (
                         <span className={styles.neverText}>Nunca</span>
                       )}

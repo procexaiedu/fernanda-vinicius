@@ -262,13 +262,13 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
                 </th>
                 <th className="col-tertiary">Responsável</th>
                 <th className="col-tertiary">WhatsApp</th>
-                <th className={`${styles.thSortable} col-num`} onClick={() => toggleSort('products')}>
+                <th className={`${styles.thSortable} col-num col-secondary`} onClick={() => toggleSort('products')}>
                   Produtos <SortIcon col="products" />
                 </th>
                 <th className={`${styles.thSortable} col-num`} onClick={() => toggleSort('invested')}>
                   Total investido <SortIcon col="invested" />
                 </th>
-                <th className={`${styles.thSortable} col-num`} onClick={() => toggleSort('pending')}>
+                <th className={`${styles.thSortable} col-num col-secondary`} onClick={() => toggleSort('pending')}>
                   Em aberto <SortIcon col="pending" />
                 </th>
                 <th className={`${styles.thSortable} col-tertiary`} onClick={() => toggleSort('last_purchase')}>
@@ -329,7 +329,7 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
                       })()}
                     </td>
 
-                    <td className={`${styles.mutedCell} col-num`}>
+                    <td className={`${styles.mutedCell} col-num col-secondary`}>
                       <span className={styles.productCount}>{s.product_count}</span>
                     </td>
 
@@ -339,7 +339,7 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
                         : '—'}
                     </td>
 
-                    <td className={`${styles.mutedCell} col-num`}>
+                    <td className={`${styles.mutedCell} col-num col-secondary`}>
                       {s.pending_amount > 0
                         ? <span className={styles.pendingBadge}>{formatCurrency(s.pending_amount)}</span>
                         : <span>—</span>}
