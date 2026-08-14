@@ -154,7 +154,7 @@ export default async function VendasPage() {
   }
 
   return (
-    <div style={{ padding: '24px 32px' }}>
+    <div className="page-pad">
       {minhaMeta && <MinhaMetaCard progress={minhaMeta} monthLabel={monthLabel(monthKey)} />}
       <VendasClient sales={sales} stores={stores} sellers={sellers} closings={closings} userRole={profile.role} />
     </div>

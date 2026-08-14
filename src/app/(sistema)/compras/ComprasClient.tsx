@@ -198,11 +198,11 @@ export default function ComprasClient({ purchases, consignments }: Props) {
             <thead>
               <tr>
                 <ThOrdenavel ord={ord} coluna="data" className="col-date">Data</ThOrdenavel>
-                <ThOrdenavel ord={ord} coluna="tipo" className="col-center">Tipo</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="tipo" className="col-center col-tertiary">Tipo</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="fornecedores">Fornecedores</ThOrdenavel>
-                <ThOrdenavel ord={ord} coluna="lojas">Lojas</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="lojas" className="col-secondary">Lojas</ThOrdenavel>
                 <th className="col-tertiary">NF</th>
-                <ThOrdenavel ord={ord} coluna="itens" className="col-num">Itens</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="itens" className="col-num col-secondary">Itens</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="custo" className="col-num">Custo total</ThOrdenavel>
                 <th className="col-center">Status</th>
                 <th className="col-tertiary col-date">Prazo devolução</th>
@@ -220,7 +220,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                       title="Clique para ver detalhes"
                     >
                       <td className={`${styles.date} col-date`}>{fmtDate(row.purchase_date)}</td>
-                      <td className="col-center"><span className={styles.badgeMuted}>Própria</span></td>
+                      <td className="col-center col-tertiary"><span className={styles.badgeMuted}>Própria</span></td>
                       <td className={styles.suppliers}>
                         {row.suppliers.length > 0
                           ? row.suppliers.length === 1
@@ -228,7 +228,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                             : row.supplierInitials.join(' · ')
                           : <span className={styles.muted}>—</span>}
                       </td>
-                      <td className={styles.muted}>
+                      <td className={`${styles.muted} col-secondary`}>
                         {row.storeNames.length > 0 ? row.storeNames.join(', ') : '—'}
                       </td>
                       <td className="col-tertiary">
@@ -243,7 +243,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                             </span>
                           : <span className={styles.muted}>—</span>}
                       </td>
-                      <td className={`col-num ${styles.muted}`}>{row.total_items}</td>
+                      <td className={`col-num col-secondary ${styles.muted}`}>{row.total_items}</td>
                       <td className={`col-num ${styles.cost}`}>{fmt(row.total_cost)}</td>
                       <td className="col-center">
                         {row.paymentStatus === 'paid'
@@ -267,11 +267,11 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                   return (
                     <tr key={row.id} className={styles.row}>
                       <td className={`${styles.date} col-date`}>{fmtDate(row.received_date)}</td>
-                      <td className="col-center"><span className={styles.badgeAccent}>Consignação</span></td>
+                      <td className="col-center col-tertiary"><span className={styles.badgeAccent}>Consignação</span></td>
                       <td className={styles.muted}>—</td>
-                      <td className={styles.muted}>{row.storeName}</td>
+                      <td className={`${styles.muted} col-secondary`}>{row.storeName}</td>
                       <td className={`col-tertiary ${styles.muted}`}>—</td>
-                      <td className={`col-num ${styles.muted}`}>{row.total_pieces}</td>
+                      <td className={`col-num col-secondary ${styles.muted}`}>{row.total_pieces}</td>
                       <td className={`col-num ${styles.cost}`}>{fmt(row.total_cost_value)}</td>
                       <td>
                         {row.status === 'active'

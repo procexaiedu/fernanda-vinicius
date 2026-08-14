@@ -719,3 +719,13 @@
   gap: 12px;
   margin-bottom: 24px;
 }
+
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ * Dois cartões por linha em vez de 3 numa linha só: em 366px cada um ficava com
+ * ~110px e o rótulo em maiúsculas vazava pela direita. Só a distribuição muda.
+ */
+@media (max-width: 700px) {
+  .statsRow { flex-wrap: wrap; gap: 8px; }
+  .statsRow > .stat { flex: 1 1 calc(50% - 4px); min-width: 0; padding: 12px; }
+}

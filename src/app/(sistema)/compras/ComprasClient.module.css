@@ -489,3 +489,23 @@
   color: var(--text-muted);
   cursor: pointer;
 }
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ * Só o teto de largura muda; o truncamento com reticências já existia.
+ */
+@media (max-width: 700px) {
+  /* 220px era metade dos 342px disponíveis para uma lista de iniciais que cresce
+   * sem limite ("SP · EF · VC · WG · BE · ZA · NG"). Com 120px a coluna trunca
+   * antes de espremer Custo e Status, que são o que se procura na lista. */
+  .suppliers { max-width: 120px; }
+}
+
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ * Dois cartões por linha em vez de 3 numa linha só: em 366px cada um ficava com
+ * ~110px e o rótulo em maiúsculas vazava pela direita. Só a distribuição muda.
+ */
+@media (max-width: 700px) {
+  .stats { flex-wrap: wrap; gap: 8px; }
+  .stats > .stat { flex: 1 1 calc(50% - 4px); min-width: 0; padding: 12px; }
+}

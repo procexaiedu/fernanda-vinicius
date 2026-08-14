@@ -390,18 +390,18 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                 <th className={styles.thSortable} onClick={() => toggleSort('customer')}>
                   Cliente <SortIcon col="customer" />
                 </th>
-                {userRole === 'admin' && <th>Loja</th>}
-                {userRole === 'admin' && <th>Vendedora</th>}
-                <th className={styles.thSortable} onClick={() => toggleSort('items')}>
+                {userRole === 'admin' && <th className="col-secondary">Loja</th>}
+                {userRole === 'admin' && <th className="col-secondary">Vendedora</th>}
+                <th className={`${styles.thSortable} col-tertiary`} onClick={() => toggleSort('items')}>
                   Itens <SortIcon col="items" />
                 </th>
-                <th>Subtotal</th>
-                <th>Desconto</th>
+                <th className="col-tertiary">Subtotal</th>
+                <th className="col-tertiary">Desconto</th>
                 <th className={styles.thSortable} onClick={() => toggleSort('total')}>
                   Total <SortIcon col="total" />
                 </th>
-                <th>Pagamento</th>
-                <th>Troca</th>
+                <th className="col-secondary">Pagamento</th>
+                <th className="col-tertiary">Troca</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -416,13 +416,13 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                 >
                   <td className={`${styles.dateCell} col-date`}>{fmtDate(s.sale_date)}</td>
                   <td>{s.customer_name ?? <span className={styles.muted}>—</span>}</td>
-                  {userRole === 'admin' && <td className={styles.muted}>{s.store_name}</td>}
+                  {userRole === 'admin' && <td className={`${styles.muted} col-secondary`}>{s.store_name}</td>}
                   {userRole === 'admin' && (
-                    <td className={styles.muted}>{s.seller_name ?? <span className={styles.muted}>—</span>}</td>
+                    <td className={`${styles.muted} col-secondary`}>{s.seller_name ?? <span className={styles.muted}>—</span>}</td>
                   )}
-                  <td className={styles.muted}>{s.items_count}</td>
-                  <td className={styles.muted}>{fmt(s.subtotal)}</td>
-                  <td className={styles.muted}>
+                  <td className={`${styles.muted} col-tertiary`}>{s.items_count}</td>
+                  <td className={`${styles.muted} col-tertiary`}>{fmt(s.subtotal)}</td>
+                  <td className={`${styles.muted} col-tertiary`}>
                     {s.discount_amount > 0 ? (
                       <span className={styles.discountBadge}>
                         {s.discount_pct > 0 ? `${s.discount_pct}%` : ''} − {fmt(s.discount_amount)}
@@ -430,10 +430,10 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                     ) : '—'}
                   </td>
                   <td className={styles.totalCell}>{fmt(s.total)}</td>
-                  <td className={styles.muted} style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <td className={`${styles.muted} col-secondary`} style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {s.payment_summary ?? '—'}
                   </td>
-                  <td>
+                  <td className="col-tertiary">
                     {s.has_exchange
                       ? <span className={styles.exchangeBadge}><ArrowLeftRight size={11} /> Sim</span>
                       : <span className={styles.muted}>—</span>}

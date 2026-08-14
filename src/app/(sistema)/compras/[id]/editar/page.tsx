@@ -17,7 +17,7 @@ export default async function EditarCompraPage({ params }: Props) {
   if (error || !data) redirect('/compras')
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 1400 }}>
+    <div className="page-pad" style={{ maxWidth: 1400 }}>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)' }}>Editar Compra</h1>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>

@@ -25,3 +25,27 @@
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ *
+ * Cinco abas com `white-space: nowrap` numa linha rígida somam mais que 366px, e
+ * "Impressão" ficava 45px fora da tela — inalcançável, porque quem rolava era a
+ * página inteira, não a fileira.
+ *
+ * A fileira passa a rolar sozinha na horizontal, que é como aba se comporta no
+ * telefone. Aparência idêntica: mesmas cores, mesmo sublinhado, mesmo tamanho.
+ */
+@media (max-width: 700px) {
+  .nav {
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Sem isto o filete de baixo some junto com a rolagem. */
+    padding-bottom: 1px;
+  }
+
+  .nav::-webkit-scrollbar { display: none; }
+
+  /* O padding lateral encolhe: com 18px de cada lado, cinco abas gastavam 180px
+   * só de respiro. */
+  .tab { padding: 8px 12px; }
+}

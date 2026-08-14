@@ -942,3 +942,23 @@
   font-weight: 500;
   margin-bottom: 10px;
 }
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ *
+ * Só layout. Nada de cor, tamanho de fonte ou espaçamento muda — o formulário
+ * continua o mesmo, apenas para de exigir largura que o telefone não tem.
+ */
+@media (max-width: 700px) {
+  /*
+   * `200px 160px 1fr` são larguras CRAVADAS: somam 376px + 32px de gap dentro de
+   * um pai de 317px, então "Data da venda", "Cliente" e "Observações" vazavam
+   * pela direita e a página ganhava 51px de rolagem lateral. Uma coluna resolve
+   * sem mexer em nada além da distribuição.
+   */
+  .headerGrid { grid-template-columns: 1fr; }
+
+  /* `min-width: 460px` é mais largo que o próprio aparelho (390px), então o modal
+   * de novo cliente nascia cortado. O conteúdo já se vira com menos. */
+  .createCustomerForm { min-width: 0; }
+  .createRow { grid-template-columns: 1fr; }
+}

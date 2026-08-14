@@ -66,7 +66,7 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
   }
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: '100%' }}>
+    <div className="page-pad">
       <PageHeader title="Editar Venda" backHref="/vendas" backLabel="Voltar para Vendas" />
 
       <NovaVendaForm

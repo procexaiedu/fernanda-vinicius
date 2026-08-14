@@ -67,7 +67,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps) {
   }
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: '100%' }}>
+    <div className="page-pad">
       <PageHeader title="Nova Venda" backHref="/vendas" backLabel="Voltar para Vendas" />
 
       <NovaVendaForm

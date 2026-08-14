@@ -900,3 +900,13 @@
   background: var(--surface-2, rgba(255, 255, 255, 0.06)) !important;
   color: var(--text-secondary, var(--text-muted)) !important;
 }
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ * Só distribuição. Nenhuma cor, fonte ou espaçamento muda.
+ */
+@media (max-width: 700px) {
+  /* `180px 160px 160px auto` soma 500px + gaps num pai de ~317px: os campos
+   * vazavam pela direita. O `.grid` da tabela de itens NÃO é mexido — ele tem
+   * min-width de propósito e já rola dentro do `.gridWrapper`. */
+  .headerGrid { grid-template-columns: 1fr; }
+}

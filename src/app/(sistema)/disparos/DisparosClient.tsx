@@ -153,12 +153,12 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
             <thead>
               <tr>
                 <ThOrdenavel ord={ord} coluna="titulo">Título</ThOrdenavel>
-                <ThOrdenavel ord={ord} coluna="loja" className="col-truncate">Loja</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="loja" className="col-truncate col-secondary">Loja</ThOrdenavel>
                 <th className="col-center">Status</th>
-                <ThOrdenavel ord={ord} coluna="enviados" className="col-num">Enviados</ThOrdenavel>
-                <ThOrdenavel ord={ord} coluna="entregues" className="col-num">Entregues</ThOrdenavel>
-                <ThOrdenavel ord={ord} coluna="lidos" className="col-num">Lidos</ThOrdenavel>
-                <ThOrdenavel ord={ord} coluna="data" className="col-date">Data</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="enviados" className="col-num col-secondary">Enviados</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="entregues" className="col-num col-tertiary">Entregues</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="lidos" className="col-num col-tertiary">Lidos</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="data" className="col-date col-secondary">Data</ThOrdenavel>
                 <th className={styles.actionsCol}>Ações</th>
               </tr>
             </thead>
@@ -170,13 +170,13 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
                 return (
                   <tr key={d.disparo_id} className={styles.row} onClick={() => setDetalhe(d)} title="Ver detalhes">
                     <td className={styles.titleCell}>{d.titulo}</td>
-                    <td className={styles.mutedCell}>{d.store_name}</td>
+                    <td className={`${styles.mutedCell} col-secondary`}>{d.store_name}</td>
                     <td className="col-center"><Badge variant={badge.variant}>{badge.label}</Badge></td>
-                    <td className={`col-num ${styles.mutedCell}`}>{d.total ? `${d.enviados}/${d.total}` : '—'}</td>
-                    <td className={`col-num ${styles.mutedCell}`}>{d.enviados ? d.entregues : '—'}</td>
-                    <td className="col-num">{d.enviados ? <span className={styles.lidos}>{d.lidos}</span> : '—'}</td>
+                    <td className={`col-num col-secondary ${styles.mutedCell}`}>{d.total ? `${d.enviados}/${d.total}` : '—'}</td>
+                    <td className={`col-num col-tertiary ${styles.mutedCell}`}>{d.enviados ? d.entregues : '—'}</td>
+                    <td className="col-num col-tertiary">{d.enviados ? <span className={styles.lidos}>{d.lidos}</span> : '—'}</td>
                     {/* `col-date` também aqui: estava só no <th>. */}
-                    <td className={`${styles.mutedCell} col-date`}>{formatDate(d.created_at)}</td>
+                    <td className={`${styles.mutedCell} col-date col-secondary`}>{formatDate(d.created_at)}</td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className={styles.actions}>
                         {confirming ? (

@@ -36,7 +36,7 @@ export default async function FinanceiroPage() {
   const categories = Array.from(catSet).sort()
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: '100%' }}>
+    <div className="page-pad">
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)' }}>Financeiro</h1>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>

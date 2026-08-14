@@ -664,7 +664,13 @@ table td:first-child:not([class*="col-"]) {
  * Abaixo de 900px as duas prioridades saem, em qualquer estado da sidebar.
  */
 @media (max-width: 900px) {
-  .col-tertiary,
+  .col-tertiary { display: none !important; }
+}
+
+/* A segunda prioridade só cai no telefone. Tirar as duas juntas a 900px era
+ * agressivo demais para tablet: em 820px sobram ~796px de conteúdo, largura em
+ * que a maioria das tabelas ainda cabe inteira. */
+@media (max-width: 700px) {
   .col-secondary { display: none !important; }
 }
 
@@ -730,3 +736,98 @@ table td:first-child:not([class*="col-"]) {
   main, main > * { min-width: 0; }
   html, body { overflow-x: hidden; }
 }
+
+/* ─── Pisos de largura de coluna no telefone ────────────────────────────────
+ *
+ * `.col-num` e `.col-date` cravam `min-width: 92px` — um piso pensado para dar
+ * ritmo às colunas numéricas no notebook. Em 302px de tabela, dois desses pisos
+ * já consomem 61% da largura e forçam rolagem mesmo depois de as prioridades
+ * saírem: em /financeiro sobravam 87px de rolagem com só 5 colunas visíveis.
+ *
+ * Só o piso muda; alinhamento, `tabular-nums` e tudo o mais seguem iguais.
+ */
+@media (max-width: 700px) {
+  .col-num,
+  .col-date { min-width: 0; }
+
+  /* A data cabe em `dd/mm/aa` sem o piso — continua sem quebrar linha. */
+  .col-truncate { max-width: 110px; }
+
+  /*
+   * Padding de célula em 6px.
+   *
+   * Com 5 colunas, os 10px de cada lado somam 100px — quase um terço dos 342px
+   * úteis gastos em respiro. Medido em /compras: as colunas somavam 454px, e só
+   * o padding respondia por 100 deles. A 6px, a mesma tabela cabe.
+   */
+  :root { --table-cell-px: 6px; }
+}
+
+/* ─── Respiro de card no telefone ───────────────────────────────────────────
+ *
+ * Vários cards usam 20–32px de padding lateral, calibrados para o notebook. Em
+ * 390px isso vira 17% da tela: medido em /financeiro, o cartão comia 64px dos 366
+ * e a tabela ficava com 302px, forçando rolagem mesmo com só 5 colunas visíveis.
+ *
+ * Só o padding LATERAL cai, e só abaixo de 700px. O vertical fica: é ele que dá o
+ * ar do card, e altura não é o recurso escasso aqui.
+ */
+@media (max-width: 700px) {
+  [class*="card"],
+  [class*="Card"],
+  [class*="panel"],
+  [class*="Panel"],
+  [class*="section"],
+  [class*="tableCard"],
+  [class*="listCard"] {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+}
+
+/*
+ * Respiro da página, no lugar do `style={{ padding: '24px 32px' }}` que sete
+ * páginas repetiam inline (vendas, compras, financeiro e os formulários).
+ *
+ * Inline vence qualquer folha de estilo, então nenhuma media query alcançava
+ * aqueles 32px: em 390px eles comiam 64px — 17% da tela — e a tabela do
+ * /financeiro ficava com 302px, rolando mesmo com só 5 colunas visíveis.
+ *
+ * Como classe, o valor acompanha o `--page-padding`, que já é fluido e já cai
+ * para 12px no telefone.
+ */
+.page-pad {
+  padding: 24px var(--page-padding);
+  max-width: 100%;
+}
+
+@media (max-width: 700px) {
+  .page-pad { padding: 16px var(--page-padding); }
+}
+
+/* ─── Fileira de cartões de resumo no telefone ──────────────────────────────
+ *
+ * Vários topos de tela têm 3–4 cartões em `flex: 1` numa linha só (compras,
+ * vendas, financeiro). Em 366px isso dá ~110px cada, e o rótulo em maiúsculas
+ * ("CONSIGNAÇÕES ATIVAS", "A PAGAR (COMPRAS)") vaza pela direita.
+ *
+ * Dois por linha: cabe o rótulo inteiro e o número continua grande. Não vira
+ * coluna única, que empilharia quatro cartões e empurraria a tabela para fora da
+ * primeira tela.
+ */
+/*
+ * NÃO tentar arrumar a fileira de cartões de resumo por seletor genérico.
+ *
+ * Duas tentativas falharam e ficam registradas para ninguém repetir:
+ *
+ * 1. `[class*="stats"] > *` — em /compras é o CARTÃO que se chama `stats`, não o
+ *    contêiner. Os cartões empilharam um por linha, ocupando três telas antes de
+ *    a tabela aparecer.
+ * 2. `div:has(> [class*="stat"])` — casou um ancestral alto demais e passou a
+ *    tratar a barra de filtros como irmã dos cartões, embaralhando as duas.
+ *
+ * Cada tela nomeia essa fileira de um jeito e a aninha numa profundidade
+ * diferente. Sem um contêiner com nome estável, o certo é ajustar tela a tela no
+ * Module dela — que é o que os blocos abaixo fazem, com o nome real medido no
+ * navegador em cada caso.
+ */

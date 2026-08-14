@@ -543,11 +543,11 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
           <thead>
             <tr>
               <ThOrdenavel ord={ord} coluna="data" className="col-date">Data</ThOrdenavel>
-              <ThOrdenavel ord={ord} coluna="vencimento" className="col-date">Vencimento</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="vencimento" className="col-date col-secondary">Vencimento</ThOrdenavel>
               <ThOrdenavel ord={ord} coluna="descricao">Descrição</ThOrdenavel>
-              <ThOrdenavel ord={ord} coluna="categoria">Categoria</ThOrdenavel>
-              <ThOrdenavel ord={ord} coluna="loja" className="col-truncate">Loja</ThOrdenavel>
-              <ThOrdenavel ord={ord} coluna="metodo">Método</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="categoria" className="col-tertiary">Categoria</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="loja" className="col-truncate col-secondary">Loja</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="metodo" className="col-tertiary">Método</ThOrdenavel>
               <ThOrdenavel ord={ord} coluna="valor" className="col-num">Valor</ThOrdenavel>
               <ThOrdenavel ord={ord} coluna="status" className="col-center">Status</ThOrdenavel>
               <th></th>
@@ -577,14 +577,14 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
                     carrega o alinhamento, e o Module `dateCell` só traz a cor. Com ela
                     apenas no cabeçalho, título e coluna divergiam. */}
                 <td className={`${styles.dateCell} col-date`}>{fmtDate(tx.transaction_date)}</td>
-                <td className={`${styles.dateCell} col-date`}>{fmtDate(tx.due_date)}</td>
+                <td className={`${styles.dateCell} col-date col-secondary`}>{fmtDate(tx.due_date)}</td>
                 <td>
                   <div style={{ fontWeight: 500 }}>{tx.description}</div>
                   {tx.user_name && <div className={styles.muted}>{tx.user_name}</div>}
                 </td>
-                <td><span className={styles.categoryBadge}>{tx.category}</span></td>
-                <td className={styles.muted}>{tx.store_name ?? 'Geral'}</td>
-                <td className={styles.muted}>{METHOD_LABELS[tx.payment_method ?? ''] ?? tx.payment_method ?? '—'}</td>
+                <td className="col-tertiary"><span className={styles.categoryBadge}>{tx.category}</span></td>
+                <td className={`${styles.muted} col-secondary`}>{tx.store_name ?? 'Geral'}</td>
+                <td className={`${styles.muted} col-tertiary`}>{METHOD_LABELS[tx.payment_method ?? ''] ?? tx.payment_method ?? '—'}</td>
                 <td className="col-num">
                   <span className={tx.type === 'income' ? styles.amountIncome : styles.amountExpense}>
                     {tx.type === 'income' ? '+' : '−'} {fmt(tx.amount)}
