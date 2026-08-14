@@ -80,3 +80,46 @@
 .bodyFull {
   padding: 24px;
 }
+
+/* ─── Telefone: o modal ocupa a tela ────────────────────────────────────────
+ *
+ * Resolvido AQUI, no componente compartilhado, e não em cada um dos dez modais:
+ * todos herdam `.dialog`, e o padrão certo é o mesmo para todos.
+ *
+ * Três mudanças, todas de layout:
+ *
+ * 1. Colado nas bordas. Os 12–24px de respiro do backdrop faziam sentido quando o
+ *    modal flutuava sobre a tela; em 390px eles só encolhem a área útil de quem
+ *    já está apertado.
+ * 2. Altura cheia com o conteúdo rolando. Meia tela num aparelho de 844px deixava
+ *    a ficha de produto em 582px com rolagem interna, e o rodapé de ações fora do
+ *    alcance.
+ * 3. `min-width: 0` no conteúdo. É o mesmo `min-width: auto` do flex que causava
+ *    o transbordo nas listagens: o cabeçalho da ficha de produto pedia 694px
+ *    dentro de 317, e o modal rolava 353px na horizontal.
+ */
+@media (max-width: 700px) {
+  .backdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .dialog,
+  .sm, .md, .lg, .xl, .xl2 {
+    max-width: 100%;
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: 0;
+  }
+
+  .dialog > *,
+  .body,
+  .bodyFull {
+    min-width: 0;
+  }
+
+  .body { padding: 16px 14px 20px; }
+  .bodyFull { padding: 16px 14px; }
+  .header { padding: 16px 14px 0; }
+}

@@ -831,3 +831,32 @@ table td:first-child:not([class*="col-"]) {
  * Module dela — que é o que os blocos abaixo fazem, com o nome real medido no
  * navegador em cada caso.
  */
+
+/* ─── Fileiras de ação dentro de modal, no telefone ─────────────────────────
+ *
+ * Cabeçalhos e rodapés de modal alinham botões numa fila `nowrap`. Medido na
+ * ficha do produto a 390px: `headerActions` pedia 574px dentro de 191 — "Ativo",
+ * "Imprimir etiqueta", "Promoção" e "Editar" lado a lado —, e o modal ganhava
+ * 319px de rolagem horizontal.
+ *
+ * Quebrar em linhas é a única saída sem esconder ação nenhuma. Aparência
+ * preservada: mesmos botões, mesmas cores, mesma ordem.
+ */
+@media (max-width: 700px) {
+  [role="dialog"] [class*="headerActions"],
+  [role="dialog"] [class*="actions"],
+  [role="dialog"] [class*="footer"],
+  [role="dialog"] [class*="modalActions"] {
+    flex-wrap: wrap !important;
+    min-width: 0;
+  }
+
+  /* Qualquer descendente para de forçar a largura do próprio conteúdo. É o mesmo
+   * `min-width: auto` do flex que causou o transbordo nas listagens. */
+  [role="dialog"] * { min-width: 0; }
+
+  /* Tabelas dentro de modal rolam no próprio contêiner, como as das listagens. */
+  [role="dialog"] table { display: block; overflow-x: auto; white-space: nowrap; }
+  [role="dialog"] table thead,
+  [role="dialog"] table tbody { display: table; width: 100%; }
+}
