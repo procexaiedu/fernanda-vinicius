@@ -51,3 +51,26 @@
   color: var(--accent);
   flex-shrink: 0;
 }
+
+/* ─── Abaixo de 900px: a sidebar sai do fluxo ────────────────────────────────
+ *
+ * Ela vira gaveta e desliza por cima, então o conteúdo usa a largura inteira.
+ * Sem zerar a margem aqui, sobrava uma faixa morta de 64px à esquerda em todas
+ * as telas de celular.
+ */
+@media (max-width: 900px) {
+  .main,
+  .mainCollapsed { margin-left: 0; }
+}
+
+/* Telefone: o respiro lateral encolhe, senão sobra pouco para o conteúdo. Em
+ * 390px os 28px de cada lado do `--page-padding` comiam 14% da largura. */
+@media (max-width: 560px) {
+  .content { padding: 14px 12px 20px; }
+  .bipToast {
+    left: 12px;
+    right: 12px;
+    transform: none;
+    justify-content: center;
+  }
+}

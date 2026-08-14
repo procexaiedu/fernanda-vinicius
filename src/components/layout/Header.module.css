@@ -132,3 +132,38 @@
   background: var(--danger-subtle);
   color: var(--danger);
 }
+
+/* ─── Gaveta: botão de menu ──────────────────────────────────────────────────
+ *
+ * Só existe abaixo de 900px. Acima disso a sidebar é uma coluna fixa e o botão
+ * seria um segundo jeito de fazer o que o botão de recolher já faz.
+ */
+.botaoMenu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-right: 4px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.botaoMenu:hover { border-color: var(--accent); color: var(--accent); }
+
+@media (max-width: 900px) {
+  .botaoMenu { display: inline-flex; }
+
+  /* A sidebar sai do fluxo, então o header ocupa a largura toda. */
+  .header,
+  .headerCollapsed {
+    left: 0;
+    padding: 0 var(--page-padding);
+    gap: 6px;
+  }
+}

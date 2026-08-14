@@ -33,6 +33,9 @@ export default function SistemaLayoutClient({
   children,
 }: SistemaLayoutClientProps) {
   const [collapsed, setCollapsed] = useState(false)
+  /* Gaveta de navegação — só existe abaixo de 900px, onde a sidebar sai do
+   * fluxo e passa a abrir por cima do conteúdo. */
+  const [menuAberto, setMenuAberto] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [abrindoVenda, setAbrindoVenda] = useState<string | null>(null)
   const router = useRouter()
@@ -58,6 +61,19 @@ export default function SistemaLayoutClient({
 
   // O aviso some quando a navegação conclui (a rota muda)
   useEffect(() => { setAbrindoVenda(null) }, [pathname])
+
+  /* Navegou, fecha a gaveta. Sem isto ela fica aberta por cima da tela nova e
+   * a pessoa precisa fechar à mão depois de cada toque no menu. */
+  useEffect(() => { setMenuAberto(false) }, [pathname])
+
+  /* Gaveta aberta trava a rolagem do fundo — senão o dedo arrasta a página
+   * atrás do menu e o conteúdo se perde de posição ao fechar. */
+  useEffect(() => {
+    if (!menuAberto) return
+    const anterior = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = anterior }
+  }, [menuAberto])
 
   useEffect(() => {
     // Sidebar: em telas compactas (≤1366) recolhe sozinha; em telas grandes
@@ -119,9 +135,11 @@ export default function SistemaLayoutClient({
         onToggleTheme={toggleTheme}
         collapsed={collapsed}
         onToggle={toggleSidebar}
+        aberta={menuAberto}
+        onFechar={() => setMenuAberto(false)}
       />
       <div className={`${styles.main} ${collapsed ? styles.mainCollapsed : ''}`}>
-        <Header collapsed={collapsed} />
+        <Header collapsed={collapsed} onAbrirMenu={() => setMenuAberto(true)} />
         <main className={styles.content}>
           {children}
         </main>

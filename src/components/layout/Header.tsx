@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Menu } from 'lucide-react'
 import styles from './Header.module.css'
 
 /**
@@ -15,6 +15,12 @@ import styles from './Header.module.css'
 interface HeaderProps {
   /** Precisa saber: o header é `fixed` e alinha o `left` com a sidebar. */
   collapsed?: boolean
+  /**
+   * Abre a gaveta de navegação. Só aparece abaixo de 900px, onde a sidebar deixa
+   * de ocupar coluna fixa: num celular de 390px ela comia 64px (16% da tela) para
+   * mostrar ícones sem rótulo, que ninguém sabe o que são.
+   */
+  onAbrirMenu?: () => void
 }
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -38,12 +44,22 @@ function getBreadcrumb(pathname: string): string[] {
   return ['Dashboard', label]
 }
 
-export default function Header({ collapsed = false }: HeaderProps) {
+export default function Header({ collapsed = false, onAbrirMenu }: HeaderProps) {
   const pathname = usePathname()
   const breadcrumb = getBreadcrumb(pathname)
 
   return (
     <header className={`${styles.header} ${collapsed ? styles.headerCollapsed : ''}`}>
+      {onAbrirMenu && (
+        <button
+          type="button"
+          className={styles.botaoMenu}
+          onClick={onAbrirMenu}
+          aria-label="Abrir menu de navegação"
+        >
+          <Menu size={20} />
+        </button>
+      )}
       <nav className={styles.breadcrumb} aria-label="Breadcrumb">
         {breadcrumb.map((crumb, i) => (
           <span key={i} className={styles.breadcrumbItem}>

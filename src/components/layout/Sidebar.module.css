@@ -269,3 +269,56 @@
   background: var(--bg-elevated);
   color: var(--text-primary);
 }
+
+/* ─── Abaixo de 900px: coluna vira gaveta ────────────────────────────────────
+ *
+ * Num celular de 390px a sidebar recolhida ocupava 64px — 16% da tela — para
+ * mostrar ícones sem rótulo. Fora que o conteúdo ficava com 326px de largura
+ * útil para uma tabela de 12 colunas.
+ *
+ * Fora da tela por padrão, entra por cima quando chamada. Some do fluxo, então o
+ * conteúdo usa a largura inteira; e como ela desliza por cima, aparece com os
+ * RÓTULOS (o `.collapsed` é anulado aqui), que é o que faz a navegação funcionar
+ * no telefone.
+ */
+@media (max-width: 900px) {
+  .sidebar,
+  .sidebar.collapsed {
+    width: min(82vw, 300px);
+    transform: translateX(-100%);
+    transition: transform var(--transition-base);
+    box-shadow: none;
+  }
+
+  .sidebar.aberta {
+    transform: translateX(0);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Recolhida não vale na gaveta: se ela abre por cima do conteúdo, abre inteira.
+   * Sem isto o menu deslizava mostrando só os ícones — o pior dos dois mundos. */
+  .sidebar.collapsed .topo { padding: 0 8px 0 16px; justify-content: space-between; }
+}
+
+/* Fundo escuro atrás da gaveta: fecha ao toque e deixa claro que o conteúdo
+ * está atrás, não ao lado. */
+.backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    background: rgba(0, 0, 0, 0.55);
+    border: 0;
+    animation: fv-backdrop-in 160ms ease both;
+  }
+}
+
+@keyframes fv-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
