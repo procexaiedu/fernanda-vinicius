@@ -7,6 +7,7 @@ import {
   type LinhaMovimento, type LinhaVendaCusto, type LinhaProdutoEstoque,
   type DashboardKpis, type DashboardStock,
 } from './actions'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 /*
  * ─── O detalhamento de cada número da dashboard ───────────────────────────────
@@ -27,9 +28,8 @@ export type ChaveDetalhe =
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 
 function fmtData(s: string) {
   const [y, m, d] = s.slice(0, 10).split('-')

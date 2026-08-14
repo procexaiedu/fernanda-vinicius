@@ -19,6 +19,7 @@ import { matchText } from '@/lib/normalize'
 import { todaySP } from '@/lib/date'
 import styles from './NovaVendaForm.module.css'
 import { formatarTelefone } from '@/lib/telefone'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -98,9 +99,8 @@ interface Props {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 
 function today() {
   return todaySP()   // fuso de Brasília

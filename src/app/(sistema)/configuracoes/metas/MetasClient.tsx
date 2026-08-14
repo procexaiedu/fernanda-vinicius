@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Check, RotateCcw, Coins, Loader2 } from 'luc
 import { monthLabel, currentMonthKey } from '@/lib/metas/compute'
 import { upsertMetaPadrao, upsertMetaMes, removeMetaMes, gerarComissoesDoMes } from './actions'
 import styles from './MetasClient.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 export interface MetaRow {
   userId: string
@@ -35,9 +36,8 @@ function shiftMonth(monthKey: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-function fmtBRL(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
+const fmtBRL = formatarDinheiro
 
 export default function MetasClient({ mode, monthKey, rows }: Props) {
   const router = useRouter()

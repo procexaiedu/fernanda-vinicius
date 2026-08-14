@@ -5,10 +5,10 @@ import { ArrowLeftRight, AlertTriangle, X, Trash2, Receipt } from 'lucide-react'
 import Badge from '@/components/ui/Badge'
 import { buscarDetalheVenda, deletarVenda, type VendaDetail } from '@/app/(sistema)/vendas/actions'
 import styles from '@/app/(sistema)/vendas/VendasClient.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 
 function fmtDate(s: string) {
   const date = s.slice(0, 10)

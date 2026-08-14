@@ -14,6 +14,7 @@ import ThOrdenavel from '@/components/ui/ThOrdenavel'
 import { useOrdenacao } from '@/hooks/useOrdenacao'
 import { usePaginacaoServidor } from '@/hooks/usePaginacaoServidor'
 import styles from './EstoqueClient.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 function getStatusVenda(lastSaleDate: string | null, createdAt: string): 'parado' | 'critico' | null {
   const now = Date.now()
@@ -25,7 +26,8 @@ function getStatusVenda(lastSaleDate: string | null, createdAt: string): 'parado
   return null
 }
 
-function fmt(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
+/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 function fmtDate(s: string | null) {
   if (!s) return '—'
   const [date] = s.split('T')
@@ -231,7 +233,9 @@ export default function EstoqueClient({
                         : <span className={styles.mutedCell}>—</span>}
                     </td>
 
-                    <td className={`${styles.mutedCell} col-tertiary`}>{fmtDate(prod.last_sale_date)}</td>
+                    {/* `col-date` também aqui: o <th> já a tinha, o <td> não — título e
+                        coluna acabavam em alinhamentos diferentes. */}
+                    <td className={`${styles.mutedCell} col-tertiary col-date`}>{fmtDate(prod.last_sale_date)}</td>
 
                     <td className="col-center">
                       {statusVenda === 'parado' && <span className={styles.statusParado}>Parado</span>}

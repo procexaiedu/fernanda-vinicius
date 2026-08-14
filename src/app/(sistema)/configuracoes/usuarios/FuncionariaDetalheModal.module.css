@@ -393,7 +393,8 @@
   color: var(--text-primary);
 }
 
-.rightCol { text-align: right !important; }
+/* Centralizada como o resto do sistema — ver a regra base em globals.css. */
+.rightCol { text-align: center !important; }
 .mutedCell { color: var(--text-secondary) !important; }
 .valueText { font-weight: 500; }
 .incomeText  { color: var(--success) !important; font-weight: 500; }

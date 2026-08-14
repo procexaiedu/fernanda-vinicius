@@ -15,6 +15,7 @@ import styles from './ClientesClient.module.css'
 import { formatarTelefone } from '@/lib/telefone'
 import Paginacao from '@/components/ui/Paginacao'
 import { usePaginacaoLocal } from '@/hooks/usePaginacaoLocal'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,9 +39,8 @@ function getInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-function formatCurrency(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
+const formatCurrency = formatarDinheiro
 
 function formatDate(s: string) {
   return new Date(s).toLocaleDateString('pt-BR')

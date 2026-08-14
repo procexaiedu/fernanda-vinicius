@@ -11,14 +11,14 @@ import {
   type EditPaymentData,
 } from '@/app/(sistema)/compras/actions'
 import styles from './EditCompraForm.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 interface Props {
   compra: CompraParaEdicao
 }
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 
 function round2(v: number) {
   return Math.round(v * 100) / 100

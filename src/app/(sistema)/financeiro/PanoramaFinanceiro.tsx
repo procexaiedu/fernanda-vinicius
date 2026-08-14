@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { TrendingUp, PieChart } from 'lucide-react'
 import type { TransactionRow } from './actions'
 import styles from './PanoramaFinanceiro.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 /**
  * Panorama financeiro — o que a tabela de lançamentos não conta.
@@ -28,9 +29,10 @@ interface Props {
   transactions: TransactionRow[]
 }
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-}
+/* Esta cópia local tinha `maximumFractionDigits: 0` e engolia os centavos, enquanto
+ * o resto do sistema mostrava o valor cheio — a mesma venda aparecia como R$ 1.062
+ * aqui e R$ 1.062,40 na tabela ao lado. Agora vem do lugar único. */
+const fmt = formatarDinheiro
 
 /** Paleta de gemas — cor que INFORMA a natureza do valor, não decoração. */
 const COR_ENTRADA = 'var(--gem-esmeralda)'

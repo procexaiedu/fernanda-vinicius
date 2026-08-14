@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import { ExternalLink, AlertTriangle, CheckCircle, Clock, Trash2, X, Package, CreditCard, Pencil } from 'lucide-react'
 import { buscarDetalheCompra, deletarCompra, type PurchaseDetail } from '@/app/(sistema)/compras/actions'
 import styles from '@/app/(sistema)/compras/ComprasClient.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 
 function fmtDate(s: string) {
   return s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4)
@@ -139,7 +139,7 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
                       <tr key={pay.id}>
                         <td>{methodLabel(pay.payment_method)}</td>
                         <td className={styles.muted}>{pay.installment_number ? `${pay.installment_number}x` : '—'}</td>
-                        <td className={styles.muted}>{fmtDate(pay.due_date)}</td>
+                        <td className={`${styles.muted} col-date`}>{fmtDate(pay.due_date)}</td>
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(pay.amount)}</td>
                         <td>
                           {pay.status === 'completed'

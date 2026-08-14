@@ -94,13 +94,27 @@ interface SidebarProps {
   /** Estado controlado pelo layout (fonte única — habilita auto-collapse). */
   collapsed: boolean
   onToggle: () => void
+  /** Abaixo de 900px a sidebar vira gaveta: fora da tela até ser chamada. */
+  aberta?: boolean
+  onFechar?: () => void
 }
 
 export default function Sidebar({
   userRole = 'operator', userName, storeName,
   theme = 'dark', onToggleTheme,
   collapsed, onToggle,
+  aberta = false, onFechar,
 }: SidebarProps) {
+  /*
+   * Gaveta aberta nunca está recolhida.
+   *
+   * Abaixo de 900px a sidebar deixa de ser coluna e abre POR CIMA do conteúdo —
+   * não há mais espaço a economizar, e o `collapsed` que veio do auto-collapse de
+   * telas compactas só faria ela deslizar mostrando ícones sem rótulo, que é o
+   * pior dos dois mundos. O estado real continua no `collapsed`; aqui só o que
+   * a renderização usa.
+   */
+  const recolhida = collapsed && !aberta
   const pathname = usePathname()
   const router = useRouter()
 
@@ -124,11 +138,17 @@ export default function Sidebar({
   const inicial = (userName ?? 'U').trim().charAt(0).toUpperCase()
 
   return (
-    <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''}`}>
+    <>
+    {/* Fundo escuro da gaveta. Só renderiza quando aberta; o CSS o esconde acima
+        de 900px, onde a sidebar é coluna e não tem o que cobrir. */}
+    {aberta && (
+      <button type="button" className={styles.backdrop} onClick={onFechar} aria-label="Fechar menu" />
+    )}
+    <aside className={`${styles.sidebar} ${recolhida ? styles.collapsed : ''} ${aberta ? styles.aberta : ''}`}>
       {/* Topo: marca + recolher. O botão subiu para cá — no pé ele ficava longe
           do olho e competia com o rodapé do usuário. */}
       <div className={styles.topo}>
-        {!collapsed && (
+        {!recolhida && (
           <div className={styles.logo}>
             <span className={styles.logoMark} role="img" aria-label="Fernanda Vinícius" />
             <span className={styles.logoText}>
@@ -139,10 +159,10 @@ export default function Sidebar({
         <button
           className={styles.collapseBtn}
           onClick={onToggle}
-          title={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          title={recolhida ? 'Expandir menu' : 'Recolher menu'}
+          aria-label={recolhida ? 'Expandir menu' : 'Recolher menu'}
         >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          {recolhida ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
       </div>
 
@@ -153,7 +173,7 @@ export default function Sidebar({
             {grupo.titulo && (
               // Recolhida, o rótulo do grupo não caberia — vira um traço, que
               // preserva a separação visual sem texto cortado.
-              collapsed
+              recolhida
                 ? <span className={styles.grupoTraco} aria-hidden="true" />
                 : <span className={styles.grupoTitulo}>{grupo.titulo}</span>
             )}
@@ -165,20 +185,20 @@ export default function Sidebar({
                   target="_blank"
                   rel="noopener"
                   className={styles.navItem}
-                  title={collapsed ? item.label : 'Abre em uma nova aba'}
+                  title={recolhida ? item.label : 'Abre em uma nova aba'}
                 >
                   <span className={styles.navIcon}>{item.icon}</span>
-                  {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
+                  {!recolhida && <span className={styles.navLabel}>{item.label}</span>}
                 </a>
               ) : (
                 <Link
                   key={item.href}
                   href={item.href}
                   className={`${styles.navItem} ${isActive(item.href) ? styles.active : ''}`}
-                  title={collapsed ? item.label : undefined}
+                  title={recolhida ? item.label : undefined}
                 >
                   <span className={styles.navIcon}>{item.icon}</span>
-                  {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
+                  {!recolhida && <span className={styles.navLabel}>{item.label}</span>}
                 </Link>
               )
             ))}
@@ -189,9 +209,9 @@ export default function Sidebar({
       {/* Rodapé: quem está logado. Veio do header — é informação de sessão, e
           sessão pertence ao mesmo lugar que a navegação. */}
       <div className={styles.rodape}>
-        <div className={styles.usuario} title={collapsed ? `${userName ?? 'Usuário'} · ${papel}` : undefined}>
+        <div className={styles.usuario} title={recolhida ? `${userName ?? 'Usuário'} · ${papel}` : undefined}>
           <span className={styles.avatar} aria-hidden="true">{inicial}</span>
-          {!collapsed && (
+          {!recolhida && (
             <span className={styles.usuarioInfo}>
               <span className={styles.usuarioNome}>{userName ?? 'Usuário'}</span>
               <span className={styles.usuarioPapel}>
@@ -215,5 +235,6 @@ export default function Sidebar({
         </div>
       </div>
     </aside>
+    </>
   )
 }

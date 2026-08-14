@@ -25,6 +25,7 @@ import {
   type TransactionRow, type PnlData, type RecurrenteRow,
   type DespesaManualData, type RecurrenteData,
 } from './actions'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -47,9 +48,8 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 
 function fmtDate(s: string | null) {
   if (!s) return '—'
@@ -573,8 +573,11 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
                 style={{ cursor: isClickable ? 'pointer' : 'default' }}
                 title={isClickable ? `Ver detalhe ${tx.reference_type === 'sale' ? 'da venda' : tx.reference_type === 'purchase' ? 'da compra' : 'da comissão'}` : undefined}
               >
-                <td className={styles.dateCell}>{fmtDate(tx.transaction_date)}</td>
-                <td className={styles.dateCell}>{fmtDate(tx.due_date)}</td>
+                {/* `col-date` também no <td>, não só no <th>: é a classe global que
+                    carrega o alinhamento, e o Module `dateCell` só traz a cor. Com ela
+                    apenas no cabeçalho, título e coluna divergiam. */}
+                <td className={`${styles.dateCell} col-date`}>{fmtDate(tx.transaction_date)}</td>
+                <td className={`${styles.dateCell} col-date`}>{fmtDate(tx.due_date)}</td>
                 <td>
                   <div style={{ fontWeight: 500 }}>{tx.description}</div>
                   {tx.user_name && <div className={styles.muted}>{tx.user_name}</div>}
@@ -1187,7 +1190,7 @@ function PnlTab({ stores }: { stores: Store[] }) {
                   <tbody>
                     {data.pendingBreakdown.map((p, i) => (
                       <tr key={i}>
-                        <td className={styles.dateCell}>{fmtDate(p.due_date)}</td>
+                        <td className={`${styles.dateCell} col-date`}>{fmtDate(p.due_date)}</td>
                         <td>{p.description}</td>
                         <td><span className={styles.categoryBadge}>{p.category}</span></td>
                         <td className={styles.muted}>

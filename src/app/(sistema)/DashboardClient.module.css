@@ -1318,3 +1318,28 @@
   border-color: rgba(251, 191, 36, 0.30);
   color: var(--warning);
 }
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ *
+ * Três colunas em 366px davam 127/69/119px — a do meio espremida a ponto de
+ * "970" e o rótulo "SKUs Únicos" quebrarem em linhas diferentes. Duas colunas,
+ * e o cartão de alerta passa a ocupar a linha inteira.
+ */
+@media (max-width: 560px) {
+  .stockGrid { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 12px; }
+  .stockCard.stockAlert { grid-column: 1 / -1; }
+
+  /* O bloco do resultado ocupa a largura toda e as barras ficam legíveis. */
+  .bentoKpis { grid-template-columns: 1fr; }
+  .bentoKpis > .heroCard { grid-column: 1 / -1; grid-row: auto; }
+
+  /* Ranking de vendedoras: sem a coluna de loja, que é a menos consultada e a
+   * que mais rouba largura no telefone.
+   *
+   * As DUAS classes: `vendColLoja` está no <th> e `vendLoja` no <td>. Esconder só
+   * uma delas tira o cabeçalho e deixa a célula, deslocando todas as colunas
+   * seguintes — o mesmo defeito que este commit corrige nas outras tabelas. */
+  .vendColLoja,
+  .vendLoja { display: none; }
+  .vendTabela th, .vendTabela td { padding-left: 10px; padding-right: 10px; }
+}
