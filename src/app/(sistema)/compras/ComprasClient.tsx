@@ -12,6 +12,7 @@ import { getItensCompraParaEtiquetas } from './actions'
 import ThOrdenavel from '@/components/ui/ThOrdenavel'
 import { useOrdenacao } from '@/hooks/useOrdenacao'
 import styles from './ComprasClient.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -51,9 +52,8 @@ interface Props {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 
 function fmtDate(s: string) {
   return s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4)

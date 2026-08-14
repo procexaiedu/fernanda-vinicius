@@ -14,6 +14,7 @@ import QuickCreateCatalogModal, { type QuickCreateType } from './QuickCreateCata
 import ConfirmDeleteCatalogModal from './ConfirmDeleteCatalogModal'
 import { excluirFornecedorRapido, excluirCategoriaRapida, excluirMaterialRapido } from '../catalog-actions'
 import styles from './NovaCompraForm.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Tipos de props ────────────────────────────────────────────────────────────
 
@@ -45,9 +46,8 @@ function suggestInitials(name: string): string {
   return name.trim().split(/\s+/).map(w => w[0] ?? '').join('').toUpperCase().slice(0, 2)
 }
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 
 // Impede que o scroll do mouse altere o valor de um input numérico focado
 function blurOnWheel(e: React.WheelEvent<HTMLInputElement>) {

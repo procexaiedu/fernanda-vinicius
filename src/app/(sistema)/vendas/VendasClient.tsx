@@ -14,12 +14,12 @@ import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
 import { normalize } from '@/lib/normalize'
 import type { SaleRow, ClosingOption } from './page'
 import styles from './VendasClient.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 
 function fmtDate(s: string) {
   const [y, m, d] = s.slice(0, 10).split('-')

@@ -10,6 +10,7 @@ import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etique
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { buscarHistoricoVendas, setPromotionalActive, updateProductPricing, type SaleHistoryItem } from '@/app/(sistema)/produtos/actions'
 import styles from './ProdutoDetalheModal.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -61,7 +62,8 @@ interface Props {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmt(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
+/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 function fmtDate(s: string | null) {
   if (!s) return '—'
   const [date] = s.split('T')

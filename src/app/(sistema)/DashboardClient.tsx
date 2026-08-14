@@ -27,14 +27,13 @@ import {
 } from './actions'
 import styles from './DashboardClient.module.css'
 import { formatarTelefone } from '@/lib/telefone'
+import { formatarDinheiro, formatarEixo } from '@/lib/dinheiro'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+const fmt = formatarDinheiro
 
 function fmtDate(s: string | null) {
   if (!s) return '—'
@@ -47,16 +46,18 @@ function fmtBirthday(s: string) {
   return `${d}/${m}`
 }
 
-/** "R$ 5.940" — valor cheio sem centavos, para rótulo colado no dado. */
-function fmtCurto(v: number) {
-  return `R$ ${Math.round(v).toLocaleString('pt-BR')}`
-}
-
-/** Eixo Y em português: 16000 → "16 mil". "16k" é jargão que ela não usa. */
-function fmtEixo(v: number) {
-  if (Math.abs(v) >= 1000) return `${Math.round(v / 1000)} mil`
-  return String(v)
-}
+/*
+ * Rótulo de dado é valor cheio, com centavos.
+ *
+ * Antes isto era `Math.round(v)` — "R$ 5.660" no lugar de "R$ 5.659,90". Num
+ * sistema de controle financeiro, arredondar para caber no rótulo faz a barra
+ * discordar do total que a mesma tela mostra logo abaixo, e a diferença de
+ * centavos é justamente o que se procura quando a conta não fecha.
+ *
+ * O eixo continua abreviado, e só ele: marca de escala não é valor.
+ */
+const fmtCurto = formatarDinheiro
+const fmtEixo = formatarEixo
 
 /*
  * Ordem categórica FIXA das cores — a mesma do protótipo.
@@ -470,7 +471,7 @@ export default function DashboardClient({
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false}
-                  tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v < -1000 ? `-${(Math.abs(v)/1000).toFixed(0)}k` : String(v)} width={42} />
+                  tickFormatter={fmtEixo} width={52} />
                 <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1 }} />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                 <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 2" />

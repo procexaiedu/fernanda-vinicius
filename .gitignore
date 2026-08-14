@@ -66,3 +66,6 @@ WhatsApp Image*.jpeg
 # Agente local — dependências e build
 agent/node_modules/
 agent/dist/
+
+# lixo de crash do bash no Windows
+*.stackdump

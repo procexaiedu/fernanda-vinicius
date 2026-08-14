@@ -1,9 +1,9 @@
 import type { MetaProgress } from '@/lib/metas/compute'
 import styles from './MinhaMetaCard.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
-function fmtBRL(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
+const fmtBRL = formatarDinheiro
 
 export default function MinhaMetaCard({ progress, monthLabel }: { progress: MetaProgress; monthLabel: string }) {
   if (!progress.hasGoal) return null

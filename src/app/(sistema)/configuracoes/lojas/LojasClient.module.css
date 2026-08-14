@@ -34,7 +34,8 @@
 }
 
 .actionsCol {
-  text-align: right !important;
+  /* Centralizada como o resto do sistema — ver a regra base em globals.css. */
+  text-align: center !important;
 }
 
 .table tbody tr {

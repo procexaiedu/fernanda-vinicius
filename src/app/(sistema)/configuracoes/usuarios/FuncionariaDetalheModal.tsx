@@ -7,6 +7,7 @@ import Badge from '@/components/ui/Badge'
 import { createClient } from '@/lib/supabase/client'
 import type { UserWithMetrics } from './page'
 import styles from './FuncionariaDetalheModal.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,9 +77,8 @@ interface Props {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatCurrency(v: number): string {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
+const formatCurrency = formatarDinheiro
 
 function formatDate(s: string): string {
   return new Date(s).toLocaleDateString('pt-BR')

@@ -8,6 +8,7 @@ import type { Store } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone } from './LojasClient'
 import styles from './LojaDetalheModal.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,9 +65,8 @@ interface Props {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatCurrency(value: number): string {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
+const formatCurrency = formatarDinheiro
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('pt-BR')

@@ -361,7 +361,8 @@
   color: var(--text-primary);
 }
 
-.rightCol { text-align: right !important; }
+/* Centralizada como o resto do sistema — ver a regra base em globals.css. */
+.rightCol { text-align: center !important; }
 .codeCell { font-family: monospace; font-size: 11px; color: var(--text-muted); }
 .mutedCell { color: var(--text-secondary) !important; }
 .incomeText  { color: var(--success) !important; font-weight: 500; }

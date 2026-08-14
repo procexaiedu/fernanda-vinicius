@@ -25,6 +25,7 @@ import {
   type TransactionRow, type PnlData, type RecurrenteRow,
   type DespesaManualData, type RecurrenteData,
 } from './actions'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -47,9 +48,8 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 
 function fmtDate(s: string | null) {
   if (!s) return '—'

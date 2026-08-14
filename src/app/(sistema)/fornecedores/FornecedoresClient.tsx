@@ -18,6 +18,7 @@ import type { SupplierWithCount } from './page'
 import styles from './FornecedoresClient.module.css'
 import Paginacao from '@/components/ui/Paginacao'
 import { usePaginacaoLocal } from '@/hooks/usePaginacaoLocal'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -35,9 +36,8 @@ function getAvatarColor(id: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
 
-function formatCurrency(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
+const formatCurrency = formatarDinheiro
 
 function formatPurchaseDate(s: string) {
   const [y, m, d] = s.split('-')

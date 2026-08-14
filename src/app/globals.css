@@ -354,8 +354,45 @@ input, textarea, select {
  *   .col-num    → dinheiro, quantidade, percentual, contagem
  *   .col-center → colunas curtas e categóricas (status, promo, um traço)
  */
+/*
+ * ─── O padrão do sistema: tudo centralizado ─────────────────────────────────
+ *
+ * Cada tela trazia o seu próprio `thead th { text-align: left }` no CSS Module, e
+ * as classes de coluna corrigiam caso a caso — o resultado era o que se via em
+ * /fornecedores: "Produtos" e "Total investido" no meio, "Status" e "Ações"
+ * encostados à esquerda sobre conteúdo centralizado, cada coluna com uma regra
+ * diferente. Padronizar é declarar o padrão UMA vez, aqui, e não repetir em 27
+ * arquivos que vão divergir de novo.
+ *
+ * A primeira coluna é a exceção: é a de identidade (nome + avatar + subtítulo, ou
+ * descrição), lida da esquerda para a direita como texto corrido. Centralizar um
+ * bloco de duas linhas de alturas diferentes deixa a coluna serrilhada.
+ *
+ * `!important` porque precisa vencer os `thead th` dos Modules. As classes
+ * `.col-*` abaixo continuam ganhando desta regra (classe > elemento), então
+ * seguem servindo de escape.
+ */
+table th,
+table td {
+  text-align: center !important;
+  vertical-align: middle;
+}
+
+table th:first-child,
+table td:first-child {
+  text-align: left !important;
+}
+
+/* Escape explícito, para quando a primeira coluna também deve centralizar (uma
+ * posição de ranking, uma caixa de seleção) ou quando uma do meio é texto longo. */
+.col-esq { text-align: left !important; }
+.col-meio { text-align: center !important; }
+
 .col-num {
-  text-align: right !important;
+  /* Centralizada como todo o resto. O `tabular-nums` fica e passa a ser o que
+   * faz o trabalho sozinho: com dígitos de largura fixa, valores centralizados
+   * ainda empilham alinhados entre si. */
+  text-align: center !important;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
   white-space: nowrap;
@@ -383,6 +420,9 @@ input, textarea, select {
  * `tabular-nums` fica: é o que faz as datas empilharem coluna a coluna.
  */
 .col-date {
+  /* Centralizada como o resto. `dd/mm/aaaa` tem largura fixa, entao empilha
+   * alinhada em qualquer alinhamento — nao perde nada indo para o meio. */
+  text-align: center !important;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   min-width: 92px;
@@ -392,7 +432,10 @@ input, textarea, select {
  * `width: 1%` com nowrap é o que faz a coluna encolher até o conteúdo, devolvendo
  * a sobra para a coluna de texto — que é quem deve absorver folga. */
 .col-acoes {
-  text-align: right !important;
+  /* Os icones vao para o meio da coluna, como todo o resto. O `width: 1%` com
+   * nowrap continua encolhendo a coluna ate o conteudo, devolvendo a sobra para
+   * a coluna de texto — que e quem deve absorver folga. */
+  text-align: center !important;
   width: 1%;
   white-space: nowrap;
 }

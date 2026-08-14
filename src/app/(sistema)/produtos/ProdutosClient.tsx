@@ -16,12 +16,12 @@ import ThOrdenavel from '@/components/ui/ThOrdenavel'
 import { useOrdenacao } from '@/hooks/useOrdenacao'
 import { usePaginacaoServidor } from '@/hooks/usePaginacaoServidor'
 import styles from './ProdutosClient.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatCurrency(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
+const formatCurrency = formatarDinheiro
 
 function getStatusVenda(lastSaleDate: string | null, createdAt: string): 'parado' | 'critico' | null {
   const now = Date.now()

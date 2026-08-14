@@ -5,10 +5,10 @@ import { X, TrendingUp, ShoppingBag, Store, Award } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import { buscarVendasDaVendedora, type TopVendedora, type VendaDaVendedora } from '@/app/(sistema)/actions'
 import styles from './VendedoraDetalheModal.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+const fmt = formatarDinheiro
 
 function fmtDate(s: string) {
   const [y, m, d] = s.slice(0, 10).split('-')

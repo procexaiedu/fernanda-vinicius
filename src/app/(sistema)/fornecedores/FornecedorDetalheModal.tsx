@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client'
 import { deletarFornecedor } from './actions'
 import type { SupplierWithCount } from './page'
 import styles from './FornecedorDetalheModal.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,9 +45,8 @@ interface SupplierData {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function formatCurrency(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
+const formatCurrency = formatarDinheiro
 
 function formatDate(s: string) {
   return new Date(s).toLocaleDateString('pt-BR')

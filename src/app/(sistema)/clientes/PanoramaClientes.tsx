@@ -5,6 +5,7 @@ import { TrendingUp, ChevronDown } from 'lucide-react'
 import type { CustomerWithStats, VendaAvulsa } from './page'
 import { formatarTelefone } from '@/lib/telefone'
 import styles from './PanoramaClientes.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 /**
  * De onde vem o faturamento — o que a tabela não conta.
@@ -28,9 +29,10 @@ interface Props {
   vendaAvulsa: VendaAvulsa
 }
 
-function fmt(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-}
+/* Esta cópia local tinha `maximumFractionDigits: 0` e engolia os centavos, enquanto
+ * o resto do sistema mostrava o valor cheio — a mesma venda aparecia como R$ 1.062
+ * aqui e R$ 1.062,40 na tabela ao lado. Agora vem do lugar único. */
+const fmt = formatarDinheiro
 
 /*
  * Os grupos têm NOME, não letra.

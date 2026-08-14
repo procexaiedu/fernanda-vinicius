@@ -11,12 +11,12 @@ import UsuarioFormModal from './UsuarioFormModal'
 import type { UserWithMetrics } from './page'
 import { toggleUserStatus, resetPassword } from './actions'
 import styles from './UsuariosClient.module.css'
+import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatCurrency(value: number): string {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
+/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
+const formatCurrency = formatarDinheiro
 
 function generatePassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789@#$!'
