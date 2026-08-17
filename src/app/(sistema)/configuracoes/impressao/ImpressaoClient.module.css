@@ -1,3 +1,18 @@
+/*
+ * Esta folha foi escrita com um vocabulário de variáveis que NUNCA existiu no
+ * projeto — `--color-bg-secondary`, `--color-border`, `--color-text-primary`,
+ * `--color-accent`. Nenhuma está definida em globals.css, então todas caíam no
+ * segundo argumento do `var()`: valores crus, calibrados só para fundo escuro.
+ *
+ * No tema claro o resultado era: cartão `rgba(255,255,255,.03)` sobre um fundo
+ * branco (invisível), borda branca a 8% (invisível), campo `rgba(0,0,0,.3)`
+ * (uma caixa cinza-escura dentro do cartão branco) e o acento `#b59470` — o
+ * dourado da paleta que a Fernanda rejeitou, sobrevivendo aqui por engano.
+ *
+ * Agora tudo vem dos tokens. O tema claro passa a funcionar sem nenhuma regra
+ * própria, porque `[data-theme="light"]` já inverte os tokens.
+ */
+
 .container {
   display: flex;
   flex-direction: column;
@@ -6,9 +21,9 @@
 }
 
 .card {
-  background: var(--color-bg-secondary, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
-  border-radius: 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 20px 24px;
 }
 
@@ -23,45 +38,46 @@
   font-size: 15px;
   font-weight: 600;
   margin: 0;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
 }
 
 .refreshBtn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
-  color: var(--color-text-secondary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
   padding: 6px 12px;
   font-size: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: inherit;
-  transition: all 0.15s ease;
+  transition: background var(--transition-fast), color var(--transition-fast),
+              border-color var(--transition-fast);
 }
 
 .refreshBtn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--color-text-primary);
+  background: var(--bg-surface);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
+/* ── Estado do agente ───────────────────────────────────────────────────────
+ *
+ * A tarja usa o par `-subtle` (fundo) + sólido (borda e texto) que o resto do
+ * sistema já usa em badge de situação. As duas metades invertem juntas: no tema
+ * claro `--success` escurece para #15803D, que é legível sobre branco — o verde
+ * cravado de antes (#6fcf9a) não era.
+ */
 .statusRow {
   display: flex;
   gap: 12px;
   padding: 14px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   border: 1px solid;
   align-items: flex-start;
   font-size: 13px;
-}
-
-.statusRow code {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 11.5px;
 }
 
 .statusRow strong {
@@ -73,35 +89,44 @@
   margin: 4px 0 0;
   font-size: 12.5px;
   line-height: 1.5;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 .statusRow em {
-  font-style: italic;
-  color: var(--color-text-secondary);
-  font-family: var(--font-mono, monospace);
+  font-style: normal;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
   font-size: 11.5px;
 }
 
 .statusOnline {
-  background: rgba(72, 165, 110, 0.08);
-  border-color: rgba(72, 165, 110, 0.35);
-  color: #6fcf9a;
+  background: var(--success-subtle);
+  border-color: color-mix(in srgb, var(--success) 45%, transparent);
+  color: var(--success);
 }
-.statusOnline strong { color: #b8e6c8; }
 
 .statusOffline {
-  background: rgba(220, 110, 110, 0.08);
-  border-color: rgba(220, 110, 110, 0.35);
-  color: #e89a9a;
+  background: var(--danger-subtle);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  color: var(--danger);
 }
-.statusOffline strong { color: #f1bdbd; }
 
 .statusChecking {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: var(--color-text-secondary);
+  background: var(--bg-elevated);
+  border-color: var(--border);
+  color: var(--text-secondary);
 }
+
+/* O título da tarja é o texto que se lê primeiro: fica na cor de texto normal,
+ * não na cor do estado. Verde sobre verde-claro tinha contraste de leitura
+ * pior que o próprio contorno colorido já dava de sinal. */
+.statusOnline strong,
+.statusOffline strong,
+.statusChecking strong {
+  color: var(--text-primary);
+}
+
+/* ── Formulário ─────────────────────────────────────────────────────────────*/
 
 .formRow {
   display: flex;
@@ -118,65 +143,59 @@
 .label > span {
   font-size: 12px;
   font-weight: 500;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .input {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
-  border-radius: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
   padding: 10px 12px;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   font-size: 14px;
   font-family: inherit;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
+/* Mesmo foco das demais telas: contorno no acento e um halo de 3px. */
 .input:focus {
   outline: none;
-  border-color: var(--color-accent, #b59470);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
 
 .hint {
   font-size: 12px;
-  color: var(--color-text-secondary);
+  color: var(--text-muted);
   line-height: 1.5;
 }
 
-.hint code {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 11.5px;
-}
-
 .btnPrimary {
-  background: var(--color-accent, #b59470);
-  color: var(--color-bg-primary, #0a0a0a);
+  background: var(--accent);
+  color: var(--accent-fg);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 16px;
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
   font-family: inherit;
-  transition: filter 0.15s ease;
+  transition: background var(--transition-fast);
   align-self: flex-start;
 }
 
-.btnPrimary:hover { filter: brightness(1.1); }
+.btnPrimary:hover { background: var(--accent-hover); }
 
 .emptyMsg {
   font-size: 13px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   margin: 0;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.025);
-  border-radius: 8px;
-  border: 1px dashed var(--color-border, rgba(255, 255, 255, 0.08));
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-light);
 }
 
 .steps {
@@ -184,7 +203,7 @@
   padding-left: 20px;
   font-size: 13.5px;
   line-height: 1.7;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 .steps li {
@@ -192,17 +211,26 @@
 }
 
 .steps strong {
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
-.steps code {
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
-  background: rgba(255, 255, 255, 0.06);
+/*
+ * `code` aparece em três blocos desta tela (nome do executável, host:porta,
+ * caminho). Uma regra só, em vez das três variações de antes — que usavam
+ * branco a 6%, invisível no tema claro.
+ */
+.card code,
+.hint code,
+.steps code,
+.statusRow code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
   padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--color-text-primary);
+  border-radius: var(--radius-sm);
 }
 
 .spin {

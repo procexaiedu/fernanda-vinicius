@@ -1,7 +1,10 @@
+/* Mesma migração da folha vizinha: as `--color-*` nunca existiram e caíam em
+ * valores crus de tema escuro. Ver a nota longa em ImpressaoClient.module.css. */
+
 .panel {
-  background: var(--color-bg-secondary, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
-  border-radius: 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
@@ -12,22 +15,22 @@
   font-size: 15px;
   font-weight: 600;
   margin: 0 0 4px;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
 }
 
 .panelHeader p {
   font-size: 12px;
-  color: var(--color-text-secondary);
+  color: var(--text-muted);
   margin: 0;
   line-height: 1.5;
 }
 
 .error {
   font-size: 12.5px;
-  color: #e89a9a;
-  background: rgba(220, 110, 110, 0.08);
-  border: 1px solid rgba(220, 110, 110, 0.25);
-  border-radius: 6px;
+  color: var(--danger);
+  background: var(--danger-subtle);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
   margin: 0;
 }
@@ -44,25 +47,25 @@
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid transparent;
-  transition: background 0.1s ease;
+  transition: background var(--transition-fast);
   min-width: 0;
 }
 
 .gridItem:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-elevated);
 }
 
 .gridItemEditing {
-  background: rgba(181, 148, 112, 0.05) !important;
-  border-color: rgba(181, 148, 112, 0.2) !important;
+  background: var(--accent-subtle) !important;
+  border-color: var(--accent) !important;
 }
 
 .categoryName {
   flex: 1;
   font-size: 13px;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   font-weight: 500;
   min-width: 0;
 }
@@ -72,7 +75,7 @@
   gap: 2px;
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.1s ease;
+  transition: opacity var(--transition-fast);
 }
 
 .gridItem:hover .itemActions {
@@ -97,27 +100,45 @@
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   border: none;
   flex-shrink: 0;
-  transition: filter 0.15s ease;
+  transition: filter var(--transition-fast);
 }
 
 .formatBtn:hover {
   filter: brightness(1.15);
 }
 
+/*
+ * A e B eram âmbar e roxo cravados — as duas cores mais claras da paleta antiga,
+ * ilegíveis sobre branco. As gemas do design system têm exatamente esse par de
+ * matizes e já escurecem sozinhas no tema claro (topázio #FBBF24 → #B45309,
+ * ametista #A78BFA → #7C3AED). O fundo sai da mesma cor por `color-mix`, então
+ * a dupla nunca sai de sintonia.
+ *
+ * A letra NÃO usa a gema pura: leva 22% de `--text-primary` por cima.
+ *
+ * Medido no tema claro com a gema pura: topázio #B45309 sobre o próprio fundo a
+ * 16% dá 4,03:1 — abaixo dos 4,5:1 exigidos, e aqui a letra é a informação
+ * inteira do selo, não enfeite. O teto era a própria gema, que já rende só
+ * 4,6:1 contra o branco puro; qualquer tinta atrás derruba para menos disso.
+ *
+ * Misturar com `--text-primary` conserta nos DOIS temas sem uma regra por tema:
+ * no claro ele é quase-preto e escurece a letra, no escuro é quase-branco e a
+ * clareia — sempre para longe da superfície, porque é essa a função do token.
+ */
 .formatA {
-  background: rgba(252, 211, 77, 0.15);
-  color: #fcd34d;
+  background: color-mix(in srgb, var(--gem-topazio) 16%, transparent);
+  color: color-mix(in srgb, var(--gem-topazio) 78%, var(--text-primary));
 }
 
 .formatB {
-  background: rgba(139, 92, 246, 0.15);
-  color: #a78bfa;
+  background: color-mix(in srgb, var(--gem-ametista) 16%, transparent);
+  color: color-mix(in srgb, var(--gem-ametista) 78%, var(--text-primary));
 }
 
 .actionBtn {
@@ -129,28 +150,28 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
 .actionBtn:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: var(--color-text-primary);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
 }
 
 .actionBtnSave {
-  color: #6fcf9a;
+  color: var(--success);
 }
 
 .actionBtnSave:hover {
-  background: rgba(72, 165, 110, 0.12);
-  color: #6fcf9a;
+  background: var(--success-subtle);
+  color: var(--success);
 }
 
 .actionBtnDanger:hover {
-  background: rgba(220, 110, 110, 0.12);
-  color: #e89a9a;
+  background: var(--danger-subtle);
+  color: var(--danger);
 }
 
 /* Linha de edição (span 2 colunas) */
@@ -163,11 +184,11 @@
 
 .editInput {
   flex: 1;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid var(--color-accent, #b59470);
-  border-radius: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
   padding: 5px 8px;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   font-size: 13px;
   font-family: inherit;
   outline: none;
@@ -184,7 +205,7 @@
 
 .empty {
   font-size: 13px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   margin: 0;
   padding: 4px 8px;
 }
@@ -194,21 +215,22 @@
   align-items: center;
   gap: 6px;
   background: transparent;
-  border: 1px dashed rgba(255, 255, 255, 0.15);
-  color: var(--color-text-secondary);
+  border: 1px dashed var(--border-light);
+  color: var(--text-secondary);
   padding: 6px 12px;
   font-size: 12.5px;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: inherit;
-  transition: all 0.15s ease;
+  transition: background var(--transition-fast), color var(--transition-fast),
+              border-color var(--transition-fast);
   align-self: flex-start;
 }
 
 .addBtn:hover {
-  border-color: var(--color-accent, #b59470);
-  color: var(--color-accent, #b59470);
-  background: rgba(181, 148, 112, 0.05);
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-subtle);
 }
 
 /* ─── Toque ─────────────────────────────────────────────────────────────────

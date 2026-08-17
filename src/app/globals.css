@@ -80,6 +80,14 @@
    * carregar uma segunda família por decoração. */
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
+  /* Mono, só para dado técnico literal: caminho de arquivo, host:porta, nome de
+   * executável. Quatro folhas já escreviam `var(--font-mono, ...)` com o token
+   * que ninguém tinha definido — cada uma com a sua lista de fallback. Aqui o
+   * valor mora num lugar só. Nenhuma fonte é carregada: a pilha é toda de fontes
+   * do sistema. */
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Mono',
+               Menlo, Consolas, monospace;
+
   /* Layout */
   --sidebar-width:          240px;
   --sidebar-width-collapsed: 64px;

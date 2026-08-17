@@ -23,6 +23,18 @@
   color: var(--text-muted);
 }
 
+/* O nome do executável no subtítulo. Mesma marcação de `code` dos cartões —
+ * ver a regra em ImpressaoClient.module.css. */
+.subtitle code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+
 /*
  * Duas colunas: os blocos do agente à esquerda, o painel de categorias à direita.
  *
