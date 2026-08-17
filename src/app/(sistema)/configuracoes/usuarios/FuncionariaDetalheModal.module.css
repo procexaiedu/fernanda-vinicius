@@ -442,3 +442,30 @@
   flex-direction: column;
   gap: 8px;
 }
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ * Mesmo tratamento do modal de loja — ver lojas/LojaDetalheModal.module.css.
+ */
+@media (max-width: 700px) {
+  .tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    padding-bottom: 1px;
+  }
+
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    scroll-snap-align: start;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 14px;
+  }
+
+  /* Quatro indicadores em 342px dão 74px cada; dois por linha é o que cabe sem
+   * o valor quebrar. O grid financeiro já é de dois e encolhe para um. */
+  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+  .financeGrid { grid-template-columns: 1fr; }
+}

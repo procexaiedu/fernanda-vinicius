@@ -410,3 +410,42 @@
   flex-direction: column;
   gap: 8px;
 }
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ *
+ * O modal já ocupa a tela quase inteira abaixo de 700px (regra em
+ * src/components/ui/Modal.module.css). O que faltava era o conteúdo dentro dele.
+ */
+@media (max-width: 700px) {
+  /* As abas do modal rolam na horizontal, como as de /configuracoes: são quatro
+   * rótulos com `white-space: nowrap` numa faixa de ~340px. */
+  .tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    padding-bottom: 1px;
+  }
+
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    scroll-snap-align: start;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 14px;
+  }
+
+  /*
+   * Quatro cartões de indicador em 342px dão 74px cada — menos que o número de
+   * quatro dígitos que eles mostram, que quebrava em duas linhas dentro de um
+   * cartão de 24px de fonte. Dois por linha é o par que cabe.
+   */
+  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Os três blocos financeiros carregam valor em reais: um por linha, com o
+   * número inteiro visível. */
+  .financeGrid { grid-template-columns: 1fr; }
+
+  .statValue { font-size: 20px; }
+}

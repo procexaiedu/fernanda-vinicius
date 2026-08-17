@@ -30,9 +30,28 @@ interface Props {
   linhas?: number
   /** Cartões de indicador acima da tabela (dashboard, financeiro). */
   cartoes?: number
+  /**
+   * Botão primário encostado à direita da barra ("Nova loja", "Nova usuária").
+   * Ligado sozinho, já é motivo para a barra existir — em /configuracoes/lojas a
+   * barra inteira é só esse botão.
+   */
+  acaoDireita?: boolean
+  /**
+   * Painéis empilhados de largura total, para as telas que NÃO são tabela:
+   * cartões de seção (/configuracoes/negocio) e blocos de formulário
+   * (/configuracoes/impressao). Use com `linhas={0}`.
+   */
+  paineis?: number
 }
 
-export default function Esqueleto({ titulo = true, filtros = 0, linhas = 10, cartoes = 0 }: Props) {
+export default function Esqueleto({
+  titulo = true,
+  filtros = 0,
+  linhas = 10,
+  cartoes = 0,
+  acaoDireita = false,
+  paineis = 0,
+}: Props) {
   return (
     <div className={styles.wrap} aria-busy="true" aria-live="polite" aria-label="Carregando">
       {titulo && (
@@ -50,11 +69,20 @@ export default function Esqueleto({ titulo = true, filtros = 0, linhas = 10, car
         </div>
       )}
 
-      {filtros > 0 && (
+      {(filtros > 0 || acaoDireita) && (
         <div className={styles.barra}>
           {/* O primeiro é o campo de busca, que é sempre mais largo. */}
           {Array.from({ length: filtros }).map((_, i) => (
             <div key={i} className={styles.controle} style={{ width: i === 0 ? 260 : 118 }} />
+          ))}
+          {acaoDireita && <div className={`${styles.controle} ${styles.acao}`} />}
+        </div>
+      )}
+
+      {paineis > 0 && (
+        <div className={styles.paineis}>
+          {Array.from({ length: paineis }).map((_, i) => (
+            <div key={i} className={styles.painel} />
           ))}
         </div>
       )}

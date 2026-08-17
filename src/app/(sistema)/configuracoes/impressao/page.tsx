@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import ImpressaoClient from './ImpressaoClient'
 import CategoryMappingPanel from './CategoryMappingPanel'
 import type { CategoryMapping } from './actions'
+import styles from './page.module.css'
 
 export default async function ImpressaoConfigPage() {
   const profile = await requireProfile()
@@ -22,14 +23,14 @@ export default async function ImpressaoConfigPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)' }}>Impressão de etiquetas</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+    <div className={styles.page}>
+      <div className={styles.heading}>
+        <h1 className={styles.title}>Impressão de etiquetas</h1>
+        <p className={styles.subtitle}>
           Configure o agente local de impressão (<code>fv-print-agent</code>) que envia os jobs PPLA à impressora térmica Argox.
         </p>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 480px', gap: 24, alignItems: 'start' }}>
+      <div className={styles.grid}>
         <ImpressaoClient />
         {isAdmin && <CategoryMappingPanel initialMappings={mappings} />}
       </div>

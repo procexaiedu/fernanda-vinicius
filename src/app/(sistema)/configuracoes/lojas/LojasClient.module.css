@@ -225,3 +225,30 @@
   margin-top: 4px;
   padding-top: 16px;
 }
+
+/* ─── Telefone ────────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  /* "Nova Loja" ocupa a linha: é a única ação da tela e, encolhido no canto
+   * direito, dava um alvo de 96px numa faixa de 366px. */
+  .toolbar > * { flex: 1; }
+
+  /* `overflow: hidden` existe pelo raio de canto, mas prendia a tabela; o eixo Y
+   * segue contido e só o X abre para a rolagem lateral. */
+  .tableWrapper {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  /* Cidade/UF e CNPJ já saem por `col-secondary` / `col-tertiary`; sobram Nome,
+   * Status e Ações, que cabem sem rolagem. O alvo de toque dos ícones vem da
+   * regra global de `iconBtn`. */
+  .table td { padding: 13px 10px; }
+
+  /* Estado é sigla de duas letras, mas o rótulo "Estado" acima dele não deixava
+   * a coluna encolher abaixo de 80px — e aí Cidade ficava com 120px. */
+  .stateCol { width: 72px; }
+
+  /* Rodapé do formulário: os dois botões dividem a linha em vez de ficarem
+   * apertados no canto. */
+  .formFooter > * { flex: 1; }
+}

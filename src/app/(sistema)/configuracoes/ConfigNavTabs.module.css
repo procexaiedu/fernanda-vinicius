@@ -1,8 +1,19 @@
+/*
+ * O filete de baixo mora no invólucro, não na fileira.
+ *
+ * A fileira ganha uma máscara de esmaecimento no telefone, e máscara vale para
+ * TUDO que é pintado dentro dela — inclusive a borda. Com o filete na fileira,
+ * o separador da página aparecia desbotando nas pontas, como se estivesse
+ * inacabado. Separando os dois, a máscara pega só as abas.
+ */
+.wrap {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
 .nav {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
 }
 
 .tab {
@@ -36,16 +47,73 @@
  * telefone. Aparência idêntica: mesmas cores, mesmo sublinhado, mesmo tamanho.
  */
 @media (max-width: 700px) {
+  /*
+   * Sangria até a borda da tela.
+   *
+   * Presa dentro do respiro da página, a fileira rolava numa canaleta de 366px
+   * com 12px de tira morta de cada lado — e a aba cortada parava exatamente em
+   * cima dessa tira, parecendo defeito de alinhamento. Com a margem negativa ela
+   * rola de ponta a ponta e o `padding` devolve o alinhamento do primeiro item
+   * com o título da página. `--page-padding` é o mesmo valor que o `.content` do
+   * layout usa, então os dois nunca divergem.
+   *
+   * O `overflow-x: hidden` no `body` (globals.css, abaixo de 700px) é o que
+   * garante que a margem negativa não crie rolagem na página.
+   */
+  .wrap {
+    margin-left: calc(var(--page-padding) * -1);
+    margin-right: calc(var(--page-padding) * -1);
+  }
+
   .nav {
     overflow-x: auto;
     scrollbar-width: none;
     /* Sem isto o filete de baixo some junto com a rolagem. */
     padding-bottom: 1px;
+    padding-left: var(--page-padding);
+    padding-right: var(--page-padding);
+    /* `proximity`, não `mandatory`: com arrasto curto o mandatory puxa a fileira
+     * de volta e dá a impressão de que a rolagem não pegou. */
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: var(--page-padding);
+    overscroll-behavior-x: contain;
   }
 
   .nav::-webkit-scrollbar { display: none; }
 
-  /* O padding lateral encolhe: com 18px de cada lado, cinco abas gastavam 180px
-   * só de respiro. */
-  .tab { padding: 8px 12px; }
+  .tab {
+    scroll-snap-align: center;
+    /*
+     * Alvo de toque de 44px. Com 8px de padding vertical a aba tinha 33px de
+     * altura — desenhada para o cursor do notebook, apertada para o dedo. A
+     * altura vem do `min-height` com o rótulo centralizado, não de mais padding,
+     * para o sublinhado da ativa continuar colado no filete.
+     */
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    /* O padding lateral encolhe: com 18px de cada lado, cinco abas gastavam 180px
+     * só de respiro. */
+    padding: 0 14px;
+  }
+
+  /*
+   * A borda que esmaece é a que ainda tem aba escondida atrás — o estado vem do
+   * `onScroll` em ConfigNavTabs.tsx. Sem esse aviso, a fileira cortada no talho
+   * de uma aba parece só um corte, e não "arraste para o lado".
+   */
+  .nav[data-esmaece='fim'] {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  }
+
+  .nav[data-esmaece='inicio'] {
+    -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+  }
+
+  .nav[data-esmaece='ambos'] {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+  }
 }

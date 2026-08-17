@@ -177,3 +177,55 @@
   font-size: 12px;
   color: var(--danger, #ef4444);
 }
+
+/* ─── Telefone ────────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  /*
+   * A regra global "respiro de card no telefone" (globals.css) casa qualquer
+   * classe que contenha "card" e força 12px de padding lateral. Aqui ela pegava
+   * o `.card` EXTERNO, que é só a moldura e tem padding zero de propósito — o
+   * respiro mora nos filhos. O resultado era uma calha de 12px em volta, com as
+   * linhas divisórias soltas no meio do cartão em vez de encostadas na borda.
+   *
+   * `.sections .card` empata em `!important` e ganha na especificidade (0,2,0).
+   * O cabeçalho, as linhas e o rodapé é que recebem o respiro reduzido, abaixo.
+   */
+  .sections .card {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .cardHeader { padding: 16px 14px 14px; }
+
+  /*
+   * O rótulo e o campo empilham.
+   *
+   * Lado a lado, o `justify-content: space-between` com 24px de intervalo
+   * deixava 80px para o campo e o resto para a descrição — que quebrava em
+   * quatro linhas em textos como "Percentual aplicado sobre o custo para chegar
+   * ao preço de venda sugerido".
+   */
+  .settingRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  /* O campo alinha à esquerda, sob o rótulo — o olho já está nessa margem. */
+  .inputWrap { align-self: flex-start; }
+
+  /* 44px de altura para o dedo; o campo dentro da moldura herda a altura. */
+  .input {
+    width: 96px;
+    padding: 11px 12px;
+  }
+
+  .unit { padding: 11px 12px; }
+
+  .cardFooter {
+    padding: 12px 14px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+}

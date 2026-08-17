@@ -241,3 +241,53 @@
 
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ *
+ * A tabela continua rolando na horizontal em vez de virar lista de cartões: são
+ * sete colunas, duas delas com campo editável, e o valor da tela é comparar meta
+ * com realizado LADO A LADO. A coluna de identidade fica grudada na esquerda
+ * pela regra global de `table td:first-child`, então ao rolar sempre se sabe de
+ * quem é o número.
+ */
+@media (max-width: 700px) {
+  /*
+   * `margin-left: auto` no botão empurrava "Gerar comissões" para a direita da
+   * MESMA linha do alternador. Em 366px sobravam 90px para ele e o rótulo
+   * quebrava em três linhas. Na linha inteira ele também vira alvo de toque.
+   */
+  .contextBar { gap: 10px; }
+
+  .modeToggle { flex: 1 1 auto; }
+  .modeBtn { flex: 1; padding: 8px 10px; }
+
+  .monthNav { flex: 1 1 auto; justify-content: space-between; }
+  .navBtn { width: 38px; height: 38px; }
+  .monthLabel { min-width: 0; flex: 1; }
+
+  .gerarBtn {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+  }
+
+  /* O módulo declara `overflow-x: auto` sozinho; repetir aqui garante que a
+   * ordem de carga das folhas não decida se a tabela rola ou transborda. */
+  .tableWrapper { overflow-x: auto; }
+
+  /* 180px de barra de progresso dentro de 366px de tela é meia largura gasta num
+   * indicador que o percentual ao lado já dá. Ela continua legível em 108px. */
+  .progressCol { width: 108px; }
+  .progressWrap { gap: 6px; }
+  .progressPct { min-width: 32px; }
+
+  /* Os campos guardam valores de até 6 dígitos ("12.000") — 84px comportam, e
+   * cada 26px economizados aqui saem de duas colunas ao mesmo tempo. */
+  .input { width: 84px; }
+  .inputSmall { width: 58px; }
+
+  /* Alvo de toque nos botões de salvar/desfazer da linha. */
+  .saveBtn, .resetBtn { width: 36px; height: 36px; }
+  .actionsCol { width: 84px; }
+}

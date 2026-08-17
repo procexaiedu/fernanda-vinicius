@@ -5,6 +5,7 @@
 .titulo,
 .subtitulo,
 .cartao,
+.painel,
 .controle,
 .avatar,
 .texto,
@@ -54,6 +55,25 @@
   flex-shrink: 0;
 }
 
+/* Largura de "Nova usuária" com o ícone — o botão primário real dessas telas. */
+.acao {
+  width: 128px;
+  margin-left: auto;
+}
+
+/* Telas de cartão/formulário, não de tabela. Os 16px de intervalo são os mesmos
+ * do `.sections` de /configuracoes/negocio e do `.container` de /impressao. */
+.paineis {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.painel {
+  height: 150px;
+  border-radius: var(--radius-lg);
+}
+
 .tabela {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -97,8 +117,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .titulo, .subtitulo, .cartao, .controle,
+  .titulo, .subtitulo, .cartao, .painel, .controle,
   .avatar, .texto, .curta, .numero {
     animation: none;
   }
+}
+
+/* No telefone o subtítulo real quebra em duas linhas e o botão primário desce
+ * para a linha de baixo esticado — o esqueleto acompanha, senão ele encolhe a
+ * página e o conteúdo empurra tudo para baixo ao chegar. */
+@media (max-width: 700px) {
+  .titulo { width: min(220px, 70%); }
+  .subtitulo { width: 100%; height: 26px; }
+  .acao { width: 100%; margin-left: 0; }
+  .painel { height: 190px; }
 }

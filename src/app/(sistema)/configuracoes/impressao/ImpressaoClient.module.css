@@ -213,3 +213,43 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* ─── Telefone ────────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  /* O respiro lateral de 24px cai para 12px pela regra global de card; só o
+   * vertical fica aqui. */
+  .card { padding-top: 16px; padding-bottom: 16px; }
+
+  /* O título e o botão "Atualizar" dividiam a linha; em 366px o botão descia
+   * meio cortado. Empilhados, o botão vira alvo de toque de largura inteira. */
+  .cardHeader {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .refreshBtn {
+    justify-content: center;
+    padding: 10px 12px;
+  }
+
+  .statusRow { padding: 12px; }
+
+  /* `align-self: flex-start` deixava "Salvar" com 78px. Salvar a conexão do
+   * agente é a ação da tela: linha inteira. */
+  .btnPrimary {
+    align-self: stretch;
+    text-align: center;
+    padding: 13px 16px;
+  }
+
+  /* 16px no campo é o que impede o iOS de dar zoom ao focar — abaixo disso o
+   * Safari amplia a página e ela fica deslocada depois que o teclado fecha. */
+  .input {
+    font-size: 16px;
+    padding: 12px;
+  }
+
+  /* A lista de instalação tinha 20px de recuo além do respiro do card. */
+  .steps { padding-left: 18px; }
+}

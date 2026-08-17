@@ -384,3 +384,50 @@
   border-top: 1px solid var(--border);
   padding-top: 14px;
 }
+
+/* ─── Telefone ──────────────────────────────────────────────────────────────
+ *
+ * A regra global de barra de filtros (globals.css) casa por `toolbarLeft` /
+ * `toolbarRight`; aqui o bloco da esquerda se chama `.filters`, então ela não
+ * pegava e a busca de 240px continuava fixa ao lado do seletor de loja,
+ * estourando a linha.
+ */
+@media (max-width: 700px) {
+  .toolbar {
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .filters {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* A busca é o controle mais usado da tela: linha inteira. O seletor de loja e
+   * o "exibir inativas" dividem a linha de baixo. */
+  .searchInput {
+    width: 100%;
+    flex-basis: 100%;
+    height: 40px;
+  }
+
+  .select {
+    flex: 1 1 140px;
+    min-width: 0;
+    height: 40px;
+  }
+
+  .toggleLabel {
+    /* 40px para acompanhar a altura do seletor ao lado e dar área de toque à
+     * caixa de seleção, que sozinha tem 13px. */
+    min-height: 40px;
+    padding: 0 2px;
+  }
+
+  /* `overflow: hidden` (que existe para o raio de canto não vazar) impedia a
+   * tabela de rolar. O eixo Y segue contido; só o X abre. */
+  .tableWrapper {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+}

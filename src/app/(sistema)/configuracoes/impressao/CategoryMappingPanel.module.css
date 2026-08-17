@@ -210,3 +210,43 @@
   color: var(--color-accent, #b59470);
   background: rgba(181, 148, 112, 0.05);
 }
+
+/* ─── Toque ─────────────────────────────────────────────────────────────────
+ *
+ * `.itemActions` nasce com `opacity: 0` e só aparece no `:hover`. Em tela de
+ * toque não existe hover: editar e excluir uma categoria eram simplesmente
+ * inalcançáveis no telefone — o primeiro toque já contava como clique no item.
+ *
+ * `pointer: coarse` casa o dedo, não a largura da janela: um tablet de 1024px
+ * tem o mesmo problema e não seria pego por um `max-width`.
+ */
+@media (pointer: coarse) {
+  .itemActions { opacity: 1; }
+}
+
+/* ─── Telefone ────────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  /* Duas colunas de categoria em 342px davam 171px cada, e com o selo de formato
+   * (22px) mais os dois botões de ação sobravam 60px para o nome — "Semi-joia
+   * banhada" virava reticências. */
+  .grid { grid-template-columns: 1fr; }
+
+  .panel { padding-top: 16px; padding-bottom: 16px; }
+
+  /* Alvo de toque nos itens e nos botões da linha. */
+  .gridItem { padding: 8px; }
+  .actionBtn { width: 34px; height: 34px; }
+  .formatBtn { width: 34px; height: 34px; }
+
+  /* Ver a nota sobre o zoom do iOS em ImpressaoClient.module.css. */
+  .editInput {
+    font-size: 16px;
+    padding: 9px 10px;
+  }
+
+  .addBtn {
+    align-self: stretch;
+    justify-content: center;
+    padding: 11px 12px;
+  }
+}
