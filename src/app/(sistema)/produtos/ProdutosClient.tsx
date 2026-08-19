@@ -73,7 +73,12 @@ export default function ProdutosClient({
   const [detalhe, setDetalhe] = useState<ProductWithRelations | null>(null)
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  /*
+   * Guarda o PRODUTO inteiro, nao so o id. A tabela mostra um lote de 50 por vez;
+   * guardando so o id, ao virar de lote o produto selecionado sumia de `products`
+   * e a impressao de etiquetas abria vazia ("9 selecionados", 0 etiquetas).
+   */
+  const [selectedProducts, setSelectedProducts] = useState<Map<string, ProductWithRelations>>(new Map())
   const [printerOpen, setPrinterOpen] = useState(false)
 
   /*
@@ -107,12 +112,12 @@ export default function ProdutosClient({
     carregando: pendente,
   })
 
-  const toggleSelect = useCallback((id: string, e: React.MouseEvent | React.ChangeEvent) => {
+  const toggleSelect = useCallback((prod: ProductWithRelations, e: React.MouseEvent | React.ChangeEvent) => {
     e.stopPropagation()
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+    setSelectedProducts(prev => {
+      const next = new Map(prev)
+      if (next.has(prod.id)) next.delete(prod.id)
+      else next.set(prod.id, prod)
       return next
     })
   }, [])
@@ -120,19 +125,21 @@ export default function ProdutosClient({
   // Escopo = a PÁGINA visível (10), não o lote do servidor (50). Marcar 50 peças
   // com 10 na tela levava a imprimir etiqueta de peça que a pessoa não tinha visto.
   const toggleSelectAll = useCallback(() => {
-    const daPagina = pag.fatia.map(p => p.id)
-    setSelectedIds(prev => {
-      const todasMarcadas = daPagina.length > 0 && daPagina.every(id => prev.has(id))
-      const next = new Set(prev)
-      if (todasMarcadas) daPagina.forEach(id => next.delete(id))
-      else daPagina.forEach(id => next.add(id))
+    const daPagina = pag.fatia
+    setSelectedProducts(prev => {
+      const todasMarcadas = daPagina.length > 0 && daPagina.every(p => prev.has(p.id))
+      const next = new Map(prev)
+      if (todasMarcadas) daPagina.forEach(p => next.delete(p.id))
+      else daPagina.forEach(p => next.set(p.id, p))
       return next
     })
   }, [pag.fatia])
 
   const printerItems = useMemo<EtiquetasPrinterItem[]>(
-    () => products
-      .filter(p => selectedIds.has(p.id))
+    () => [...selectedProducts.values()]
+      // Se o produto ainda esta no lote em tela, usa a versao fresca (preco/promo
+      // podem ter mudado desde que foi marcado).
+      .map(sel => products.find(p => p.id === sel.id) ?? sel)
       .map(p => ({
         id: p.id,
         name: p.name,
@@ -146,8 +153,9 @@ export default function ProdutosClient({
         barcode_number: p.barcode_number,
         label_format: categoryLabelMap[p.category] ?? p.label_format,
         quantity: 1,
+        category: p.category,
       })),
-    [products, selectedIds, categoryLabelMap],
+    [products, selectedProducts, categoryLabelMap],
   )
 
   // Persistência dos filtros da URL (localStorage). Ao voltar ao módulo sem
@@ -263,11 +271,16 @@ export default function ProdutosClient({
           <span className={styles.counter}>{total} produto{total !== 1 ? 's' : ''}</span>
         </div>
         <div className={styles.toolbarRight}>
-          {selectedIds.size > 0 && (
-            <Button size="sm" variant="ghost" onClick={() => setPrinterOpen(true)}>
-              <Printer size={14} />
-              Imprimir etiquetas ({selectedIds.size})
-            </Button>
+          {selectedProducts.size > 0 && (
+            <>
+              <Button size="sm" variant="ghost" onClick={() => setPrinterOpen(true)}>
+                <Printer size={14} />
+                Imprimir etiquetas ({selectedProducts.size})
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedProducts(new Map())}>
+                Limpar seleção
+              </Button>
+            </>
           )}
           {isAdmin && (
             <Button size="sm" onClick={openCreate}>
@@ -294,9 +307,10 @@ export default function ProdutosClient({
                 <th style={{ width: 36 }}>
                   <input
                     type="checkbox"
-                    checked={pag.fatia.length > 0 && pag.fatia.every(p => selectedIds.has(p.id))}
+                    checked={pag.fatia.length > 0 && pag.fatia.every(p => selectedProducts.has(p.id))}
                     ref={el => {
-                      if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < products.length
+                      const naPagina = pag.fatia.filter(p => selectedProducts.has(p.id)).length
+                      if (el) el.indeterminate = naPagina > 0 && naPagina < pag.fatia.length
                     }}
                     onChange={toggleSelectAll}
                     title="Selecionar todos da página"
@@ -331,8 +345,8 @@ export default function ProdutosClient({
                     <td onClick={e => e.stopPropagation()}>
                       <input
                         type="checkbox"
-                        checked={selectedIds.has(prod.id)}
-                        onChange={e => toggleSelect(prod.id, e)}
+                        checked={selectedProducts.has(prod.id)}
+                        onChange={e => toggleSelect(prod, e)}
                       />
                     </td>
                     <td className="col-esq">
@@ -482,7 +496,7 @@ export default function ProdutosClient({
         isOpen={printerOpen}
         onClose={() => setPrinterOpen(false)}
         initialItems={printerItems}
-        title={`Imprimir etiquetas (${selectedIds.size})`}
+        title={`Imprimir etiquetas (${selectedProducts.size})`}
       />
     </>
   )
