@@ -839,6 +839,7 @@ export async function getItensCompraParaEtiquetas(purchaseId: string): Promise<I
         code,
         sale_price,
         promotional_price,
+        promotional_active,
         barcode_number,
         label_format,
         category
@@ -855,6 +856,7 @@ export async function getItensCompraParaEtiquetas(purchaseId: string): Promise<I
       code: string
       sale_price: number
       promotional_price: number | null
+      promotional_active: boolean | null
       barcode_number: string
       label_format: 'A' | 'B'
       category: string
@@ -864,7 +866,12 @@ export async function getItensCompraParaEtiquetas(purchaseId: string): Promise<I
       name: p.name,
       // A 2ª linha da etiqueta (referência interna) usa o code do produto (ex: FGS0545000)
       supplier_reference: p.code,
-      sale_price: p.promotional_price ?? p.sale_price,
+      // Preço efetivo: só usa a promo se estiver ATIVA e > 0 (mesma regra do PDV,
+      // da lista de produtos e do detalhe). `??` sozinho deixava a promo desligada
+      // valer e deixava promotional_price=0 passar, imprimindo R$ 0,00.
+      sale_price: p.promotional_active && p.promotional_price && p.promotional_price > 0
+        ? p.promotional_price
+        : p.sale_price,
       barcode_number: p.barcode_number,
       // Preferência: label_format do item da compra; fallback no produto
       label_format: (row.label_format as 'A' | 'B') ?? p.label_format,
