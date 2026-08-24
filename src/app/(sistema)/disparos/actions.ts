@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { apiKey, wabaId, listTemplates } from '@/lib/ycloud'
+import { enviarLote } from '@/lib/disparo/enviarLote'
 
 export interface CriarDisparoData {
   titulo: string
@@ -62,17 +64,30 @@ export interface TemplateMeta {
   footer: string | null
 }
 
-// Lista os templates APPROVED da WABA da Fernanda (via edge function que fala com a YCloud)
+/**
+ * Templates APPROVED da WABA da Fernanda.
+ *
+ * Era uma Edge Function (`disparo-templates`). O self-hosted da ProceX não tem
+ * runtime de Edge Functions, então a chamada à YCloud passou a ser feita aqui —
+ * a função nunca dependeu de Deno, só de `fetch`. Ver src/lib/ycloud.ts.
+ */
 export async function listarTemplates(): Promise<{ success: boolean; templates?: TemplateMeta[]; error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Não autenticado.' }
 
-  const admin = createAdminClient()
-  const { data, error } = await admin.functions.invoke('disparo-templates', { body: {} })
-  if (error) return { success: false, error: error.message }
-  if (data?.error) return { success: false, error: data.error }
-  return { success: true, templates: (data?.templates ?? []) as TemplateMeta[] }
+  const chave = apiKey()
+  if (!chave) return { success: false, error: 'YCLOUD_API_KEY não configurada no servidor.' }
+
+  try {
+    const todos = await listTemplates(chave, wabaId())
+    const templates = todos
+      .filter(t => t.status === 'APPROVED')
+      .sort((a, b) => a.name.localeCompare(b.name)) as TemplateMeta[]
+    return { success: true, templates }
+  } catch (e) {
+    return { success: false, error: String(e) }
+  }
 }
 
 export interface CriarDisparoResult {
@@ -119,21 +134,28 @@ export async function criarDisparo(data: CriarDisparoData): Promise<CriarDisparo
   return { success: true, disparo_id: row?.disparo_id, total: row?.total ?? 0 }
 }
 
-// Dispara de fato: invoca a Edge Function em lotes até concluir (idempotente/resumível)
+/**
+ * Dispara de fato, em lotes, até concluir. Idempotente e resumível.
+ *
+ * Era a Edge Function `disparo-send`; agora roda no próprio servidor (ver
+ * src/lib/disparo/enviarLote.ts). O laço de lotes ficou: quem reserva cada
+ * lote é `fv.claim_disparo_batch` com FOR UPDATE SKIP LOCKED, então uma queda
+ * no meio não duplica mensagem nem perde a fila — e isso continua valendo
+ * mesmo sem o limite de tempo que a Edge Function impunha.
+ */
 export async function enviarDisparo(disparo_id: string): Promise<EnviarResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Não autenticado.' }
 
-  const admin = createAdminClient()
   let enviados = 0, falhas = 0, restantes = 0
   for (let i = 0; i < 30; i++) {
-    const { data, error } = await admin.functions.invoke('disparo-send', { body: { disparo_id } })
-    if (error) return { success: false, error: error.message, enviados, falhas }
-    enviados += data?.enviados ?? 0
-    falhas   += data?.falhas ?? 0
-    restantes = data?.restantes ?? 0
-    if (data?.done) break
+    const r = await enviarLote(disparo_id)
+    if (!r.ok) return { success: false, error: r.error, enviados, falhas }
+    enviados += r.enviados
+    falhas   += r.falhas
+    restantes = r.restantes
+    if (r.done) break
   }
   revalidatePath('/disparos')
   return { success: true, enviados, falhas, restantes }
