@@ -1,9 +1,11 @@
 'use client'
 
 import { useTransition } from 'react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { BarChart2, ChevronLeft, ChevronRight, Gem, ArrowLeftRight } from 'lucide-react'
+import { BarChart2, ChevronLeft, ChevronRight, Gem, ArrowLeftRight, ScanLine, Loader2, ClipboardCheck } from 'lucide-react'
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
+import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import ProdutoDetalheModal from '@/components/produto/ProdutoDetalheModal'
@@ -62,6 +64,48 @@ export default function EstoqueClient({
   const searchParams = useSearchParams()
   const [pendente, startTransition] = useTransition()
   const [detalhe, setDetalhe] = useState<ProductWithRelations | null>(null)
+
+  /*
+   * Consulta de balcão: bipar aqui abre a ficha da peça em vez de mandar para a
+   * venda. Quem decide é o modo com que o modal abre — clique na linha continua
+   * sendo consulta interna (custo, margem, fornecedor); bipe abre virado para a
+   * cliente.
+   *
+   * A captura é local e não a global de `layout-client.tsx`, porque aquela morre
+   * assim que existe um `[role="dialog"]` na tela. Como o modal É um dialog,
+   * bipar a segunda peça não funcionaria: aqui a troca de conteúdo é o caso de
+   * uso principal, não a exceção.
+   */
+  const [modoBalcao, setModoBalcao] = useState(false)
+  const [bipando, setBipando] = useState(false)
+  const [bipErro, setBipErro] = useState<string | null>(null)
+
+  const aoBipar = useCallback(async (codigo: string) => {
+    setBipErro(null)
+    setBipando(true)
+    const supabase = createBrowserClient()
+    // Sem filtro de loja: o RLS já limita a operadora à loja dela.
+    const { data, error } = await supabase
+      .from('products')
+      .select('*, suppliers(id, name, initials), stores(id, name)')
+      .eq('barcode_number', codigo)
+      .maybeSingle()
+    setBipando(false)
+
+    if (error || !data) {
+      setBipErro(`Nenhuma peça com o código ${codigo}.`)
+      return
+    }
+    setModoBalcao(true)
+    setDetalhe(data as ProductWithRelations)
+  }, [])
+
+  useBarcodeScanner({ onScan: aoBipar })
+
+  function fecharDetalhe() {
+    setDetalhe(null)
+    setModoBalcao(false)
+  }
 
   /*
    * Ordena o lote que está na tela. Como a paginação é encadeada sobre lotes de 50
@@ -149,6 +193,10 @@ export default function EstoqueClient({
           <span className={styles.counter}>{total} produto{total !== 1 ? 's' : ''}</span>
         </div>
         <div className={styles.toolbarRight}>
+          <Button size="sm" variant="ghost" onClick={() => router.push('/estoque/conferencia')}>
+            <ClipboardCheck size={14} />
+            Conferência
+          </Button>
           {isAdmin && (
             <Button size="sm" variant="ghost" onClick={() => router.push('/estoque/transferencias')}>
               <ArrowLeftRight size={14} />
@@ -266,11 +314,21 @@ export default function EstoqueClient({
         carregando={pag.carregando}
       />
 
+      {(bipando || bipErro) && (
+        <div className={styles.bipToast} role="status" aria-live="polite">
+          {bipando
+            ? <><Loader2 size={15} className={styles.bipSpin} /><span>Buscando peça…</span></>
+            : <><ScanLine size={15} /><span>{bipErro}</span>
+                <button className={styles.bipFechar} onClick={() => setBipErro(null)}>Fechar</button></>}
+        </div>
+      )}
+
       {detalhe && (
         <ProdutoDetalheModal
           produto={detalhe}
           isAdmin={isAdmin}
-          onClose={() => setDetalhe(null)}
+          modoBalcao={modoBalcao}
+          onClose={fecharDetalhe}
         />
       )}
     </>

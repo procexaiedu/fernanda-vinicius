@@ -315,3 +315,39 @@
   font-size: 13px;
   padding: 24px;
 }
+
+/* ── Consulta de balcão ──────────────────────────────────────────────────────
+   A tela fica virada para a cliente. O preço precisa ser legível de longe e a
+   um relance — por isso ele sai da grade de stats e ocupa o centro. */
+
+.precoBalcao {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 16px 24px;
+  margin-bottom: 16px;
+  background: var(--bg-elevated);
+  border-radius: 14px;
+}
+
+.precoBalcaoValor {
+  font-size: clamp(38px, 7vw, 60px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--success);
+}
+
+.precoBalcaoAntes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+.precoBalcaoEstoque {
+  font-size: 13px;
+  color: var(--text-muted);
+}

@@ -56,6 +56,13 @@ interface Props {
   /** Lista de categorias para o sugestão no editor rápido. */
   categories?: string[]
   isAdmin: boolean
+  /**
+   * Consulta de balcão: a tela está virada para a cliente. Esconde custo, margem,
+   * fornecedor e as ações de edição MESMO para admin — o gate aqui não é "quem
+   * pode ver", é "quem está olhando". Também põe o preço em destaque, que é a
+   * única informação que alguém lê do outro lado do balcão.
+   */
+  modoBalcao?: boolean
   onClose: () => void
   onEdit?: (p: ProdutoParaDetalhe) => void
 }
@@ -73,8 +80,11 @@ function fmtDate(s: string | null) {
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export default function ProdutoDetalheModal({ produto, categoryLabelMap, categories = [], isAdmin, onClose, onEdit }: Props) {
+export default function ProdutoDetalheModal({ produto, categoryLabelMap, categories = [], isAdmin, modoBalcao = false, onClose, onEdit }: Props) {
   type Tab = 'geral' | 'vendas' | 'transferencias'
+  /* Dado interno (custo, margem, fornecedor, edição) exige as duas coisas:
+     ser admin E não estar com a tela virada para a cliente. */
+  const interno = isAdmin && !modoBalcao
   const router = useRouter()
   const [tab, setTab] = useState<Tab>('geral')
   const [salesItems, setSalesItems] = useState<SaleHistoryItem[] | null>(null)
@@ -129,7 +139,7 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
       }
     : null
 
-  const margem = isAdmin && produto.cost_price > 0
+  const margem = interno && produto.cost_price > 0
     ? ((effectivePrice - produto.cost_price) / produto.cost_price) * 100
     : null
 
@@ -198,7 +208,7 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
   }, [tab, salesItems, produto.id])
 
   useEffect(() => {
-    if (!isAdmin || tab !== 'transferencias' || transfers !== null) return
+    if (!interno || tab !== 'transferencias' || transfers !== null) return
     setLoadingTransfers(true)
     const supabase = createBrowserClient()
     supabase
@@ -208,12 +218,12 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
       .order('created_at', { ascending: false })
       .limit(20)
       .then(({ data }: { data: unknown }) => { setTransfers((data as Transfer[]) ?? []); setLoadingTransfers(false) })
-  }, [tab, transfers, produto.id, isAdmin])
+  }, [tab, transfers, produto.id, interno])
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'geral', label: 'Geral' },
     { key: 'vendas', label: 'Histórico de Vendas' },
-    ...(isAdmin ? [{ key: 'transferencias' as Tab, label: 'Transferências' }] : []),
+    ...(interno ? [{ key: 'transferencias' as Tab, label: 'Transferências' }] : []),
   ]
 
   return (
@@ -233,22 +243,22 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
               <span className={styles.code}>{produto.code}</span>
               <span className={styles.metaItem}><span className={styles.metaLabel}>Categoria:</span> {category}</span>
               <span className={styles.metaItem}><span className={styles.metaLabel}>Material:</span> {produto.material}</span>
-              {isAdmin && produto.suppliers && (
+              {interno && produto.suppliers && (
                 <span className={styles.metaItem}><span className={styles.metaLabel}>Fornecedor:</span> {produto.suppliers.name}</span>
               )}
-              {isAdmin && produto.stores && (
+              {interno && produto.stores && (
                 <span className={styles.metaItem}><span className={styles.metaLabel}>Loja:</span> {produto.stores.name}</span>
               )}
             </div>
             <div className={styles.headerActions}>
               {produto.is_active ? <Badge variant="success">Ativo</Badge> : <Badge variant="muted">Inativo</Badge>}
               {produto.ownership_type === 'consignment' && <Badge variant="accent">Consignação</Badge>}
-              {printerItem && (
+              {!modoBalcao && printerItem && (
                 <Button size="sm" variant="ghost" onClick={() => setPrinterOpen(true)}>
                   <Printer size={13} /> Imprimir etiqueta
                 </Button>
               )}
-              {isAdmin && (
+              {interno && (
                 <button
                   type="button"
                   className={`${styles.promoToggle} ${promoActive ? styles.promoToggleOn : ''}`}
@@ -261,12 +271,12 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
                   <span className={styles.promoSwitch} aria-hidden><span className={styles.promoKnob} /></span>
                 </button>
               )}
-              {isAdmin && (
+              {interno && (
                 <Button size="sm" variant="ghost" onClick={openEditor}>
                   <Pencil size={13} /> Editar preços
                 </Button>
               )}
-              {onEdit && (
+              {!modoBalcao && onEdit && (
                 <Button size="sm" variant="ghost" onClick={() => onEdit(produto)}>
                   <Pencil size={13} /> Editar
                 </Button>
@@ -274,7 +284,7 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
             </div>
             {promoError && <div className={styles.promoError}>{promoError}</div>}
 
-            {isAdmin && editorOpen && (
+            {interno && editorOpen && (
               <div className={styles.pricingEditor}>
                 <div className={styles.pricingGrid}>
                   <div className={styles.pricingField}>
@@ -345,6 +355,25 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
         {/* Tab: Geral */}
         {tab === 'geral' && (
           <>
+            {/* Balcão: o preço é a única coisa que a cliente lê do outro lado do
+                balcão, então ele sai da grade de stats e vira o centro da tela. */}
+            {modoBalcao && (
+              <div className={styles.precoBalcao}>
+                <span className={styles.precoBalcaoValor}>{fmt(effectivePrice)}</span>
+                {promoActive && hasPromo && (
+                  <span className={styles.precoBalcaoAntes}>
+                    <s>{fmt(salePrice)}</s>
+                    <Badge variant="accent">Promoção</Badge>
+                  </span>
+                )}
+                <span className={styles.precoBalcaoEstoque}>
+                  {produto.quantity_in_stock === 0
+                    ? 'Sem estoque'
+                    : `${produto.quantity_in_stock} em estoque`}
+                </span>
+              </div>
+            )}
+
             <div className={styles.stats}>
               <div className={styles.stat}>
                 <span className={styles.statLabel}>Preço de Venda</span>
@@ -362,7 +391,7 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
                   {produto.quantity_in_stock} un.
                 </span>
               </div>
-              {isAdmin && (
+              {interno && (
                 <div className={styles.stat}>
                   <span className={styles.statLabel}>Custo</span>
                   <span className={styles.statValue}>{fmt(produto.cost_price)}</span>
@@ -370,7 +399,7 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
               )}
             </div>
 
-            {isAdmin && margem !== null && (
+            {interno && margem !== null && (
               <div className={styles.margem}>
                 Margem: <strong style={{ color: margem >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                   {margem >= 0 ? '+' : ''}{margem.toFixed(0)}%
@@ -397,10 +426,10 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
                   <thead>
                     <tr>
                       <th>Data</th>
-                      {isAdmin && <th>Cliente</th>}
+                      {interno && <th>Cliente</th>}
                       <th>Qtd.</th>
                       <th>Valor</th>
-                      {isAdmin && <th>Vendedora</th>}
+                      {interno && <th>Vendedora</th>}
                       <th>Loja</th>
                     </tr>
                   </thead>
@@ -408,10 +437,10 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
                     {salesItems.map(si => (
                       <tr key={si.id}>
                         <td>{fmtDate(si.sale_date)}</td>
-                        {isAdmin && <td>{si.customer_name ?? '—'}</td>}
+                        {interno && <td>{si.customer_name ?? '—'}</td>}
                         <td>{si.quantity}</td>
                         <td>{fmt(si.unit_price)}</td>
-                        {isAdmin && <td>{si.seller_name ?? '—'}</td>}
+                        {interno && <td>{si.seller_name ?? '—'}</td>}
                         <td>{si.store_name}</td>
                       </tr>
                     ))}
@@ -421,7 +450,7 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
         )}
 
         {/* Tab: Transferências (admin only) */}
-        {tab === 'transferencias' && isAdmin && (
+        {tab === 'transferencias' && interno && (
           loadingTransfers
             ? <div><div className={styles.skeleton} style={{ width: '100%', marginBottom: 8 }} /><div className={styles.skeleton} style={{ width: '80%' }} /></div>
             : !transfers?.length

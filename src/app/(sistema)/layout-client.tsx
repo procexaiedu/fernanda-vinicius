@@ -16,8 +16,26 @@ import styles from './layout.module.css'
  * viver dentro deste layout: ele monta o MESMO NovaVendaForm, que já captura o
  * leitor. Sem esta guarda, bipar no PDV adicionaria a peça E navegaria para
  * /vendas/nova ao mesmo tempo, jogando fora a venda em andamento.
+ *
+ * Entrada terminada em `/` casa por prefixo (`/vendas/` cobre `/vendas/[id]`);
+ * sem a barra, casa a rota exata. A distinção existe por causa de `/estoque`: a
+ * consulta de balcão trata o bipe, mas `/estoque/transferencias` não trata — e
+ * com prefixo cego o bipe morreria lá, sem ninguém para atendê-lo.
  */
-const TELAS_QUE_JA_TRATAM_O_BIPE = ['/vendas/nova', '/vendas/', '/pdv']
+const TELAS_QUE_JA_TRATAM_O_BIPE = [
+  '/vendas/nova',
+  '/vendas/',
+  '/pdv',
+  '/estoque',                 // consulta de balcão
+  '/estoque/conferencia',     // escolha do escopo — bipe aqui não é venda
+  '/estoque/conferencia/',    // a contagem, que captura por conta própria
+]
+
+function telaTrataOBipe(pathname: string) {
+  return TELAS_QUE_JA_TRATAM_O_BIPE.some(p =>
+    p.endsWith('/') ? pathname.startsWith(p) : pathname === p
+  )
+}
 
 interface SistemaLayoutClientProps {
   userName: string
@@ -51,7 +69,7 @@ export default function SistemaLayoutClient({
    */
   const aoBiparNoSistema = useCallback((codigo: string) => {
     if (document.querySelector('[role="dialog"]')) return
-    if (TELAS_QUE_JA_TRATAM_O_BIPE.some(p => pathname.startsWith(p))) return
+    if (telaTrataOBipe(pathname)) return
 
     setAbrindoVenda(codigo)
     router.push(`/vendas/nova?bip=${encodeURIComponent(codigo)}`)

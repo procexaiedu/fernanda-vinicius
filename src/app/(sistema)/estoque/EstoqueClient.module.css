@@ -285,3 +285,48 @@
   font-size: 14px;
 }
 .emptyHint { font-size: 12px; color: var(--text-muted); opacity: 0.7; }
+
+/* ── Aviso do bipe (consulta de balcão) ──────────────────────────────────────
+   A busca leva alguns centésimos e o erro precisa ser visível de pé, longe da
+   tela: sem isto o bipe que não achou nada parece que não funcionou, e a
+   operadora bipa de novo. */
+
+.bipToast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
+  font-size: 13.5px;
+  color: var(--text-primary);
+}
+
+.bipSpin {
+  animation: bipGirar 0.9s linear infinite;
+}
+
+@keyframes bipGirar {
+  to { transform: rotate(360deg); }
+}
+
+.bipFechar {
+  margin-left: 4px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.bipFechar:hover {
+  color: var(--text-primary);
+}
