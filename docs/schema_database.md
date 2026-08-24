@@ -474,6 +474,77 @@ erDiagram
 
 ---
 
+### `stock_movements` (ledger de ajustes de estoque)
+
+> **Não é fonte de saldo.** Quem manda no saldo continua sendo `products.quantity_in_stock` — PDV, compras e transferências seguem escrevendo lá. Esta tabela é o diário dos ajustes: registra *de quanto pra quanto*, por quê e por quem. **Não criar view somando `delta`**: enquanto o PDV escrever direto na coluna, uma view somando o ledger daria um segundo saldo divergente (o "ghost stock" que já mordeu o iPrado). Cada linha guarda `quantity_before`/`quantity_after` justamente para ser auditável sozinha, sem somatório.
+
+| Coluna | Tipo | Constraints | Descrição |
+|--------|------|-------------|-----------|
+| id | uuid | PK, default gen_random_uuid() | |
+| product_id | uuid | NOT NULL, FK → products(id) ON DELETE CASCADE | Peça ajustada |
+| quantity_before | integer | NOT NULL | Saldo antes do ajuste |
+| delta | integer | NOT NULL, CHECK ≠ 0 | Variação |
+| quantity_after | integer | NOT NULL, CHECK ≥ 0, CHECK = before + delta | Saldo depois |
+| reason | text | NOT NULL | `furto_perda` \| `venda_nao_lancada` \| `estava_em_outro_lugar` \| `erro_de_cadastro` \| `contagem` |
+| ref_type | text | NOT NULL, default 'manual', check in ('inventory_session','manual','sale','purchase','transfer') | Origem. Hoje só `inventory_session` e `manual` são gravados |
+| ref_id | uuid | | A sessão de conferência que originou |
+| user_id | uuid | NOT NULL, FK → users(id) | Quem ajustou |
+| notes | text | | |
+| created_at | timestamptz | NOT NULL, default now() | |
+
+**Índices:** `(product_id, created_at DESC)`; `(ref_type, ref_id)`
+
+---
+
+### `inventory_sessions` (conferências de estoque)
+
+> Uma recontagem, do escopo ao fechamento. Fechada é imutável. Índice único parcial garante **uma conferência aberta por vez por loja** — duas contagens concorrentes disputariam o mesmo estoque físico.
+
+| Coluna | Tipo | Constraints | Descrição |
+|--------|------|-------------|-----------|
+| id | uuid | PK, default gen_random_uuid() | |
+| store_id | uuid | NOT NULL, FK → stores(id) | |
+| scope_type | text | NOT NULL, check in ('categoria','loja') | |
+| scope_value | text | NOT NULL quando scope_type='categoria' | A categoria conferida |
+| scope_product_ids | uuid[] | NOT NULL, default '{}' | Snapshot dos produtos em escopo, **congelado na abertura**. É ele que define o que é falta — sem isso, produto cadastrado no meio da contagem viraria falta falsa |
+| user_id | uuid | NOT NULL, FK → users(id) | Quem contou |
+| status | text | NOT NULL, default 'contando', check in ('contando','fechada','cancelada') | |
+| started_at | timestamptz | NOT NULL, default now() | |
+| closed_at | timestamptz | | |
+| totals | jsonb | | Resumo congelado: `{bate, falta, sobra, nao_cadastrado, ajustes_aplicados}` |
+| notes | text | | |
+
+**Índices:** `(store_id, started_at DESC)`; único parcial `(store_id) WHERE status = 'contando'`
+
+---
+
+### `inventory_scans` (bipes da conferência)
+
+> Um bipe = uma peça contada. Repetição é significativa (2 bipes = 2 peças), por isso **não há unique** em `(session_id, barcode_number)`.
+
+| Coluna | Tipo | Constraints | Descrição |
+|--------|------|-------------|-----------|
+| id | uuid | PK, default gen_random_uuid() | |
+| session_id | uuid | NOT NULL, FK → inventory_sessions(id) ON DELETE CASCADE | |
+| barcode_number | text | NOT NULL | Etiqueta lida, crua |
+| product_id | uuid | FK → products(id) ON DELETE SET NULL | NULL = etiqueta sem produto correspondente, resolvido na reconciliação |
+| scanned_at | timestamptz | NOT NULL, default now() | |
+
+**Índices:** `(session_id, scanned_at DESC)`; `(session_id, product_id)`
+
+---
+
+### Funções (RPC)
+
+| Função | Descrição |
+|--------|-----------|
+| `fv.open_inventory_session(store_id, scope_type, scope_value, user_id)` | Abre a conferência congelando o escopo. Recusa se já houver uma aberta na loja |
+| `fv.close_inventory_session(session_id, adjustments jsonb, totals jsonb, user_id)` | Aplica os ajustes e fecha, numa transação só: `UPDATE products` e `INSERT stock_movements` sempre juntos. Mesmo padrão de `fv.transfer_stock` |
+
+`adjustments` = `[{ product_id, new_quantity, reason, notes? }]`. Produto ausente da lista fica como está (o "deixar como está" da tela de reconciliação).
+
+---
+
 ## 7. Resumo — Todas as Tabelas
 
 | # | Tabela | Registros estimados | Módulo |
@@ -497,8 +568,11 @@ erDiagram
 | 17 | recurring_expenses | 5-20 (templates) | Financeiro |
 | 18 | cash_closings | 1-2/dia | Financeiro |
 | 19 | stock_transfers | Poucas/mês | Produtos |
+| 20 | stock_movements | Dezenas/mês | Estoque |
+| 21 | inventory_sessions | Poucas/mês | Estoque |
+| 22 | inventory_scans | Milhares/mês | Estoque |
 
-**Total: 19 tabelas**
+**Total: 22 tabelas**
 
 ---
 
