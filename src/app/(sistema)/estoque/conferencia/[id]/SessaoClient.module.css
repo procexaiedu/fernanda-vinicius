@@ -1,0 +1,291 @@
+/* ── Contagem ────────────────────────────────────────────────────────────────
+   Tela de pé, com a gaveta na mão. Pouca coisa, tudo grande, e — regra dura —
+   nenhum número que diga quanto era pra ter. */
+
+.contagem {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+}
+
+.barraEscopo { flex: 1; font-size: 14px; color: var(--text-primary); }
+.barraTempo  { font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 13.5px; }
+.cap         { text-transform: capitalize; }
+
+.pulso {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulsar 1.6s ease-in-out infinite;
+}
+
+@keyframes pulsar {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+
+.palco {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  padding: 34px 20px 30px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-surface);
+}
+
+.ultimo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 22px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  min-width: min(460px, 100%);
+}
+
+.ultimoDesconhecido { box-shadow: inset 0 0 0 1px var(--warning, var(--accent)); }
+
+.ultimoIcone {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  flex: none;
+  border-radius: 10px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+}
+
+.ultimoNome { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.ultimoCode { font-size: 12.5px; color: var(--text-muted); font-family: var(--font-mono, monospace); }
+.ultimoTag  { margin-left: auto; }
+
+.tagOk, .tagRepetido, .tagAlerta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tagOk       { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+.tagRepetido { background: color-mix(in srgb, var(--accent) 18%, transparent);  color: var(--accent); }
+.tagAlerta   { background: color-mix(in srgb, var(--danger) 15%, transparent);  color: var(--danger); }
+
+.aguardando {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.contador {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.contadorValor {
+  font-size: clamp(56px, 11vw, 96px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.contadorRotulo { font-size: 14px; color: var(--text-muted); }
+
+.historicoBipes {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+.linhaBipe {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+  font-size: 13px;
+}
+.linhaBipe:last-child { border-bottom: none; }
+
+.bipeHora { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bipeCode { font-family: var(--font-mono, monospace); color: var(--text-secondary); }
+.bipeNome { flex: 1; color: var(--text-primary); }
+
+.iconeOk     { color: var(--success); flex: none; }
+.iconeAlerta { color: var(--danger);  flex: none; }
+
+.rodape {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.erro {
+  padding: 10px 14px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+/* ── Reconciliação ───────────────────────────────────────────────────────── */
+
+.reconc, .fechada {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.recTitulo, .fechadaTitulo {
+  font-size: var(--fs-page-title);
+  letter-spacing: var(--tracking-title);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+
+.recMeta, .fechadaMeta { font-size: 13px; color: var(--text-muted); margin-top: -10px; }
+
+.baldes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.balde {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 12px;
+  border-radius: 10px;
+  background: var(--bg-elevated);
+}
+
+.baldeTitulo {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.baldeValor {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.balde_falta { color: var(--danger); }
+.balde_sobra { color: var(--accent); }
+
+.grupo {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+
+.grupoTitulo {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-primary);
+}
+
+.grupoDesc { font-size: 12.5px; color: var(--text-muted); margin: 2px 0 14px; }
+.grupoNota { font-size: 12.5px; color: var(--text-muted); margin-top: 12px; line-height: 1.5; }
+
+.linhaDiv {
+  padding: 14px 0;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+}
+.linhaDiv:first-of-type { border-top: none; }
+
+.linhaCabeca {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.linhaNome     { flex: 1; font-size: 14px; color: var(--text-primary); }
+.linhaNumeros  { font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+.linhaNumeros strong { color: var(--text-primary); }
+
+.linhaControles {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.motivos, .decisao {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.motivo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.motivo input { accent-color: var(--accent); cursor: pointer; }
+.motivo input:disabled { cursor: default; }
+
+.faltaMotivo {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--danger);
+}
+
+.semCadastro {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.semCadastroLinha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.muted { color: var(--text-muted); }

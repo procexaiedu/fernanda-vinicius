@@ -1,0 +1,203 @@
+/* Segue os tokens e a estrutura de tabela de EstoqueClient.module.css. */
+
+/* ── Conferência em andamento ────────────────────────────────────────────────
+   Tem precedência sobre o resto: só existe uma aberta por loja, e enquanto ela
+   existir o caminho é voltar para ela, não começar outra. */
+
+.emAndamento {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.emAndamento:hover { background: var(--bg-hover, rgba(255, 255, 255, 0.04)); }
+.emAndamento span:nth-child(2) { flex: 1; }
+
+.pulso {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulsar 1.6s ease-in-out infinite;
+}
+
+@keyframes pulsar {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+
+/* ── Nova conferência: o escopo ──────────────────────────────────────────── */
+
+.novaCard {
+  padding: 22px;
+  margin-bottom: 28px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+
+.novaTitulo {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.lojaSelect {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: var(--text-muted);
+}
+
+.escopoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.escopo,
+.escopoLoja {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.escopoLoja {
+  width: 100%;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.escopo:hover,
+.escopoLoja:hover { border-color: var(--text-muted); }
+
+.escopoAtivo,
+.escopoAtivo:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+}
+
+.escopoNome {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.escopoQtd {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.aviso svg { flex: none; margin-top: 1px; color: var(--warning, var(--accent)); }
+
+.erro {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.novaAcoes {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+/* ── Histórico ───────────────────────────────────────────────────────────── */
+
+.historicoTitulo {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.vazio {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-surface);
+  scrollbar-width: none;
+}
+.tableWrapper::-webkit-scrollbar { display: none; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--table-fs);
+}
+
+.table thead th {
+  background: var(--bg-elevated);
+  padding: var(--table-cell-py) var(--table-cell-px);
+  text-align: left;
+  font-size: var(--table-head-fs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: var(--table-cell-py) var(--table-cell-px);
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.row { cursor: pointer; transition: background 0.12s; }
+.row:hover { background: var(--bg-hover, rgba(255, 255, 255, 0.04)); }
+.row:last-child td { border-bottom: none; }
+
+.escopoCel { text-transform: capitalize; }
+.escopoCount { color: var(--text-muted); text-transform: none; }
+.muted { color: var(--text-secondary); }
+
+.falta { color: var(--danger); font-weight: 600; }
+.sobra { color: var(--accent); font-weight: 600; }
