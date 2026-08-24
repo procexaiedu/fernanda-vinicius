@@ -14,7 +14,9 @@ interface Props {
   sessoes: SessaoResumo[]
   escopos: EscopoDisponivel[]
   totalLoja: number
-  stores: { id: string; name: string }[]
+  stores: { id: string; name: string; pecas: number }[]
+  /** Loja cujos escopos estão na tela — resolvida no servidor. */
+  lojaAtual: string | null
   isAdmin: boolean
   abertaId: string | null
 }
@@ -31,19 +33,29 @@ function duracao(inicio: string, fim: string | null) {
   return `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`
 }
 
-export default function ConferenciaClient({ sessoes, escopos, totalLoja, stores, isAdmin, abertaId }: Props) {
+export default function ConferenciaClient({ sessoes, escopos, totalLoja, stores, lojaAtual, isAdmin, abertaId }: Props) {
   const router = useRouter()
   const [abrindo, setAbrindo] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [escolhido, setEscolhido] = useState<string | null>(null)   // categoria, ou '__loja__'
-  const [storeId, setStoreId] = useState(stores[0]?.id ?? '')
+
+  /*
+   * Trocar de loja vai pela URL, não por estado local: os escopos e as
+   * contagens são calculados no servidor. Com estado local, o seletor mudava e
+   * os cards continuavam os da loja anterior — e a conferência abriria com o
+   * escopo errado.
+   */
+  function trocarLoja(id: string) {
+    setEscolhido(null)
+    router.push(`/estoque/conferencia?store_id=${id}`)
+  }
 
   async function comecar() {
     if (!escolhido) return
     setErro(null)
     setAbrindo(true)
     const res = await abrirConferencia({
-      store_id:    isAdmin ? storeId : undefined,
+      store_id:    isAdmin ? (lojaAtual ?? undefined) : undefined,
       scope_type:  escolhido === '__loja__' ? 'loja' : 'categoria',
       scope_value: escolhido === '__loja__' ? null : escolhido,
     })
@@ -75,9 +87,14 @@ export default function ConferenciaClient({ sessoes, escopos, totalLoja, stores,
             <div className={styles.lojaSelect}>
               <Store size={14} />
               <SearchableSelect
-                value={storeId}
-                onChange={setStoreId}
-                options={stores.map(s => ({ value: s.id, label: s.name }))}
+                value={lojaAtual ?? ''}
+                onChange={trocarLoja}
+                /* O tamanho de cada loja no rótulo: sem isso a escolha é às
+                   cegas, e abrir na loja errada só se descobre no fim. */
+                options={stores.map(s => ({
+                  value: s.id,
+                  label: `${s.name} — ${s.pecas} peça${s.pecas !== 1 ? 's' : ''}`,
+                }))}
                 placeholder="Loja"
               />
             </div>

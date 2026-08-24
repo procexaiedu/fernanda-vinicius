@@ -20,7 +20,12 @@ export interface EscopoDisponivel {
   pecas: number
 }
 
-export default async function ConferenciaPage() {
+interface PageProps {
+  searchParams: Promise<{ store_id?: string }>
+}
+
+export default async function ConferenciaPage({ searchParams }: PageProps) {
+  const params = await searchParams
   const profile = await requireProfile()
   const isAdmin = profile.role === 'admin'
   const admin = createAdminClient()
@@ -50,31 +55,46 @@ export default async function ConferenciaPage() {
       em_escopo: scope_product_ids?.length ?? 0,
     }))
 
-  // Escopos possíveis: categoria e quantas peças ativas ela tem hoje.
-  // Só uma coluna de ~1.200 linhas — mais barato que uma RPC de agregação.
-  const lojaDoEscopo = profile.store_id ?? stores[0]?.id ?? null
-  let escopos: EscopoDisponivel[] = []
-  let totalLoja = 0
+  /*
+   * Uma coluna de ~1.200 linhas, uma query só: dá as peças por loja E por
+   * categoria. Mais barato que duas RPCs de agregação.
+   */
+  const { data: linhas } = await admin
+    .from('products')
+    .select('store_id, category')
+    .eq('is_active', true)
+    .limit(20000)
 
-  if (lojaDoEscopo) {
-    const { data } = await admin
-      .from('products')
-      .select('category')
-      .eq('is_active', true)
-      .eq('store_id', lojaDoEscopo)
-      .limit(5000)
-
-    const contagem = new Map<string, number>()
-    for (const p of (data ?? []) as { category: string }[]) {
-      const c = (p.category ?? '').trim()
-      if (!c) continue
-      contagem.set(c, (contagem.get(c) ?? 0) + 1)
-    }
-    totalLoja = (data ?? []).length
-    escopos = [...contagem.entries()]
-      .map(([categoria, pecas]) => ({ categoria, pecas }))
-      .sort((a, b) => b.pecas - a.pecas)
+  const porLoja = new Map<string, number>()
+  for (const p of (linhas ?? []) as { store_id: string; category: string }[]) {
+    porLoja.set(p.store_id, (porLoja.get(p.store_id) ?? 0) + 1)
   }
+
+  /*
+   * Admin não tem store_id, e antes o padrão era stores[0] — a primeira em
+   * ordem alfabética. Na prática isso abria em Brasília, que tem 1 peça, com
+   * Campinas (1.185) escondida atrás do seletor: a tela parecia vazia e o
+   * sistema, quebrado. O padrão agora é a loja com mais estoque.
+   */
+  const lojaPadrao = [...porLoja.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+  const lojaDoEscopo = profile.store_id ?? params.store_id ?? lojaPadrao ?? stores[0]?.id ?? null
+
+  const contagem = new Map<string, number>()
+  let totalLoja = 0
+  for (const p of (linhas ?? []) as { store_id: string; category: string }[]) {
+    if (p.store_id !== lojaDoEscopo) continue
+    totalLoja++
+    const c = (p.category ?? '').trim()
+    if (!c) continue
+    contagem.set(c, (contagem.get(c) ?? 0) + 1)
+  }
+
+  const escopos: EscopoDisponivel[] = [...contagem.entries()]
+    .map(([categoria, pecas]) => ({ categoria, pecas }))
+    .sort((a, b) => b.pecas - a.pecas)
+
+  // O seletor mostra o tamanho de cada loja — assim a escolha é informada.
+  const lojasComContagem = stores.map(s => ({ ...s, pecas: porLoja.get(s.id) ?? 0 }))
 
   const abertaId = sessoes.find(s => s.status === 'contando')?.id ?? null
 
@@ -92,7 +112,8 @@ export default async function ConferenciaPage() {
         sessoes={sessoes}
         escopos={escopos}
         totalLoja={totalLoja}
-        stores={stores}
+        stores={lojasComContagem}
+        lojaAtual={lojaDoEscopo}
         isAdmin={isAdmin}
         abertaId={abertaId}
       />
