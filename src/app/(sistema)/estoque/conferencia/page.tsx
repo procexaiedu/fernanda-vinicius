@@ -56,17 +56,30 @@ export default async function ConferenciaPage({ searchParams }: PageProps) {
     }))
 
   /*
-   * Uma coluna de ~1.200 linhas, uma query só: dá as peças por loja E por
-   * categoria. Mais barato que duas RPCs de agregação.
+   * Duas colunas de ~1.200 linhas dão as peças por loja E por categoria.
+   *
+   * Paginado, e não `.limit(N)`, porque o PostgREST corta em silêncio no
+   * `PGRST_DB_MAX_ROWS` — 1.000 no Supabase Cloud, 5.000 no self-hosted. Com
+   * limit, a tela mostrava "999 peças" onde havia 1.185, sem nenhum aviso: o
+   * número simplesmente vinha errado, numa tela cujo trabalho é medir
+   * divergência. Aqui a gente lê até a página vir curta.
    */
-  const { data: linhas } = await admin
-    .from('products')
-    .select('store_id, category')
-    .eq('is_active', true)
-    .limit(20000)
+  const linhas: { store_id: string; category: string }[] = []
+  for (let inicio = 0; ; inicio += 1000) {
+    const { data: pagina } = await admin
+      .from('products')
+      .select('store_id, category')
+      .eq('is_active', true)
+      .order('id')
+      .range(inicio, inicio + 999)
+
+    const lote = (pagina ?? []) as { store_id: string; category: string }[]
+    linhas.push(...lote)
+    if (lote.length < 1000) break
+  }
 
   const porLoja = new Map<string, number>()
-  for (const p of (linhas ?? []) as { store_id: string; category: string }[]) {
+  for (const p of linhas) {
     porLoja.set(p.store_id, (porLoja.get(p.store_id) ?? 0) + 1)
   }
 
@@ -81,7 +94,7 @@ export default async function ConferenciaPage({ searchParams }: PageProps) {
 
   const contagem = new Map<string, number>()
   let totalLoja = 0
-  for (const p of (linhas ?? []) as { store_id: string; category: string }[]) {
+  for (const p of linhas) {
     if (p.store_id !== lojaDoEscopo) continue
     totalLoja++
     const c = (p.category ?? '').trim()
