@@ -12,6 +12,8 @@ import {
   type Reconciliacao, type LinhaReconciliacao, type AjusteConferencia,
 } from '../actions'
 import type { BipeRegistrado } from './page'
+/* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
+import { formatarDinheiro as fmt } from '@/lib/dinheiro'
 import styles from './SessaoClient.module.css'
 
 interface SessaoInfo {
@@ -66,7 +68,10 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
   )
   const [bipes, setBipes] = useState<BipeRegistrado[]>(bipesIniciais)
   const [total, setTotal] = useState(totalBipesInicial)
-  const [ultimo, setUltimo] = useState<{ nome: string; code: string; repetido: boolean; achado: boolean } | null>(null)
+  const [ultimo, setUltimo] = useState<{
+    nome: string; code: string; repetido: boolean; achado: boolean
+    preco: number; promo: boolean
+  } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [agora, setAgora] = useState(() => Date.now())
@@ -100,6 +105,8 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
       code:     res.produto?.code ?? codigo,
       repetido: !!res.repetido,
       achado:   !!res.produto,
+      preco:    res.produto?.preco ?? 0,
+      promo:    !!res.produto?.promo,
     })
     setTotal(t => t + 1)
     setBipes(b => [{
@@ -235,6 +242,16 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
               <div>
                 <div className={styles.ultimoNome}>{ultimo.nome}</div>
                 <div className={styles.ultimoCode}>{ultimo.code}</div>
+                {/* Para conferir contra o preço impresso no papel. Etiqueta feita
+                    antes de uma mudança de preço mostra valor velho — e é o papel
+                    que a cliente lê. A contagem é o único momento em que alguém
+                    pega peça por peça na mão. */}
+                {ultimo.achado && (
+                  <div className={styles.ultimoPreco}>
+                    {fmt(ultimo.preco)}
+                    {ultimo.promo && <span className={styles.tagPromo}>promo</span>}
+                  </div>
+                )}
               </div>
               <div className={styles.ultimoTag}>
                 {!ultimo.achado

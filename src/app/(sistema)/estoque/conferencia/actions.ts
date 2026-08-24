@@ -71,7 +71,12 @@ export async function abrirConferencia(dados: {
  * meio.
  */
 export async function registrarBipe(sessionId: string, barcode: string): Promise<ActionResult & {
-  produto?: { id: string; name: string; code: string; category: string; photo_url: string | null } | null
+  produto?: {
+    id: string; name: string; code: string; category: string; photo_url: string | null
+    /** Preço efetivo — o MESMO que foi impresso na etiqueta. Ver abaixo. */
+    preco: number
+    promo: boolean
+  } | null
   repetido?: boolean
 }> {
   await usuarioAtual()
@@ -88,9 +93,23 @@ export async function registrarBipe(sessionId: string, barcode: string): Promise
 
   const { data: produto } = await admin
     .from('products')
-    .select('id, name, code, category, photo_url')
+    .select('id, name, code, category, photo_url, sale_price, promotional_price, promotional_active')
     .eq('barcode_number', barcode)
     .maybeSingle()
+
+  /*
+   * Preço efetivo — a mesma regra do PDV e da impressão de etiqueta: a promoção
+   * só vale se estiver ATIVA e maior que zero.
+   *
+   * Está aqui para a operadora comparar com o preço impresso no papel enquanto
+   * bipa. Etiqueta impressa antes de uma mudança de preço mostra valor velho, e
+   * é o papel que a cliente lê no balcão. A contagem é o único momento em que
+   * alguém pega peça por peça na mão — é onde essa divergência aparece de graça.
+   */
+  const emPromo = !!produto?.promotional_active
+    && produto?.promotional_price !== null
+    && Number(produto?.promotional_price) > 0
+  const preco = Number(emPromo ? produto?.promotional_price : produto?.sale_price) || 0
 
   const { count } = await admin
     .from('inventory_scans')
@@ -105,7 +124,17 @@ export async function registrarBipe(sessionId: string, barcode: string): Promise
   })
   if (error) return { success: false, error: error.message }
 
-  return { success: true, produto: produto ?? null, repetido: (count ?? 0) > 0 }
+  return {
+    success: true,
+    produto: produto
+      ? {
+          id: produto.id, name: produto.name, code: produto.code,
+          category: produto.category, photo_url: produto.photo_url,
+          preco, promo: emPromo,
+        }
+      : null,
+    repetido: (count ?? 0) > 0,
+  }
 }
 
 /** Desfaz o último bipe da sessão — leitura dupla acontece, e sem isto vira sobra falsa. */
