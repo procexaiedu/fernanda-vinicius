@@ -229,10 +229,14 @@
 .grupoNota { font-size: 12.5px; color: var(--text-muted); margin-top: 12px; line-height: 1.5; }
 
 .linhaDiv {
-  padding: 14px 0;
-  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+  font-size: 13px;
 }
-.linhaDiv:first-of-type { border-top: none; }
+.linhaDiv:last-child { border-bottom: none; }
 
 .linhaCabeca {
   display: flex;
@@ -312,3 +316,104 @@
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
+
+/* ── Reconciliação em escala ─────────────────────────────────────────────────
+   Uma conferência de loja inteira produz centenas de linhas. A primeira versão
+   pedia motivo em cada uma — 752 cliques antes de poder fechar. O motivo virou
+   do balde; a linha só decide se entra ou fica de fora. */
+
+.grupoCabeca {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.grupoMotivo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 260px;
+}
+
+.grupoMotivoRotulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.obrigatorio {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+.select:focus { border-color: var(--accent); }
+
+.grupoResumo { font-size: 12px; color: var(--text-muted); }
+
+.listaDiv {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+}
+
+.linhaIgnorada { opacity: 0.42; }
+
+.deixar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.deixar input { accent-color: var(--accent); cursor: pointer; }
+
+.verTodas {
+  margin-top: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+.verTodas:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
+/* Sessão que fechou sem aplicar nada mas tem bipes: a contagem sobreviveu. */
+.avisoReabrir {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  font-size: 13.5px;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+.avisoReabrir svg { flex: none; color: var(--accent); }
+.avisoReabrir span { flex: 1; }

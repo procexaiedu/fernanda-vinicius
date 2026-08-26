@@ -8,7 +8,7 @@ import Badge from '@/components/ui/Badge'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import {
   registrarBipe, desfazerUltimoBipe, carregarReconciliacao,
-  fecharConferencia, cancelarConferencia,
+  fecharConferencia, cancelarConferencia, reabrirConferencia,
   type Reconciliacao, type LinhaReconciliacao, type AjusteConferencia,
 } from '../actions'
 import type { BipeRegistrado } from './page'
@@ -39,6 +39,11 @@ interface Props {
 const MS_LEITURA_DUPLA = 1500
 
 const MOTIVOS: { valor: string; rotulo: string }[] = [
+  /* Primeira contagem de uma base que nunca foi conferida: a divergência não é
+     perda nem erro, é o estoque nunca ter sido medido. Sem esta opção, 752
+     peças entrariam no histórico como "erro de cadastro" e a série ficaria
+     mentindo já no primeiro ponto. */
+  { valor: 'carga_inicial',         rotulo: 'Primeira contagem (carga inicial)' },
   { valor: 'furto_perda',           rotulo: 'Furto ou perda' },
   { valor: 'venda_nao_lancada',     rotulo: 'Venda não lançada' },
   { valor: 'estava_em_outro_lugar', rotulo: 'Estava em outro lugar' },
@@ -134,8 +139,31 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
   // ── Reconciliação ─────────────────────────────────────────────────────────
   const [rec, setRec] = useState<Reconciliacao | null>(null)
   const [carregandoRec, setCarregandoRec] = useState(false)
-  const [ajustes, setAjustes] = useState<Record<string, { aplicar: boolean; motivo: string }>>({})
   const [fechando, setFechando] = useState(false)
+
+  /*
+   * Motivo por BALDE, exceção por linha.
+   *
+   * A primeira versão pedia um motivo em cada linha. Numa conferência real de
+   * loja inteira isso deu 752 faltas — 752 cliques antes de poder fechar, o que
+   * na prática significa não fechar. E o motivo quase sempre é o mesmo para o
+   * balde inteiro: numa recontagem de reconstrução, tudo que não foi bipado
+   * saiu pelo mesmo caminho.
+   *
+   * A exceção continua existindo por linha, porque é ela que tem valor: a peça
+   * que está na mão de uma cliente provando não pode virar falta.
+   */
+  const [motivoFalta, setMotivoFalta] = useState('')
+  const [motivoSobra, setMotivoSobra] = useState('')
+  const [excecoes, setExcecoes] = useState<Set<string>>(new Set())
+
+  function alternarExcecao(id: string) {
+    setExcecoes(s => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+  }
 
   async function encerrarEConferir() {
     setErro(null)
@@ -144,37 +172,35 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
     setCarregandoRec(false)
     if (!res.success || !res.dados) { setErro(res.error ?? 'Erro ao montar a conferência.'); return }
 
-    // Divergência começa marcada para ajustar — mas sem motivo, e motivo é
-    // obrigatório. Assim o caminho fácil não é o caminho cego.
-    const iniciais: Record<string, { aplicar: boolean; motivo: string }> = {}
-    for (const l of [...res.dados.falta, ...res.dados.sobra]) {
-      iniciais[l.product_id] = { aplicar: true, motivo: '' }
-    }
-    setAjustes(iniciais)
+    setExcecoes(new Set())
     setRec(res.dados)
     setFase('reconciliando')
   }
 
   const paraAplicar = useMemo(() => {
-    if (!rec) return []
-    return [...rec.falta, ...rec.sobra].filter(l => ajustes[l.product_id]?.aplicar)
-  }, [rec, ajustes])
+    if (!rec) return { falta: [], sobra: [] }
+    return {
+      falta: rec.falta.filter(l => !excecoes.has(l.product_id)),
+      sobra: rec.sobra.filter(l => !excecoes.has(l.product_id)),
+    }
+  }, [rec, excecoes])
 
-  const faltamMotivo = paraAplicar.filter(l => !ajustes[l.product_id]?.motivo)
+  const totalAplicar = paraAplicar.falta.length + paraAplicar.sobra.length
+
+  // Balde que vai aplicar alguma coisa precisa de motivo. Balde vazio, não.
+  const motivosFaltando =
+    (paraAplicar.falta.length > 0 && !motivoFalta ? 1 : 0) +
+    (paraAplicar.sobra.length > 0 && !motivoSobra ? 1 : 0)
 
   async function aplicarEFechar() {
     if (!rec) return
-    if (faltamMotivo.length) {
-      setErro(`${faltamMotivo.length} ajuste${faltamMotivo.length > 1 ? 's' : ''} sem motivo.`)
-      return
-    }
+    if (motivosFaltando) { setErro('Escolha o motivo de cada grupo que vai ser ajustado.'); return }
     setErro(null)
     setFechando(true)
-    const lista: AjusteConferencia[] = paraAplicar.map(l => ({
-      product_id:   l.product_id,
-      new_quantity: l.contado,
-      reason:       ajustes[l.product_id].motivo,
-    }))
+    const lista: AjusteConferencia[] = [
+      ...paraAplicar.falta.map(l => ({ product_id: l.product_id, new_quantity: l.contado, reason: motivoFalta })),
+      ...paraAplicar.sobra.map(l => ({ product_id: l.product_id, new_quantity: l.contado, reason: motivoSobra })),
+    ]
     const res = await fecharConferencia(sessao.id, lista, {
       bate:            rec.bate.length,
       falta:           rec.falta.length,
@@ -185,6 +211,15 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
     setFechando(false)
     if (!res.success) { setErro(res.error ?? 'Erro ao fechar.'); return }
     router.push('/estoque/conferencia')
+    router.refresh()
+  }
+
+  async function reabrir() {
+    setErro(null)
+    setFechando(true)
+    const res = await reabrirConferencia(sessao.id)
+    setFechando(false)
+    if (!res.success) { setErro(res.error ?? 'Não foi possível reabrir.'); return }
     router.refresh()
   }
 
@@ -215,6 +250,23 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
           <Balde titulo="Sem cadastro"   valor={t.nao_cadastrado ?? 0} />
           <Balde titulo="Ajustes feitos" valor={t.ajustes_aplicados ?? 0} />
         </div>
+
+        {/* Fechou sem aplicar nada e tem bipes gravados: a contagem não se
+            perdeu, só a reconciliação falhou. Reabrir evita refazer o trabalho
+            de chão de loja. */}
+        {(t.ajustes_aplicados ?? 0) === 0 && totalBipesInicial > 0 && (
+          <div className={styles.avisoReabrir}>
+            <AlertTriangle size={16} />
+            <span>
+              Esta conferência fechou <strong>sem aplicar nenhum ajuste</strong>, mas tem{' '}
+              <strong>{totalBipesInicial} bipes</strong> gravados. A contagem está intacta —
+              dá para reabrir e reconciliar de novo, sem recontar nada.
+            </span>
+            <Button size="sm" loading={fechando} onClick={reabrir}>Reabrir</Button>
+          </div>
+        )}
+
+        {erro && <div className={styles.erro}>{erro}</div>}
         <Button variant="ghost" onClick={() => router.push('/estoque/conferencia')}>Voltar</Button>
       </div>
     )
@@ -328,18 +380,22 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
 
       <GrupoDivergencia
         titulo="Falta"
-        descricao="Está no sistema, não apareceu na gaveta"
+        descricao="Está no sistema, não apareceu na gaveta — vai sair do estoque"
         linhas={rec.falta}
-        ajustes={ajustes}
-        setAjustes={setAjustes}
+        motivo={motivoFalta}
+        setMotivo={setMotivoFalta}
+        excecoes={excecoes}
+        alternar={alternarExcecao}
       />
 
       <GrupoDivergencia
         titulo="Sobra"
         descricao="Apareceu mais do que o sistema diz"
         linhas={rec.sobra}
-        ajustes={ajustes}
-        setAjustes={setAjustes}
+        motivo={motivoSobra}
+        setMotivo={setMotivoSobra}
+        excecoes={excecoes}
+        alternar={alternarExcecao}
       />
 
       {rec.naoCadastrado.length > 0 && (
@@ -367,10 +423,10 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
         <Button size="sm" variant="ghost" onClick={() => setFase('contando')} disabled={fechando}>
           Voltar a contar
         </Button>
-        <Button onClick={aplicarEFechar} loading={fechando} disabled={faltamMotivo.length > 0}>
-          {paraAplicar.length === 0
+        <Button onClick={aplicarEFechar} loading={fechando} disabled={motivosFaltando > 0}>
+          {totalAplicar === 0
             ? 'Fechar sem ajustes'
-            : `Aplicar ${paraAplicar.length} ajuste${paraAplicar.length > 1 ? 's' : ''} e fechar`}
+            : `Aplicar ${totalAplicar} ajuste${totalAplicar > 1 ? 's' : ''} e fechar`}
         </Button>
       </div>
     </div>
@@ -388,85 +444,74 @@ function Balde({ titulo, valor, tom }: { titulo: string; valor: number; tom?: 'f
   )
 }
 
-function GrupoDivergencia({ titulo, descricao, linhas, ajustes, setAjustes }: {
+const POR_PAGINA = 20
+
+function GrupoDivergencia({ titulo, descricao, linhas, motivo, setMotivo, excecoes, alternar }: {
   titulo: string
   descricao: string
   linhas: LinhaReconciliacao[]
-  ajustes: Record<string, { aplicar: boolean; motivo: string }>
-  setAjustes: React.Dispatch<React.SetStateAction<Record<string, { aplicar: boolean; motivo: string }>>>
+  motivo: string
+  setMotivo: (v: string) => void
+  excecoes: Set<string>
+  alternar: (id: string) => void
 }) {
+  const [tudo, setTudo] = useState(false)
   if (!linhas.length) return null
 
-  function mudar(id: string, patch: Partial<{ aplicar: boolean; motivo: string }>) {
-    setAjustes(a => {
-      const atual = a[id] ?? { aplicar: true, motivo: '' }
-      return { ...a, [id]: { ...atual, ...patch } }
-    })
-  }
+  const aplicando = linhas.filter(l => !excecoes.has(l.product_id)).length
+  const visiveis = tudo ? linhas : linhas.slice(0, POR_PAGINA)
 
   return (
     <section className={styles.grupo}>
-      <h2 className={styles.grupoTitulo}>{titulo}</h2>
-      <p className={styles.grupoDesc}>{descricao}</p>
+      <div className={styles.grupoCabeca}>
+        <div>
+          <h2 className={styles.grupoTitulo}>{titulo} · {linhas.length}</h2>
+          <p className={styles.grupoDesc}>{descricao}</p>
+        </div>
+        <div className={styles.grupoMotivo}>
+          <label className={styles.grupoMotivoRotulo}>
+            Motivo {aplicando > 0 && <span className={styles.obrigatorio}>obrigatório</span>}
+          </label>
+          <select
+            className={styles.select}
+            value={motivo}
+            onChange={e => setMotivo(e.target.value)}
+          >
+            <option value="">Escolha…</option>
+            {MOTIVOS.map(m => <option key={m.valor} value={m.valor}>{m.rotulo}</option>)}
+          </select>
+          <span className={styles.grupoResumo}>
+            {aplicando} de {linhas.length} vão ser ajustadas
+          </span>
+        </div>
+      </div>
 
-      {linhas.map(l => {
-        const a = ajustes[l.product_id] ?? { aplicar: true, motivo: '' }
-        return (
-          <div key={l.product_id} className={styles.linhaDiv}>
-            <div className={styles.linhaCabeca}>
+      <div className={styles.listaDiv}>
+        {visiveis.map(l => {
+          const deixar = excecoes.has(l.product_id)
+          return (
+            <div key={l.product_id} className={`${styles.linhaDiv} ${deixar ? styles.linhaIgnorada : ''}`}>
               <span className={styles.bipeCode}>{l.code}</span>
               <span className={styles.linhaNome}>{l.name}</span>
               <span className={styles.linhaNumeros}>
-                sistema <strong>{l.esperado}</strong> → contado <strong>{l.contado}</strong>
+                <strong>{l.esperado}</strong> → <strong>{l.contado}</strong>
               </span>
+              {/* A exceção que importa: a peça pode estar na mão de uma cliente
+                  provando, e ajustar criaria falta falsa hoje e sobra amanhã. */}
+              <label className={styles.deixar}>
+                <input type="checkbox" checked={deixar} onChange={() => alternar(l.product_id)} />
+                deixar como está
+              </label>
             </div>
+          )
+        })}
+      </div>
 
-            <div className={styles.linhaControles}>
-              <div className={styles.motivos}>
-                {MOTIVOS.map(m => (
-                  <label key={m.valor} className={styles.motivo}>
-                    <input
-                      type="radio"
-                      name={`motivo-${l.product_id}`}
-                      checked={a.motivo === m.valor}
-                      disabled={!a.aplicar}
-                      onChange={() => mudar(l.product_id, { motivo: m.valor })}
-                    />
-                    {m.rotulo}
-                  </label>
-                ))}
-              </div>
-
-              <div className={styles.decisao}>
-                <label className={styles.motivo}>
-                  <input
-                    type="radio"
-                    name={`decisao-${l.product_id}`}
-                    checked={a.aplicar}
-                    onChange={() => mudar(l.product_id, { aplicar: true })}
-                  />
-                  Ajustar para {l.contado}
-                </label>
-                {/* Não é omissão: a peça pode estar na mão de uma cliente
-                    provando, e ajustar criaria falta falsa hoje e sobra amanhã. */}
-                <label className={styles.motivo}>
-                  <input
-                    type="radio"
-                    name={`decisao-${l.product_id}`}
-                    checked={!a.aplicar}
-                    onChange={() => mudar(l.product_id, { aplicar: false, motivo: '' })}
-                  />
-                  Deixar como está
-                </label>
-              </div>
-            </div>
-
-            {a.aplicar && !a.motivo && (
-              <div className={styles.faltaMotivo}>Escolha o motivo para poder aplicar.</div>
-            )}
-          </div>
-        )
-      })}
+      {linhas.length > POR_PAGINA && (
+        <button className={styles.verTodas} onClick={() => setTudo(t => !t)}>
+          {tudo ? 'Mostrar menos' : `Mostrar todas as ${linhas.length}`}
+        </button>
+      )}
     </section>
   )
 }

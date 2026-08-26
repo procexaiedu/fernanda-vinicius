@@ -192,83 +192,85 @@ export async function carregarReconciliacao(sessionId: string): Promise<
   await usuarioAtual()
   const admin = createAdminClient()
 
-  const { data: sessao } = await admin
+  /*
+   * A conta é feita no banco (fv.reconciliar_conferencia).
+   *
+   * A versão anterior buscava os produtos do escopo com `.in('id', [...])`,
+   * mandando os 1.185 UUIDs na query string: 44 KB de URL, que o gateway recusa
+   * com 414. Pior: o código tratava a falha como "nenhum produto encontrado" e
+   * montava uma reconciliação toda zerada — que parecia legítima e podia ser
+   * fechada. Uma conferência real de 615 bipes foi encerrada aplicando zero
+   * ajustes, sem nenhum erro na tela.
+   *
+   * O escopo já está na linha da sessão. Fazendo o join lá dentro, nada
+   * atravessa a rede e não existe limite de tamanho.
+   */
+  const { data, error } = await admin.rpc('reconciliar_conferencia', { p_session_id: sessionId })
+
+  // Falha é falha: nunca mais devolver lista vazia como se fosse resultado.
+  if (error) return { success: false, error: error.message }
+
+  const json = data as {
+    success: boolean
+    error?: string
+    bate: LinhaReconciliacao[]
+    falta: LinhaReconciliacao[]
+    sobra: LinhaReconciliacao[]
+    nao_cadastrado: { barcode_number: string; vezes: number }[]
+  } | null
+
+  if (!json) return { success: false, error: 'A reconciliação não retornou dados.' }
+  if (!json.success) return { success: false, error: json.error ?? 'Erro ao montar a reconciliação.' }
+
+  return {
+    success: true,
+    dados: {
+      bate: json.bate ?? [],
+      falta: json.falta ?? [],
+      sobra: json.sobra ?? [],
+      naoCadastrado: json.nao_cadastrado ?? [],
+    },
+  }
+}
+
+/**
+ * Reabre uma conferência que fechou sem aplicar nada.
+ *
+ * Existe por causa do bug do `.in()`: uma sessão real, com 615 bipes, foi
+ * encerrada com zero ajustes porque a reconciliação vinha vazia. Os bipes
+ * continuam gravados, então a contagem não precisa ser refeita — basta reabrir
+ * e reconciliar de novo, agora com a conta certa.
+ *
+ * Só reabre se NADA foi aplicado. Se já houver linha no ledger apontando para a
+ * sessão, reabrir criaria uma segunda rodada de ajustes sobre saldos que já
+ * mudaram — e aí o histórico deixaria de descrever o que aconteceu.
+ */
+export async function reabrirConferencia(sessionId: string): Promise<ActionResult> {
+  const { isAdmin } = await usuarioAtual()
+  if (!isAdmin) return { success: false, error: 'Apenas administradores podem reabrir uma conferência.' }
+
+  const admin = createAdminClient()
+
+  const { count } = await admin
+    .from('stock_movements')
+    .select('id', { count: 'exact', head: true })
+    .eq('ref_type', 'inventory_session')
+    .eq('ref_id', sessionId)
+
+  if ((count ?? 0) > 0) {
+    return { success: false, error: `Esta conferência já aplicou ${count} ajuste(s) — reabrir criaria uma segunda rodada sobre saldos já alterados.` }
+  }
+
+  const { error } = await admin
     .from('inventory_sessions')
-    .select('id, scope_product_ids')
+    .update({ status: 'contando', closed_at: null })
     .eq('id', sessionId)
-    .maybeSingle()
+    .neq('status', 'contando')
 
-  if (!sessao) return { success: false, error: 'Conferência não encontrada.' }
-  const emEscopo = (sessao.scope_product_ids ?? []) as string[]
+  if (error) return { success: false, error: error.message }
 
-  const [scansRes, produtosRes] = await Promise.all([
-    admin.from('inventory_scans')
-      .select('barcode_number, product_id')
-      .eq('session_id', sessionId)
-      .limit(20000),
-    emEscopo.length
-      ? admin.from('products')
-          .select('id, code, name, category, photo_url, quantity_in_stock')
-          .in('id', emEscopo)
-      : Promise.resolve({ data: [] }),
-  ])
-
-  const scans = (scansRes.data ?? []) as { barcode_number: string; product_id: string | null }[]
-
-  const contagem = new Map<string, number>()
-  const desconhecidos = new Map<string, number>()
-  for (const s of scans) {
-    if (s.product_id) contagem.set(s.product_id, (contagem.get(s.product_id) ?? 0) + 1)
-    else desconhecidos.set(s.barcode_number, (desconhecidos.get(s.barcode_number) ?? 0) + 1)
-  }
-
-  const produtos = (produtosRes.data ?? []) as {
-    id: string; code: string; name: string; category: string
-    photo_url: string | null; quantity_in_stock: number
-  }[]
-
-  const dados: Reconciliacao = { bate: [], falta: [], sobra: [], naoCadastrado: [] }
-  const vistos = new Set<string>()
-
-  for (const p of produtos) {
-    vistos.add(p.id)
-    const linha: LinhaReconciliacao = {
-      product_id: p.id, code: p.code, name: p.name, category: p.category,
-      photo_url: p.photo_url,
-      esperado: p.quantity_in_stock,
-      contado: contagem.get(p.id) ?? 0,
-    }
-    if (linha.contado === linha.esperado) dados.bate.push(linha)
-    else if (linha.contado < linha.esperado) dados.falta.push(linha)
-    else dados.sobra.push(linha)
-  }
-
-  // Peça bipada que existe no cadastro mas estava FORA do escopo declarado.
-  // É sobra também — só que de outra gaveta, e por isso vale aparecer.
-  const foraDoEscopo = [...contagem.keys()].filter(id => !vistos.has(id))
-  if (foraDoEscopo.length) {
-    const { data } = await admin
-      .from('products')
-      .select('id, code, name, category, photo_url, quantity_in_stock')
-      .in('id', foraDoEscopo)
-    for (const p of (data ?? []) as typeof produtos) {
-      dados.sobra.push({
-        product_id: p.id, code: p.code, name: p.name, category: p.category,
-        photo_url: p.photo_url,
-        esperado: p.quantity_in_stock,
-        contado: contagem.get(p.id) ?? 0,
-      })
-    }
-  }
-
-  dados.naoCadastrado = [...desconhecidos.entries()]
-    .map(([barcode_number, vezes]) => ({ barcode_number, vezes }))
-    .sort((a, b) => b.vezes - a.vezes)
-
-  const ordenar = (a: LinhaReconciliacao, b: LinhaReconciliacao) => a.name.localeCompare(b.name, 'pt-BR')
-  dados.falta.sort(ordenar); dados.sobra.sort(ordenar); dados.bate.sort(ordenar)
-
-  return { success: true, dados }
+  revalidatePath('/estoque/conferencia')
+  return { success: true }
 }
 
 export interface AjusteConferencia {
