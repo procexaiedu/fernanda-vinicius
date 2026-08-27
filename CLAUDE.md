@@ -21,7 +21,8 @@ Existem três arquivos fundamentais no projeto. **Leia-os sempre nessa ordem ant
 - Consulte sempre para garantir que a UI/UX atende à realidade (ex: vendas precisam ser rápidas, custo é escondido das funcionárias).
 
 ### 3. `docs/schema_database.md`
-- **A fonte de verdade técnica absoluta** — schema `fv` com 19 tabelas, views, regras de RLS e decisões de arquitetura.
+- **A fonte de verdade técnica absoluta** — schema `fv`, views, regras de RLS e decisões de arquitetura.
+- ⚠️ O doc já ficou defasado antes: `products.is_service` existe no banco e não estava lá; `supplier_id` é nullable e o doc dizia NOT NULL. **Em caso de divergência, o banco vence** — confira com o MCP antes de assumir.
 - **Siga estritamente** a estrutura definida aqui. Qualquer alteração estrutural deve ser discutida e aprovada antes.
 
 ---
@@ -279,3 +280,52 @@ vault_write({ path: "concepts/novo-artigo", content: "---\ntitle: \"Titulo\"\n--
 
 Os IDs de task vêm no formato UUID (ex: `05bc9683-e358-4d37-8e09-18d03fb61adf`).
 Sempre use o `task_id` exato retornado por `get_context` ou `get_tasks` — nunca invente IDs.
+
+
+---
+
+# Estado da infraestrutura — atualizado em 26/08/2026
+
+> Esta seção existe porque o resto do arquivo descreve o mundo anterior à migração. Leia antes de mexer em qualquer coisa de banco ou deploy.
+
+## O sistema NÃO está mais no Supabase Cloud
+
+Migrado em 24/08/2026 para o **Supabase self-hosted da ProceX**.
+
+| | |
+|---|---|
+| Banco | schema `fv` dentro do banco `postgres` do self-hosted (`10.0.0.236`) |
+| API | `https://db.procexai.tech` — este é o Kong |
+| Studio | `https://supabase.procexai.tech` — **só o Studio**, não serve API |
+| App | `https://fevinicius.procexai.tech`, serviço swarm `fevinicius_web` |
+| Postgres externo | porta **5433**, não 5432 |
+
+**O app builda a partir do GitHub no start do container.** Push na `main` não chega na loja sozinho: é preciso *Update the service* no Portainer (Services → `fevinicius_web`), o que leva 3 a 5 min de `npm install` + build. Existe um Service webhook do Portainer que faz isso por HTTP.
+
+**Não existe runtime de Edge Functions** nesse servidor — nenhum dos 9 projetos usa. As 3 funções de Disparos foram portadas para dentro do app (`src/lib/ycloud.ts`, `src/lib/disparo/enviarLote.ts`, `src/app/api/ycloud-webhook/route.ts`). Ver `supabase/functions/README.md`.
+
+## Armadilhas do PostgREST que já custaram caro
+
+- **`.in('id', [...])` com lista grande estoura a URL.** 414 a partir de ~500 ids. Acima de ~200, pagine ou leve a operação para uma RPC.
+- **`.limit(N)` não vence `PGRST_DB_MAX_ROWS`** (1.000 no Cloud, 5.000 no self-hosted). O lote volta curto **sem erro**.
+- **Nunca escreva `(res.data ?? [])`** num resultado de I/O. É um `catch` vazio disfarçado: já transformou uma falha de rede em conferência de estoque fechada com zero ajustes, sem nenhum erro na tela.
+- **Schema novo nasce sem GRANT** para `anon`/`authenticated`/`service_role`, e precisa entrar em `PGRST_DB_SCHEMAS` (que fica nas Environment variables da stack, não no compose). Sintomas: `42501` e `PGRST106`.
+
+## Módulo de Estoque — o que existe hoje
+
+- **Consulta de balcão** — bipar em `/estoque` abre a ficha da peça em modo cliente (sem custo, margem ou fornecedor, **mesmo para admin**).
+- **Conferência de estoque** — `/estoque/conferencia`. Recontagem por leitor, validada em produção.
+
+Regras que **não podem ser desfeitas** estão no vault (`fernandavinicius-conferencia-estoque`). A principal: **a quantidade esperada não vai para o navegador durante a contagem** — quem sabe onde parar, para, e a divergência some antes de ser medida.
+
+Para zerar estoque numa reconstrução: **só `quantity_in_stock = 0`**. `is_active = false` quebra a conferência, porque o escopo filtra por `is_active = true`.
+
+## Segundo cérebro
+
+O DevContext tem o histórico completo. Comece por:
+
+- `fernandavinicius-conferencia-estoque`
+- `fernandavinicius-conferencia-bugs-producao`
+- `fernandavinicius-ledger-ajustes-nao-fonte-de-saldo`
+- `fernandavinicius-migracao-execucao-fase1-2`
+- `procex-selfhosted-schema-novo-checklist`
