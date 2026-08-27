@@ -61,7 +61,17 @@ export default async function SessaoPage({ params }: PageProps) {
   const users  = sessao.users as unknown
 
   return (
+    /*
+     * `key` no status: quando a sessão é reaberta, o servidor manda status novo
+     * mas o React reaproveita o componente — e a fase, que nasce de um useState
+     * com valor inicial, ficaria congelada em 'fechada'. Reabrir funcionava no
+     * banco e a tela não mudava: para quem clicou, "não aconteceu nada".
+     *
+     * Com a key, mudança de status remonta, que é o certo: é uma transição real
+     * da sessão, não uma atualização incremental.
+     */
     <SessaoClient
+      key={sessao.status as string}
       sessao={{
         id:          sessao.id as string,
         scope_type:  sessao.scope_type as 'categoria' | 'loja',

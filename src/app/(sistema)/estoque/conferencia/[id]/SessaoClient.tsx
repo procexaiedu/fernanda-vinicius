@@ -220,6 +220,12 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
     const res = await reabrirConferencia(sessao.id)
     setFechando(false)
     if (!res.success) { setErro(res.error ?? 'Não foi possível reabrir.'); return }
+    /* Muda a fase na mão. `router.refresh()` traz os dados novos do servidor,
+       mas NÃO remonta este componente — e `fase` nasce de um useState com valor
+       inicial, que só vale na montagem. Sem esta linha a sessão reabria no banco
+       e a tela continuava mostrando o resumo de sessão fechada: para quem
+       clicou, "não aconteceu nada". */
+    setFase('contando')
     router.refresh()
   }
 
