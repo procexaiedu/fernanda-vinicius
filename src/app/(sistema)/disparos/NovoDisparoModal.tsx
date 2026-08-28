@@ -24,17 +24,6 @@ const miniBtn: React.CSSProperties = {
   color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap',
 }
 
-const chipBtn: React.CSSProperties = {
-  padding: '0 9px', height: 26, fontSize: 12, borderRadius: 999,
-  border: '1px solid var(--border)', background: 'transparent',
-  color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap',
-  display: 'inline-flex', alignItems: 'center', gap: 5,
-}
-
-const chipOn: React.CSSProperties = {
-  borderColor: 'var(--accent)', color: 'var(--accent)',
-  background: 'var(--accent-subtle)', fontWeight: 600,
-}
 
 export default function NovoDisparoModal({ stores, currentUserRole, currentUserStoreId, editDisparo, onClose }: Props) {
   const isAdmin = currentUserRole === 'admin'
@@ -54,8 +43,9 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
   })
   const [clientes, setClientes] = useState<ClienteOption[] | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  /** DDD ativo no filtro. null = todos. */
-  const [dddFiltro, setDddFiltro] = useState<string | null>(null)
+  /** DDDs escolhidos no filtro. Vazio = todos. */
+  const [dddFiltro, setDddFiltro] = useState<string[]>([])
+  const [dddDigitando, setDddDigitando] = useState('')
   const [clienteSearch, setClienteSearch] = useState('')
   const [saving, setSaving]     = useState(false)
   const [sending, setSending]   = useState(false)
@@ -88,12 +78,31 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
     return d.length >= 10 ? d.slice(0, 2) : '—'
   }
 
-  /* DDDs presentes na loja, do mais comum para o menos. */
+  /*
+   * DDDs presentes, do mais comum para o menos.
+   *
+   * Só serve de sugestão, e sugestão curta: a lista completa da loja de
+   * Brasília tem mais de 50 entradas, várias delas DDD inválido vindo de
+   * telefone malformado (04, 00, 43). Mostrar tudo virou uma parede.
+   */
   const ddds = useMemo(() => {
     const m = new Map<string, number>()
     for (const c of clientes ?? []) m.set(dddDe(c.phone), (m.get(dddDe(c.phone)) ?? 0) + 1)
-    return [...m.entries()].map(([ddd, qtd]) => ({ ddd, qtd })).sort((a, b) => b.qtd - a.qtd)
+    return [...m.entries()]
+      .filter(([d]) => d !== '—')
+      .map(([ddd, qtd]) => ({ ddd, qtd }))
+      .sort((a, b) => b.qtd - a.qtd)
   }, [clientes])
+
+  function addDdd(v: string) {
+    const d = v.replace(/\D/g, '').slice(0, 2)
+    if (d.length !== 2) return
+    setDddFiltro(p => (p.includes(d) ? p : [...p, d]))
+    setDddDigitando('')
+  }
+  function removeDdd(d: string) {
+    setDddFiltro(p => p.filter(x => x !== d))
+  }
 
   /*
    * Carrega os clientes da loja.
@@ -103,8 +112,9 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
    * DDD 61 — os outros 417 são de Campinas, SP e Goiânia, salvos no celular de
    * lá. Marcar todos mandaria mensagem para eles sem ninguém perceber.
    *
-   * Os outros DDDs não somem: aparecem nos chips com a contagem, e um clique
-   * traz de volta. A exclusão é visível, não silenciosa.
+   * Os outros DDDs não somem: o campo mostra o filtro ativo, as sugestões
+   * trazem os maiores de volta com um clique, e o rodapé conta quantos ficaram
+   * de fora. A exclusão é visível, não silenciosa — que era o problema.
    *
    * Edição: respeita os destinatários já gravados no disparo.
    */
@@ -113,7 +123,8 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
     const sid = form.store_id
     if (!sid) return
     setClientes(null)
-    setDddFiltro(null)
+    setDddFiltro([])
+    setDddDigitando('')
     Promise.all([
       listarClientes(sid),
       (isEdit && editDisparo) ? listarDestinatarios(editDisparo.disparo_id) : Promise.resolve<string[] | null>(null),
@@ -128,7 +139,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
         .filter(([d]) => d !== '—')
         .sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
-      setDddFiltro(dominante)
+      setDddFiltro(dominante ? [dominante] : [])
       setSelectedIds(new Set(
         cs.filter(c => !dominante || dddDe(c.phone) === dominante).map(c => c.id)
       ))
@@ -138,7 +149,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
 
   const filteredClientes = useMemo(() => {
     let list = clientes ?? []
-    if (dddFiltro) list = list.filter(c => dddDe(c.phone) === dddFiltro)
+    if (dddFiltro.length) list = list.filter(c => dddFiltro.includes(dddDe(c.phone)))
     const q = clienteSearch.trim().toLowerCase()
     if (!q) return list
     const qd = q.replace(/\D/g, '')
@@ -151,8 +162,8 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
   /* Selecionados que estão FORA do DDD ativo — para a conta no rodapé não
      mentir quando a pessoa filtra depois de já ter marcado gente. */
   const selecionadosForaDoFiltro = useMemo(() => {
-    if (!dddFiltro) return 0
-    return (clientes ?? []).filter(c => selectedIds.has(c.id) && dddDe(c.phone) !== dddFiltro).length
+    if (!dddFiltro.length) return 0
+    return (clientes ?? []).filter(c => selectedIds.has(c.id) && !dddFiltro.includes(dddDe(c.phone))).length
   }, [clientes, selectedIds, dddFiltro])
 
   function toggleCliente(id: string) {
@@ -314,26 +325,61 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
                     <button type="button" onClick={selectNone} style={miniBtn}>Nenhum</button>
                   </div>
 
-                  {/* DDD: a loja de Brasília tem 417 clientes de fora do 61 —
-                      Campinas, SP, Goiânia — que vieram da agenda. Sem isto,
-                      todos entravam no disparo sem ninguém ver. */}
+                  {/* DDD digitado, não listado. A loja de Brasília tem mais de
+                      50 DDDs distintos — vários inválidos, vindos de telefone
+                      malformado. A sugestão mostra só os três maiores. */}
                   {ddds.length > 1 && (
-                    <div style={{ display: 'flex', gap: 6, padding: '8px 8px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ fontSize: 11.5, color: 'var(--text-muted)', marginRight: 2 }}>DDD</span>
-                      <button type="button" onClick={() => setDddFiltro(null)}
-                        style={{ ...chipBtn, ...(dddFiltro === null ? chipOn : null) }}>
-                        Todos <span style={{ opacity: .7 }}>{clientes.length}</span>
-                      </button>
-                      {ddds.map(d => (
-                        <button key={d.ddd} type="button" onClick={() => setDddFiltro(d.ddd)}
-                          style={{ ...chipBtn, ...(dddFiltro === d.ddd ? chipOn : null) }}>
-                          {d.ddd} <span style={{ opacity: .7 }}>{d.qtd}</span>
-                        </button>
-                      ))}
+                    <div className={styles.dddBar}>
+                      <span className={styles.dddLabel}>DDD</span>
+
+                      <div className={styles.dddCampo}>
+                        {dddFiltro.map(d => (
+                          <span key={d} className={styles.dddChip}>
+                            {d}
+                            <button type="button" className={styles.dddChipX}
+                              onClick={() => removeDdd(d)} aria-label={`Remover DDD ${d}`}>
+                              <X size={11} />
+                            </button>
+                          </span>
+                        ))}
+                        <input
+                          className={styles.dddInput}
+                          inputMode="numeric"
+                          value={dddDigitando}
+                          placeholder={dddFiltro.length ? 'mais um…' : 'todos — digite p/ filtrar'}
+                          onChange={e => {
+                            const v = e.target.value.replace(/\D/g, '').slice(0, 2)
+                            // 2 dígitos já é um DDD: vira chip sozinho, sem exigir Enter
+                            if (v.length === 2) addDdd(v); else setDddDigitando(v)
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { e.preventDefault(); addDdd(dddDigitando) }
+                            // apagar com o campo vazio tira o último chip
+                            if (e.key === 'Backspace' && !dddDigitando && dddFiltro.length) {
+                              removeDdd(dddFiltro[dddFiltro.length - 1])
+                            }
+                          }}
+                        />
+                      </div>
+
+                      <div className={styles.dddSugestoes}>
+                        {ddds.filter(d => !dddFiltro.includes(d.ddd)).slice(0, 3).map(d => (
+                          <button key={d.ddd} type="button" className={styles.dddSugestao}
+                            onClick={() => addDdd(d.ddd)}>
+                            + {d.ddd} <span style={{ opacity: .65 }}>{d.qtd}</span>
+                          </button>
+                        ))}
+                        {dddFiltro.length > 0 && (
+                          <button type="button" className={styles.dddSugestao}
+                            onClick={() => setDddFiltro([])}>
+                            limpar
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
 
-                  {(clienteSearch || dddFiltro) && filteredClientes.length > 0 && (
+                  {(clienteSearch || dddFiltro.length > 0) && filteredClientes.length > 0 && (
                     <button type="button" onClick={selectFiltrados}
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', height: 40, border: 'none', borderBottom: '1px solid var(--border)', background: 'var(--accent)', color: 'var(--accent-fg)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                       <Check size={16} /> Adicionar os {filteredClientes.length} mostrados à seleção
@@ -359,7 +405,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
                   <div style={{ padding: '7px 12px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                     <span>
                       {filteredClientes.length} mostrado(s)
-                      {dddFiltro ? ` · DDD ${dddFiltro}` : ''}
+                      {dddFiltro.length ? ` · DDD ${dddFiltro.join(', ')}` : ''}
                       {clienteSearch ? ' · busca' : ''}
                     </span>
                     <span>
