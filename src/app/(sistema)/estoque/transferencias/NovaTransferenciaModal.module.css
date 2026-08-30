@@ -1,0 +1,269 @@
+.corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Rota ── */
+
+.rotas {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+}
+
+.campo span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.campo select {
+  height: 36px;
+  padding: 0 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.seta {
+  padding-bottom: 9px;
+  color: var(--text-muted);
+  font-size: 16px;
+}
+
+/* ── Área de bipe ──
+ * Alta e destacada de propósito: é onde a pessoa olha enquanto passa o leitor. */
+
+.bipeArea {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.bipeIcone {
+  position: absolute;
+  left: 12px;
+  color: var(--accent);
+  pointer-events: none;
+}
+
+.bipeInput {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px 0 38px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.04em;
+}
+
+.bipeInput::placeholder {
+  font-family: inherit;
+  letter-spacing: normal;
+  color: var(--text-disabled);
+}
+
+.bipeInput:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+
+.erro,
+.ultimo,
+.avisoParcial {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 9px 11px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.erro {
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.ultimo {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
+.avisoParcial {
+  background: var(--warning-subtle);
+  border: 1px solid var(--warning);
+  color: var(--text-primary);
+}
+
+.avisoParcial svg { flex-shrink: 0; margin-top: 1px; }
+
+.vazio {
+  padding: 28px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+}
+
+/* ── Lista ── */
+
+.listaWrapper {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.lista {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.lista th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-elevated);
+  text-align: left;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.lista td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.lista tr:last-child td { border-bottom: none; }
+
+.num { text-align: right; white-space: nowrap; }
+.lista th.num { text-align: right; }
+
+.etiqueta {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.nome   { display: block; color: var(--text-primary); }
+.codigo { display: block; font-size: 11px; color: var(--text-muted); font-family: ui-monospace, monospace; }
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.stepper button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 24px;
+  background: var(--bg-elevated);
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.stepper button:hover:not(:disabled) { color: var(--text-primary); }
+.stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.stepper span {
+  min-width: 24px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.remover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.remover:hover:not(:disabled) { color: var(--danger); background: var(--danger-subtle); }
+.remover:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Rodapé ── */
+
+.campoObs {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.campoObs span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.campoObs input {
+  height: 36px;
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.totais {
+  display: flex;
+  gap: 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.totais strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.acoes {
+  display: flex;
+  gap: 8px;
+}
