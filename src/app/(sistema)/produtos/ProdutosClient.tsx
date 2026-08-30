@@ -9,6 +9,8 @@ import ProdutoFormModal from './ProdutoFormModal'
 import ProdutoDetalheModal from '@/components/produto/ProdutoDetalheModal'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { toggleProductStatus } from './actions'
+import { exportarProdutos } from './exportar'
+import BotaoExportar from '@/components/ui/BotaoExportar'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import type { ProductWithRelations, StoreOption, SupplierOption } from './page'
 import Paginacao from '@/components/ui/Paginacao'
@@ -282,6 +284,11 @@ export default function ProdutosClient({
               </Button>
             </>
           )}
+          {/*
+            Exporta o FILTRO inteiro, não os 50 da página nem os 10 da tela —
+            por isso passa `filters` e não `products`. Ver produtos/exportar.ts.
+          */}
+          <BotaoExportar exportar={() => exportarProdutos(filters)} rotulo="Exportar" />
           {isAdmin && (
             <Button size="sm" onClick={openCreate}>
               <Plus size={14} />

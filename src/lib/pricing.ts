@@ -19,3 +19,20 @@ export function computeSalePrice(cost: number, markupPct: number): number {
 export function salePriceIsAuto(currentSale: number, prevCost: number, markupPct: number): boolean {
   return currentSale === 0 || currentSale === computeSalePrice(prevCost, markupPct)
 }
+
+/**
+ * Preço que a peça realmente sai — promoção só vale se estiver ATIVA e > 0.
+ *
+ * A armadilha é o fallback ingênuo `promotional_price ?? sale_price`: quando a
+ * promoção está zerada mas o registro existe, `0` não é nulo, passa pelo `??` e
+ * a peça vira R$ 0,00. Já aconteceu na impressão de etiqueta.
+ */
+export function precoEfetivo(p: {
+  sale_price: number
+  promotional_price: number | null
+  promotional_active: boolean
+}): number {
+  return p.promotional_active && p.promotional_price && p.promotional_price > 0
+    ? p.promotional_price
+    : p.sale_price
+}

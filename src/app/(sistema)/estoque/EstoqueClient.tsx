@@ -10,6 +10,8 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import ProdutoDetalheModal from '@/components/produto/ProdutoDetalheModal'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import BotaoExportar from '@/components/ui/BotaoExportar'
+import { exportarEstoque } from '../produtos/exportar'
 import type { ProductWithRelations, StoreOption } from '../produtos/page'
 import Paginacao from '@/components/ui/Paginacao'
 import ThOrdenavel from '@/components/ui/ThOrdenavel'
@@ -193,6 +195,11 @@ export default function EstoqueClient({
           <span className={styles.counter}>{total} produto{total !== 1 ? 's' : ''}</span>
         </div>
         <div className={styles.toolbarRight}>
+          {/*
+            Exporta o FILTRO inteiro, não os 50 da página nem os 10 da tela —
+            por isso passa `filters` e não `products`. Ver produtos/exportar.ts.
+          */}
+          <BotaoExportar exportar={() => exportarEstoque(filters)} rotulo="Exportar" />
           <Button size="sm" variant="ghost" onClick={() => router.push('/estoque/conferencia')}>
             <ClipboardCheck size={14} />
             Conferência
