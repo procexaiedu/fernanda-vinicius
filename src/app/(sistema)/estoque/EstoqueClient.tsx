@@ -19,16 +19,11 @@ import { useOrdenacao } from '@/hooks/useOrdenacao'
 import { usePaginacaoServidor } from '@/hooks/usePaginacaoServidor'
 import styles from './EstoqueClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import { calcularGiro, ROTULO_FAIXA, textoDias } from '@/lib/giro'
 
-function getStatusVenda(lastSaleDate: string | null, createdAt: string): 'parado' | 'critico' | null {
-  const now = Date.now()
-  const ref = lastSaleDate ? new Date(lastSaleDate).getTime() : new Date(createdAt).getTime()
-  const dias = Math.floor((now - ref) / 86400000)
-  if (!lastSaleDate && dias < 30) return null
-  if (dias >= 90) return 'critico'
-  if (dias >= 60) return 'parado'
-  return null
-}
+/* getStatusVenda saiu daqui: eram duas cópias com 60 e 90 escritos na mão,
+ * enquanto a configuração do negócio diz 30. A regra agora é uma só, em
+ * src/lib/giro.ts, e o corte vem de `stale_product_days`. */
 
 /* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
 const fmt = formatarDinheiro
@@ -56,11 +51,13 @@ interface Props {
   stores: StoreOption[]
   categories: string[]
   materials: string[]
+  /** `stale_product_days` das Configurações — define o corte de parado/encalhado. */
+  staleDays: number
   filters: Filters
 }
 
 export default function EstoqueClient({
-  products, total, page, perPage, isAdmin, stores, categories, materials, filters,
+  products, total, page, perPage, isAdmin, stores, categories, materials, staleDays, filters,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -124,6 +121,9 @@ export default function EstoqueClient({
     venda:       { valor: p => p.sale_price, tipo: 'numero' },
     promo:       { valor: p => p.promotional_price, tipo: 'numero' },
     ultimaVenda: { valor: p => p.last_sale_date, tipo: 'data' },
+    /* Dias parado, não a faixa: a faixa tem quatro degraus e empataria centenas
+     * de peças. O que interessa é qual está há mais tempo na gaveta. */
+    giro:        { valor: p => calcularGiro(p, staleDays).diasParado, tipo: 'numero' },
   })
 
   const pag = usePaginacaoServidor({
@@ -232,13 +232,14 @@ export default function EstoqueClient({
                 <ThOrdenavel ord={ord} coluna="venda" className="col-num">Venda</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="promo" className="col-tertiary col-num">Promo</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="ultimaVenda" className="col-tertiary col-date">Última venda</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="giro" className="col-secondary col-num">Em estoque</ThOrdenavel>
                 <th className="col-center">Status</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {pag.fatia.map(prod => {
-                const statusVenda = getStatusVenda(prod.last_sale_date, prod.created_at)
+                const giro = calcularGiro(prod, staleDays)
                 return (
                   <tr
                     key={prod.id}
@@ -292,10 +293,25 @@ export default function EstoqueClient({
                         coluna acabavam em alinhamentos diferentes. */}
                     <td className={`${styles.mutedCell} col-tertiary col-date`}>{fmtDate(prod.last_sale_date)}</td>
 
+                    {/* Tempo em estoque. O título diz de onde vem a conta. */}
+                    <td className="col-secondary col-num">
+                      <span
+                        className={`${styles.giro} ${giro.faixa === 'critico' ? styles.giroCritico : giro.faixa === 'parado' ? styles.giroParado : ''}`}
+                        title={
+                          `Entrou em ${giro.entrada.toLocaleDateString('pt-BR')}`
+                          + (giro.diasAteVender !== null
+                              ? ` · vendeu depois de ${textoDias(giro.diasAteVender)}`
+                              : ' · nunca vendeu')
+                        }
+                      >
+                        {textoDias(giro.diasParado)}
+                      </span>
+                    </td>
+
                     <td className="col-center">
-                      {statusVenda === 'parado' && <span className={styles.statusParado}>Parado</span>}
-                      {statusVenda === 'critico' && <span className={styles.statusCritico}>Crítico</span>}
-                      {!statusVenda && <span className={styles.mutedCell}>—</span>}
+                      {giro.faixa === 'parado'  && <span className={styles.statusParado}>{ROTULO_FAIXA.parado}</span>}
+                      {giro.faixa === 'critico' && <span className={styles.statusCritico}>{ROTULO_FAIXA.critico}</span>}
+                      {(giro.faixa === 'ok' || giro.faixa === 'novo') && <span className={styles.mutedCell}>—</span>}
                     </td>
 
                     <td onClick={e => e.stopPropagation()}>
@@ -332,6 +348,7 @@ export default function EstoqueClient({
 
       {detalhe && (
         <ProdutoDetalheModal
+          staleDays={staleDays}
           produto={detalhe}
           isAdmin={isAdmin}
           modoBalcao={modoBalcao}

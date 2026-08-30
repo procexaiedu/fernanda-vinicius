@@ -330,3 +330,16 @@
 .bipFechar:hover {
   color: var(--text-primary);
 }
+
+/* ── Tempo em estoque ── */
+
+.giro {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Só as faixas ruins ganham cor: pintar "girando" também deixaria a coluna
+ * inteira colorida e ninguém enxerga mais o que está encalhado. */
+.giroParado  { color: var(--warning); }
+.giroCritico { color: var(--danger); font-weight: 600; }

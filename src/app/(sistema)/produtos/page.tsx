@@ -30,6 +30,9 @@ export interface ProductWithRelations {
   barcode_number: string
   suppliers: { id: string; name: string; initials: string } | null
   stores: { id: string; name: string } | null
+  /* Data da COMPRA que trouxe a peça — é a entrada de verdade, e não o dia em
+   * que alguém digitou o cadastro. Ver src/lib/giro.ts. */
+  purchases: { purchase_date: string } | null
 }
 
 export interface StoreOption { id: string; name: string }
@@ -61,7 +64,7 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
 
   let query = admin
     .from('products')
-    .select('*, suppliers(id, name, initials), stores(id, name)', { count: 'exact' })
+    .select('*, suppliers(id, name, initials), stores(id, name), purchases(purchase_date)', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1)
 
@@ -81,13 +84,14 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
     query = query.eq('is_active', true)
   }
 
-  const [productsRes, materialsRes, storesRes, suppliersRes, categoryMappingsRes, markupRes] = await Promise.all([
+  const [productsRes, materialsRes, storesRes, suppliersRes, categoryMappingsRes, markupRes, staleRes] = await Promise.all([
     query,
     admin.from('materials').select('name').eq('is_active', true).order('name'),
     isAdmin ? admin.from('stores').select('id, name').order('name') : Promise.resolve({ data: [] }),
     isAdmin ? admin.from('suppliers').select('id, name, initials').eq('is_active', true).order('name') : Promise.resolve({ data: [] }),
     admin.from('category_label_mapping').select('category, label_format').eq('is_active', true).order('category'),
     admin.from('settings').select('value').eq('key', 'default_markup_pct').maybeSingle(),
+    admin.from('settings').select('value').eq('key', 'stale_product_days').maybeSingle(),
   ])
 
   const products = (productsRes.data ?? []) as ProductWithRelations[]
@@ -102,6 +106,9 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
   )
   // Mesmo markup usado na Compra — alimenta o preço de venda automático no cadastro de produto.
   const defaultMarkupPct = Number(markupRes.data?.value ?? 100)
+  /* O corte de "parado" vem da configuração do negócio. As duas cópias de
+   * getStatusVenda tinham 60 e 90 na mão, e a configuração diz 30. */
+  const staleDays = Number(staleRes.data?.value ?? 60)
 
   return (
     <div>
@@ -127,6 +134,7 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
         materials={materials}
         categoryLabelMap={categoryLabelMap}
         defaultMarkupPct={defaultMarkupPct}
+        staleDays={staleDays}
         filters={{
           q: params.q ?? '',
           store_id: params.store_id ?? '',

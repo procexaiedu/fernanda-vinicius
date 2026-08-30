@@ -11,6 +11,7 @@ import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { buscarHistoricoVendas, setPromotionalActive, updateProductPricing, type SaleHistoryItem } from '@/app/(sistema)/produtos/actions'
 import styles from './ProdutoDetalheModal.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import { calcularGiro, ROTULO_FAIXA, textoDias } from '@/lib/giro'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,8 @@ export interface ProdutoParaDetalhe {
   barcode_number?: string
   suppliers?: { id: string; name: string; initials: string } | null
   stores?: { id: string; name: string } | null
+  /** Compra que trouxe a peça — data de entrada de verdade. Ver src/lib/giro.ts. */
+  purchases?: { purchase_date: string } | null
 }
 
 interface Transfer {
@@ -55,6 +58,8 @@ interface Props {
   categoryLabelMap?: Record<string, 'A' | 'B'>
   /** Lista de categorias para o sugestão no editor rápido. */
   categories?: string[]
+  /** `stale_product_days` das Configurações. Padrão 60 quando a tela não passa. */
+  staleDays?: number
   isAdmin: boolean
   /**
    * Consulta de balcão: a tela está virada para a cliente. Esconde custo, margem,
@@ -80,7 +85,8 @@ function fmtDate(s: string | null) {
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export default function ProdutoDetalheModal({ produto, categoryLabelMap, categories = [], isAdmin, modoBalcao = false, onClose, onEdit }: Props) {
+export default function ProdutoDetalheModal({ produto, categoryLabelMap, categories = [], staleDays = 60, isAdmin, modoBalcao = false, onClose, onEdit }: Props) {
+  const giro = calcularGiro(produto, staleDays)
   type Tab = 'geral' | 'vendas' | 'transferencias'
   /* Dado interno (custo, margem, fornecedor, edição) exige as duas coisas:
      ser admin E não estar com a tela virada para a cliente. */
@@ -408,7 +414,31 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
               </div>
             )}
 
+            {/*
+              Tempo de giro. Duas perguntas diferentes na mesma linha:
+              "há quanto tempo está aqui" (sobe todo dia) e "quanto demorou para
+              sair" (congela na venda). Ver src/lib/giro.ts.
+            */}
+            <div className={styles.giroBox}>
+              <div className={styles.giroPrincipal}>
+                <span className={styles.giroNumero}>{textoDias(giro.diasParado)}</span>
+                <span className={styles.giroLabel}>em estoque</span>
+                {(giro.faixa === 'parado' || giro.faixa === 'critico') && (
+                  <span className={giro.faixa === 'critico' ? styles.giroTagCritico : styles.giroTagParado}>
+                    {ROTULO_FAIXA[giro.faixa]}
+                  </span>
+                )}
+                {giro.faixa === 'novo' && <span className={styles.giroTagNovo}>{ROTULO_FAIXA.novo}</span>}
+              </div>
+              <div className={styles.giroDetalhe}>
+                {giro.diasAteVender !== null
+                  ? <>Vendeu depois de <strong>{textoDias(giro.diasAteVender)}</strong> na loja · sem vender há {textoDias(giro.diasSemVender)}</>
+                  : <>Nunca vendeu</>}
+              </div>
+            </div>
+
             <div className={styles.dates}>
+              <span>Entrada: {fmtDate(giro.entrada.toISOString())}</span>
               <span>Cadastrado: {fmtDate(produto.created_at)}</span>
               <span>Última venda: {fmtDate(produto.last_sale_date)}</span>
             </div>
