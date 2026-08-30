@@ -1,6 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { apiKey, wabaId, getTemplateMeta, normalizePhoneBR, sendTemplate } from '@/lib/ycloud'
+import { primeiroNomeParaSaudacao } from '@/lib/nomeProprio'
 
 /**
  * Uma passada de envio de campanha — segura e resumível.
@@ -91,8 +92,34 @@ export async function enviarLote(disparoId: string, tamanhoLote = 50): Promise<R
         continue
       }
 
-      // {{1}} = PRIMEIRO nome da cliente; {{2}}/{{3}} = parâmetros da campanha.
-      const primeiroNome = String(d.nome ?? '').trim().split(/\s+/)[0] || String(d.nome ?? '')
+      /*
+       * Nome que não serve para saudar NÃO sai — vira falha com motivo legível.
+       *
+       * Falha em vez de pular calado: assim aparece na contagem do disparo, dá
+       * para listar quem ficou de fora, dar nome à pessoa e reenviar. Pular sem
+       * registro some com ela para sempre.
+       *
+       * Sem isto, 20 clientes vindos da agenda de Brasília receberiam "Oi Sem",
+       * "Oi 2" e "Oi Oi" — o marcador da agenda tinha entrado no lugar do nome.
+       */
+      /*
+       * {{1}} = como chamar a cliente; {{2}}/{{3}} = parâmetros da campanha.
+       *
+       * A MESMA chamada decide se manda e diz o que escrever — antes eram duas
+       * regras (`split(' ')[0]` aqui) e elas discordavam: "~ Luis" saía como
+       * "Oi ~" e "M A R I A N A" como "Oi M".
+       */
+      const primeiroNome = primeiroNomeParaSaudacao(d.nome)
+
+      if (!primeiroNome) {
+        await marcar(db, d.id, 'falhou', {
+          telefone_e164: to,
+          erro: `cliente sem nome utilizável ("${String(d.nome ?? '').trim()}") — a mensagem sairia com a saudação errada`,
+        })
+        falhas++
+        continue
+      }
+
       const params = [primeiroNome, d.param2 ?? '', d.param3 ?? '.'].slice(0, qtdVariaveis)
 
       const r = await sendTemplate({

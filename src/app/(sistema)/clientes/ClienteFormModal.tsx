@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown, Check } from 'lucide-react'
+import { ChevronDown, Check, Loader2 } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { createCustomer, updateCustomer } from './actions'
 import type { CustomerWithStats, StoreOption } from './page'
 import { mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/telefone'
+import { mascararCep } from '@/lib/cep'
+import { useCep } from '@/hooks/useCep'
 import styles from './ClienteFormModal.module.css'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -38,11 +40,8 @@ function maskCPF(v: string): string {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
 }
 
-function maskZip(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 8)
-  if (d.length <= 5) return d
-  return `${d.slice(0, 5)}-${d.slice(5)}`
-}
+/* Máscara de CEP compartilhada com Fornecedores. Ver src/lib/cep.ts. */
+const maskZip = mascararCep
 
 // Converte "YYYY-MM-DD" → "DD/MM/YYYY" para exibição
 function toDisplayDate(v: string): string {
@@ -112,6 +111,33 @@ export default function ClienteFormModal({
     setForm(f => ({ ...f, [key]: value }))
     if (errors[key]) setErrors(e => ({ ...e, [key]: undefined }))
   }
+
+  /*
+   * CEP preenche cidade, UF e logradouro.
+   *
+   * Só sobrescreve campo VAZIO. Editar um cliente antigo e reconsultar o CEP
+   * não pode apagar o endereço que alguém corrigiu na mão — a base tem
+   * endereço mais específico que o dos Correios (bloco, apartamento, ponto de
+   * referência) e o ViaCEP devolveria só a rua.
+   *
+   * Este cadastro não tem campo de bairro: `address` é "Rua, número, bairro"
+   * numa linha só. Por isso o bairro não entra no campo — ele aparece como
+   * dica embaixo, para a operadora completar junto com o número.
+   */
+  const [bairroSugerido, setBairroSugerido] = useState('')
+  const enderecoRef = useRef<HTMLInputElement>(null)
+
+  const { buscando: buscandoCep, erro: erroCep, consultar: consultarCep } = useCep(endereco => {
+    setForm(f => ({
+      ...f,
+      city:    f.city.trim()    ? f.city    : endereco.cidade,
+      state:   f.state.trim()   ? f.state   : endereco.uf,
+      address: f.address.trim() ? f.address : endereco.logradouro,
+    }))
+    setBairroSugerido(endereco.bairro)
+    // Falta o número: é o único dado que o CEP não tem.
+    enderecoRef.current?.focus()
+  })
 
   function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const masked = maskDate(e.target.value)
@@ -206,13 +232,21 @@ export default function ClienteFormModal({
         {/* ── Endereço ── */}
         <div className={styles.sectionTitle}>Endereço</div>
         <div className={styles.grid3}>
-          <Field label="CEP">
-            <input
-              className={styles.input}
-              value={form.zip_code}
-              onChange={e => set('zip_code', maskZip(e.target.value))}
-              placeholder="00000-000"
-            />
+          <Field label="CEP" error={erroCep ?? undefined}>
+            <div className={styles.cepWrapper}>
+              <input
+                className={styles.input}
+                value={form.zip_code}
+                onChange={e => {
+                  set('zip_code', maskZip(e.target.value))
+                  consultarCep(e.target.value)
+                }}
+                placeholder="00000-000"
+                inputMode="numeric"
+                maxLength={9}
+              />
+              {buscandoCep && <Loader2 size={13} className={styles.cepSpinner} />}
+            </div>
           </Field>
           <Field label="Cidade">
             <input
@@ -234,11 +268,15 @@ export default function ClienteFormModal({
         </div>
         <Field label="Endereço completo">
           <input
+            ref={enderecoRef}
             className={styles.input}
             value={form.address}
             onChange={e => set('address', e.target.value)}
             placeholder="Rua, número, bairro"
           />
+          {bairroSugerido && (
+            <span className={styles.hint}>Bairro do CEP: {bairroSugerido}</span>
+          )}
         </Field>
 
         {/* ── Outras informações ── */}

@@ -2,154 +2,250 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ClipboardCheck, FileText, Plus, XCircle } from 'lucide-react'
 import Button from '@/components/ui/Button'
-import TransferenciaFormModal from './TransferenciaFormModal'
-import type { TransferWithRelations } from './page'
+import Badge from '@/components/ui/Badge'
+import Modal from '@/components/ui/Modal'
+import Paginacao from '@/components/ui/Paginacao'
+import { formatarDinheiro } from '@/lib/dinheiro'
+import NovaTransferenciaModal from './NovaTransferenciaModal'
+import ConferenciaModal from './ConferenciaModal'
+import Romaneio from './Romaneio'
+import { cancelarTransferencia } from './actions'
+import type { LojaOption, Romaneio as RomaneioT } from './page'
 import styles from './TransferenciasClient.module.css'
 
-function buildPages(current: number, total: number): (number | '...')[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
-  const pages: (number | '...')[] = [1]
-  if (current > 3) pages.push('...')
-  for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) pages.push(i)
-  if (current < total - 2) pages.push('...')
-  pages.push(total)
-  return pages
+const ROTULO: Record<RomaneioT['status'], string> = {
+  enviada:    'Em trânsito',
+  recebida:   'Recebida',
+  divergente: 'Divergência',
+  cancelada:  'Cancelada',
 }
 
-function fmtDate(s: string) {
-  const [date] = s.split('T')
-  const [y, m, d] = date.split('-')
-  return `${d}/${m}/${y}`
+const COR: Record<RomaneioT['status'], 'warning' | 'success' | 'danger' | 'muted'> = {
+  enviada:    'warning',
+  recebida:   'success',
+  divergente: 'danger',
+  cancelada:  'muted',
 }
 
-interface ProductForTransfer {
-  id: string
-  code: string
-  name: string
-  quantity_in_stock: number
-  store_id: string
-  stores: { id: string; name: string } | null
+function dataHora(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 interface Props {
-  transfers: TransferWithRelations[]
+  romaneios: RomaneioT[]
   total: number
   page: number
   perPage: number
-  stores: { id: string; name: string }[]
-  productsForTransfer: ProductForTransfer[]
-  filters: { store_id: string }
+  lojas: LojaOption[]
+  isAdmin: boolean
+  minhaLoja: string | null
+  filtroStatus: string
 }
 
 export default function TransferenciasClient({
-  transfers, total, page, perPage, stores, productsForTransfer, filters,
+  romaneios, total, page, perPage, lojas, isAdmin, minhaLoja, filtroStatus,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [, startTransition] = useTransition()
-  const [formOpen, setFormOpen] = useState(false)
+  const [pendente, startTransition] = useTransition()
 
-  const totalPages = Math.ceil(total / perPage)
-  const from = Math.min((page - 1) * perPage + 1, total)
-  const to = Math.min(page * perPage, total)
+  const [novaAberta, setNovaAberta] = useState(false)
+  const [conferindo, setConferindo] = useState<RomaneioT | null>(null)
+  const [vendoRomaneio, setVendoRomaneio] = useState<RomaneioT | null>(null)
+  const [cancelando, setCancelando] = useState<RomaneioT | null>(null)
+  const [motivo, setMotivo] = useState('')
+  const [erroCancel, setErroCancel] = useState<string | null>(null)
+  const [salvandoCancel, setSalvandoCancel] = useState(false)
 
-  function pushFilter(key: string, value: string) {
+  function pushParam(chave: string, valor: string) {
     const p = new URLSearchParams(searchParams.toString())
-    if (value) p.set(key, value)
-    else p.delete(key)
-    p.delete('page')
+    if (valor) p.set(chave, valor); else p.delete(chave)
+    if (chave !== 'page') p.delete('page')
     startTransition(() => router.push(`?${p.toString()}`))
   }
 
-  function pushPage(n: number) {
-    const p = new URLSearchParams(searchParams.toString())
-    p.set('page', String(n))
-    startTransition(() => router.push(`?${p.toString()}`))
+  /*
+   * "Conferir" só aparece para quem RECEBE.
+   *
+   * O admin vê tudo, mas o botão continua sendo da loja de destino: quem confere
+   * é quem tem a caixa na mão. Deixar Campinas dar entrada numa caixa que está
+   * em Brasília é transformar conferência em digitação.
+   */
+  const podeConferir = (r: RomaneioT) =>
+    r.status === 'enviada' && (isAdmin || r.to_store_id === minhaLoja)
+
+  async function confirmarCancelamento() {
+    if (!cancelando) return
+    setSalvandoCancel(true)
+    setErroCancel(null)
+    const r = await cancelarTransferencia(cancelando.id, motivo)
+    setSalvandoCancel(false)
+    if (!r.success) { setErroCancel(r.error ?? 'Erro ao cancelar.'); return }
+    setCancelando(null)
+    setMotivo('')
+    router.refresh()
   }
+
+  const emTransito = romaneios.filter(r => r.status === 'enviada')
 
   return (
     <>
       <div className={styles.toolbar}>
         <div className={styles.toolbarLeft}>
-          <select className={styles.filterSelect} value={filters.store_id} onChange={e => pushFilter('store_id', e.target.value)}>
-            <option value="">Todas as lojas</option>
-            {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          <select className={styles.filtro} value={filtroStatus}
+            onChange={e => pushParam('status', e.target.value)} disabled={pendente}>
+            <option value="">Todos os status</option>
+            <option value="enviada">Em trânsito</option>
+            <option value="recebida">Recebidas</option>
+            <option value="divergente">Com divergência</option>
+            <option value="cancelada">Canceladas</option>
           </select>
-          <span className={styles.counter}>{total} transferência{total !== 1 ? 's' : ''}</span>
+          <span className={styles.contador}>
+            {total} transferência{total !== 1 ? 's' : ''}
+          </span>
+          {emTransito.length > 0 && (
+            <span className={styles.transito}>
+              {emTransito.length} em trânsito — o saldo delas não está em nenhuma loja
+            </span>
+          )}
         </div>
-        <Button size="sm" onClick={() => setFormOpen(true)}>
-          <Plus size={14} />
-          Nova Transferência
-        </Button>
+        {isAdmin && (
+          <Button size="sm" onClick={() => setNovaAberta(true)}>
+            <Plus size={14} />
+            Nova transferência
+          </Button>
+        )}
       </div>
 
       <div className={styles.tableWrapper}>
-        {transfers.length === 0 ? (
-          <div className={styles.empty}>
-            <span>Nenhuma transferência registrada.</span>
+        {romaneios.length === 0 ? (
+          <div className={styles.vazio}>
+            <span>Nenhuma transferência.</span>
+            {isAdmin && <span className={styles.vazioDica}>Clique em &quot;Nova transferência&quot; para começar.</span>}
           </div>
         ) : (
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Data</th>
-                <th>Produto</th>
-                <th className="col-secondary">De → Para</th>
-                <th>Qtd.</th>
-                <th className="col-tertiary">Responsável</th>
-                <th className="col-tertiary">Observações</th>
+                <th>Enviada</th>
+                <th>Rota</th>
+                <th className={styles.num}>Peças</th>
+                <th className={styles.num}>Custo</th>
+                <th>Status</th>
+                <th className="col-tertiary">Responsáveis</th>
+                <th />
               </tr>
             </thead>
             <tbody>
-              {transfers.map(t => (
-                <tr key={t.id}>
-                  <td className="col-date">{fmtDate(t.created_at)}</td>
-                  <td>
-                    <div className={styles.prodCell}>
-                      <span className={styles.prodCode}>{t.products?.code ?? '—'}</span>
-                      <span className={styles.prodName}>{t.products?.name ?? '—'}</span>
-                    </div>
-                  </td>
-                  <td className="col-secondary">
-                    {t.from_store?.name ?? '—'} <span className={styles.arrow}>→</span> {t.to_store?.name ?? '—'}
-                  </td>
-                  <td><span className={styles.qty}>{t.quantity}</span></td>
-                  <td className="col-tertiary">{t.users?.name ?? '—'}</td>
-                  <td className="col-tertiary">{t.notes ?? '—'}</td>
-                </tr>
-              ))}
+              {romaneios.map(r => {
+                const enviados = r.itens.filter(i => i.quantity_sent > 0)
+                const pecas = r.totals?.pecas ?? enviados.reduce((s, i) => s + i.quantity_sent, 0)
+                const faltas = r.itens.filter(i => i.divergence_type === 'falta').length
+                const sobras = r.itens.filter(i => i.divergence_type === 'sobra').length
+                return (
+                  <tr key={r.id}>
+                    <td className="col-date">{dataHora(r.sent_at)}</td>
+                    <td>
+                      <span className={styles.rota}>{r.de} <span className={styles.seta}>→</span> {r.para}</span>
+                      {r.notes && <span className={styles.obs}>{r.notes}</span>}
+                    </td>
+                    <td className={styles.num}>
+                      {pecas}
+                      <span className={styles.itens}>{enviados.length} {enviados.length === 1 ? 'item' : 'itens'}</span>
+                    </td>
+                    <td className={styles.num}>{formatarDinheiro(r.totals?.custo_total ?? 0)}</td>
+                    <td>
+                      <Badge variant={COR[r.status]}>{ROTULO[r.status]}</Badge>
+                      {r.status === 'divergente' && (
+                        <span className={styles.divergencia}>
+                          {faltas > 0 && `${faltas} falta${faltas > 1 ? 's' : ''}`}
+                          {faltas > 0 && sobras > 0 && ' · '}
+                          {sobras > 0 && `${sobras} sobra${sobras > 1 ? 's' : ''}`}
+                        </span>
+                      )}
+                    </td>
+                    <td className="col-tertiary">
+                      <span className={styles.pessoa}>{r.enviou}</span>
+                      {r.recebeu && <span className={styles.pessoa}>recebeu: {r.recebeu}</span>}
+                    </td>
+                    <td className={styles.acoes}>
+                      <button className={styles.acao} onClick={() => setVendoRomaneio(r)} title="Ver romaneio">
+                        <FileText size={14} />
+                      </button>
+                      {podeConferir(r) && (
+                        <button className={`${styles.acao} ${styles.acaoPrincipal}`}
+                          onClick={() => setConferindo(r)} title="Conferir chegada">
+                          <ClipboardCheck size={14} />
+                        </button>
+                      )}
+                      {isAdmin && r.status === 'enviada' && (
+                        <button className={styles.acao} onClick={() => { setCancelando(r); setMotivo(''); setErroCancel(null) }}
+                          title="Cancelar e devolver à origem">
+                          <XCircle size={14} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}
       </div>
 
-      {totalPages > 1 && (
-        <div className={styles.pagination}>
-          <span className={styles.paginationInfo}>Mostrando {from}–{to} de {total}</span>
-          <div className={styles.paginationButtons}>
-            <button className={styles.pageBtn} disabled={page <= 1} onClick={() => pushPage(page - 1)}>
-              <ChevronLeft size={14} />
-            </button>
-            {buildPages(page, totalPages).map((p, i) =>
-              p === '...'
-                ? <span key={`dots-${i}`} className={styles.pageDots}>…</span>
-                : <button key={p} className={`${styles.pageBtn} ${p === page ? styles.pageBtnActive : ''}`} onClick={() => pushPage(p as number)}>{p}</button>
-            )}
-            <button className={styles.pageBtn} disabled={page >= totalPages} onClick={() => pushPage(page + 1)}>
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
+      <Paginacao
+        pagina={page}
+        totalPaginas={Math.max(1, Math.ceil(total / perPage))}
+        totalItens={total}
+        rotulo="transferência"
+        rotuloPlural="transferências"
+        onIr={n => pushParam('page', String(n))}
+        carregando={pendente}
+      />
+
+      {novaAberta && (
+        <NovaTransferenciaModal
+          lojas={lojas}
+          lojaPadrao={minhaLoja}
+          onClose={() => setNovaAberta(false)}
+          onEnviado={() => { setNovaAberta(false); router.refresh() }}
+        />
       )}
 
-      {formOpen && (
-        <TransferenciaFormModal
-          stores={stores}
-          products={productsForTransfer}
-          onClose={() => setFormOpen(false)}
-        />
+      {conferindo && (
+        <ConferenciaModal romaneio={conferindo} onClose={() => setConferindo(null)} />
+      )}
+
+      {vendoRomaneio && (
+        <Modal isOpen size="xl" hideHeader onClose={() => setVendoRomaneio(null)}>
+          <Romaneio r={vendoRomaneio} onFechar={() => setVendoRomaneio(null)} />
+        </Modal>
+      )}
+
+      {cancelando && (
+        <Modal isOpen title="Cancelar transferência" onClose={() => setCancelando(null)}>
+          <div className={styles.cancelBox}>
+            <p>
+              As <strong>{cancelando.totals?.pecas ?? 0} peças</strong> voltam para o estoque de{' '}
+              <strong>{cancelando.de}</strong>. Só dá para cancelar enquanto ninguém conferiu a chegada.
+            </p>
+            <label>
+              <span>Motivo</span>
+              <input value={motivo} onChange={e => setMotivo(e.target.value)}
+                placeholder="Ex.: a caixa não saiu da loja" autoFocus />
+            </label>
+            {erroCancel && <div className={styles.cancelErro}>{erroCancel}</div>}
+            <div className={styles.cancelAcoes}>
+              <Button variant="ghost" onClick={() => setCancelando(null)} disabled={salvandoCancel}>Voltar</Button>
+              <Button variant="danger" onClick={confirmarCancelamento}
+                loading={salvandoCancel} disabled={!motivo.trim()}>
+                Cancelar transferência
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </>
   )

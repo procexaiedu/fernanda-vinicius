@@ -10,6 +10,8 @@ import type { SupplierWithCount } from './page'
 import styles from './FornecedorFormModal.module.css'
 import { mascararTelefone } from '@/lib/telefone'
 import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
+import { mascararCep } from '@/lib/cep'
+import { useCep } from '@/hooks/useCep'
 
 interface NominatimResult {
   display_name: string
@@ -56,11 +58,8 @@ function formatCNPJ(v: string): string {
  * número com código do país. Ver src/lib/telefone.ts. */
 const formatPhone = mascararTelefone
 
-function formatCEP(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 8)
-  if (d.length <= 5) return d
-  return `${d.slice(0,5)}-${d.slice(5)}`
-}
+/* Mesma máscara de Clientes. Ver src/lib/cep.ts. */
+const formatCEP = mascararCep
 
 function validateCNPJ(cnpj: string): boolean {
   const d = cnpj.replace(/\D/g, '')
@@ -112,8 +111,21 @@ export default function FornecedorFormModal({ supplier, allInitials, onClose }: 
   const [actionError, setActionError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [dupeWarning, setDupeWarning] = useState<string | null>(null)
-  const [cepLoading, setCepLoading] = useState(false)
-  const [cepError, setCepError] = useState<string | null>(null)
+  /*
+   * Aqui o CEP SOBRESCREVE cidade e UF, ao contrário de Clientes.
+   * `emptyForm` já nasce com "São Paulo"/"SP" (a maioria dos fornecedores é de
+   * lá) — se só preenchesse campo vazio, fornecedor de outro estado nunca
+   * seria corrigido pelo CEP.
+   */
+  const { buscando: cepLoading, erro: cepError, consultar: consultarCep } = useCep(endereco => {
+    setForm(f => ({
+      ...f,
+      address:      endereco.logradouro || f.address,
+      neighborhood: endereco.bairro     || f.neighborhood,
+      city:         endereco.cidade     || f.city,
+      state:        endereco.uf         || f.state,
+    }))
+  })
   const [addressSuggestions, setAddressSuggestions] = useState<NominatimResult[]>([])
   const [showAddressSuggestions, setShowAddressSuggestions] = useState(false)
   const [isSearchingAddress, setIsSearchingAddress] = useState(false)
@@ -163,35 +175,11 @@ export default function FornecedorFormModal({ supplier, allInitials, onClose }: 
   }, [])
 
   // ─── ViaCEP lookup ───────────────────────────────────────────
-  async function handleCEPChange(raw: string) {
-    const formatted = formatCEP(raw)
-    set('zip_code', formatted)
-    setCepError(null)
-
-    const digits = raw.replace(/\D/g, '')
-    if (digits.length !== 8) return
-
-    setCepLoading(true)
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`)
-      const data = await res.json()
-      if (data.erro) {
-        setCepError('CEP não encontrado.')
-      } else {
-        setForm(f => ({
-          ...f,
-          zip_code:     formatted,
-          address:      data.logradouro || f.address,
-          neighborhood: data.bairro     || f.neighborhood,
-          city:         data.localidade || f.city,
-          state:        data.uf         || f.state,
-        }))
-      }
-    } catch {
-      setCepError('Erro ao buscar CEP.')
-    } finally {
-      setCepLoading(false)
-    }
+  // A consulta em si mora em src/hooks/useCep.ts — este handler só mascara o
+  // campo e avisa o hook.
+  function handleCEPChange(raw: string) {
+    set('zip_code', formatCEP(raw))
+    consultarCep(raw)
   }
 
   // ─── Busca de endereço por texto (Nominatim) ─────────────────

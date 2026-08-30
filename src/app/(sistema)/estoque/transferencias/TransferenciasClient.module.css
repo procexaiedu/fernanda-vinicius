@@ -156,3 +156,167 @@
   color: var(--text-muted);
   font-size: 14px;
 }
+
+/* ── Romaneio: colunas e ações ─────────────────────────────────────────────── */
+
+.filtro {
+  height: 32px;
+  padding: 0 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.filtro:focus { border-color: var(--accent); }
+
+.contador {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Peça em trânsito não está em loja nenhuma — o aviso existe para o total do
+ * estoque não parecer errado quando há caixa na estrada. */
+.transito {
+  font-size: 12px;
+  color: var(--warning);
+  white-space: nowrap;
+}
+
+.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.table thead th.num { text-align: right; }
+
+.rota { display: block; color: var(--text-primary); }
+.seta { color: var(--text-muted); margin: 0 3px; }
+
+.obs {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.itens {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.divergencia {
+  display: block;
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 3px;
+}
+
+.pessoa {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pessoa:first-child { color: var(--text-primary); font-size: 12px; }
+
+.acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.acao {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.acao:hover {
+  color: var(--text-primary);
+  border-color: var(--border);
+  background: var(--bg-elevated);
+}
+
+/* Conferir é a ação que a loja de destino está esperando: fica em evidência. */
+.acaoPrincipal {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.acaoPrincipal:hover {
+  color: var(--accent-fg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 44px 20px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.vazioDica { font-size: 12px; color: var(--text-disabled); }
+
+/* ── Cancelamento ── */
+
+.cancelBox {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.cancelBox p { margin: 0; }
+
+.cancelBox label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.cancelBox label span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.cancelBox input {
+  height: 36px;
+  padding: 0 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.cancelErro {
+  padding: 9px 11px;
+  background: var(--danger-subtle);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.cancelAcoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

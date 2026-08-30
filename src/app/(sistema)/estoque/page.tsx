@@ -30,7 +30,7 @@ export default async function EstoquePage({ searchParams }: PageProps) {
 
   let query = admin
     .from('products')
-    .select('*, suppliers(id, name, initials), stores(id, name)', { count: 'exact' })
+    .select('*, suppliers(id, name, initials), stores(id, name), purchases(purchase_date)', { count: 'exact' })
     .eq('is_active', true)
     .order('created_at', { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1)
@@ -44,11 +44,12 @@ export default async function EstoquePage({ searchParams }: PageProps) {
   if (params.category) query = query.eq('category', params.category)
   if (params.material) query = query.eq('material', params.material)
 
-  const [productsRes, categoriesRes, materialsRes, storesRes] = await Promise.all([
+  const [productsRes, categoriesRes, materialsRes, storesRes, staleRes] = await Promise.all([
     query,
     admin.from('category_label_mapping').select('category').eq('is_active', true).order('category'),
     admin.from('products').select('material').eq('is_active', true).not('material', 'is', null),
     isAdmin ? admin.from('stores').select('id, name').order('name') : Promise.resolve({ data: [] }),
+    admin.from('settings').select('value').eq('key', 'stale_product_days').maybeSingle(),
   ])
 
   const products = (productsRes.data ?? []) as ProductWithRelations[]
@@ -56,6 +57,7 @@ export default async function EstoquePage({ searchParams }: PageProps) {
   const categories = [...new Set((categoriesRes.data ?? []).map(r => r.category as string))].filter(Boolean).sort()
   const materials  = [...new Set((materialsRes.data ?? []).map(r => r.material as string))].filter(Boolean).sort()
   const stores     = (storesRes.data ?? []) as StoreOption[]
+  const staleDays  = Number(staleRes.data?.value ?? 60)
 
   return (
     <div>
@@ -76,6 +78,7 @@ export default async function EstoquePage({ searchParams }: PageProps) {
         stores={stores}
         categories={categories}
         materials={materials}
+        staleDays={staleDays}
         filters={{
           q: params.q ?? '',
           store_id: params.store_id ?? '',

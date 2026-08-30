@@ -13,8 +13,8 @@ import styles from './ConferenciaClient.module.css'
 interface Props {
   sessoes: SessaoResumo[]
   escopos: EscopoDisponivel[]
-  totalLoja: number
-  stores: { id: string; name: string; pecas: number }[]
+  totalLoja: { pecas: number; unidades: number; cadastros: number }
+  stores: { id: string; name: string; pecas: number; unidades: number; cadastros: number }[]
   /** Loja cujos escopos estão na tela — resolvida no servidor. */
   lojaAtual: string | null
   isAdmin: boolean
@@ -93,7 +93,7 @@ export default function ConferenciaClient({ sessoes, escopos, totalLoja, stores,
                    cegas, e abrir na loja errada só se descobre no fim. */
                 options={stores.map(s => ({
                   value: s.id,
-                  label: `${s.name} — ${s.pecas} peça${s.pecas !== 1 ? 's' : ''}`,
+                  label: `${s.name} — ${s.unidades} unidade${s.unidades !== 1 ? 's' : ''}`,
                 }))}
                 placeholder="Loja"
               />
@@ -108,7 +108,16 @@ export default function ConferenciaClient({ sessoes, escopos, totalLoja, stores,
                 onClick={() => setEscolhido(e.categoria)}
               >
                 <span className={styles.escopoNome}>{e.categoria}</span>
-                <span className={styles.escopoQtd}>{e.pecas} peça{e.pecas !== 1 ? 's' : ''}</span>
+                {/*
+                  UNIDADES em destaque: é um bipe por unidade, então é ele que
+                  diz o tamanho do trabalho. "Peças" é secundário — peça com 3
+                  unidades exige 3 leituras.
+                */}
+                <span className={styles.escopoQtd}>{e.unidades} unidade{e.unidades !== 1 ? 's' : ''}</span>
+                <span className={styles.escopoDetalhe}>
+                  {e.pecas} peça{e.pecas !== 1 ? 's' : ''}
+                  {e.cadastros > e.pecas && ` · ${e.cadastros - e.pecas} sem saldo`}
+                </span>
               </button>
             ))}
           </div>
@@ -118,15 +127,24 @@ export default function ConferenciaClient({ sessoes, escopos, totalLoja, stores,
             onClick={() => setEscolhido('__loja__')}
           >
             <span className={styles.escopoNome}>Loja inteira</span>
-            <span className={styles.escopoQtd}>{totalLoja} peças</span>
+            <span className={styles.escopoQtd}>
+              {totalLoja.unidades} unidades
+              <span className={styles.escopoDetalhe}>
+                {totalLoja.pecas} peças
+                {totalLoja.cadastros > totalLoja.pecas && ` · ${totalLoja.cadastros - totalLoja.pecas} sem saldo`}
+              </span>
+            </span>
           </button>
 
           {/* O escopo não é filtro: é ele que define o que conta como falta. */}
           <div className={styles.aviso}>
             <AlertTriangle size={15} />
             <span>
-              Tudo que estiver no escopo e não for bipado conta como <strong>falta</strong> no fim.
-              Escolha um escopo que você vai varrer inteiro.
+              Peça com saldo que não for bipada conta como <strong>falta</strong> e tem o
+              saldo zerado no fim. Escolha um escopo que você vai varrer inteiro — parar no
+              meio dá baixa em tudo que faltou alcançar.
+              {' '}Cadastro <em>sem saldo</em> também entra no escopo, mas não vira falta:
+              bipar um deles <strong>devolve</strong> a peça ao estoque.
             </span>
           </div>
 

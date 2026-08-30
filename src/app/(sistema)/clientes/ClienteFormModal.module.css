@@ -204,3 +204,38 @@
   border-top: 1px solid var(--border);
   margin-top: 4px;
 }
+
+/* ── CEP ──
+ * O spinner fica DENTRO do campo, à direita. Posto ao lado do rótulo (como em
+ * Fornecedores) ele empurra o texto e a linha treme a cada busca. */
+.cepWrapper {
+  position: relative;
+  display: flex;
+}
+
+.cepWrapper .input {
+  flex: 1;
+  padding-right: 32px;   /* espaço do spinner, senão o CEP passa por baixo dele */
+}
+
+.cepSpinner {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--accent);
+  animation: spin 1s linear infinite;
+  pointer-events: none;
+}
+
+/* from explícito: o spinner já nasce com translateY(-50%) e, sem declarar o
+ * início, a interpolação da lista de transform fica a cargo do navegador. */
+@keyframes spin {
+  from { transform: translateY(-50%) rotate(0deg); }
+  to   { transform: translateY(-50%) rotate(360deg); }
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}

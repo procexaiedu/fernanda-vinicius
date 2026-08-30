@@ -351,3 +351,54 @@
   font-size: 13px;
   color: var(--text-muted);
 }
+
+/* ── Tempo de giro ── */
+
+.giroBox {
+  margin-top: 14px;
+  padding: 11px 13px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
+}
+
+.giroPrincipal {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.giroNumero {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.giroLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.giroTagParado,
+.giroTagCritico,
+.giroTagNovo {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.giroTagParado  { background: var(--warning-subtle); color: var(--warning); }
+.giroTagCritico { background: var(--danger-subtle);  color: var(--danger); }
+.giroTagNovo    { background: var(--success-subtle); color: var(--success); }
+
+.giroDetalhe {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.giroDetalhe strong { color: var(--text-secondary); }

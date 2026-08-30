@@ -402,3 +402,16 @@
   .table thead th:first-child,
   .table tbody td:first-child { display: none; }
 }
+
+/* ── Tempo em estoque ── */
+
+.giro {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* Só as duas faixas ruins ganham cor. Pintar "girando" de verde também deixaria
+ * a coluna inteira colorida e ninguém enxerga mais o que está encalhado. */
+.giroParado  { color: var(--warning); }
+.giroCritico { color: var(--danger); font-weight: 600; }

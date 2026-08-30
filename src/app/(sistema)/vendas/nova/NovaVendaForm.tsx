@@ -18,7 +18,7 @@ import { createCustomer, searchCustomers, type CustomerFormData } from '../../cl
 import { matchText } from '@/lib/normalize'
 import { todaySP } from '@/lib/date'
 import styles from './NovaVendaForm.module.css'
-import { formatarTelefone } from '@/lib/telefone'
+import { formatarTelefone, mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/telefone'
 import { formatarDinheiro } from '@/lib/dinheiro'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -408,13 +408,12 @@ function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGrid
 
 // ─── Máscaras ─────────────────────────────────────────────────────────────────
 
-function maskPhone(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 11)
-  if (d.length <= 2)  return d.length ? `(${d}` : ''
-  if (d.length <= 7)  return `(${d.slice(0,2)}) ${d.slice(2)}`
-  if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`
-  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
-}
+/* Quarta cópia de máscara de telefone, removida. Ela não escrevia o "+55" e o
+ * cadastro rápido salvava "(19) 99567-2222" enquanto /clientes salvava
+ * "+5519995672222" — duas telas alimentando a MESMA coluna em formatos
+ * diferentes, que é como a base chegou a ter três formatos convivendo.
+ * Ver src/lib/telefone.ts. */
+const maskPhone = mascararTelefone
 
 function maskCpf(v: string): string {
   const d = v.replace(/\D/g, '').slice(0, 11)
@@ -441,11 +440,15 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
 
   async function handleSave() {
     if (!name.trim()) { setError('Nome é obrigatório.'); return }
-    if (!phone.trim()) { setError('Telefone é obrigatório.'); return }
+    // Mesma validação de /clientes: exige DDD + número, não só "tem alguma coisa".
+    const erroTel = validarTelefone(phone)
+    if (erroTel) { setError(erroTel); return }
     setSaving(true)
     setError('')
     const result = await createCustomer({
-      name, phone, cpf, email, birthday,
+      // Grava na forma canônica (+5519995672222), como /clientes. Sem isso, o
+      // cliente criado na venda não é achado depois pela busca por telefone.
+      name, phone: normalizarTelefone(phone), cpf, email, birthday,
       address: '', city: '', state: '', zip_code: '',
       origin_store_id: storeId,
       notes: '',
@@ -453,7 +456,7 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
     setSaving(false)
     if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
     // result.id vem do banco — nunca vazio
-    onCreated({ id: result.id!, name: name.trim(), phone: phone.trim(), cpf: cpf.replace(/\D/g, '') || null, birthday: birthday || null })
+    onCreated({ id: result.id!, name: name.trim(), phone: normalizarTelefone(phone), cpf: cpf.replace(/\D/g, '') || null, birthday: birthday || null })
   }
 
   return (
@@ -472,7 +475,7 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
               className={styles.createInput}
               value={phone}
               onChange={e => setPhone(maskPhone(e.target.value))}
-              placeholder="(11) 99999-9999"
+              placeholder="+55 (11) 99999-9999"
               inputMode="numeric"
             />
           </div>

@@ -1,0 +1,195 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/*
+ * A folha é branca com texto preto MESMO no tema escuro do sistema.
+ * É um documento que vai para o papel: pré-visualizar em cinza-sobre-preto e
+ * imprimir em preto-sobre-branco faz a pessoa descobrir o layout só depois de
+ * gastar folha.
+ */
+.folha {
+  background: #fff;
+  color: #111;
+  padding: 28px 32px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #111;
+}
+
+.titulo {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 2px;
+  letter-spacing: -0.01em;
+}
+
+.rota {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.seta { margin: 0 4px; }
+
+.identificacao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  font-size: 11px;
+  color: #444;
+}
+
+.numero {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111;
+}
+
+.dataEnvio, .responsavel { white-space: nowrap; }
+
+.resumo {
+  display: flex;
+  gap: 28px;
+  margin: 14px 0;
+}
+
+.resumo div {
+  display: flex;
+  flex-direction: column;
+}
+
+.resumo span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #666;
+}
+
+.resumo strong { font-size: 15px; }
+
+.avisoEtiqueta {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid #111;
+  border-left-width: 4px;
+  font-size: 11px;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 4px;
+}
+
+.tabela th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #444;
+  border-bottom: 1px solid #999;
+  padding: 5px 6px;
+}
+
+.tabela td {
+  padding: 5px 6px;
+  border-bottom: 1px solid #ddd;
+  vertical-align: top;
+}
+
+.ordem  { color: #888; width: 24px; }
+.codigo { font-family: ui-monospace, monospace; font-size: 11px; color: #555; }
+.num    { text-align: right; white-space: nowrap; }
+
+.etiqueta {
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tagReetiquetar {
+  display: block;
+  font-family: inherit;
+  font-weight: 400;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #a33;
+}
+
+.conferido { width: 62px; text-align: center; }
+
+.quadrado {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 1px solid #555;
+}
+
+.observacao {
+  margin-top: 14px;
+  font-size: 11px;
+}
+
+.assinaturas {
+  display: flex;
+  gap: 40px;
+  margin-top: 44px;
+  font-size: 10px;
+  color: #444;
+}
+
+.assinaturas div { flex: 1; }
+
+.linha {
+  display: block;
+  border-top: 1px solid #111;
+  margin-bottom: 4px;
+}
+
+/*
+ * Impressão: só a folha vai para o papel.
+ *
+ * O modal do sistema fica preso num portal no fim do body, então esconder "tudo
+ * menos isto" pela árvore de pais não funciona. A saída é esconder o body todo
+ * por visibilidade e reexibir só a folha, reposicionada no topo da página.
+ */
+@media print {
+  .acoes { display: none !important; }
+
+  :global(body) { visibility: hidden; }
+
+  .folha, .folha * { visibility: visible; }
+
+  .folha {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    padding: 0;
+    border-radius: 0;
+    font-size: 11px;
+  }
+
+  /* Linha de peça não pode ser partida entre duas folhas. */
+  .tabela tr { break-inside: avoid; }
+}

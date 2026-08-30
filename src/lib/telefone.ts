@@ -53,7 +53,24 @@ export function formatarTelefone(bruto: string | null | undefined): string {
  * O `+55 ` aparece assim que o primeiro dígito entra, para o formato ficar óbvio.
  */
 export function mascararTelefone(valor: string): string {
-  const d = nacional(valor).slice(0, 11)
+  /*
+   * Tira o "+55" que a PRÓPRIA máscara escreveu.
+   *
+   * O onChange devolve o valor já mascarado, então a partir da segunda tecla a
+   * entrada é "+55 (1" + "9". `nacional()` só desconta o código do país quando
+   * sobram mais de 11 dígitos — num número em construção não sobram, e o "55" do
+   * prefixo virava DDD. Cada tecla empurrava mais um 5:
+   *
+   *   1  -> +55 (1
+   *   9  -> +55 (55) 19
+   *   9  -> +55 (55) 5519-9
+   *   ...-> +55 (55) 55551-9995
+   *
+   * Só corta quando há o SINAL DE MAIS, que é o que a máscara emite. Assim um
+   * número do DDD 55 (Santa Maria/RS) digitado cru não perde o DDD.
+   */
+  const semPais = valor.replace(/^\s*\+\s*55\s*/, '')
+  const d = nacional(semPais).slice(0, 11)
   if (!d.length)      return ''
   if (d.length <= 2)  return `+55 (${d}`
   if (d.length <= 6)  return `+55 (${d.slice(0, 2)}) ${d.slice(2)}`
