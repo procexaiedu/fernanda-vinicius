@@ -20,6 +20,7 @@ import { todaySP } from '@/lib/date'
 import styles from './NovaVendaForm.module.css'
 import { formatarTelefone, mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/telefone'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import { calcularTotalDaVenda } from '@/lib/vendas/total'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -729,25 +730,13 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     : manualValor
   const discountPct    = (hasPix ? settings.pixDiscountPct : 0) + (hasBirthday ? settings.birthdayDiscountPct : 0)
   /*
-   * Havendo desconto, o total sobe para o inteiro seguinte — SEMPRE para cima,
-   * nunca para o mais próximo.
-   *
-   * Era `Math.round`, e por isso 1372 − 5% = 1303,40 virava R$1.303,00. A loja
-   * cobrou R$1.304,00 da Juliana Benatti em 29/08, e o sistema registrou 1303:
-   * um real de diferença entre o caixa e o cadastro, calado. Com `ceil` os dois
-   * passam a dizer a mesma coisa.
-   *
-   * O desconto é reconciliado depois (subtotal − total), então o que fica
-   * gravado é sempre coerente com o total.
-   *
-   * Só arredonda quando HÁ desconto: sem ele o subtotal já é o preço de
-   * etiqueta, e 1 de 561 produtos tem centavos — subir esse não é
-   * arredondamento, é cobrar a mais sem motivo.
+   * A conta é a MESMA que o servidor usa ao gravar — ver src/lib/vendas/total.ts.
+   * Aqui é só espelho: quem calcula de verdade é `createSale`/`editarVenda`.
+   * Enquanto os dois importarem daqui, tela e banco não podem divergir.
    */
-  const rawDiscount    = subtotal * discountPct / 100 + manualDiscount
-  const rawTotal       = Math.max(0, subtotal - rawDiscount)
-  const total          = rawDiscount > 0 ? Math.ceil(rawTotal) : parseFloat(rawTotal.toFixed(2))
-  const discountAmt    = parseFloat((subtotal - total).toFixed(2))
+  const { total, discountAmt } = calcularTotalDaVenda({
+    subtotal, discountPct, manualDiscount,
+  })
   const paidTotal      = payments.reduce((s, p) => s + p.amount, 0)
   const coveredTotal   = paidTotal
   const balanceDiff    = parseFloat((coveredTotal - total).toFixed(2))

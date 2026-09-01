@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { calcularTotalDaVenda } from '@/lib/vendas/total'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -188,10 +189,10 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
   const discountPct = (data.hasPix ? pixPct : 0) + (data.hasBirthday ? birthdayPct : 0)
   // Espelha o front: quando há desconto, o total é arredondado ao inteiro mais próximo
   // e o desconto é reconciliado (subtotal − total). Grava redondo, sem centavos quebrados.
-  const rawDiscount = subtotal * discountPct / 100 + data.manualDiscount
-  const rawTotal    = Math.max(0, subtotal - rawDiscount)
-  const total       = rawDiscount > 0 ? Math.round(rawTotal) : parseFloat(rawTotal.toFixed(2))
-  const discountAmt = parseFloat((subtotal - total).toFixed(2))
+  /* Um cálculo só para tela e banco — ver src/lib/vendas/total.ts. */
+  const { total, discountAmt } = calcularTotalDaVenda({
+    subtotal, discountPct, manualDiscount: data.manualDiscount,
+  })
 
   const discountTypeParts: string[] = []
   if (data.hasPix)          discountTypeParts.push('pix')
@@ -751,10 +752,10 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
   const subtotal    = data.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
   const totalCost   = data.items.reduce((s, i) => s + i.unitCost * i.quantity, 0)
   const discountPct = (data.hasPix ? pixPct : 0) + (data.hasBirthday ? birthdayPct : 0)
-  const rawDiscount = subtotal * discountPct / 100 + data.manualDiscount
-  const rawTotal    = Math.max(0, subtotal - rawDiscount)
-  const total       = rawDiscount > 0 ? Math.round(rawTotal) : parseFloat(rawTotal.toFixed(2))
-  const discountAmt = parseFloat((subtotal - total).toFixed(2))
+  /* Um cálculo só para tela e banco — ver src/lib/vendas/total.ts. */
+  const { total, discountAmt } = calcularTotalDaVenda({
+    subtotal, discountPct, manualDiscount: data.manualDiscount,
+  })
 
   const discountTypeParts: string[] = []
   if (data.hasPix)             discountTypeParts.push('pix')
@@ -781,6 +782,9 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
     total_cost:      totalCost,
     payment_summary: paymentSummary,
     status:          'completed',
+    /* Faltava aqui: a edição gravava tudo menos a data prometida, então
+     * marcar "fica devendo" numa venda existente não persistia nada. */
+    previsao_pagamento: data.previsaoPagamento ?? null,
     notes:           data.notes || null,
     updated_at:      new Date().toISOString(),
   }).eq('id', saleId)

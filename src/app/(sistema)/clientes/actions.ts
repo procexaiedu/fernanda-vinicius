@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { formatarNomeProprio } from '@/lib/nomeProprio'
+import { requireProfile } from '@/lib/auth'
+import { normalizarTelefone } from '@/lib/telefone'
 
 export interface ActionResult {
   success: boolean
@@ -101,4 +103,72 @@ export async function deleteCustomer(id: string): Promise<ActionResult> {
   if (error) return { success: false, error: error.message }
   revalidatePath('/clientes')
   return { success: true }
+}
+
+// ─── Duplicata por telefone ───────────────────────────────────────────────────
+
+export interface ClienteComMesmoTelefone {
+  id: string
+  name: string
+  vendas: number
+}
+
+/**
+ * Quem mais já usa este telefone.
+ *
+ * AVISA, não bloqueia — e isso é decisão, não preguiça.
+ *
+ * No treinamento de 31/08 a ideia levantada foi impedir cadastro com telefone
+ * repetido. Medido na base: há 8 telefones repetidos, e eles são DUAS coisas
+ * diferentes.
+ *
+ * Quatro são a mesma pessoa cadastrada duas vezes com sobrenome diferente
+ * (Lucia Campos / Lucia Avary). Os outros quatro são pessoas diferentes
+ * mesmo — Maria de Lourdes e Shanti Janveja, Isabela Fernandes e Daniele
+ * Fonteles. Mãe e filha dividindo telefone é comum no varejo, e um número
+ * digitado errado no cadastro de outra cliente também.
+ *
+ * Um índice único derrubaria os dois casos legítimos junto com os errados.
+ * Quem consegue distinguir é quem está atendendo — então o sistema mostra o
+ * que sabe e deixa a decisão com ela.
+ */
+export async function clientesComMesmoTelefone(
+  telefone: string,
+  ignorarId?: string,
+): Promise<ClienteComMesmoTelefone[]> {
+  await requireProfile()
+
+  const canonico = normalizarTelefone(telefone)
+  // Menos que isso não é telefone ainda — evita consultar a cada tecla.
+  if (canonico.replace(/\D/g, '').length < 12) return []
+
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('customers')
+    .select('id, name')
+    .eq('phone', canonico)
+
+  const achados = (data ?? []).filter(c => c.id !== ignorarId)
+  if (achados.length === 0) return []
+
+  /*
+   * A contagem de vendas é o que ajuda a decidir: entre dois cadastros do
+   * mesmo telefone, o que tem histórico é o que deve sobreviver.
+   */
+  const { data: vendas } = await admin
+    .from('sales')
+    .select('customer_id')
+    .in('customer_id', achados.map(c => c.id))
+
+  const porCliente = new Map<string, number>()
+  for (const v of vendas ?? []) {
+    const k = v.customer_id as string
+    porCliente.set(k, (porCliente.get(k) ?? 0) + 1)
+  }
+
+  return achados.map(c => ({
+    id: c.id as string,
+    name: c.name as string,
+    vendas: porCliente.get(c.id as string) ?? 0,
+  }))
 }
