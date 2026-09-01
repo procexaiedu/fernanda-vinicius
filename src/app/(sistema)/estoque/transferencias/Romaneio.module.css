@@ -1,3 +1,13 @@
+/*
+ * As cores aqui são CRAVADAS de propósito — este é o romaneio impresso.
+ *
+ * Token de tema resolveria para a paleta escura do sistema e sairia branco
+ * sobre preto na folha (ou, pior, invisível). Documento de papel é preto sobre
+ * branco e não acompanha o tema da tela.
+ *
+ * Se aparecer numa varredura de "cores fora do design system", é falso
+ * positivo: está certo assim.
+ */
 .wrapper {
   display: flex;
   flex-direction: column;

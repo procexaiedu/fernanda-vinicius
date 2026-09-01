@@ -20,7 +20,7 @@
 .filterActive { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
 .filterCount {
   min-width: 18px; height: 18px; padding: 0 5px; display: flex; align-items: center; justify-content: center;
-  background: var(--border); border-radius: 9px; font-size: 10px; font-weight: 600;
+  background: var(--border); border-radius: var(--radius-md); font-size: 10px; font-weight: 600;
 }
 
 /* Tabela */

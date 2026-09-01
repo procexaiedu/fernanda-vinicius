@@ -94,9 +94,16 @@
   --header-height:          56px;
   /* Raio mais generoso que o anterior (4/8/12): card com canto macio é o que
    * diferencia "painel de sistema" de "produto desenhado". */
-  --radius-sm:  6px;
+  /* Escala de raio. Havia 16 valores cravados espalhados pelos Modules — 2, 3,
+   * 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 20, 99, 100 e 999px — quase todos a um
+   * ou dois pixels de um destes. A escala é a régua; quem precisa de outra
+   * coisa está pedindo um componente novo, não um número novo. */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
   --radius-md:  10px;
   --radius-lg:  16px;
+  /* Pílula: 999px, 100px e 99px eram a mesma intenção escrita de três jeitos. */
+  --radius-pill: 999px;
 
   /* Transitions */
   --transition-fast: 150ms ease;

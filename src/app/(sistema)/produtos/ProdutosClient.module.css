@@ -25,7 +25,7 @@
   height: 34px;
   padding: 0 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   color: var(--text-primary);
   font-size: 13px;
@@ -42,7 +42,7 @@
   height: 34px;
   padding: 0 28px 0 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   color: var(--text-primary);
   font-size: 13px;
@@ -76,7 +76,7 @@
    * 640px com `overflow-y: auto` criava 2540px de rolagem DENTRO da tabela —
    * rolar dentro de rolar, com o cabeçalho fixo escondendo metade da lista. */
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   scrollbar-width: none;
 }
@@ -213,7 +213,7 @@
   color: var(--text-secondary);
   background: var(--bg-elevated);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: copy;
   white-space: nowrap;
 }
@@ -245,7 +245,7 @@
   min-width: 24px;
   height: 22px;
   padding: 0 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 700;
   background: var(--bg-elevated);
@@ -324,7 +324,7 @@
   height: 30px;
   padding: 0 6px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-secondary);
   font-size: 13px;

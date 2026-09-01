@@ -40,8 +40,8 @@
   color: var(--text-primary);
 }
 
-.statIncome { color: #4CAF7D; }
-.statExpense { color: #E05252; }
+.statIncome { color: var(--success); }
+.statExpense { color: var(--danger); }
 .statPending { color: var(--accent); }
 
 /* ── Toolbar ────────────────────────────────────────────────────────────── */
@@ -218,15 +218,15 @@
   white-space: nowrap;
 }
 
-.amountIncome { font-weight: 700; color: #4CAF7D; white-space: nowrap; }
-.amountExpense { font-weight: 700; color: #E05252; white-space: nowrap; }
+.amountIncome { font-weight: 700; color: var(--success); white-space: nowrap; }
+.amountExpense { font-weight: 700; color: var(--danger); white-space: nowrap; }
 
 .statusBadge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
@@ -234,7 +234,7 @@
 
 .statusCompleted {
   background: rgba(76, 175, 125, 0.12);
-  color: #4CAF7D;
+  color: var(--success);
 }
 
 .statusPending {
@@ -246,7 +246,7 @@
   display: inline-block;
   padding: 2px 8px;
   background: rgba(255,255,255,0.04);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: 11px;
   color: var(--text-secondary);
   text-transform: capitalize;
@@ -260,7 +260,7 @@
 
 .iconBtnDanger:hover { background: rgba(224, 82, 82, 0.1); color: var(--danger); }
 
-.iconBtnSuccess:hover { background: rgba(76, 175, 125, 0.1); color: #4CAF7D; }
+.iconBtnSuccess:hover { background: var(--success-subtle); color: var(--success); }
 
 /* ── Empty ──────────────────────────────────────────────────────────────── */
 
@@ -324,7 +324,7 @@
   height: 28px;
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
 }
@@ -477,8 +477,8 @@
   color: var(--text-primary);
 }
 
-.pnlValueGreen { color: #4CAF7D; }
-.pnlValueRed { color: #E05252; }
+.pnlValueGreen { color: var(--success); }
+.pnlValueRed { color: var(--danger); }
 .pnlValueGold { color: var(--accent); }
 
 .pnlNote {
@@ -517,8 +517,8 @@
   background: var(--bg-elevated);
 }
 
-.pnlLineNeg { color: #E05252; }
-.pnlLineGreen { color: #4CAF7D; }
+.pnlLineNeg { color: var(--danger); }
+.pnlLineGreen { color: var(--success); }
 .pnlLineGold { color: var(--accent); }
 
 .breakdownTable {
@@ -556,14 +556,14 @@
   flex: 1;
   height: 4px;
   background: rgba(255,255,255,0.06);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
 }
 
 .pctBarFill {
   height: 100%;
   background: var(--accent);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   transition: width 0.3s;
 }
 
@@ -617,7 +617,7 @@
   width: 36px;
   height: 20px;
   background: var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   border: none;
   cursor: pointer;
   transition: background var(--transition-fast);
@@ -636,7 +636,7 @@
   transition: transform var(--transition-fast);
 }
 
-.toggleActive { background: #4CAF7D; }
+.toggleActive { background: var(--success); }
 .toggleActive::after { transform: translateX(16px); }
 
 .deleteConfirmWrap {
@@ -650,7 +650,7 @@
   background: var(--danger);
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   cursor: pointer;
   font-family: inherit;
@@ -661,7 +661,7 @@
   background: var(--bg-elevated);
   color: var(--text-secondary);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   cursor: pointer;
   font-family: inherit;

@@ -78,7 +78,7 @@
 .faixaPonto {
   width: 9px;
   height: 9px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
   /* Alinha com a linha de base do texto, não com o topo da caixa. */
   transform: translateY(-1px);
@@ -101,14 +101,14 @@
 
 .barraTrilho {
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--bg-elevated);
   overflow: hidden;
 }
 
 .barra {
   height: 100%;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transition: width 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
@@ -312,7 +312,7 @@
 .pontoAvulso {
   background: transparent;
   border: 1.5px dashed var(--text-disabled);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 
 .barraAvulsa {

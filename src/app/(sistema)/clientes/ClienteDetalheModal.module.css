@@ -307,7 +307,7 @@
   color: var(--success);
   background: var(--success-subtle);
   padding: 1px 7px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   white-space: nowrap;
 }
 

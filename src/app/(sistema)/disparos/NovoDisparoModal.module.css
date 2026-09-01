@@ -1,3 +1,14 @@
+/*
+ * As cores da bolha são as do WhatsApp, cravadas de propósito.
+ *
+ * Isto é a PRÉVIA de como a mensagem vai chegar no telefone da cliente. Ela
+ * tem de parecer o WhatsApp, não o Fernanda Vinícius — se seguisse o tema do
+ * sistema, mudaria de cor junto com ele e deixaria de cumprir o papel de
+ * prévia. `#005c4b`, `#0b141a` e `#e9edef` são o verde da bolha enviada, o
+ * fundo da conversa e o texto, na paleta do próprio aplicativo.
+ *
+ * Falso positivo em varredura de design system: está certo assim.
+ */
 .body { display: flex; gap: 24px; }
 .formCol { flex: 1.1; min-width: 0; }
 .previewCol { flex: .9; min-width: 0; }
@@ -63,14 +74,14 @@
 .waTop { background: #202c33; color: #e9edef; padding: 12px 14px; font-weight: 600; font-size: 13px; }
 .waBody { padding: 16px 14px; min-height: 240px; }
 .bubble {
-  background: #005c4b; color: #e9edef; border-radius: 10px 10px 10px 2px;
+  background: #005c4b; color: #e9edef; border-radius: var(--radius-md) 10px 10px 2px;
   padding: 9px 11px; font-size: 13.5px; line-height: 1.5; max-width: 90%;
 }
 .bubbleFooter { color: #a6b6bf; font-size: 11.5px; margin-top: 8px; }
 .bubbleTime { text-align: right; color: #9fb0b8; font-size: 10px; margin-top: 3px; }
 .previewHint { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-top: 10px; }
 .previewHint svg { color: var(--accent); }
-.var { background: var(--accent-subtle); color: var(--accent); border-radius: 4px; padding: 0 4px; }
+.var { background: var(--accent-subtle); color: var(--accent); border-radius: var(--radius-xs); padding: 0 4px; }
 
 @media (max-width: 900px) {
   .body { flex-direction: column; }
@@ -122,7 +133,7 @@
   gap: 5px;
   height: 22px;
   padding: 0 4px 0 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent-subtle);
   color: var(--accent);
   font-size: 12px;
@@ -169,7 +180,7 @@
   height: 24px;
   padding: 0 9px;
   border: 1px dashed var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--text-muted);
   font-size: 11.5px;

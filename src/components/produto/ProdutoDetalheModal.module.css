@@ -17,7 +17,7 @@
 .photo {
   width: 100px;
   height: 100px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   object-fit: cover;
   flex-shrink: 0;
   background: var(--bg-elevated);
@@ -26,7 +26,7 @@
 .photoPlaceholder {
   width: 100px;
   height: 100px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--bg-elevated);
   display: flex;
   align-items: center;
@@ -75,7 +75,7 @@
   color: var(--accent);
   background: rgba(var(--accent-rgb), 0.1);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .headerActions {
@@ -97,7 +97,7 @@
   color: var(--text-secondary);
   background: var(--bg-elevated);
   border: 1px solid var(--border, rgba(255,255,255,0.08));
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
@@ -112,7 +112,7 @@
 .promoSwitch {
   width: 26px;
   height: 15px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--border, rgba(255,255,255,0.18));
   position: relative;
   transition: background 0.15s;
@@ -146,7 +146,7 @@
   padding: 14px;
   background: var(--bg-elevated);
   border: 1px solid var(--border, rgba(255,255,255,0.08));
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 .pricingGrid {
   display: grid;
@@ -168,7 +168,7 @@
   color: var(--text-primary);
   background: var(--bg-base, rgba(0,0,0,0.2));
   border: 1px solid var(--border, rgba(255,255,255,0.1));
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   outline: none;
   transition: border-color 0.12s;
 }
@@ -189,7 +189,7 @@
   border: none;
   background: transparent;
   color: var(--text-muted);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
   flex-shrink: 0;
@@ -208,7 +208,7 @@
 
 .stat {
   background: var(--bg-elevated);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
@@ -277,7 +277,7 @@
 /* Skeleton */
 .skeleton {
   background: var(--bg-elevated);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   height: 14px;
   animation: pulse 1.5s ease-in-out infinite;
 }
@@ -362,7 +362,7 @@
 .giroTagNovo {
   margin-left: auto;
   padding: 2px 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;

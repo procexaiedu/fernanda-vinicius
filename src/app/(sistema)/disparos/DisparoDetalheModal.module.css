@@ -22,11 +22,11 @@
 .phone { background: #0b141a; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
 .waTop { background: #202c33; color: #e9edef; padding: 12px 14px; font-weight: 600; font-size: 13px; }
 .waBody { padding: 16px 14px; min-height: 200px; }
-.bubble { background: #005c4b; color: #e9edef; border-radius: 10px 10px 10px 2px; padding: 9px 11px; font-size: 13.5px; line-height: 1.5; max-width: 90%; }
+.bubble { background: #005c4b; color: #e9edef; border-radius: var(--radius-md) 10px 10px 2px; padding: 9px 11px; font-size: 13.5px; line-height: 1.5; max-width: 90%; }
 .bubbleFooter { color: #a6b6bf; font-size: 11.5px; margin-top: 8px; }
 .bubbleTime { text-align: right; color: #9fb0b8; font-size: 10px; margin-top: 3px; }
 .previewHint { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-top: 10px; }
 .previewHint svg { color: var(--accent); }
-.var { background: var(--accent-subtle); color: var(--accent); border-radius: 4px; padding: 0 4px; }
+.var { background: var(--accent-subtle); color: var(--accent); border-radius: var(--radius-xs); padding: 0 4px; }
 
 @media (max-width: 900px) { .body { flex-direction: column; } }

@@ -263,7 +263,7 @@
 
 .discountBadge {
   font-size: 12px;
-  color: #4CAF7D;
+  color: var(--success);
 }
 
 .exchangeBadge {
@@ -271,7 +271,7 @@
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: #5B8DEF;
+  color: var(--info);
   font-weight: 600;
 }
 
@@ -350,7 +350,7 @@
   height: 28px;
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
 }
@@ -365,7 +365,7 @@
   height: 28px;
   background: none;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -390,7 +390,7 @@
   background: var(--danger);
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   cursor: pointer;
 }
@@ -400,7 +400,7 @@
   background: var(--bg-elevated);
   color: var(--text-secondary);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   cursor: pointer;
 }
@@ -513,7 +513,7 @@
   color: var(--text-secondary);
 }
 
-.summaryDiscount { color: #4CAF7D; }
+.summaryDiscount { color: var(--success); }
 
 .summaryTotal {
   border-top: 1px solid var(--border);
@@ -547,7 +547,7 @@
   color: var(--text-muted);
   padding: 1px 6px;
   background: rgba(255,255,255,0.04);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 
 .paymentAmount {
@@ -560,7 +560,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #5B8DEF;
+  color: var(--info);
 }
 
 .exchangeSubtitle {

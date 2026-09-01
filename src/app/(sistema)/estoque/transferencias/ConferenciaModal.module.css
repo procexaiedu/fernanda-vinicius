@@ -292,7 +292,7 @@
   flex: 1;
   height: 6px;
   background: var(--bg-elevated);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
 }
 
