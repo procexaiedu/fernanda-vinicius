@@ -307,3 +307,45 @@
 }
 
 .row {}
+
+/* ── Abas de loja ── */
+
+.lojaAbas {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.lojaAba {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.lojaAba:hover { color: var(--text-primary); }
+
+.lojaAbaAtiva {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.lojaAbaCount {
+  padding: 1px 6px;
+  background: var(--bg-elevated);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
