@@ -48,6 +48,8 @@ export interface VendaFormData {
   manualDiscount: number    // valor fixo R$
   payments: SalePaymentRow[]
   exchangeItems: ExchangeItemSelected[]  // itens a devolver via troca
+  /** Data prometida quando a venda fecha com saldo em aberto. Null quando quitada. */
+  previsaoPagamento?: string | null
   notes: string
 }
 
@@ -213,6 +215,9 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
       manual_discount: data.manualDiscount,
       total,
       total_cost:      totalCost,
+      /* Só quando ficou saldo. O saldo em si não é gravado: sai da soma de
+       * sale_payments, que é a única fonte que não pode divergir. */
+      previsao_pagamento: data.previsaoPagamento ?? null,
       payment_summary: paymentSummary,
       status:          'completed',
       notes:           data.notes || null,

@@ -962,3 +962,52 @@
   .createCustomerForm { min-width: 0; }
   .createRow { grid-template-columns: 1fr; }
 }
+
+/* ── Alternador R$ / % do desconto manual ── */
+
+.manualModo {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.manualModo button {
+  padding: 2px 8px;
+  min-width: 28px;
+  background: var(--bg-elevated);
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.manualModo button:hover { color: var(--text-primary); }
+
+.manualModoAtivo {
+  background: var(--accent) !important;
+  color: var(--accent-fg) !important;
+  font-weight: 600;
+}
+
+/* ── Fiado: venda com saldo em aberto ── */
+
+.fiadoRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.fiadoData {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}

@@ -552,7 +552,29 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   // ── Descontos ─────────────────────────────────────────────────────────────
   const [hasPix, setHasPix]           = useState(editSale?.hasPix ?? false)
   const [hasBirthday, setHasBirthday] = useState(editSale?.hasBirthday ?? false)
-  const [manualDiscount, setManualDiscount] = useState(editSale?.manualDiscount ?? 0)
+  /*
+   * Desconto manual: a operadora digita em R$ OU em %.
+   *
+   * A loja trabalha em porcentagem — "30%", "5%" —, e antes só havia campo de
+   * reais. Ela calculava de cabeça e digitava o resultado; numa venda de
+   * 31/08 saiu R$2 a mais para a cliente por causa disso.
+   *
+   * O que vale é sempre o R$ (é o que grava no banco). Em modo %, ele é
+   * DERIVADO do subtotal, então mudar um item recalcula sozinho — se
+   * guardássemos o R$ congelado, a porcentagem viraria mentira ao adicionar
+   * uma peça.
+   */
+  /*
+   * Fiado: a cliente leva a peça e paga o resto depois. Acontece, e o sistema
+   * precisa distinguir isso de erro de digitação — a diferença entre as duas
+   * é só a intenção, e só quem está no balcão sabe qual é.
+   */
+  const [aceitouFiado, setAceitouFiado] = useState(false)
+  const [previsaoPagamento, setPrevisaoPagamento] = useState('')
+
+  const [manualModo, setManualModo]     = useState<'valor' | 'pct'>('valor')
+  const [manualValor, setManualValor]   = useState(editSale?.manualDiscount ?? 0)
+  const [manualPct, setManualPct]       = useState(0)
 
   // ── Pagamentos ────────────────────────────────────────────────────────────
   const [payments, setPayments] = useState<PaymentRow[]>(editSale?.payments ?? [])
@@ -642,22 +664,31 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   // auto-derivarem (e sobrescreverem) no primeiro render. Liberados após montar.
   const editInit = useRef(isEditing)
 
+  /*
+   * Uma vez que a operadora mexe no desconto, ele é DELA.
+   *
+   * O bug relatado no treinamento de 31/08: o desconto ligava sozinho, sem
+   * ninguém clicar. Era o efeito abaixo — escolher PIX como pagamento marcava
+   * os 5% automaticamente, e tirar o PIX desmarcava de volta, mesmo que ela
+   * tivesse marcado de propósito.
+   *
+   * A sugestão continua (PIX ainda propõe os 5%, que é a política da loja),
+   * mas só até alguém discordar. Desconto é concessão comercial: quem decide
+   * é quem está atendendo, não o método de pagamento.
+   */
+  const pixTocado = useRef(false)
+  const aniversarioTocado = useRef(false)
+
   // ── Efeito: birthday discount ──────────────────────────────────────────────
   useEffect(() => {
-    if (editInit.current) return
-    if (selectedCustomer && isBirthdayMonth(selectedCustomer.birthday)) {
-      setHasBirthday(true)
-    } else {
-      setHasBirthday(false)
-    }
+    if (editInit.current || aniversarioTocado.current) return
+    setHasBirthday(!!selectedCustomer && isBirthdayMonth(selectedCustomer.birthday))
   }, [selectedCustomer])
 
   // ── Efeito: pix discount ───────────────────────────────────────────────────
   useEffect(() => {
-    if (editInit.current) return
-    const hasPixPayment = payments.some(p => p.method === 'pix')
-    if (hasPixPayment && !hasPix) setHasPix(true)
-    if (!hasPixPayment && hasPix) setHasPix(false)
+    if (editInit.current || pixTocado.current) return
+    setHasPix(payments.some(p => p.method === 'pix'))
   }, [payments])
 
   // Libera os efeitos acima após o primeiro render (deve rodar DEPOIS deles).
@@ -665,6 +696,10 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Totais ────────────────────────────────────────────────────────────────
   const subtotal       = rows.reduce((s, r) => s + r.unitPrice * (r.quantity || 0), 0)
+  /* Em modo %, o valor acompanha o subtotal; em modo R$, é o que foi digitado. */
+  const manualDiscount = manualModo === 'pct'
+    ? parseFloat((subtotal * manualPct / 100).toFixed(2))
+    : manualValor
   const discountPct    = (hasPix ? settings.pixDiscountPct : 0) + (hasBirthday ? settings.birthdayDiscountPct : 0)
   // Desconto bruto → total arredondado para o inteiro mais próximo quando HÁ desconto
   // (≥0,50 sobe, <0,50 desce). O desconto é reconciliado p/ que subtotal − desconto = total.
@@ -823,9 +858,34 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     }
     if (!storeId) { setError('Selecione a loja.'); return }
 
-    const paymentsOk = Math.abs(balanceDiff) < 0.01 || exchangeCredit > total
-    if (!paymentsOk && payments.length === 0) {
+    /*
+     * Conferência do que foi pago contra o total.
+     *
+     * A regra antiga computava `paymentsOk` e depois só o usava se NÃO houvesse
+     * pagamento nenhum — ou seja, com uma forma de pagamento qualquer, qualquer
+     * valor passava calado. Três vendas reais entraram assim:
+     *
+     *   Graziela Amaral   total R$565,00   cobrado R$567,00   (+R$2)
+     *   Juliana Benatti   total R$1.303,00 cobrado R$1.304,00 (+R$1)
+     *   Bea Baroudi       total R$645,00   pago    R$300,00   (−R$345)
+     *
+     * Os dois primeiros são dinheiro cobrado a mais da cliente, sem ninguém
+     * perceber. O terceiro é fiado legítimo — mas gravou como venda concluída,
+     * então os R$345 sumiram de qualquer cobrança.
+     *
+     * Sobra e falta são coisas diferentes e passam a ser tratadas assim:
+     * cobrar a mais é sempre erro; cobrar a menos é fiado, e precisa ser dito.
+     */
+    if (payments.length === 0 && exchangeCredit <= 0) {
       setError('Adicione ao menos uma forma de pagamento.')
+      return
+    }
+    if (balanceDiff > 0.009) {
+      setError(`O pagamento está ${fmt(balanceDiff)} MAIOR que o total da venda. Confira os valores.`)
+      return
+    }
+    if (balanceDiff < -0.009 && !aceitouFiado) {
+      setError(`Faltam ${fmt(-balanceDiff)} para fechar a venda. Marque "fica devendo" se a cliente vai pagar depois.`)
       return
     }
 
@@ -847,6 +907,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       hasPix,
       hasBirthday,
       manualDiscount,
+      previsaoPagamento: aceitouFiado && previsaoPagamento ? previsaoPagamento : null,
       payments,
       exchangeItems: selectedExchangeItems,
       notes,
@@ -1059,14 +1120,16 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
         <div className={styles.discountsGrid}>
           <label className={styles.discountRow}>
-            <input type="checkbox" checked={hasPix} onChange={e => setHasPix(e.target.checked)} />
+            <input type="checkbox" checked={hasPix}
+              onChange={e => { pixTocado.current = true; setHasPix(e.target.checked) }} />
             <span>PIX</span>
             <span className={styles.discountPct}>−{settings.pixDiscountPct}%</span>
             <span className={styles.discountAmt}>{subtotal > 0 ? fmt(subtotal * settings.pixDiscountPct / 100) : ''}</span>
           </label>
 
           <label className={styles.discountRow}>
-            <input type="checkbox" checked={hasBirthday} onChange={e => setHasBirthday(e.target.checked)}
+            <input type="checkbox" checked={hasBirthday}
+              onChange={e => { aniversarioTocado.current = true; setHasBirthday(e.target.checked) }}
               disabled={!selectedCustomer} />
             <span>Aniversário</span>
             <span className={styles.discountPct}>−{settings.birthdayDiscountPct}%</span>
@@ -1074,16 +1137,47 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
           </label>
 
           <div className={styles.discountRow}>
-            <input type="checkbox" checked={manualDiscount > 0} onChange={e => { if (!e.target.checked) setManualDiscount(0) }} readOnly={false} />
+            <input type="checkbox" checked={manualDiscount > 0}
+              onChange={e => { if (!e.target.checked) { setManualValor(0); setManualPct(0) } }} />
             <span>Manual</span>
-            <span className={styles.discountPct}>R$</span>
-            <input
-              type="number" min="0" step="0.01"
-              className={styles.manualDiscInput}
-              value={manualDiscount || ''}
-              onChange={e => setManualDiscount(parseFloat(e.target.value) || 0)}
-              placeholder="0,00"
-            />
+
+            {/* Alternador R$ / %. Trocar o modo NÃO converte o valor: são dois
+                campos independentes, e converter na troca faria "30" virar
+                "R$ 30,00" sem aviso. */}
+            <div className={styles.manualModo}>
+              <button type="button"
+                className={manualModo === 'valor' ? styles.manualModoAtivo : ''}
+                onClick={() => setManualModo('valor')}>R$</button>
+              <button type="button"
+                className={manualModo === 'pct' ? styles.manualModoAtivo : ''}
+                onClick={() => setManualModo('pct')}>%</button>
+            </div>
+
+            {manualModo === 'valor' ? (
+              <input
+                type="number" min="0" step="0.01"
+                className={styles.manualDiscInput}
+                value={manualValor || ''}
+                onChange={e => setManualValor(Math.max(0, parseFloat(e.target.value) || 0))}
+                placeholder="0,00"
+              />
+            ) : (
+              <input
+                type="number" min="0" max="100" step="1"
+                className={styles.manualDiscInput}
+                value={manualPct || ''}
+                /* Trava em 100: desconto maior que o subtotal viraria venda
+                   com total negativo. */
+                onChange={e => setManualPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                placeholder="0"
+              />
+            )}
+
+            {/* Em modo %, mostra quanto dá em reais — é o número que a cliente
+                vê na maquininha. */}
+            {manualModo === 'pct' && manualDiscount > 0 && (
+              <span className={styles.discountAmt}>{fmt(manualDiscount)}</span>
+            )}
           </div>
         </div>
 
@@ -1305,9 +1399,27 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                 <AlertTriangle size={13} /> {fmt(balanceDiff)} sobrando {exchangeCredit > total ? '(saldo de troca)' : '(a mais)'}
               </div>
             ) : balanceDiff < -0.01 ? (
-              <div className={styles.payStatusError}>
-                <AlertTriangle size={13} /> Falta {fmt(Math.abs(balanceDiff))} para cobrir o total
-              </div>
+              <>
+                <div className={styles.payStatusError}>
+                  <AlertTriangle size={13} /> Falta {fmt(Math.abs(balanceDiff))} para cobrir o total
+                </div>
+                {/*
+                  Fiado é decisão de quem está no balcão, não do sistema. Sem
+                  esta marca a venda não fecha — foi assim que R$345 da Bea
+                  Baroudi gravaram como venda concluída e sumiram da cobrança.
+                */}
+                <label className={styles.fiadoRow}>
+                  <input type="checkbox" checked={aceitouFiado}
+                    onChange={e => setAceitouFiado(e.target.checked)} />
+                  <span>A cliente fica devendo {fmt(Math.abs(balanceDiff))}</span>
+                </label>
+                {aceitouFiado && (
+                  <label className={styles.fiadoData}>
+                    <span>Prometeu pagar em</span>
+                    <DatePicker value={previsaoPagamento} onChange={setPrevisaoPagamento} />
+                  </label>
+                )}
+              </>
             ) : (
               <div className={styles.payStatusOk}>
                 ✓ Pagamento OK
