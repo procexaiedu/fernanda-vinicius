@@ -406,10 +406,21 @@ table td:first-child:not([class*="col-"]) {
 .col-meio { text-align: center !important; }
 
 .col-num {
-  /* Centralizada como todo o resto. O `tabular-nums` fica e passa a ser o que
-   * faz o trabalho sozinho: com dígitos de largura fixa, valores centralizados
-   * ainda empilham alinhados entre si. */
-  text-align: center !important;
+  /*
+   * À DIREITA. Esta linha já foi `center`, com o argumento de que `tabular-nums`
+   * bastava — dígitos de largura fixa empilhariam alinhados mesmo centralizados.
+   *
+   * O argumento vale para valores do MESMO comprimento e só para esses. Numa
+   * lista real de produtos convivem `R$ 49,00`, `R$ 110,00` e `R$ 1.779,00`:
+   * centralizados, cada vírgula cai numa posição diferente e a coluna serrilha.
+   * Alinhar à direita é o que faz a casa decimal casar, que é o motivo de a
+   * convenção existir.
+   *
+   * Vale só para as numéricas. Data, status e ações seguem centralizados como o
+   * sistema decidiu — `dd/mm/aaaa` tem largura fixa e empilha igual dos dois
+   * jeitos, então ali o argumento acima realmente se aplica.
+   */
+  text-align: right !important;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
   white-space: nowrap;

@@ -75,8 +75,8 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
               <th>Etiqueta</th>
               <th>Peça</th>
               <th>Código</th>
-              <th className={styles.num}>Qtd.</th>
-              <th className={styles.num}>Custo un.</th>
+              <th className={`${styles.num} col-num`}>Qtd.</th>
+              <th className={`${styles.num} col-num`}>Custo un.</th>
               <th className={styles.conferido}>Conferido</th>
             </tr>
           </thead>
@@ -90,8 +90,8 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
                 </td>
                 <td>{i.product_name}</td>
                 <td className={styles.codigo}>{i.product_code}</td>
-                <td className={styles.num}>{i.quantity_sent}</td>
-                <td className={styles.num}>{formatarDinheiro(i.unit_cost)}</td>
+                <td className={`${styles.num} col-num`}>{i.quantity_sent}</td>
+                <td className={`${styles.num} col-num`}>{formatarDinheiro(i.unit_cost)}</td>
                 {/* Quadradinho para a conferência no papel, quando o leitor não está à mão. */}
                 <td className={styles.conferido}><span className={styles.quadrado} /></td>
               </tr>

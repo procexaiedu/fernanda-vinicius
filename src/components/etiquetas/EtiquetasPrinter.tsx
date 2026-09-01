@@ -217,9 +217,9 @@ export default function EtiquetasPrinter({ isOpen, onClose, initialItems, title 
                     </th>
                     <th>Produto</th>
                     <th>Ref.</th>
-                    <th className={styles.numCol}>Preço</th>
-                    <th className={styles.numCol}>Formato</th>
-                    <th className={styles.numCol}>Qtd</th>
+                    <th className={`${styles.numCol} col-num`}>Preço</th>
+                    <th className={`${styles.numCol} col-num`}>Formato</th>
+                    <th className={`${styles.numCol} col-num`}>Qtd</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -241,8 +241,8 @@ export default function EtiquetasPrinter({ isOpen, onClose, initialItems, title 
                         </td>
                         <td className={styles.nameCell}>{it.name}</td>
                         <td className={styles.refCell}>{it.supplier_reference ?? '—'}</td>
-                        <td className={styles.numCol}>{formatBRL(it.sale_price)}</td>
-                        <td className={styles.numCol}>
+                        <td className={`${styles.numCol} col-num`}>{formatBRL(it.sale_price)}</td>
+                        <td className={`${styles.numCol} col-num`}>
                           <button
                             type="button"
                             className={`${styles.formatBtn} ${it.label_format === 'A' ? styles.formatA : styles.formatB}`}
@@ -252,7 +252,7 @@ export default function EtiquetasPrinter({ isOpen, onClose, initialItems, title 
                             {it.label_format}
                           </button>
                         </td>
-                        <td className={styles.numCol}>
+                        <td className={`${styles.numCol} col-num`}>
                           <input
                             type="number"
                             min={0}

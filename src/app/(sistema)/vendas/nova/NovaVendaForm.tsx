@@ -1126,9 +1126,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                 <th className={styles.thNum}>#</th>
                 <th className={styles.thProd}>Produto</th>
                 <th className={styles.thTroca}>Troca</th>
-                <th className={styles.thQty}>Qtd</th>
+                <th className={`${styles.thQty} col-num`}>Qtd</th>
                 <th className={styles.thPrice}>Preço Unit.</th>
-                <th className={styles.thSub}>Subtotal</th>
+                <th className={`${styles.thSub} col-num`}>Subtotal</th>
                 <th className={styles.thDel}></th>
               </tr>
             </thead>

@@ -8,7 +8,7 @@ import type { Store } from '@/types'
 import { createClient } from '@/lib/supabase/client'
 import { formatPhone } from './LojasClient'
 import styles from './LojaDetalheModal.module.css'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { formatarDinheiro, formatarDinheiroComSinal } from '@/lib/dinheiro'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -334,8 +334,8 @@ export default function LojaDetalheModal({ store, onClose, onEdit }: Props) {
                         <th>Código</th>
                         <th>Nome</th>
                         <th>Categoria</th>
-                        <th className={styles.rightCol}>Estoque</th>
-                        <th className={styles.rightCol}>Preço</th>
+                        <th className={`${styles.rightCol} col-num`}>Estoque</th>
+                        <th className={`${styles.rightCol} col-num`}>Preço</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -344,8 +344,8 @@ export default function LojaDetalheModal({ store, onClose, onEdit }: Props) {
                           <td className={styles.codeCell}>{p.code}</td>
                           <td>{p.name}</td>
                           <td className={styles.mutedCell}>{p.category}</td>
-                          <td className={`${styles.mutedCell} ${styles.rightCol}`}>{p.quantity_in_stock}</td>
-                          <td className={`${styles.mutedCell} ${styles.rightCol}`}>{formatCurrency(p.sale_price)}</td>
+                          <td className={`${styles.mutedCell} ${styles.rightCol} col-num`}>{p.quantity_in_stock}</td>
+                          <td className={`${styles.mutedCell} ${styles.rightCol} col-num`}>{formatCurrency(p.sale_price)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -372,7 +372,7 @@ export default function LojaDetalheModal({ store, onClose, onEdit }: Props) {
                     <th>Data</th>
                     <th>Descrição</th>
                     <th>Categoria</th>
-                    <th className={styles.rightCol}>Valor</th>
+                    <th className={`${styles.rightCol} col-num`}>Valor</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -382,8 +382,8 @@ export default function LojaDetalheModal({ store, onClose, onEdit }: Props) {
                       <td className={`${styles.mutedCell} col-date`}>{formatDate(t.transaction_date)}</td>
                       <td>{t.description}</td>
                       <td className={styles.mutedCell}>{t.category}</td>
-                      <td className={`${styles.rightCol} ${t.type === 'income' ? styles.incomeText : styles.expenseText}`}>
-                        {t.type === 'income' ? '+' : '-'} {formatCurrency(t.amount)}
+                      <td className={`${styles.rightCol} ${t.type === 'income' ? styles.incomeText : styles.expenseText} col-num`}>
+                        {formatarDinheiroComSinal(t.amount, t.type === 'income' ? 'entrada' : 'saida')}
                       </td>
                       <td>
                         <Badge variant={t.status === 'completed' ? 'success' : 'warning'}>

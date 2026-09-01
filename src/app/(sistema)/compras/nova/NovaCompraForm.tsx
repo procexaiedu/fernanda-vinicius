@@ -1003,14 +1003,14 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                 <th className={styles.thIni}>Inic.</th>
                 <th className={styles.thCat}>Categoria <span className={styles.req}>*</span></th>
                 <th className={styles.thMat}>Material <span className={styles.req}>*</span></th>
-                <th className={styles.thNum2}>Custo R$ <span className={styles.req}>*</span></th>
-                <th className={styles.thNum2}>Venda R$ <span className={styles.req}>*</span></th>
-                <th className={styles.thNum2}>Promo R$</th>
+                <th className={`${styles.thNum2} col-num`}>Custo R$ <span className={styles.req}>*</span></th>
+                <th className={`${styles.thNum2} col-num`}>Venda R$ <span className={styles.req}>*</span></th>
+                <th className={`${styles.thNum2} col-num`}>Promo R$</th>
                 <th className={styles.thEtiq}>Etiq.</th>
-                <th className={styles.thQty}>Qtd</th>
+                <th className={`${styles.thQty} col-num`}>Qtd</th>
                 <th className={styles.thLoja}>Loja <span className={styles.req}>*</span></th>
                 <th className={styles.thCod}>Código</th>
-                <th className={styles.thSub}>Subtotal</th>
+                <th className={`${styles.thSub} col-num`}>Subtotal</th>
                 <th className={styles.thDel}></th>
               </tr>
             </thead>

@@ -185,8 +185,8 @@ export default function ConferenciaModal({ romaneio, onClose }: {
               <tr>
                 <th>Etiqueta</th>
                 <th>Peça</th>
-                <th className={styles.num}>Romaneio</th>
-                <th className={styles.num}>Bipado</th>
+                <th className={`${styles.num} col-num`}>Romaneio</th>
+                <th className={`${styles.num} col-num`}>Bipado</th>
                 <th>Situação</th>
               </tr>
             </thead>
@@ -204,8 +204,8 @@ export default function ConferenciaModal({ romaneio, onClose }: {
                       <span className={styles.nome}>{i.product_name}</span>
                       <span className={styles.codigo}>{i.product_code}</span>
                     </td>
-                    <td className={styles.num}>{i.quantity_sent}</td>
-                    <td className={styles.num}>{lidas}</td>
+                    <td className={`${styles.num} col-num`}>{i.quantity_sent}</td>
+                    <td className={`${styles.num} col-num`}>{lidas}</td>
                     <td>
                       {ok
                         ? <span className={styles.selOk}><Check size={12} /> conferida</span>

@@ -25,7 +25,7 @@ import {
   type TransactionRow, type PnlData, type RecurrenteRow,
   type DespesaManualData, type RecurrenteData,
 } from './actions'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { formatarDinheiro, formatarDinheiroComSinal } from '@/lib/dinheiro'
 
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -589,7 +589,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                 <td className={`${styles.muted} col-tertiary`}>{METHOD_LABELS[tx.payment_method ?? ''] ?? tx.payment_method ?? '—'}</td>
                 <td className="col-num">
                   <span className={tx.type === 'income' ? styles.amountIncome : styles.amountExpense}>
-                    {tx.type === 'income' ? '+' : '−'} {fmt(tx.amount)}
+                    {formatarDinheiroComSinal(tx.amount, tx.type === 'income' ? 'entrada' : 'saida')}
                   </span>
                 </td>
                 <td className="col-center">

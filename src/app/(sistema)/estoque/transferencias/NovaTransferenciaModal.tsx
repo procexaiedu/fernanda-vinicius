@@ -185,9 +185,9 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
                 <tr>
                   <th>Etiqueta</th>
                   <th>Peça</th>
-                  <th className={styles.num}>Enviar</th>
-                  <th className={styles.num}>Na loja</th>
-                  <th className={styles.num}>Custo</th>
+                  <th className={`${styles.num} col-num`}>Enviar</th>
+                  <th className={`${styles.num} col-num`}>Na loja</th>
+                  <th className={`${styles.num} col-num`}>Custo</th>
                   <th />
                 </tr>
               </thead>
@@ -199,7 +199,7 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
                       <span className={styles.nome}>{l.name}</span>
                       <span className={styles.codigo}>{l.code}</span>
                     </td>
-                    <td className={styles.num}>
+                    <td className={`${styles.num} col-num`}>
                       {/* Stepper só aparece de fato para peça com mais de uma unidade. */}
                       <div className={styles.stepper}>
                         <button type="button" onClick={() => ajustar(l.id, -1)}
@@ -213,8 +213,8 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
                         </button>
                       </div>
                     </td>
-                    <td className={styles.num}>{l.quantity_in_stock}</td>
-                    <td className={styles.num}>{formatarDinheiro(l.cost_price * l.quantidade)}</td>
+                    <td className={`${styles.num} col-num`}>{l.quantity_in_stock}</td>
+                    <td className={`${styles.num} col-num`}>{formatarDinheiro(l.cost_price * l.quantidade)}</td>
                     <td>
                       <button type="button" className={styles.remover} disabled={enviando}
                         onClick={() => setLinhas(a => a.filter(x => x.id !== l.id))} aria-label="Tirar do romaneio">
