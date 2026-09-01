@@ -44,7 +44,7 @@ export default async function FinanceiroPage() {
   const categories = Array.from(catSet).sort()
 
   return (
-    <div className="page-pad">
+    <div>
       <PageHeader
         title="Financeiro"
         subtitle="Ledger de transações, P&L e despesas recorrentes."

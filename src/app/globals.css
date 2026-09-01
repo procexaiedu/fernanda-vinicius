@@ -804,26 +804,6 @@ table td:first-child:not([class*="col-"]) {
   }
 }
 
-/*
- * Respiro da página, no lugar do `style={{ padding: '24px 32px' }}` que sete
- * páginas repetiam inline (vendas, compras, financeiro e os formulários).
- *
- * Inline vence qualquer folha de estilo, então nenhuma media query alcançava
- * aqueles 32px: em 390px eles comiam 64px — 17% da tela — e a tabela do
- * /financeiro ficava com 302px, rolando mesmo com só 5 colunas visíveis.
- *
- * Como classe, o valor acompanha o `--page-padding`, que já é fluido e já cai
- * para 12px no telefone.
- */
-.page-pad {
-  padding: 24px var(--page-padding);
-  max-width: 100%;
-}
-
-@media (max-width: 700px) {
-  .page-pad { padding: 16px var(--page-padding); }
-}
-
 /* ─── Fileira de cartões de resumo no telefone ──────────────────────────────
  *
  * Vários topos de tela têm 3–4 cartões em `flex: 1` numa linha só (compras,

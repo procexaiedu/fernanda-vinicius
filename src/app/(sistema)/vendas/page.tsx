@@ -223,7 +223,7 @@ export default async function VendasPage() {
   }
 
   return (
-    <div className="page-pad">
+    <div>
       {minhaMeta && <MinhaMetaCard progress={minhaMeta} monthLabel={monthLabel(monthKey)} />}
       <VendasClient sales={sales} stores={stores} sellers={sellers} closings={closings} userRole={profile.role} podeTrocarLoja={ehAdminGlobal(profile)} />
     </div>

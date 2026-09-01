@@ -82,7 +82,7 @@ export default async function ComprasPage() {
   }))
 
   return (
-    <div className="page-pad">
+    <div>
       <PageHeader
         title="Compras"
         subtitle="Registro de entradas de estoque — compras próprias e consignações."

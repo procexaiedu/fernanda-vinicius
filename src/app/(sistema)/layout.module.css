@@ -18,6 +18,17 @@
   margin-left: var(--sidebar-width-collapsed);
 }
 
+/*
+ * O respiro da página mora AQUI, e só aqui.
+ *
+ * Existia também uma classe `.page-pad` que oito telas punham no próprio
+ * wrapper — e que somava a este padding em vez de substituir. O resultado: em
+ * Vendas, Compras e Financeiro o conteúdo começava ~24px mais para dentro que
+ * em Produtos, Clientes, Estoque, Fornecedores e Disparos. Era o que fazia uma
+ * tela parecer "mais apertada" que a outra sem ninguém saber apontar por quê.
+ *
+ * A classe foi removida. Página nova não precisa fazer nada: herda daqui.
+ */
 .content {
   margin-top: var(--header-height);
   padding: var(--page-padding);
