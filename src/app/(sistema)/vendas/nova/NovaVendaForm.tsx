@@ -11,8 +11,8 @@ import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import DatePicker from '@/components/ui/DatePicker'
 import {
-  salvarVenda, editarVenda, buscarVendasCliente, type VendaFormData,
-  type SaleItem, type SalePaymentRow, type ExchangeItemSelected, type VendaParaTroca, type EditSaleData,
+  salvarVenda, editarVenda, type VendaFormData,
+  type SaleItem, type SalePaymentRow, type ExchangeItemSelected, type EditSaleData,
 } from '../actions'
 import { createCustomer, searchCustomers, type CustomerFormData } from '../../clientes/actions'
 import { matchText } from '@/lib/normalize'
@@ -63,6 +63,15 @@ interface SaleRow {
   unitCost: number
   stockAvailable: number
   isService: boolean       // item de serviço (conserto) — ignora estoque
+  /*
+   * Peça que está VOLTANDO, não saindo.
+   *
+   * A cliente chega com a peça na mão e a etiqueta colada nela. Marcar a linha
+   * é tudo: o valor passa a abater em vez de somar, o estoque sobe em vez de
+   * descer, e a diferença entre o que volta e o que leva é o que ela paga —
+   * ou recebe.
+   */
+  isTroca: boolean
 }
 
 interface PaymentRow {
@@ -118,7 +127,7 @@ function isBirthdayMonth(birthday: string | null): boolean {
 }
 
 function emptyRow(): SaleRow {
-  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false }
+  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false }
 }
 
 /**
@@ -136,6 +145,7 @@ function rowDoProduto(p: ProductOption): SaleRow {
     unitCost: p.cost_price,
     stockAvailable: p.quantity_in_stock,
     isService: p.is_service,
+    isTroca: false,
   }
 }
 
@@ -544,7 +554,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Itens da venda ────────────────────────────────────────────────────────
   const [rows, setRows] = useState<SaleRow[]>(
-    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r }))
+    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r, isTroca: false }))
       : produtoBipado ? [rowDoProduto(produtoBipado)]
       : [emptyRow()]
   )
@@ -552,15 +562,44 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   // ── Descontos ─────────────────────────────────────────────────────────────
   const [hasPix, setHasPix]           = useState(editSale?.hasPix ?? false)
   const [hasBirthday, setHasBirthday] = useState(editSale?.hasBirthday ?? false)
-  const [manualDiscount, setManualDiscount] = useState(editSale?.manualDiscount ?? 0)
+  /*
+   * Desconto manual: a operadora digita em R$ OU em %.
+   *
+   * A loja trabalha em porcentagem — "30%", "5%" —, e antes só havia campo de
+   * reais. Ela calculava de cabeça e digitava o resultado; numa venda de
+   * 31/08 saiu R$2 a mais para a cliente por causa disso.
+   *
+   * O que vale é sempre o R$ (é o que grava no banco). Em modo %, ele é
+   * DERIVADO do subtotal, então mudar um item recalcula sozinho — se
+   * guardássemos o R$ congelado, a porcentagem viraria mentira ao adicionar
+   * uma peça.
+   */
+  /*
+   * Fiado: a cliente leva a peça e paga o resto depois. Acontece, e o sistema
+   * precisa distinguir isso de erro de digitação — a diferença entre as duas
+   * é só a intenção, e só quem está no balcão sabe qual é.
+   */
+  const [aceitouFiado, setAceitouFiado] = useState(false)
+  const [previsaoPagamento, setPrevisaoPagamento] = useState('')
+
+  const [manualModo, setManualModo]     = useState<'valor' | 'pct'>('valor')
+  const [manualValor, setManualValor]   = useState(editSale?.manualDiscount ?? 0)
+  const [manualPct, setManualPct]       = useState(0)
 
   // ── Pagamentos ────────────────────────────────────────────────────────────
   const [payments, setPayments] = useState<PaymentRow[]>(editSale?.payments ?? [])
 
   // ── Troca ─────────────────────────────────────────────────────────────────
-  const [exchangeSales, setExchangeSales]     = useState<VendaParaTroca[]>([])
-  const [exchangeLoading, setExchangeLoading] = useState(false)
-  const [selectedExchangeItems, setSelectedExchangeItems] = useState<ExchangeItemSelected[]>([])
+  /*
+   * O painel de "buscar a venda antiga e marcar itens" foi removido.
+   *
+   * Nunca funcionou na prática — `fv.exchanges` estava com zero linhas, e no
+   * treinamento de 31/08 a troca não pôde ser registrada ao vivo por isso.
+   * A própria dona desenhou o substituto: marcar a peça na linha do item.
+   *
+   * O crédito da troca agora nasce do subtotal: peça marcada abate. Não há
+   * mais `exchangeCredit` separado — havia dois números para a mesma coisa.
+   */
 
   // ── UI ────────────────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false)
@@ -613,7 +652,10 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
         if (iExistente >= 0) {
           // `quantity` aceita string vazia enquanto a operadora digita
           const qtdAtual = Number(prev[iExistente].quantity) || 0
-          const limite = achado.is_service ? Infinity : achado.quantity_in_stock
+          /* Linha de troca não tem teto de estoque: a peça está ENTRANDO. */
+          const limite = (achado.is_service || prev[iExistente].isTroca)
+            ? Infinity
+            : achado.quantity_in_stock
           if (qtdAtual >= limite) {
             aviso = `${achado.name}: só há ${limite} em estoque`
             return prev
@@ -642,40 +684,72 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   // auto-derivarem (e sobrescreverem) no primeiro render. Liberados após montar.
   const editInit = useRef(isEditing)
 
+  /*
+   * Uma vez que a operadora mexe no desconto, ele é DELA.
+   *
+   * O bug relatado no treinamento de 31/08: o desconto ligava sozinho, sem
+   * ninguém clicar. Era o efeito abaixo — escolher PIX como pagamento marcava
+   * os 5% automaticamente, e tirar o PIX desmarcava de volta, mesmo que ela
+   * tivesse marcado de propósito.
+   *
+   * A sugestão continua (PIX ainda propõe os 5%, que é a política da loja),
+   * mas só até alguém discordar. Desconto é concessão comercial: quem decide
+   * é quem está atendendo, não o método de pagamento.
+   */
+  const pixTocado = useRef(false)
+  const aniversarioTocado = useRef(false)
+
   // ── Efeito: birthday discount ──────────────────────────────────────────────
   useEffect(() => {
-    if (editInit.current) return
-    if (selectedCustomer && isBirthdayMonth(selectedCustomer.birthday)) {
-      setHasBirthday(true)
-    } else {
-      setHasBirthday(false)
-    }
+    if (editInit.current || aniversarioTocado.current) return
+    setHasBirthday(!!selectedCustomer && isBirthdayMonth(selectedCustomer.birthday))
   }, [selectedCustomer])
 
   // ── Efeito: pix discount ───────────────────────────────────────────────────
   useEffect(() => {
-    if (editInit.current) return
-    const hasPixPayment = payments.some(p => p.method === 'pix')
-    if (hasPixPayment && !hasPix) setHasPix(true)
-    if (!hasPixPayment && hasPix) setHasPix(false)
+    if (editInit.current || pixTocado.current) return
+    setHasPix(payments.some(p => p.method === 'pix'))
   }, [payments])
 
   // Libera os efeitos acima após o primeiro render (deve rodar DEPOIS deles).
   useEffect(() => { editInit.current = false }, [])
 
   // ── Totais ────────────────────────────────────────────────────────────────
-  const subtotal       = rows.reduce((s, r) => s + r.unitPrice * (r.quantity || 0), 0)
+  /*
+   * Linha marcada como troca ABATE do subtotal — é peça voltando, não saindo.
+   * Assim "levou um colar de R$300 e devolveu um brinco de R$200" fecha em
+   * R$100, que é o que a cliente paga. Se o que volta valer mais, o subtotal
+   * fica negativo e a loja é que deve — a tela mostra isso em vez de esconder.
+   */
+  const subtotal       = rows.reduce((s, r) =>
+    s + (r.isTroca ? -1 : 1) * r.unitPrice * (r.quantity || 0), 0)
+  /* Em modo %, o valor acompanha o subtotal; em modo R$, é o que foi digitado. */
+  const manualDiscount = manualModo === 'pct'
+    ? parseFloat((subtotal * manualPct / 100).toFixed(2))
+    : manualValor
   const discountPct    = (hasPix ? settings.pixDiscountPct : 0) + (hasBirthday ? settings.birthdayDiscountPct : 0)
-  // Desconto bruto → total arredondado para o inteiro mais próximo quando HÁ desconto
-  // (≥0,50 sobe, <0,50 desce). O desconto é reconciliado p/ que subtotal − desconto = total.
-  // Assim o valor exibido já é redondo e é exatamente o que grava no banco.
+  /*
+   * Havendo desconto, o total sobe para o inteiro seguinte — SEMPRE para cima,
+   * nunca para o mais próximo.
+   *
+   * Era `Math.round`, e por isso 1372 − 5% = 1303,40 virava R$1.303,00. A loja
+   * cobrou R$1.304,00 da Juliana Benatti em 29/08, e o sistema registrou 1303:
+   * um real de diferença entre o caixa e o cadastro, calado. Com `ceil` os dois
+   * passam a dizer a mesma coisa.
+   *
+   * O desconto é reconciliado depois (subtotal − total), então o que fica
+   * gravado é sempre coerente com o total.
+   *
+   * Só arredonda quando HÁ desconto: sem ele o subtotal já é o preço de
+   * etiqueta, e 1 de 561 produtos tem centavos — subir esse não é
+   * arredondamento, é cobrar a mais sem motivo.
+   */
   const rawDiscount    = subtotal * discountPct / 100 + manualDiscount
   const rawTotal       = Math.max(0, subtotal - rawDiscount)
-  const total          = rawDiscount > 0 ? Math.round(rawTotal) : parseFloat(rawTotal.toFixed(2))
+  const total          = rawDiscount > 0 ? Math.ceil(rawTotal) : parseFloat(rawTotal.toFixed(2))
   const discountAmt    = parseFloat((subtotal - total).toFixed(2))
-  const exchangeCredit = selectedExchangeItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
   const paidTotal      = payments.reduce((s, p) => s + p.amount, 0)
-  const coveredTotal   = paidTotal + exchangeCredit
+  const coveredTotal   = paidTotal
   const balanceDiff    = parseFloat((coveredTotal - total).toFixed(2))
 
   // ── Row helpers ───────────────────────────────────────────────────────────
@@ -733,10 +807,6 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   function selectCustomer(c: CustomerOption | null, text: string) {
     setSelectedCustomer(c)
     setCustomerSearch(text)
-    if (!c) {
-      setSelectedExchangeItems([])
-      setExchangeSales([])
-    }
   }
 
   function handleCustomerCreated(c: CustomerOption) {
@@ -761,48 +831,6 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     setPayments(prev => prev.filter((_, idx) => idx !== i))
   }
 
-  function hasExchangePayment() {
-    return selectedExchangeItems.length > 0
-  }
-
-  async function addExchange() {
-    if (!selectedCustomer) { setError('Selecione um cliente para habilitar troca.'); return }
-    setError('')
-    setExchangeLoading(true)
-    const sales = await buscarVendasCliente(selectedCustomer.id, storeId)
-    setExchangeSales(sales)
-    setExchangeLoading(false)
-  }
-
-  function toggleExchangeItem(sale: VendaParaTroca, item: VendaParaTroca['items'][0]) {
-    const key = item.id
-    const exists = selectedExchangeItems.find(e => e.saleItemId === key)
-    if (exists) {
-      setSelectedExchangeItems(prev => prev.filter(e => e.saleItemId !== key))
-    } else {
-      setSelectedExchangeItems(prev => [...prev, {
-        saleItemId:     item.id,
-        productId:      item.product_id,
-        productName:    item.product_name,
-        quantity:       1,  // começa com 1; usuário pode ajustar
-        unitPrice:      item.effective_unit_price,  // preço real pago (com desconto)
-        originalSaleId: sale.id,
-      }])
-    }
-  }
-
-  function updateExchangeQty(saleItemId: string, qty: number, maxQty: number) {
-    const clamped = Math.max(1, Math.min(qty, maxQty))
-    setSelectedExchangeItems(prev =>
-      prev.map(e => e.saleItemId === saleItemId ? { ...e, quantity: clamped } : e)
-    )
-  }
-
-  function clearExchange() {
-    setSelectedExchangeItems([])
-    setExchangeSales([])
-  }
-
   // ── Parcelamento ──────────────────────────────────────────────────────────
   // Lê o limite direto da config (sem hardcode): acima do threshold usa o limite
   // "acima de 3k" (6x), senão o padrão (5x). Mudar a config passa a refletir aqui.
@@ -823,18 +851,82 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     }
     if (!storeId) { setError('Selecione a loja.'); return }
 
-    const paymentsOk = Math.abs(balanceDiff) < 0.01 || exchangeCredit > total
-    if (!paymentsOk && payments.length === 0) {
-      setError('Adicione ao menos uma forma de pagamento.')
+    /*
+     * Troca exige cliente: `fv.exchanges.customer_id` é NOT NULL. Sem esta
+     * checagem o erro só apareceria no banco, depois de a venda já ter sido
+     * criada — deixando venda gravada e troca não.
+     */
+    if (rows.some(r => r.isTroca) && !selectedCustomer) {
+      setError('Troca precisa de cliente identificado. Selecione a cliente acima.')
+      return
+    }
+    if (rows.some(r => r.isTroca) && rows.every(r => r.isTroca)) {
+      setError('Só há peças devolvidas. Adicione a peça que a cliente está levando.')
+      return
+    }
+    /*
+     * Devolveu mais do que levou: a loja fica devendo.
+     *
+     * `total` é clampado em zero (Math.max), então sem esta checagem a venda
+     * fecharia em R$0 e o crédito da cliente sumiria — ninguém saberia que ela
+     * tem valor a receber. Não existe vale no sistema; enquanto não existir, o
+     * certo é resolver no balcão, não gravar torto.
+     */
+    if (subtotal < -0.009) {
+      setError(`As peças devolvidas valem ${fmt(-subtotal)} a mais que as levadas. Acerte no balcão ou adicione outra peça — o sistema ainda não emite vale.`)
       return
     }
 
-    const items: SaleItem[] = rows.map(r => ({
+    /*
+     * Conferência do que foi pago contra o total.
+     *
+     * A regra antiga computava `paymentsOk` e depois só o usava se NÃO houvesse
+     * pagamento nenhum — ou seja, com uma forma de pagamento qualquer, qualquer
+     * valor passava calado. Três vendas reais entraram assim:
+     *
+     *   Graziela Amaral   total R$565,00   cobrado R$567,00   (+R$2)
+     *   Juliana Benatti   total R$1.303,00 cobrado R$1.304,00 (+R$1)
+     *   Bea Baroudi       total R$645,00   pago    R$300,00   (−R$345)
+     *
+     * Os dois primeiros são dinheiro cobrado a mais da cliente, sem ninguém
+     * perceber. O terceiro é fiado legítimo — mas gravou como venda concluída,
+     * então os R$345 sumiram de qualquer cobrança.
+     *
+     * Sobra e falta são coisas diferentes e passam a ser tratadas assim:
+     * cobrar a mais é sempre erro; cobrar a menos é fiado, e precisa ser dito.
+     */
+    if (payments.length === 0 && total > 0.009) {
+      setError('Adicione ao menos uma forma de pagamento.')
+      return
+    }
+    if (balanceDiff > 0.009) {
+      setError(`O pagamento está ${fmt(balanceDiff)} MAIOR que o total da venda. Confira os valores.`)
+      return
+    }
+    if (balanceDiff < -0.009 && !aceitouFiado) {
+      setError(`Faltam ${fmt(-balanceDiff)} para fechar a venda. Marque "fica devendo" se a cliente vai pagar depois.`)
+      return
+    }
+
+    /*
+     * A grade guarda as duas metades da troca. Aqui elas se separam: linha sem
+     * marca é peça saindo (item de venda), linha marcada é peça voltando
+     * (item de troca, que dá entrada no estoque).
+     */
+    const items: SaleItem[] = rows.filter(r => !r.isTroca).map(r => ({
       productId:   r.productId!,
       productName: r.productName,
       quantity:    (r.quantity as number) || 1,
       unitPrice:   r.unitPrice,
       unitCost:    r.unitCost,
+    }))
+
+    const devolvidos: ExchangeItemSelected[] = rows.filter(r => r.isTroca).map(r => ({
+      originalSaleId: null,
+      productId:      r.productId!,
+      productName:    r.productName,
+      quantity:       (r.quantity as number) || 1,
+      unitPrice:      r.unitPrice,
     }))
 
     const formData: VendaFormData = {
@@ -847,8 +939,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       hasPix,
       hasBirthday,
       manualDiscount,
+      previsaoPagamento: aceitouFiado && previsaoPagamento ? previsaoPagamento : null,
       payments,
-      exchangeItems: selectedExchangeItems,
+      exchangeItems: devolvidos,
       notes,
     }
 
@@ -968,6 +1061,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               <tr>
                 <th className={styles.thNum}>#</th>
                 <th className={styles.thProd}>Produto</th>
+                <th className={styles.thTroca}>Troca</th>
                 <th className={styles.thQty}>Qtd</th>
                 <th className={styles.thPrice}>Preço Unit.</th>
                 <th className={styles.thSub}>Subtotal</th>
@@ -978,8 +1072,10 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               {rows.map((row, i) => {
                 const qty = row.quantity || 0
                 const rowSubtotal = row.unitPrice * qty
-                const stockWarn = row.productId && !row.isService && qty > row.stockAvailable && row.stockAvailable >= 0
-                const noStock   = !row.isService && row.stockAvailable === 0 && row.productId
+                /* Peça que volta não precisa ter estoque — ela É o estoque
+                   chegando. Avisar "sem estoque" numa devolução seria ruído. */
+                const stockWarn = row.productId && !row.isService && !row.isTroca && qty > row.stockAvailable && row.stockAvailable >= 0
+                const noStock   = !row.isService && !row.isTroca && row.stockAvailable === 0 && row.productId
 
                 return (
                   <tr key={i} className={styles.row}>
@@ -1000,6 +1096,25 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                           {noStock ? 'Sem estoque' : `Apenas ${row.stockAvailable} em estoque`}
                         </div>
                       )}
+                    </td>
+
+                    {/*
+                      O marcador que a Fernanda desenhou no treinamento de
+                      31/08: um clique na linha da peça diz se ela está saindo
+                      ou voltando. Sem tela separada, sem buscar a venda antiga.
+                    */}
+                    <td className={styles.tdTroca}>
+                      <button
+                        type="button"
+                        className={`${styles.trocaBtn} ${row.isTroca ? styles.trocaBtnAtivo : ''}`}
+                        onClick={() => updateRow(i, { isTroca: !row.isTroca })}
+                        disabled={!row.productId}
+                        title={row.isTroca
+                          ? 'Está voltando para o estoque. Clique para desfazer.'
+                          : 'Marcar como peça devolvida pela cliente'}
+                      >
+                        <ArrowLeftRight size={13} />
+                      </button>
                     </td>
 
                     <td className={styles.tdQty}>
@@ -1028,7 +1143,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                     </td>
 
                     <td className={styles.tdSub}>
-                      <span className={styles.subtotalText}>{rowSubtotal > 0 ? fmt(rowSubtotal) : '—'}</span>
+                      <span className={`${styles.subtotalText} ${row.isTroca ? styles.subtotalTroca : ''}`}>
+                        {rowSubtotal > 0 ? (row.isTroca ? `− ${fmt(rowSubtotal)}` : fmt(rowSubtotal)) : '—'}
+                      </span>
                     </td>
 
                     <td className={styles.tdDel}>
@@ -1059,14 +1176,16 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
         <div className={styles.discountsGrid}>
           <label className={styles.discountRow}>
-            <input type="checkbox" checked={hasPix} onChange={e => setHasPix(e.target.checked)} />
+            <input type="checkbox" checked={hasPix}
+              onChange={e => { pixTocado.current = true; setHasPix(e.target.checked) }} />
             <span>PIX</span>
             <span className={styles.discountPct}>−{settings.pixDiscountPct}%</span>
             <span className={styles.discountAmt}>{subtotal > 0 ? fmt(subtotal * settings.pixDiscountPct / 100) : ''}</span>
           </label>
 
           <label className={styles.discountRow}>
-            <input type="checkbox" checked={hasBirthday} onChange={e => setHasBirthday(e.target.checked)}
+            <input type="checkbox" checked={hasBirthday}
+              onChange={e => { aniversarioTocado.current = true; setHasBirthday(e.target.checked) }}
               disabled={!selectedCustomer} />
             <span>Aniversário</span>
             <span className={styles.discountPct}>−{settings.birthdayDiscountPct}%</span>
@@ -1074,16 +1193,47 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
           </label>
 
           <div className={styles.discountRow}>
-            <input type="checkbox" checked={manualDiscount > 0} onChange={e => { if (!e.target.checked) setManualDiscount(0) }} readOnly={false} />
+            <input type="checkbox" checked={manualDiscount > 0}
+              onChange={e => { if (!e.target.checked) { setManualValor(0); setManualPct(0) } }} />
             <span>Manual</span>
-            <span className={styles.discountPct}>R$</span>
-            <input
-              type="number" min="0" step="0.01"
-              className={styles.manualDiscInput}
-              value={manualDiscount || ''}
-              onChange={e => setManualDiscount(parseFloat(e.target.value) || 0)}
-              placeholder="0,00"
-            />
+
+            {/* Alternador R$ / %. Trocar o modo NÃO converte o valor: são dois
+                campos independentes, e converter na troca faria "30" virar
+                "R$ 30,00" sem aviso. */}
+            <div className={styles.manualModo}>
+              <button type="button"
+                className={manualModo === 'valor' ? styles.manualModoAtivo : ''}
+                onClick={() => setManualModo('valor')}>R$</button>
+              <button type="button"
+                className={manualModo === 'pct' ? styles.manualModoAtivo : ''}
+                onClick={() => setManualModo('pct')}>%</button>
+            </div>
+
+            {manualModo === 'valor' ? (
+              <input
+                type="number" min="0" step="0.01"
+                className={styles.manualDiscInput}
+                value={manualValor || ''}
+                onChange={e => setManualValor(Math.max(0, parseFloat(e.target.value) || 0))}
+                placeholder="0,00"
+              />
+            ) : (
+              <input
+                type="number" min="0" max="100" step="1"
+                className={styles.manualDiscInput}
+                value={manualPct || ''}
+                /* Trava em 100: desconto maior que o subtotal viraria venda
+                   com total negativo. */
+                onChange={e => setManualPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                placeholder="0"
+              />
+            )}
+
+            {/* Em modo %, mostra quanto dá em reais — é o número que a cliente
+                vê na maquininha. */}
+            {manualModo === 'pct' && manualDiscount > 0 && (
+              <span className={styles.discountAmt}>{fmt(manualDiscount)}</span>
+            )}
           </div>
         </div>
 
@@ -1120,11 +1270,6 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                 {opt.icon} {opt.label}
               </button>
             ))}
-            {exchangeSales.length === 0 && (
-              <button type="button" className={styles.addPayBtnExchange} onClick={addExchange} disabled={exchangeLoading}>
-                <ArrowLeftRight size={13} /> {exchangeLoading ? 'Carregando...' : 'Troca'}
-              </button>
-            )}
           </div>
         </div>
 
@@ -1215,71 +1360,6 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
           </div>
         )}
 
-        {/* Painel de troca */}
-        {exchangeSales.length > 0 && (
-          <div className={styles.exchangePanel}>
-            <div className={styles.exchangeHeader}>
-              <ArrowLeftRight size={14} />
-              <span>Troca — selecione os itens devolvidos pelo cliente</span>
-              <button className={styles.clearExchangeBtn} onClick={clearExchange}><X size={12} /> Cancelar troca</button>
-            </div>
-
-            {exchangeSales.map(sale => {
-              const totalUnits = sale.items.reduce((s, i) => s + i.quantity, 0)
-              return (
-                <div key={sale.id} className={styles.exchangeSale}>
-                  <div className={styles.exchangeSaleHeader}>
-                    📦 Compra {fmtDate(sale.sale_date)} · {sale.items.length} {sale.items.length === 1 ? 'produto' : 'produtos'} · {totalUnits} {totalUnits === 1 ? 'unidade' : 'unidades'} · {fmt(sale.total)}
-                  </div>
-                  {sale.items.map(item => {
-                    const sel      = selectedExchangeItems.find(e => e.saleItemId === item.id)
-                    const checked  = !!sel
-                    const returned = item.already_returned
-                    return (
-                      <div
-                        key={item.id}
-                        className={`${styles.exchangeItem} ${returned ? styles.exchangeItemReturned : ''}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          disabled={returned}
-                          onChange={() => !returned && toggleExchangeItem(sale, item)}
-                        />
-                        <span className={styles.exchangeItemName}>{item.product_name}</span>
-                        <span className={styles.exchangeItemCode}>{item.product_code}</span>
-                        <span className={styles.exchangeItemPrice}>{fmt(item.effective_unit_price)}/un.</span>
-                        {checked && item.quantity > 1 && (
-                          <span className={styles.exchangeQtyWrap}>
-                            <button
-                              className={styles.exchangeQtyBtn}
-                              onClick={() => updateExchangeQty(item.id, (sel?.quantity ?? 1) - 1, item.quantity)}
-                              type="button"
-                            >−</button>
-                            <span className={styles.exchangeQtyVal}>{sel?.quantity ?? 1}</span>
-                            <button
-                              className={styles.exchangeQtyBtn}
-                              onClick={() => updateExchangeQty(item.id, (sel?.quantity ?? 1) + 1, item.quantity)}
-                              type="button"
-                            >+</button>
-                            <span className={styles.exchangeQtyMax}>/ {item.quantity}</span>
-                          </span>
-                        )}
-                        {returned && <span className={styles.exchangeItemReturnedBadge}>já devolvido</span>}
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })}
-
-            {selectedExchangeItems.length > 0 && (
-              <div className={styles.exchangeCredit}>
-                Crédito de troca: <strong>{fmt(exchangeCredit)}</strong>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Resumo de pagamento */}
         <div className={styles.paymentSummary}>
@@ -1293,21 +1373,33 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               <span>{fmt(paidTotal)}</span>
             </div>
           )}
-          {exchangeCredit > 0 && (
-            <div className={styles.summaryRow}>
-              <span>Crédito de troca</span>
-              <span style={{ color: '#4CAF7D' }}>+ {fmt(exchangeCredit)}</span>
-            </div>
-          )}
-          {(payments.length > 0 || exchangeCredit > 0) && (
+          {payments.length > 0 && (
             balanceDiff > 0.01 ? (
               <div className={styles.payStatusWarn}>
-                <AlertTriangle size={13} /> {fmt(balanceDiff)} sobrando {exchangeCredit > total ? '(saldo de troca)' : '(a mais)'}
+                <AlertTriangle size={13} /> {fmt(balanceDiff)} cobrado a mais — confira
               </div>
             ) : balanceDiff < -0.01 ? (
-              <div className={styles.payStatusError}>
-                <AlertTriangle size={13} /> Falta {fmt(Math.abs(balanceDiff))} para cobrir o total
-              </div>
+              <>
+                <div className={styles.payStatusError}>
+                  <AlertTriangle size={13} /> Falta {fmt(Math.abs(balanceDiff))} para cobrir o total
+                </div>
+                {/*
+                  Fiado é decisão de quem está no balcão, não do sistema. Sem
+                  esta marca a venda não fecha — foi assim que R$345 da Bea
+                  Baroudi gravaram como venda concluída e sumiram da cobrança.
+                */}
+                <label className={styles.fiadoRow}>
+                  <input type="checkbox" checked={aceitouFiado}
+                    onChange={e => setAceitouFiado(e.target.checked)} />
+                  <span>A cliente fica devendo {fmt(Math.abs(balanceDiff))}</span>
+                </label>
+                {aceitouFiado && (
+                  <label className={styles.fiadoData}>
+                    <span>Prometeu pagar em</span>
+                    <DatePicker value={previsaoPagamento} onChange={setPrevisaoPagamento} />
+                  </label>
+                )}
+              </>
             ) : (
               <div className={styles.payStatusOk}>
                 ✓ Pagamento OK

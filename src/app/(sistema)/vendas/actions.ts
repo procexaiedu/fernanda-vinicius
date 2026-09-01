@@ -28,12 +28,19 @@ export interface SalePaymentRow {
 }
 
 export interface ExchangeItemSelected {
-  saleItemId: string
   productId: string
   productName: string
   quantity: number
-  unitPrice: number            // preço efetivo pago (com desconto)
-  originalSaleId: string
+  unitPrice: number            // valor creditado à cliente pela peça devolvida
+  /*
+   * A venda de origem, quando se sabe qual é.
+   *
+   * No fluxo do balcão a peça chega com a etiqueta e é bipada — ninguém
+   * procura a venda antiga. Fica nulo, e tudo bem: o que importa para o
+   * estoque e para o caixa é a peça e o valor, não de qual nota ela saiu.
+   */
+  originalSaleId?: string | null
+  saleItemId?: string
 }
 
 export interface VendaFormData {
@@ -48,6 +55,8 @@ export interface VendaFormData {
   manualDiscount: number    // valor fixo R$
   payments: SalePaymentRow[]
   exchangeItems: ExchangeItemSelected[]  // itens a devolver via troca
+  /** Data prometida quando a venda fecha com saldo em aberto. Null quando quitada. */
+  previsaoPagamento?: string | null
   notes: string
 }
 
@@ -213,6 +222,9 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
       manual_discount: data.manualDiscount,
       total,
       total_cost:      totalCost,
+      /* Só quando ficou saldo. O saldo em si não é gravado: sai da soma de
+       * sale_payments, que é a única fonte que não pode divergir. */
+      previsao_pagamento: data.previsaoPagamento ?? null,
       payment_summary: paymentSummary,
       status:          'completed',
       notes:           data.notes || null,
@@ -317,8 +329,21 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
         unit_price:  ei.unitPrice,
         unit_cost:   prod?.cost_price ?? 0,
       })
+      /*
+       * `is_active: true` junto com o saldo.
+       *
+       * Peça vendida costuma ficar zerada, e peça zerada é inativada — foram
+       * 703 delas em 30/08, depois da recontagem. Devolver só a quantidade
+       * deixaria a peça com estoque e invisível: não aparece em /estoque, não
+       * é achada na busca e o bipe não encontra. Voltou para a gaveta, volta
+       * para as listas.
+       */
       await admin.from('products')
-        .update({ quantity_in_stock: (prod?.quantity_in_stock ?? 0) + ei.quantity })
+        .update({
+          quantity_in_stock: (prod?.quantity_in_stock ?? 0) + ei.quantity,
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', ei.productId)
     }
 
