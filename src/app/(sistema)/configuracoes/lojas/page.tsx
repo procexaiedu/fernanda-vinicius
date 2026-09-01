@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireProfile } from '@/lib/auth'
+import { requireProfile, podeConfigurarRede } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { Store } from '@/types'
 import LojasClient from './LojasClient'
@@ -9,7 +9,13 @@ export default async function LojasPage() {
 
   const profile = await requireProfile()
 
-  if (profile.role !== 'admin') redirect('/')
+  /*
+   * Configuração é da REDE, não da loja: lojas, usuários, metas e regras do
+   * negócio valem para as duas. `role !== 'admin'` deixava o admin de loja
+   * entrar — de onde ele criava usuário e mudava a regra de desconto da outra
+   * loja. Ver podeConfigurarRede() em src/lib/auth.ts.
+   */
+  if (!podeConfigurarRede(profile)) redirect('/')
 
   const supabase = await createClient()
 

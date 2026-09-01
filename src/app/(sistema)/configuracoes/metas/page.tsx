@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireProfile } from '@/lib/auth'
+import { requireProfile, podeConfigurarRede } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   currentMonthKey, isValidMonthKey, monthBounds, monthKeyToFirstDay, computeProgress,
@@ -19,7 +19,13 @@ interface GoalRow {
 export default async function MetasPage({ searchParams }: PageProps) {
   const { month: monthParam } = await searchParams
   const profile = await requireProfile()
-  if (profile.role !== 'admin') redirect('/')
+  /*
+   * Configuração é da REDE, não da loja: lojas, usuários, metas e regras do
+   * negócio valem para as duas. `role !== 'admin'` deixava o admin de loja
+   * entrar — de onde ele criava usuário e mudava a regra de desconto da outra
+   * loja. Ver podeConfigurarRede() em src/lib/auth.ts.
+   */
+  if (!podeConfigurarRede(profile)) redirect('/')
 
   const admin = createAdminClient()
 

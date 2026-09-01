@@ -147,9 +147,11 @@ interface Props {
   sellers: Array<{ id: string; full_name: string }>
   closings: ClosingOption[]
   userRole: string
+  /** Vê mais de uma loja. Só o admin global — admin de loja está preso à dele. */
+  podeTrocarLoja: boolean
 }
 
-export default function VendasClient({ sales: initial, stores, sellers, closings, userRole }: Props) {
+export default function VendasClient({ sales: initial, stores, sellers, closings, userRole, podeTrocarLoja }: Props) {
   const today = todayStr()
 
   const [sales, setSales]             = useState(initial)
@@ -300,7 +302,12 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          {userRole === 'admin' && (
+          {/*
+            `userRole === 'admin'` deixava o filtro passar para o admin de loja:
+            ele via "Todas as lojas / Brasília / Campinas" numa lista que o
+            servidor já tinha restringido à loja dele. Escolha que não existe.
+          */}
+          {podeTrocarLoja && (
             <FilterSelect
               value={filterStore}
               onChange={setFilterStore}
@@ -393,7 +400,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                 <th className={styles.thSortable} onClick={() => toggleSort('customer')}>
                   Cliente <SortIcon col="customer" />
                 </th>
-                {userRole === 'admin' && <th className="col-secondary">Loja</th>}
+                {podeTrocarLoja && <th className="col-secondary">Loja</th>}
                 {userRole === 'admin' && <th className="col-secondary">Vendedora</th>}
                 <th className={`${styles.thSortable} col-tertiary`} onClick={() => toggleSort('items')}>
                   Itens <SortIcon col="items" />
@@ -419,7 +426,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                 >
                   <td className={`${styles.dateCell} col-date`}>{fmtDate(s.sale_date)}</td>
                   <td>{s.customer_name ?? <span className={styles.muted}>—</span>}</td>
-                  {userRole === 'admin' && <td className={`${styles.muted} col-secondary`}>{s.store_name}</td>}
+                  {podeTrocarLoja && <td className={`${styles.muted} col-secondary`}>{s.store_name}</td>}
                   {userRole === 'admin' && (
                     <td className={`${styles.muted} col-secondary`}>{s.seller_name ?? <span className={styles.muted}>—</span>}</td>
                   )}

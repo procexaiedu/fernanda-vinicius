@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { requireProfile, ehOperadora } from '@/lib/auth'
+import { requireProfile, ehOperadora, podeConfigurarRede } from '@/lib/auth'
 import { CABECALHO_CAMINHO } from '@/lib/auth-header'
 import SistemaLayoutClient from './layout-client'
 
@@ -49,6 +49,7 @@ export default async function SistemaLayout({ children }: { children: React.Reac
     <SistemaLayoutClient
       userName={profile.full_name}
       userRole={profile.role}
+      podeConfigurarRede={podeConfigurarRede(profile)}
       storeName={profile.store_name}
     >
       {children}

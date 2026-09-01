@@ -273,6 +273,8 @@ interface User  { id: string; full_name: string }
 
 interface Props {
   stores: Store[]
+  /** Vê mais de uma loja. Só o admin global. */
+  podeTrocarLoja: boolean
   users: User[]
   categories: string[]
   initialTransactions: TransactionRow[]
@@ -280,7 +282,7 @@ interface Props {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function FinanceiroClient({ stores, users, categories: dbCategories, initialTransactions }: Props) {
+export default function FinanceiroClient({ stores, podeTrocarLoja, users, categories: dbCategories, initialTransactions }: Props) {
   const [activeTab, setActiveTab] = useState<'transactions' | 'pnl' | 'recorrentes'>('transactions')
   const categories = useMemo(() => mergeCategories(dbCategories), [dbCategories])
 
@@ -303,10 +305,10 @@ export default function FinanceiroClient({ stores, users, categories: dbCategori
       </div>
 
       {activeTab === 'transactions' && (
-        <TransacoesTab stores={stores} users={users} categories={categories} initialTransactions={initialTransactions} />
+        <TransacoesTab stores={stores} podeTrocarLoja={podeTrocarLoja} users={users} categories={categories} initialTransactions={initialTransactions} />
       )}
       {activeTab === 'pnl' && (
-        <PnlTab stores={stores} />
+        <PnlTab stores={stores} podeTrocarLoja={podeTrocarLoja} />
       )}
       {activeTab === 'recorrentes' && (
         <RecorrentesTab stores={stores} categories={categories} />
@@ -317,7 +319,7 @@ export default function FinanceiroClient({ stores, users, categories: dbCategori
 
 // ─── Aba Transações ───────────────────────────────────────────────────────────
 
-function TransacoesTab({ stores, users, categories, initialTransactions }: Props) {
+function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTransactions }: Props) {
   const now = new Date()
   const [transactions, setTransactions] = useState<TransactionRow[]>(initialTransactions)
   const [loading, setLoading] = useState(false)
@@ -513,7 +515,7 @@ function TransacoesTab({ stores, users, categories, initialTransactions }: Props
       <div className={styles.toolbar}>
         <FilterDropdown label="Tipo" value={fType} options={typeOptions} onChange={setFType} />
         <FilterDropdown label="Status" value={fStatus} options={statusOptions} onChange={setFStatus} />
-        <FilterDropdown label="Loja" value={fStore} options={storeOptions} onChange={setFStore} />
+        {podeTrocarLoja && <FilterDropdown label="Loja" value={fStore} options={storeOptions} onChange={setFStore} />}
         <FilterDropdown label="Categoria" value={fCategory} options={catOptions} onChange={setFCategory} />
         <FilterDropdown label="Vendedor" value={fUser} options={userOptions} onChange={setFUser} />
 
@@ -1023,7 +1025,7 @@ function DespesaModal({
 
 // ─── Aba P&L ──────────────────────────────────────────────────────────────────
 
-function PnlTab({ stores }: { stores: Store[] }) {
+function PnlTab({ stores, podeTrocarLoja }: { stores: Store[]; podeTrocarLoja: boolean }) {
   const now = new Date()
   const [month, setMonth]   = usePersistedState('fv-filtros-financeiro-pnl-month', now.getMonth() + 1)
   const [year,  setYear]    = usePersistedState('fv-filtros-financeiro-pnl-year', now.getFullYear())
@@ -1064,7 +1066,7 @@ function PnlTab({ stores }: { stores: Store[] }) {
           <span className={styles.monthPickerLabel}>{MONTHS_PT[month - 1]} {year}</span>
           <button className={styles.monthNavBtn} onClick={nextMonth}><ChevronRight size={14} /></button>
         </div>
-        <FilterDropdown label="Loja" value={storeId} options={storeOptions} onChange={setStoreId} />
+        {podeTrocarLoja && <FilterDropdown label="Loja" value={storeId} options={storeOptions} onChange={setStoreId} />}
         <button className={styles.btnPrimary} onClick={load} disabled={loading}>
           {loading ? 'Carregando...' : 'Calcular'}
         </button>

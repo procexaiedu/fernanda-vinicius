@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireProfile } from '@/lib/auth'
+import { requireProfile, lojaDoEscopo, ehAdminGlobal } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import DashboardClient from './DashboardClient'
 import {
@@ -18,7 +18,12 @@ export default async function DashboardPage() {
 
   const isAdmin  = profile.role === 'admin'
   // Operators always see their own store; admins start with null (all)
-  const storeId  = isAdmin ? null : (profile.store_id ?? null)
+  /*
+   * Quem tem loja está preso a ela — admin de loja inclusive.
+   * Era `isAdmin ? null : profile.store_id`, que dava a rede inteira a
+   * qualquer admin. Ver src/lib/auth.ts.
+   */
+  const storeId  = lojaDoEscopo(profile)
 
   const now   = new Date()
   const month = now.getMonth() + 1
@@ -60,6 +65,7 @@ export default async function DashboardPage() {
   return (
     <DashboardClient
       isAdmin={isAdmin}
+      podeTrocarLoja={ehAdminGlobal(profile)}
       initialStoreId={storeId}
       lojas={lojas}
       settings={settings}

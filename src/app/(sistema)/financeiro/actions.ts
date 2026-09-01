@@ -3,6 +3,25 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getProfile, lojaDoEscopo } from '@/lib/auth'
+
+/**
+ * A loja que ESTA requisição pode ver — decidida pelo perfil, não pelo cliente.
+ *
+ * Todas as leituras do financeiro rodavam com a service key e o `storeId` que
+ * veio do navegador. Um admin de loja abria /financeiro e via o resultado, as
+ * despesas e as comissões da outra loja: o servidor nunca perguntou de quem era
+ * a sessão. O seletor sumir da tela não conserta isso — a action é chamável
+ * direto.
+ *
+ * Quem tem `store_id` fica nela e o filtro da tela é ignorado; quem não tem
+ * (admin global) escolhe.
+ */
+async function escopoDeLoja(filtroDaTela?: string | null): Promise<string | null> {
+  const profile = await getProfile()
+  if (!profile) return null
+  return lojaDoEscopo(profile, filtroDaTela)
+}
 
 export interface ActionResult {
   success: boolean
@@ -102,6 +121,7 @@ export interface RecurrenteData {
 
 export async function buscarTransacoes(filters: TransactionFilters): Promise<{ data: TransactionRow[]; error?: string }> {
   const admin = createAdminClient()
+  const loja  = await escopoDeLoja(filters.storeId)
 
   let q = admin
     .from('transactions')
@@ -111,7 +131,7 @@ export async function buscarTransacoes(filters: TransactionFilters): Promise<{ d
 
   if (filters.type)     q = q.eq('type', filters.type)
   if (filters.status)   q = q.eq('status', filters.status)
-  if (filters.storeId)  q = q.eq('store_id', filters.storeId)
+  if (loja)             q = q.eq('store_id', loja)
   if (filters.category) q = q.eq('category', filters.category)
   if (filters.dateFrom) q = q.gte('transaction_date', filters.dateFrom)
   if (filters.dateTo)   q = q.lte('transaction_date', filters.dateTo)
@@ -149,13 +169,18 @@ export async function buscarTransacoes(filters: TransactionFilters): Promise<{ d
 // Usado pelo atalho global no Financeiro para nada de pendente ficar escondido por filtro.
 export async function buscarPendencias(): Promise<{ data: TransactionRow[]; error?: string }> {
   const admin = createAdminClient()
+  const loja  = await escopoDeLoja()
 
-  const { data, error } = await admin
+  let pendQ = admin
     .from('transactions')
     .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, recurring_expense_id, stores(name), users(full_name)')
     .eq('type', 'expense')
     .eq('status', 'pending')
     .order('due_date', { ascending: true, nullsFirst: false })
+
+  if (loja) pendQ = pendQ.eq('store_id', loja)
+
+  const { data, error } = await pendQ
 
   if (error) return { data: [], error: error.message }
 
@@ -396,8 +421,10 @@ export async function deletarComissao(transactionId: string): Promise<ActionResu
 
 // ─── P&L ─────────────────────────────────────────────────────────────────────
 
-export async function buscarPnl(storeId: string | null, month: number, year: number): Promise<{ data: PnlData | null; error?: string }> {
+export async function buscarPnl(storeIdDaTela: string | null, month: number, year: number): Promise<{ data: PnlData | null; error?: string }> {
   const admin = createAdminClient()
+  // O parâmetro é sugestão da tela; quem manda é o perfil.
+  const storeId = await escopoDeLoja(storeIdDaTela)
 
   const dateFrom = `${year}-${String(month).padStart(2, '0')}-01`
   const lastDay  = new Date(year, month, 0).getDate()
@@ -485,10 +512,26 @@ export async function buscarPnl(storeId: string | null, month: number, year: num
 
 export async function buscarRecorrentes(): Promise<{ data: RecurrenteRow[] }> {
   const admin = createAdminClient()
-  const { data } = await admin
+  const loja  = await escopoDeLoja()
+
+  let q = admin
     .from('recurring_expenses')
     .select('id, store_id, description, amount, category, cost_type, recurrence, day_of_month, is_active, stores(name)')
     .order('description')
+
+  /*
+   * Estrito, igual às transações: só a loja dele. Despesa com `store_id` NULL
+   * é da REDE (hoje 282 das 282 despesas lançadas são assim) — é o custo do
+   * negócio inteiro, não da loja, e um admin de loja não tem por que vê-lo.
+   *
+   * Efeito colateral conhecido: o resultado de uma loja mostra receita sem
+   * esses custos, então superestima a margem. É o preço de "vê os dados
+   * daquela loja apenas"; quem precisa do número fechado é o admin global,
+   * que vê tudo.
+   */
+  if (loja) q = q.eq('store_id', loja)
+
+  const { data } = await q
 
   const rows: RecurrenteRow[] = (data ?? []).map((r: any) => ({
     id: r.id,

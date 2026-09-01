@@ -41,6 +41,12 @@ interface NavItem {
    * contrário. O inverso — `adminOnly` esquecido — abriria por descuido.
    */
   operadoraVe?: boolean
+  /**
+   * Item de configuração da REDE — lojas, usuários, metas, regras do negócio.
+   * Só o admin global. Um admin de loja que abrisse isso estaria mexendo na
+   * outra loja por tabela.
+   */
+  redeOnly?: boolean
   /** Abre em nova aba/janela (o PDV é uma superfície separada, de operação). */
   newTab?: boolean
 }
@@ -93,13 +99,15 @@ const NAV_GROUPS: NavGroup[] = [
     titulo: 'Gestão',
     itens: [
       { label: 'Financeiro',    href: '/financeiro',    icon: <BarChart2 size={18} />, adminOnly: true },
-      { label: 'Configurações', href: '/configuracoes', icon: <Settings size={18} />, adminOnly: true },
+      { label: 'Configurações', href: '/configuracoes', icon: <Settings size={18} />, adminOnly: true, redeOnly: true },
     ],
   },
 ]
 
 interface SidebarProps {
   userRole?: 'admin' | 'operator'
+  /** Admin global: vê as duas lojas e manda na configuração da rede. */
+  podeConfigurarRede?: boolean
   userName?: string
   storeName?: string
   theme?: 'dark' | 'light'
@@ -113,7 +121,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({
-  userRole = 'operator', userName, storeName,
+  userRole = 'operator', podeConfigurarRede = false, userName, storeName,
   theme = 'dark', onToggleTheme,
   collapsed, onToggle,
   aberta = false, onFechar,
@@ -142,7 +150,7 @@ export default function Sidebar({
       itens: g.itens.filter(i =>
         userRole === 'operator'
           ? i.operadoraVe === true          // lista curta e explícita
-          : !i.adminOnly || userRole === 'admin'),
+          : (!i.adminOnly || userRole === 'admin') && (!i.redeOnly || podeConfigurarRede)),
     }))
     .filter(g => g.itens.length > 0)
 
