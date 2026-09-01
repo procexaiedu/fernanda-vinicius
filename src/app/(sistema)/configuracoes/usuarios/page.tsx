@@ -5,6 +5,7 @@ import { getProgressByUser } from '@/lib/metas/server'
 import { currentMonthKey } from '@/lib/metas/compute'
 import UsuariosClient from './UsuariosClient'
 import styles from './page.module.css'
+import PageHeader from '@/components/ui/PageHeader'
 
 export interface UserWithMetrics {
   id: string
@@ -95,10 +96,10 @@ export default async function UsuariosPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.heading}>
-        <h1 className={styles.title}>Usuários</h1>
-        <p className={styles.subtitle}>Gerencie a equipe e acompanhe a performance das vendedoras.</p>
-      </div>
+      <PageHeader
+        title="Usuários"
+        subtitle="Gerencie a equipe e acompanhe a performance das vendedoras."
+      />
       <UsuariosClient
         users={users}
         stores={stores}

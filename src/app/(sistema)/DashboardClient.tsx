@@ -28,6 +28,7 @@ import {
 import styles from './DashboardClient.module.css'
 import { formatarTelefone } from '@/lib/telefone'
 import { formatarDinheiro, formatarEixo } from '@/lib/dinheiro'
+import PageHeader from '@/components/ui/PageHeader'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -306,12 +307,10 @@ export default function DashboardClient({
     <div className={`${styles.page} ${loading ? styles.loading : ''}`}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className={styles.header}>
-        <div className={styles.headerLeft}>
-          <h1 className={styles.title}>Dashboard</h1>
-          <p className={styles.subtitle}>Visão geral do seu negócio</p>
-        </div>
-        <div className={styles.controls}>
+      <PageHeader
+        title="Dashboard"
+        subtitle="Visão geral do seu negócio"
+        actions={<>
           {/*
             O seletor só existe para quem pode trocar de loja. Quem está preso a
             uma via "Todas as lojas" ali e podia clicar — o dado vinha filtrado
@@ -332,8 +331,8 @@ export default function DashboardClient({
               <ChevronRight size={16} />
             </button>
           </div>
-        </div>
-      </div>
+        </>}
+      />
 
       {/*
         ── Seção 1: resultado do mês + indicadores ──────────────────────────

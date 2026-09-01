@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireProfile, ehOperadora } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import DisparosClient from './DisparosClient'
+import PageHeader from '@/components/ui/PageHeader'
 
 export interface DisparoRow {
   disparo_id: string
@@ -71,14 +72,10 @@ export default async function DisparosPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-          Disparos
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          Envie avisos por WhatsApp para os clientes de cada loja e acompanhe a entrega.
-        </p>
-      </div>
+      <PageHeader
+        title="Disparos"
+        subtitle="Envie avisos por WhatsApp para os clientes de cada loja e acompanhe a entrega."
+      />
       <DisparosClient
         disparos={disparos}
         stores={stores}

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Store } from '@/types'
 import LojasClient from './LojasClient'
 import styles from './page.module.css'
+import PageHeader from '@/components/ui/PageHeader'
 
 export default async function LojasPage() {
 
@@ -26,10 +27,7 @@ export default async function LojasPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.heading}>
-        <h1 className={styles.title}>Lojas</h1>
-        <p className={styles.subtitle}>Gerencie as lojas da sua rede.</p>
-      </div>
+      <PageHeader title="Lojas" subtitle="Gerencie as lojas da sua rede." />
       <LojasClient stores={(stores as Store[]) ?? []} />
     </div>
   )

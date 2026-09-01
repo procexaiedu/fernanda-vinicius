@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import FornecedoresClient from './FornecedoresClient'
+import PageHeader from '@/components/ui/PageHeader'
 
 export interface SupplierPhone {
   number: string
@@ -118,14 +119,10 @@ export default async function FornecedoresPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-          Fornecedores
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          Gerencie os fornecedores cadastrados e acompanhe o investimento por fornecedor.
-        </p>
-      </div>
+      <PageHeader
+        title="Fornecedores"
+        subtitle="Gerencie os fornecedores cadastrados e acompanhe o investimento por fornecedor."
+      />
       <FornecedoresClient suppliers={suppliersWithCount} />
     </div>
   )

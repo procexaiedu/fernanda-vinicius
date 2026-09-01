@@ -14,27 +14,9 @@
 
 /* ── Header ────────────────────────────────────────────────────────────────── */
 
-.header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
 
-.headerLeft {}
 
-.title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 2px;
-}
 
-.subtitle {
-  font-size: 13px;
-  color: var(--text-muted);
-}
 
 .controls {
   display: flex;

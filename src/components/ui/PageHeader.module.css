@@ -33,6 +33,33 @@
   flex-shrink: 0;
 }
 
+/*
+ * Título e ações na mesma linha, alinhados pelo topo do bloco de texto — não
+ * pelo centro. Com subtítulo presente, centralizar jogaria o botão para baixo
+ * do meio e ele deixaria de acompanhar o título.
+ */
+.linha {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.textos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.acoes {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .title {
   font-size: var(--fs-page-title);
   font-weight: 700;

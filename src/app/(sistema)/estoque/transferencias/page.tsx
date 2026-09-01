@@ -1,6 +1,7 @@
 import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import TransferenciasClient from './TransferenciasClient'
+import PageHeader from '@/components/ui/PageHeader'
 
 /* 10 por página, como todas as listas do sistema — é o que o componente
  * Paginacao assume no rótulo "Mostrando 1-10 de N". */
@@ -110,14 +111,10 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-          Transferências de Estoque
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          Romaneio de envio e conferência na chegada. Peça em trânsito não conta como estoque de nenhuma das lojas.
-        </p>
-      </div>
+      <PageHeader
+        title="Transferências de Estoque"
+        subtitle="Romaneio de envio e conferência na chegada. Peça em trânsito não conta como estoque de nenhuma das lojas."
+      />
       <TransferenciasClient
         romaneios={romaneios}
         total={transfRes.count ?? 0}

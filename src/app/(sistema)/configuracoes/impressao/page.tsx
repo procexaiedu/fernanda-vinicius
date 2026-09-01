@@ -4,6 +4,7 @@ import ImpressaoClient from './ImpressaoClient'
 import CategoryMappingPanel from './CategoryMappingPanel'
 import type { CategoryMapping } from './actions'
 import styles from './page.module.css'
+import PageHeader from '@/components/ui/PageHeader'
 
 export default async function ImpressaoConfigPage() {
   const profile = await requireProfile()
@@ -24,12 +25,10 @@ export default async function ImpressaoConfigPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.heading}>
-        <h1 className={styles.title}>Impressão de etiquetas</h1>
-        <p className={styles.subtitle}>
-          Configure o agente local de impressão (<code>fv-print-agent</code>) que envia os jobs PPLA à impressora térmica Argox.
-        </p>
-      </div>
+      <PageHeader
+        title="Impressão de etiquetas"
+        subtitle={<>Configure o agente local de impressão (<code>fv-print-agent</code>) que envia os jobs PPLA à impressora térmica Argox.</>}
+      />
       <div className={styles.grid}>
         <ImpressaoClient />
         {isAdmin && <CategoryMappingPanel initialMappings={mappings} />}

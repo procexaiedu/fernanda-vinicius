@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireProfile, lojaDoEscopo, ehAdminGlobal, ehOperadora } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ProdutosClient from './ProdutosClient'
+import PageHeader from '@/components/ui/PageHeader'
 
 const PAGE_SIZE = 50
 
@@ -125,16 +126,12 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-          Produtos
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          {isAdmin
+      <PageHeader
+        title="Produtos"
+        subtitle={isAdmin
             ? 'Gerencie o catálogo de produtos e acompanhe o estoque por loja.'
             : 'Consulte os produtos disponíveis e seus preços.'}
-        </p>
-      </div>
+      />
       <ProdutosClient
         products={products}
         total={total}
