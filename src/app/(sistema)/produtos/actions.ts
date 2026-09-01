@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { requireProfile } from '@/lib/auth'
 import { generateCode } from '@/lib/productCode'
+import type { MotivoBaixa } from '@/lib/estoque/baixa'
 
 export interface ActionResult {
   success: boolean
@@ -297,4 +299,50 @@ export async function buscarHistoricoVendas(productId: string): Promise<SaleHist
       seller_name:   sellerId ? (userMap.get(sellerId) ?? null) : null,
     }
   })
+}
+
+// ─── Baixa de estoque ─────────────────────────────────────────────────────────
+
+/**
+ * Tira peça do estoque sem simular venda.
+ *
+ * Pedido no treinamento de 31/08: a dona tinha um colar e dois brincos com
+ * defeito para devolver ao fornecedor e não tinha como tirar do estoque — a
+ * orientação na hora foi "deixa aí e avisa a equipe", ou seja, o estoque fica
+ * errado de propósito até alguém mexer no banco.
+ *
+ * O trabalho todo é da função `fv.baixar_estoque`, e não daqui: baixar o saldo
+ * e gravar o ledger precisa ser uma coisa só. Em duas chamadas daqui, uma falha
+ * no meio deixaria estoque baixado sem registro — ou registro sem baixa.
+ *
+ * Só admin. Baixar estoque é decisão de gestão, e o rastro fica em
+ * `fv.stock_movements` com motivo, quem e de-quanto-pra-quanto.
+ */
+export async function baixarEstoque(
+  productId: string,
+  quantidade: number,
+  motivo: MotivoBaixa,
+  notas?: string,
+): Promise<ActionResult> {
+  const profile = await requireProfile()
+  if (profile.role !== 'admin') {
+    return { success: false, error: 'Apenas administradores podem dar baixa em estoque.' }
+  }
+
+  const { data, error } = await createAdminClient().rpc('baixar_estoque', {
+    p_product_id: productId,
+    p_quantidade: quantidade,
+    p_motivo:     motivo,
+    p_user_id:    profile.id,
+    p_notas:      notas?.trim() || null,
+  })
+
+  if (error) return { success: false, error: error.message }
+
+  const r = data as { success: boolean; error?: string }
+  if (!r.success) return { success: false, error: r.error ?? 'Erro ao dar baixa.' }
+
+  revalidatePath('/estoque')
+  revalidatePath('/produtos')
+  return { success: true }
 }

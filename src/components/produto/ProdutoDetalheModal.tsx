@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Pencil, Gem, Printer, Tag, Check, Loader2 } from 'lucide-react'
+import { X, Pencil, Gem, Printer, Tag, Check, Loader2, PackageMinus, AlertTriangle } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { createClient as createBrowserClient } from '@/lib/supabase/client'
-import { buscarHistoricoVendas, setPromotionalActive, updateProductPricing, type SaleHistoryItem } from '@/app/(sistema)/produtos/actions'
+import { baixarEstoque, buscarHistoricoVendas, setPromotionalActive, updateProductPricing, type SaleHistoryItem } from '@/app/(sistema)/produtos/actions'
+import { MOTIVOS_BAIXA, type MotivoBaixa } from '@/lib/estoque/baixa'
 import styles from './ProdutoDetalheModal.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { calcularGiro, ROTULO_FAIXA, textoDias } from '@/lib/giro'
@@ -87,6 +88,30 @@ function fmtDate(s: string | null) {
 
 export default function ProdutoDetalheModal({ produto, categoryLabelMap, categories = [], staleDays = 60, isAdmin, modoBalcao = false, onClose, onEdit }: Props) {
   const giro = calcularGiro(produto, staleDays)
+
+  /*
+   * Baixa de estoque: peça com defeito, devolvida ao fornecedor, perdida.
+   * Antes não havia caminho nenhum — a orientação no treinamento de 31/08 era
+   * "deixa no estoque e avisa a equipe", o que mantém o saldo errado de
+   * propósito.
+   */
+  const [baixaAberta, setBaixaAberta] = useState(false)
+  const [baixaQtd, setBaixaQtd] = useState(1)
+  const [baixaMotivo, setBaixaMotivo] = useState<MotivoBaixa>('defeito')
+  const [baixaNotas, setBaixaNotas] = useState('')
+  const [baixando, setBaixando] = useState(false)
+  const [baixaErro, setBaixaErro] = useState<string | null>(null)
+
+  async function confirmarBaixa() {
+    setBaixando(true)
+    setBaixaErro(null)
+    const r = await baixarEstoque(produto.id, baixaQtd, baixaMotivo, baixaNotas)
+    setBaixando(false)
+    if (!r.success) { setBaixaErro(r.error ?? 'Erro ao dar baixa.'); return }
+    setBaixaAberta(false)
+    router.refresh()
+    onClose()
+  }
   type Tab = 'geral' | 'vendas' | 'transferencias'
   /* Dado interno (custo, margem, fornecedor, edição) exige as duas coisas:
      ser admin E não estar com a tela virada para a cliente. */
@@ -287,8 +312,72 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
                   <Pencil size={13} /> Editar
                 </Button>
               )}
+              {interno && produto.quantity_in_stock > 0 && (
+                <Button size="sm" variant="ghost" onClick={() => setBaixaAberta(v => !v)}>
+                  <PackageMinus size={13} /> Dar baixa
+                </Button>
+              )}
             </div>
             {promoError && <div className={styles.promoError}>{promoError}</div>}
+
+            {/*
+              Formulário de baixa. Fica inline no detalhe em vez de modal
+              próprio: a peça já está na tela, com nome e saldo à vista, e é
+              exatamente o que a pessoa precisa conferir antes de tirar do
+              estoque.
+            */}
+            {interno && baixaAberta && (
+              <div className={styles.baixaBox}>
+                <div className={styles.baixaTitulo}>
+                  <PackageMinus size={14} /> Tirar do estoque
+                </div>
+
+                <div className={styles.baixaLinha}>
+                  <label>
+                    <span>Quantidade</span>
+                    <input type="number" min={1} max={produto.quantity_in_stock}
+                      value={baixaQtd}
+                      onChange={e => setBaixaQtd(Math.min(
+                        produto.quantity_in_stock,
+                        Math.max(1, parseInt(e.target.value) || 1),
+                      ))} />
+                  </label>
+                  <span className={styles.baixaDisponivel}>de {produto.quantity_in_stock}</span>
+
+                  <label className={styles.baixaMotivo}>
+                    <span>Motivo</span>
+                    <select value={baixaMotivo}
+                      onChange={e => setBaixaMotivo(e.target.value as MotivoBaixa)}>
+                      {MOTIVOS_BAIXA.map(m => (
+                        <option key={m.valor} value={m.valor}>{m.rotulo}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <label className={styles.baixaObs}>
+                  <span>Observação (opcional)</span>
+                  <input value={baixaNotas} onChange={e => setBaixaNotas(e.target.value)}
+                    placeholder="Ex.: fecho quebrado, devolvida na nota 123" />
+                </label>
+
+                <p className={styles.baixaAviso}>
+                  <AlertTriangle size={12} /> Fica registrado quem tirou, quando e por quê.
+                  {baixaQtd >= produto.quantity_in_stock && ' A peça sai das listas por ficar sem saldo.'}
+                </p>
+
+                {baixaErro && <div className={styles.promoError}>{baixaErro}</div>}
+
+                <div className={styles.baixaAcoes}>
+                  <Button size="sm" variant="ghost" onClick={() => setBaixaAberta(false)} disabled={baixando}>
+                    Cancelar
+                  </Button>
+                  <Button size="sm" variant="danger" onClick={confirmarBaixa} loading={baixando}>
+                    Dar baixa
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {interno && editorOpen && (
               <div className={styles.pricingEditor}>
