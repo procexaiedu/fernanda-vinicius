@@ -58,6 +58,8 @@ export interface VendaFormData {
   exchangeItems: ExchangeItemSelected[]  // itens a devolver via troca
   /** Data prometida quando a venda fecha com saldo em aberto. Null quando quitada. */
   previsaoPagamento?: string | null
+  /** CPF que vai na NFC-e desta venda. Fica na venda, não no cadastro da cliente. */
+  destinatarioCpf?: string | null
   notes: string
 }
 
@@ -226,6 +228,7 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
       /* Só quando ficou saldo. O saldo em si não é gravado: sai da soma de
        * sale_payments, que é a única fonte que não pode divergir. */
       previsao_pagamento: data.previsaoPagamento ?? null,
+      destinatario_cpf:   data.destinatarioCpf ?? null,
       payment_summary: paymentSummary,
       status:          'completed',
       notes:           data.notes || null,
@@ -617,6 +620,8 @@ export interface EditSaleData {
   storeId: string
   saleDate: string   // YYYY-MM-DD
   customer: { id: string; name: string; phone: string; cpf: string | null; birthday: string | null } | null
+  /** CPF gravado nesta venda (não o do cadastro). */
+  destinatarioCpf?: string | null
   sellerId: string | null
   hasPix: boolean
   hasBirthday: boolean
@@ -785,6 +790,7 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
     /* Faltava aqui: a edição gravava tudo menos a data prometida, então
      * marcar "fica devendo" numa venda existente não persistia nada. */
     previsao_pagamento: data.previsaoPagamento ?? null,
+    destinatario_cpf:   data.destinatarioCpf ?? null,
     notes:           data.notes || null,
     updated_at:      new Date().toISOString(),
   }).eq('id', saleId)

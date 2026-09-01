@@ -14,7 +14,7 @@ import {
   salvarVenda, editarVenda, type VendaFormData,
   type SaleItem, type SalePaymentRow, type ExchangeItemSelected, type EditSaleData,
 } from '../actions'
-import { createCustomer, searchCustomers, type CustomerFormData } from '../../clientes/actions'
+import { clientesComMesmoTelefone, createCustomer, searchCustomers, type ClienteComMesmoTelefone, type CustomerFormData } from '../../clientes/actions'
 import { matchText } from '@/lib/normalize'
 import { todaySP } from '@/lib/date'
 import styles from './NovaVendaForm.module.css'
@@ -448,6 +448,8 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
   const [email, setEmail]       = useState('')
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
+  /* Mesmo aviso de /clientes: telefone repetido não bloqueia, mas aparece. */
+  const [duplicatas, setDuplicatas] = useState<ClienteComMesmoTelefone[]>([])
 
   async function handleSave() {
     if (!name.trim()) { setError('Nome é obrigatório.'); return }
@@ -485,10 +487,29 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
             <input
               className={styles.createInput}
               value={phone}
-              onChange={e => setPhone(maskPhone(e.target.value))}
+              onChange={e => {
+                const v = maskPhone(e.target.value)
+                setPhone(v)
+                clientesComMesmoTelefone(v).then(setDuplicatas)
+              }}
               placeholder="+55 (11) 99999-9999"
               inputMode="numeric"
             />
+            {duplicatas.length > 0 && (
+              <div className={styles.duplicataAviso}>
+                <AlertTriangle size={12} />
+                <span>
+                  Já cadastrada:{' '}
+                  {duplicatas.map((d, i) => (
+                    <span key={d.id}>
+                      {i > 0 && ', '}<strong>{d.name}</strong>
+                      {d.vendas > 0 && ` (${d.vendas} ${d.vendas === 1 ? 'venda' : 'vendas'})`}
+                    </span>
+                  ))}
+                  . Cancele e busque acima se for a mesma pessoa.
+                </span>
+              </div>
+            )}
           </div>
           <div className={styles.createField}>
             <label>CPF</label>
@@ -580,6 +601,20 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * precisa distinguir isso de erro de digitação — a diferença entre as duas
    * é só a intenção, e só quem está no balcão sabe qual é.
    */
+  /*
+   * CPF na nota, pedido no treinamento de 31/08.
+   *
+   * Fica na VENDA, não no cadastro da cliente: é o CPF que vai naquele
+   * documento fiscal. A cliente pode pedir em uma compra e não pedir na
+   * seguinte, e nem sempre o CPF é dela — às vezes é do marido, da mãe.
+   * Gravar no cadastro faria a próxima nota sair com CPF de outra pessoa.
+   *
+   * Vem preenchido com o CPF do cadastro quando existe, porque é o caso comum,
+   * e a operadora apaga se for outro.
+   */
+  const [destinatarioCpf, setDestinatarioCpf] = useState(editSale?.destinatarioCpf ?? '')
+  const [cpfAberto, setCpfAberto] = useState(false)
+
   const [aceitouFiado, setAceitouFiado] = useState(false)
   const [previsaoPagamento, setPrevisaoPagamento] = useState('')
 
@@ -796,6 +831,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   function selectCustomer(c: CustomerOption | null, text: string) {
     setSelectedCustomer(c)
     setCustomerSearch(text)
+    /* Sugestão, não regra: se a cliente pedir a nota, o CPF dela já está ali. */
+    setDestinatarioCpf(c?.cpf ? maskCpf(c.cpf) : '')
   }
 
   function handleCustomerCreated(c: CustomerOption) {
@@ -929,6 +966,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       hasBirthday,
       manualDiscount,
       previsaoPagamento: aceitouFiado && previsaoPagamento ? previsaoPagamento : null,
+      destinatarioCpf: destinatarioCpf.replace(/\D/g, '') || null,
       payments,
       exchangeItems: devolvidos,
       notes,
@@ -992,6 +1030,14 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                 <User size={13} />
                 <span className={styles.selectedCustomerName}>{selectedCustomer.name}</span>
                 {selectedCustomer.phone && <span className={styles.selectedCustomerMeta}>{formatarTelefone(selectedCustomer.phone)}</span>}
+                <button
+                  type="button"
+                  className={styles.cpfBtn}
+                  onClick={() => setCpfAberto(v => !v)}
+                  title="CPF para a nota fiscal"
+                >
+                  {destinatarioCpf ? `CPF ${destinatarioCpf}` : '+ CPF na nota'}
+                </button>
                 <button className={styles.clearCustomerBtn} onClick={() => selectCustomer(null, '')}>
                   <X size={12} />
                 </button>
@@ -1003,6 +1049,24 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                 onCreateClick={() => setShowCreateCustomer(true)}
                 customers={customers}
               />
+            )}
+            {selectedCustomer && cpfAberto && (
+              <div className={styles.cpfBox}>
+                <label>
+                  <span>CPF na nota fiscal</span>
+                  <input
+                    className={styles.createInput}
+                    value={destinatarioCpf}
+                    onChange={e => setDestinatarioCpf(maskCpf(e.target.value))}
+                    placeholder="000.000.000-00"
+                    inputMode="numeric"
+                    autoFocus
+                  />
+                </label>
+                <span className={styles.cpfDica}>
+                  Opcional. Só entra se a cliente pedir a nota no CPF dela.
+                </span>
+              </div>
             )}
           </div>
 
