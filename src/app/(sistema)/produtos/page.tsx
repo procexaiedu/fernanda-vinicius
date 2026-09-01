@@ -1,4 +1,5 @@
-import { requireProfile } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import { requireProfile, lojaDoEscopo, ehAdminGlobal, ehOperadora } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ProdutosClient from './ProdutosClient'
 
@@ -53,10 +54,22 @@ interface PageProps {
 export default async function ProdutosPage({ searchParams }: PageProps) {
   const params = await searchParams
   const profile = await requireProfile()
+  /* Trava própria: o layout é a rede geral, mas ela depende de um cabeçalho.
+   * Aqui não depende de nada. Ver src/app/(sistema)/layout.tsx. */
+  if (ehOperadora(profile)) redirect('/pdv')
 
 
   const isAdmin = profile.role === 'admin'
-  const effectiveStoreId = isAdmin ? (params.store_id ?? null) : profile.store_id
+  /* O seletor de loja só faz sentido para quem pode trocar de loja. */
+  const podeTrocarLoja = ehAdminGlobal(profile)
+  /*
+   * Quem tem loja está PRESO a ela — admin de loja inclusive.
+   *
+   * Antes era `isAdmin ? params.store_id : profile.store_id`, o que dava a rede
+   * inteira a qualquer admin. O filtro da URL só vale para quem não tem loja
+   * fixa; senão bastaria editar o endereço para ver a outra. Ver src/lib/auth.ts.
+   */
+  const effectiveStoreId = lojaDoEscopo(profile, params.store_id)
 
   const page = Math.max(1, Number(params.page ?? 1))
   const offset = (page - 1) * PAGE_SIZE
@@ -87,7 +100,7 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
   const [productsRes, materialsRes, storesRes, suppliersRes, categoryMappingsRes, markupRes, staleRes] = await Promise.all([
     query,
     admin.from('materials').select('name').eq('is_active', true).order('name'),
-    isAdmin ? admin.from('stores').select('id, name').order('name') : Promise.resolve({ data: [] }),
+    podeTrocarLoja ? admin.from('stores').select('id, name').order('name') : Promise.resolve({ data: [] }),
     isAdmin ? admin.from('suppliers').select('id, name, initials').eq('is_active', true).order('name') : Promise.resolve({ data: [] }),
     admin.from('category_label_mapping').select('category, label_format').eq('is_active', true).order('category'),
     admin.from('settings').select('value').eq('key', 'default_markup_pct').maybeSingle(),

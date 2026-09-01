@@ -1,4 +1,5 @@
-import { requireProfile } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import { requireProfile, ehOperadora } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ClientesClient from './ClientesClient'
 
@@ -36,6 +37,9 @@ export interface StoreOption {
 
 export default async function ClientesPage() {
   const profile = await requireProfile()
+  /* Trava própria: o layout é a rede geral, mas ela depende de um cabeçalho.
+   * Aqui não depende de nada. Ver src/app/(sistema)/layout.tsx. */
+  if (ehOperadora(profile)) redirect('/pdv')
 
   const admin = createAdminClient()
 
