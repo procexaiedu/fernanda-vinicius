@@ -626,6 +626,13 @@
   border-color: rgba(251, 191, 36, 0.28);
 }
 
+.stockTextos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .stockValue {
   font-size: 22px;
   font-weight: 700;
@@ -643,10 +650,15 @@
   color: var(--text-muted);
 }
 
+/*
+ * 10px em `--text-disabled` sobre o fundo âmbar do cartão de alerta era menos
+ * legível que o rótulo que ele explica. Sobe para 11px e para `--text-muted`:
+ * continua secundário, mas dá para ler o que é a régua dos "+30 dias".
+ * O `margin-top` saiu porque o `gap` de `.stockTextos` agora faz esse trabalho.
+ */
 .stockHint {
-  font-size: 10px;
-  color: var(--text-disabled);
-  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 /* ── Chart ─────────────────────────────────────────────────────────────────── */
@@ -1047,8 +1059,21 @@
   flex: 1;
 }
 
+/*
+ * O estado vazio ocupa o cartão e centraliza nos dois eixos.
+ *
+ * Com `padding` só, o texto encostava no topo e sobrava um vão embaixo — em
+ * "Vendas por categoria", "Evolução de vendas" e "Vendedoras" dava três
+ * cartões com a frase colada em cima de um buraco. `min-height` casa com a
+ * altura útil do painel para o cartão não encolher quando não há dado.
+ */
 .chartEmpty {
-  padding: 32px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  flex: 1;
+  padding: 24px 18px;
   font-size: 13px;
   color: var(--text-muted);
   text-align: center;
