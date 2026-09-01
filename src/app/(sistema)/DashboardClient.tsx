@@ -155,6 +155,8 @@ function CustomTooltip({ active, payload, label }: any) {
 
 interface Props {
   isAdmin: boolean
+  /** Vê mais de uma loja e portanto pode alternar. Só o admin global. */
+  podeTrocarLoja: boolean
   initialStoreId: string | null
   lojas: StoreOption[]
   settings: DashboardSettings
@@ -175,7 +177,7 @@ interface Props {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function DashboardClient({
-  isAdmin, initialStoreId, lojas, settings, inactiveDays,
+  isAdmin, podeTrocarLoja, initialStoreId, lojas, settings, inactiveDays,
   initialKpis, initialEstoque, initialGrafico,
   initialTopVendedoras,
   initialPecasParadas, initialContasVencer, initialAniversariantes,
@@ -310,7 +312,12 @@ export default function DashboardClient({
           <p className={styles.subtitle}>Visão geral do seu negócio</p>
         </div>
         <div className={styles.controls}>
-          {isAdmin && (
+          {/*
+            O seletor só existe para quem pode trocar de loja. Quem está preso a
+            uma via "Todas as lojas" ali e podia clicar — o dado vinha filtrado
+            do servidor, mas a tela oferecia uma escolha que não existe.
+          */}
+          {podeTrocarLoja && (
             <FilterDropdown
               label="Loja"
               value={storeId ?? '__all__'}

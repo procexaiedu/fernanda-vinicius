@@ -40,6 +40,7 @@ function telaTrataOBipe(pathname: string) {
 interface SistemaLayoutClientProps {
   userName: string
   userRole: 'admin' | 'operator'
+  podeConfigurarRede: boolean
   storeName?: string
   children: React.ReactNode
 }
@@ -47,6 +48,7 @@ interface SistemaLayoutClientProps {
 export default function SistemaLayoutClient({
   userName,
   userRole,
+  podeConfigurarRede,
   storeName,
   children,
 }: SistemaLayoutClientProps) {
@@ -147,6 +149,7 @@ export default function SistemaLayoutClient({
     <div className={styles.root}>
       <Sidebar
         userRole={userRole}
+        podeConfigurarRede={podeConfigurarRede}
         userName={userName}
         storeName={storeName}
         theme={theme}
