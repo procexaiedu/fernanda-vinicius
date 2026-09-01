@@ -91,6 +91,12 @@ export default function ClientesClient({
   const [customers, setCustomers]         = useState(initial)
   const [search, setSearch]               = useState('')
   const [filter, setFilter]               = usePersistedState<FilterType>('fv-filtros-clientes-filter', 'todos')
+  /*
+   * Aba de loja. Persistida como as outras: a dona gerencia as duas unidades e
+   * volta à tela dezenas de vezes por dia — reescolher a loja toda vez é atrito
+   * que só quem não usa não sente.
+   */
+  const [lojaAba, setLojaAba]             = usePersistedState<string>('fv-filtros-clientes-loja', '')
   const [sortKey, setSortKey]             = usePersistedState<SortKey>('fv-filtros-clientes-sortkey', 'last_sale_date')
   const [sortDir, setSortDir]             = usePersistedState<SortDir>('fv-filtros-clientes-sortdir', 'desc')
   const [formOpen, setFormOpen]           = useState(false)
@@ -104,6 +110,7 @@ export default function ClientesClient({
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     const list = customers.filter(c => {
+      if (lojaAba && c.origin_store_id !== lojaAba) return false
       if (filter === 'aniversariantes' && !isBirthdayThisMonth(c.birthday)) return false
       if (filter === 'inativos' && !isInactive(c.last_sale_date, inactiveDays)) return false
       if (q) {
@@ -126,7 +133,7 @@ export default function ClientesClient({
       }
       return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [customers, search, filter, inactiveDays, sortKey, sortDir])
+  }, [customers, search, filter, lojaAba, inactiveDays, sortKey, sortDir])
 
   // 10 por página, cortadas localmente: as 760 clientes já estão na memória, então
   // trocar de página é instantâneo e não custa ida ao servidor.
@@ -136,6 +143,13 @@ export default function ClientesClient({
     aniversariantes: customers.filter(c => isBirthdayThisMonth(c.birthday)).length,
     inativos:        customers.filter(c => isInactive(c.last_sale_date, inactiveDays)).length,
   }), [customers, inactiveDays])
+
+  /* Quantas clientes por loja — o número na aba evita clicar para descobrir. */
+  const porLoja = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const c of customers) m.set(c.origin_store_id, (m.get(c.origin_store_id) ?? 0) + 1)
+    return m
+  }, [customers])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -173,6 +187,35 @@ export default function ClientesClient({
       {/* De onde vem o faturamento. A tabela responde "quem é a cliente X"; isto
           responde de quem vem o dinheiro, que é o que decide a quem dar atenção. */}
       <PanoramaClientes customers={customers} vendaAvulsa={vendaAvulsa} />
+
+      {/*
+        Abas de loja. Pedido no treinamento de 31/08 — ela gerencia duas
+        unidades e precisa alternar rápido. Aba em vez de dropdown porque é um
+        clique em vez de dois, e o número ao lado responde "quantas tem lá?"
+        sem precisar clicar.
+
+        Só aparece com mais de uma loja: com uma só, seria uma aba solitária
+        ocupando espaço para não filtrar nada.
+      */}
+      {stores.length > 1 && (
+        <div className={styles.lojaAbas}>
+          <button
+            className={`${styles.lojaAba} ${!lojaAba ? styles.lojaAbaAtiva : ''}`}
+            onClick={() => setLojaAba('')}
+          >
+            Todas <span className={styles.lojaAbaCount}>{customers.length}</span>
+          </button>
+          {stores.map(loja => (
+            <button
+              key={loja.id}
+              className={`${styles.lojaAba} ${lojaAba === loja.id ? styles.lojaAbaAtiva : ''}`}
+              onClick={() => setLojaAba(loja.id)}
+            >
+              {loja.name} <span className={styles.lojaAbaCount}>{porLoja.get(loja.id) ?? 0}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className={styles.toolbar}>

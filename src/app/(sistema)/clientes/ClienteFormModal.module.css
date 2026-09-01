@@ -239,3 +239,21 @@
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* ── Aviso de telefone já cadastrado ── */
+
+.duplicataAviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: -4px;
+  padding: 9px 11px;
+  background: var(--warning-subtle);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.duplicataAviso svg { flex-shrink: 0; margin-top: 1px; color: var(--warning); }

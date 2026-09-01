@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown, Check, Loader2 } from 'lucide-react'
+import { ChevronDown, Check, Loader2, AlertTriangle } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
-import { createCustomer, updateCustomer } from './actions'
+import { clientesComMesmoTelefone, createCustomer, updateCustomer, type ClienteComMesmoTelefone } from './actions'
 import type { CustomerWithStats, StoreOption } from './page'
 import { mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/telefone'
 import { mascararCep } from '@/lib/cep'
@@ -124,6 +124,19 @@ export default function ClienteFormModal({
    * numa linha só. Por isso o bairro não entra no campo — ele aparece como
    * dica embaixo, para a operadora completar junto com o número.
    */
+  /*
+   * Quem mais usa este telefone.
+   *
+   * AVISA, não bloqueia. Medido na base: dos 8 telefones repetidos, quatro são
+   * a mesma pessoa cadastrada duas vezes (Lucia Campos / Lucia Avary) e quatro
+   * são pessoas diferentes de verdade — mãe e filha dividindo telefone, ou um
+   * número digitado errado no cadastro de outra cliente.
+   *
+   * Um índice único derrubaria os casos legítimos junto com os errados. Quem
+   * distingue é quem está atendendo.
+   */
+  const [duplicatas, setDuplicatas] = useState<ClienteComMesmoTelefone[]>([])
+
   const [bairroSugerido, setBairroSugerido] = useState('')
   const enderecoRef = useRef<HTMLInputElement>(null)
 
@@ -206,10 +219,32 @@ export default function ClienteFormModal({
             <input
               className={`${styles.input} ${errors.phone ? styles.inputError : ''}`}
               value={form.phone}
-              onChange={e => set('phone', maskPhone(e.target.value))}
+              onChange={e => {
+                const v = maskPhone(e.target.value)
+                set('phone', v)
+                /* Consulta ao sair do campo seria tarde: ela já digitou o nome
+                   inteiro. Aqui responde enquanto ainda dá para desistir. */
+                clientesComMesmoTelefone(v, customer?.id).then(setDuplicatas)
+              }}
               placeholder="+55 (19) 99999-9999"
             />
           </Field>
+          {duplicatas.length > 0 && (
+            <div className={styles.duplicataAviso}>
+              <AlertTriangle size={13} />
+              <span>
+                Já existe cliente com este telefone:{' '}
+                {duplicatas.map((d, i) => (
+                  <span key={d.id}>
+                    {i > 0 && ', '}
+                    <strong>{d.name}</strong>
+                    {d.vendas > 0 && ` (${d.vendas} ${d.vendas === 1 ? 'venda' : 'vendas'})`}
+                  </span>
+                ))}
+                . Pode ser a mesma pessoa — ou alguém da família com o mesmo número.
+              </span>
+            </div>
+          )}
           <Field label="CPF" error={errors.cpf}>
             <input
               className={`${styles.input} ${errors.cpf ? styles.inputError : ''}`}

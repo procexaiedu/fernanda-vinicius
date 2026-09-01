@@ -38,6 +38,16 @@ export interface SaleRow {
   payment_summary: string | null
   status: string
   has_exchange: boolean
+  /*
+   * Saldo em aberto: total menos o que entrou em `sale_payments`.
+   *
+   * DERIVADO, nunca guardado. `sale_payments` é quem sabe quanto foi pago; uma
+   * coluna espelho em `sales` seria um segundo número contando a mesma coisa,
+   * e um dia os dois discordariam.
+   */
+  valor_pago: number
+  falta_pagar: number
+  previsao_pagamento: string | null
 }
 
 export default async function VendasPage() {
@@ -50,7 +60,7 @@ export default async function VendasPage() {
     .from('sales')
     .select(`
       id, sale_date, created_at, subtotal, discount_pct, discount_amount, total,
-      payment_summary, status, store_id, seller_id,
+      payment_summary, status, store_id, seller_id, previsao_pagamento,
       customers(name, id),
       stores(name)
     `)
@@ -84,7 +94,7 @@ export default async function VendasPage() {
   const sellerIds = [...new Set((rawSales ?? []).map((s: any) => s.seller_id).filter(Boolean))]
 
   // Lote 2 — tudo que depende dos ids das vendas, também em paralelo
-  const [itemCountsRes, exchangesRes, sellersRes] = await Promise.all([
+  const [itemCountsRes, exchangesRes, sellersRes, paymentsRes] = await Promise.all([
     saleIds.length
       ? admin.from('sale_items').select('sale_id').in('sale_id', saleIds)
       : Promise.resolve({ data: [] as any[] }),
@@ -94,7 +104,16 @@ export default async function VendasPage() {
     sellerIds.length
       ? admin.from('users').select('id, full_name').in('id', sellerIds as string[])
       : Promise.resolve({ data: [] as any[] }),
+    saleIds.length
+      ? admin.from('sale_payments').select('sale_id, amount').in('sale_id', saleIds)
+      : Promise.resolve({ data: [] as { sale_id: string; amount: number }[] }),
   ])
+
+  /* Quanto entrou por venda. Some daqui, não de uma coluna em `sales`. */
+  const pagoPorVenda = new Map<string, number>()
+  for (const p of (paymentsRes.data ?? []) as { sale_id: string; amount: number }[]) {
+    pagoPorVenda.set(p.sale_id, (pagoPorVenda.get(p.sale_id) ?? 0) + Number(p.amount))
+  }
 
   const itemCounts = new Map<string, number>()
   for (const item of (itemCountsRes.data ?? []) as any[]) {
@@ -124,6 +143,10 @@ export default async function VendasPage() {
     payment_summary: s.payment_summary,
     status:          s.status,
     has_exchange:    exchangeSaleIds.has(s.id),
+    valor_pago:      pagoPorVenda.get(s.id) ?? 0,
+    /* Arredondado para não gerar "falta R$0,00" por resto de ponto flutuante. */
+    falta_pagar:     parseFloat((Number(s.total) - (pagoPorVenda.get(s.id) ?? 0)).toFixed(2)),
+    previsao_pagamento: s.previsao_pagamento ?? null,
   }))
 
   const stores = storesRes.data ?? []
