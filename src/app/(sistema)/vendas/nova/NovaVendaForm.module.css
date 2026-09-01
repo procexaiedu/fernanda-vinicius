@@ -1011,3 +1011,34 @@
   font-size: 12px;
   color: var(--text-muted);
 }
+
+/* ── Troca por item ── */
+
+.thTroca { width: 48px; text-align: center; }
+.tdTroca { text-align: center; }
+
+.trocaBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-disabled);
+  cursor: pointer;
+}
+
+.trocaBtn:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-muted); }
+.trocaBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Verde porque é entrada: a peça está voltando para a gaveta. Mesma cor que o
+ * subtotal negativo da linha, para os dois lerem como uma coisa só. */
+.trocaBtnAtivo {
+  background: var(--success-subtle);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.subtotalTroca { color: var(--success); }
