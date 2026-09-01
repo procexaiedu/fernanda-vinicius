@@ -728,12 +728,25 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     ? parseFloat((subtotal * manualPct / 100).toFixed(2))
     : manualValor
   const discountPct    = (hasPix ? settings.pixDiscountPct : 0) + (hasBirthday ? settings.birthdayDiscountPct : 0)
-  // Desconto bruto → total arredondado para o inteiro mais próximo quando HÁ desconto
-  // (≥0,50 sobe, <0,50 desce). O desconto é reconciliado p/ que subtotal − desconto = total.
-  // Assim o valor exibido já é redondo e é exatamente o que grava no banco.
+  /*
+   * Havendo desconto, o total sobe para o inteiro seguinte — SEMPRE para cima,
+   * nunca para o mais próximo.
+   *
+   * Era `Math.round`, e por isso 1372 − 5% = 1303,40 virava R$1.303,00. A loja
+   * cobrou R$1.304,00 da Juliana Benatti em 29/08, e o sistema registrou 1303:
+   * um real de diferença entre o caixa e o cadastro, calado. Com `ceil` os dois
+   * passam a dizer a mesma coisa.
+   *
+   * O desconto é reconciliado depois (subtotal − total), então o que fica
+   * gravado é sempre coerente com o total.
+   *
+   * Só arredonda quando HÁ desconto: sem ele o subtotal já é o preço de
+   * etiqueta, e 1 de 561 produtos tem centavos — subir esse não é
+   * arredondamento, é cobrar a mais sem motivo.
+   */
   const rawDiscount    = subtotal * discountPct / 100 + manualDiscount
   const rawTotal       = Math.max(0, subtotal - rawDiscount)
-  const total          = rawDiscount > 0 ? Math.round(rawTotal) : parseFloat(rawTotal.toFixed(2))
+  const total          = rawDiscount > 0 ? Math.ceil(rawTotal) : parseFloat(rawTotal.toFixed(2))
   const discountAmt    = parseFloat((subtotal - total).toFixed(2))
   const paidTotal      = payments.reduce((s, p) => s + p.amount, 0)
   const coveredTotal   = paidTotal
