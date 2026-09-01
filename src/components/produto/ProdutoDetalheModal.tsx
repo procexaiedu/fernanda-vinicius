@@ -435,11 +435,11 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
         </div>
 
         {/* Tabs */}
-        <div className={styles.tabs}>
+        <div className="tabs">
           {tabs.map(t => (
             <button
               key={t.key}
-              className={`${styles.tab} ${tab === t.key ? styles.tabActive : ''}`}
+              className={`tab ${tab === t.key ? 'tab-active' : ''}`}
               onClick={() => setTab(t.key)}
             >
               {t.label}

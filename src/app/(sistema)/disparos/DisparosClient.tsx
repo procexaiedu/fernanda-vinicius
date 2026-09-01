@@ -188,7 +188,7 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
                         ) : (
                           <>
                             <button
-                              className={styles.iconBtn}
+                              className="icon-btn"
                               title="Ver detalhes"
                               onClick={e => { e.stopPropagation(); setDetalhe(d) }}
                             >
@@ -196,7 +196,7 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
                             </button>
                             {isDraft && (
                               <button
-                                className={styles.iconBtn}
+                                className="icon-btn"
                                 title="Editar"
                                 onClick={e => openEditar(d, e)}
                               >
@@ -204,7 +204,7 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
                               </button>
                             )}
                             <button
-                              className={styles.iconBtn}
+                              className="icon-btn"
                               title="Duplicar (reenviar)"
                               disabled={duplicatingId === d.disparo_id}
                               onClick={e => handleDuplicate(d, e)}
@@ -213,7 +213,7 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
                             </button>
                             {isDraft && (
                               <button
-                                className={`${styles.iconBtn} ${styles.iconBtnSend}`}
+                                className={`icon-btn ${styles.iconBtnSend}`}
                                 title="Disparar agora"
                                 disabled={sendingId === d.disparo_id}
                                 onClick={e => handleSend(d, e)}
@@ -222,7 +222,7 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
                               </button>
                             )}
                             <button
-                              className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                              className={`icon-btn ${styles.iconBtnDanger}`}
                               title="Excluir"
                               disabled={deletingId === d.disparo_id}
                               onClick={e => handleDelete(d.disparo_id, e)}

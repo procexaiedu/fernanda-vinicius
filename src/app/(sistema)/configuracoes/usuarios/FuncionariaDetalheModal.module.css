@@ -110,38 +110,6 @@
 
 /* ─── Abas ──────────────────────────────────────────────── */
 
-.tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 20px;
-  margin-left: -24px;
-  margin-right: -24px;
-  padding-left: 24px;
-}
-
-.tab {
-  padding: 8px 16px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 500;
-  font-family: inherit;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
-  white-space: nowrap;
-}
-
-.tab:hover { color: var(--text-secondary); }
-
-.tabActive {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-
 /* ─── Corpo ─────────────────────────────────────────────── */
 
 .body { min-height: 240px; }

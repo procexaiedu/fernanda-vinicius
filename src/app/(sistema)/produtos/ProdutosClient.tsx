@@ -464,11 +464,11 @@ export default function ProdutosClient({
                             </>
                           ) : (
                             <>
-                              <button className={styles.iconBtn} title="Editar" onClick={e => openEdit(prod, e)}>
+                              <button className="icon-btn" title="Editar" onClick={e => openEdit(prod, e)}>
                                 <Pencil size={14} />
                               </button>
                               <button
-                                className={`${styles.iconBtn} ${prod.is_active ? styles.iconBtnDanger : styles.iconBtnSuccess}`}
+                                className={`icon-btn ${prod.is_active ? styles.iconBtnDanger : styles.iconBtnSuccess}`}
                                 title={prod.is_active ? 'Inativar' : 'Reativar'}
                                 disabled={togglingId === prod.id}
                                 onClick={e => handleToggle(prod, e)}

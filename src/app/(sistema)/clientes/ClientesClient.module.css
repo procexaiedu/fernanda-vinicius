@@ -252,27 +252,6 @@
   gap: 4px;
 }
 
-.iconBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: none;
-  color: var(--text-muted);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
-}
-
-.iconBtn:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-}
-
-.iconBtn:disabled { opacity: 0.4; cursor: not-allowed; }
-
 .iconBtnDanger:hover { background: var(--danger-subtle); color: var(--danger); }
 
 .confirmText {
@@ -309,36 +288,6 @@
 .row {}
 
 /* ── Abas de loja ── */
-
-.lojaAbas {
-  display: flex;
-  gap: 2px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.lojaAba {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  color: var(--text-muted);
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.lojaAba:hover { color: var(--text-primary); }
-
-.lojaAbaAtiva {
-  color: var(--text-primary);
-  border-bottom-color: var(--accent);
-  font-weight: 600;
-}
 
 .lojaAbaCount {
   padding: 1px 6px;

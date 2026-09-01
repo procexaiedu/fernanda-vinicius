@@ -192,11 +192,11 @@ export default function LojaDetalheModal({ store, onClose, onEdit }: Props) {
       </div>
 
       {/* ── Abas ─────────────────────────────────────────── */}
-      <div className={styles.tabs}>
+      <div className="tabs">
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            className={`${styles.tab} ${activeTab === tab.key ? styles.tabActive : ''}`}
+            className={`tab ${activeTab === tab.key ? 'tab-active' : ''}`}
             onClick={() => setActiveTab(tab.key)}
           >
             {tab.label}

@@ -275,25 +275,6 @@
   font-weight: 600;
 }
 
-.iconBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.iconBtn:hover {
-  background: rgba(var(--accent-rgb), 0.1);
-  color: var(--accent);
-}
-
 /* ── Empty ──────────────────────────────────────────────────────────────── */
 
 .empty {

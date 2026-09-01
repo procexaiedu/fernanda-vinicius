@@ -315,7 +315,7 @@ export default function EstoqueClient({
                     </td>
 
                     <td onClick={e => e.stopPropagation()}>
-                      <button className={styles.iconBtn} title="Ver detalhes" onClick={() => setDetalhe(prod)}>
+                      <button className="icon-btn" title="Ver detalhes" onClick={() => setDetalhe(prod)}>
                         <BarChart2 size={14} />
                       </button>
                     </td>

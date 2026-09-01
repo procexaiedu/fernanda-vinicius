@@ -76,7 +76,7 @@ export default function ConfigNavTabs() {
               href={tab.href}
               data-ativa={ativa}
               aria-current={ativa ? 'page' : undefined}
-              className={`${styles.tab} ${ativa ? styles.tabActive : ''}`}
+              className={`tab ${ativa ? 'tab-active' : ''}`}
             >
               {tab.label}
             </Link>

@@ -859,3 +859,93 @@ table td:first-child:not([class*="col-"]) {
   [role="dialog"] table thead,
   [role="dialog"] table tbody { display: table; width: 100%; }
 }
+
+
+/* ─── Botão de ícone das tabelas ────────────────────────────────────────────
+ *
+ * Havia NOVE cópias de `.iconBtn`, uma por CSS Module, e elas divergiram:
+ * três raios diferentes (`6px`, `--radius-sm`, `--radius-md`), dois fundos de
+ * hover (`--bg-elevated`, `--bg-base`) e uma com borda enquanto as outras oito
+ * não tinham. Nenhuma declarava `font-size`, então todas caíam nos 13,33px
+ * padrão do navegador — o sinal de que ninguém as tinha estilizado de fato.
+ *
+ * Uma definição só, aqui. Os modificadores (`iconBtnDanger`, `iconBtnSend`)
+ * continuam no Module de cada tela: eles são a exceção, e exceção é local.
+ */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+
+/* ─── Abas de sublinhado ────────────────────────────────────────────────────
+ *
+ * Sete telas desenharam esta mesma aba no próprio Module — Financeiro,
+ * Configurações, Clientes e os modais de Loja, Funcionária, Fornecedor e
+ * Produto — e as sete divergiram no detalhe: `padding` de `0 16px`, `8px 14px`,
+ * `8px 16px` e `8px 18px`; `font-weight` 500 e 600; hover em
+ * `--text-secondary` e em `--text-primary`. Medido na tela, a fileira do
+ * Financeiro tinha 37px de altura e a de Clientes 34px.
+ *
+ * Uma definição só. O que é específico de cada tela — contagem ao lado do
+ * nome, ícone, largura — continua no Module dela.
+ */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.tab:hover { color: var(--text-secondary); }
+
+.tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}

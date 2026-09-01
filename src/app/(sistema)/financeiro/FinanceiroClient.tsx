@@ -296,7 +296,7 @@ export default function FinanceiroClient({ stores, podeTrocarLoja, users, catego
         ] as const).map(([key, label]) => (
           <button
             key={key}
-            className={`${styles.tab} ${activeTab === key ? styles.tabActive : ''}`}
+            className={`tab ${activeTab === key ? 'tab-active' : ''}`}
             onClick={() => setActiveTab(key)}
           >
             {label}
@@ -601,7 +601,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                   <div className={styles.actionsCell}>
                     {tx.status === 'pending' && (
                       <button
-                        className={`${styles.iconBtn} ${styles.iconBtnSuccess}`}
+                        className={`icon-btn ${styles.iconBtnSuccess}`}
                         title="Marcar como pago"
                         onClick={() => handleMarkPaid(tx.id)}
                       >
@@ -611,7 +611,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                     {tx.reference_type === 'manual' && (
                       <>
                         <button
-                          className={styles.iconBtn}
+                          className="icon-btn"
                           title="Editar"
                           onClick={() => { setEditingTx(tx); setShowModal(true) }}
                         >
@@ -624,7 +624,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                           </div>
                         ) : (
                           <button
-                            className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                            className={`icon-btn ${styles.iconBtnDanger}`}
                             title="Deletar"
                             onClick={() => setDeleteConfirm(tx.id)}
                           >
@@ -783,7 +783,7 @@ function PendenciasModal({
                         <td onClick={e => e.stopPropagation()}>
                           <div className={styles.actionsCell}>
                             <button
-                              className={`${styles.iconBtn} ${styles.iconBtnSuccess}`}
+                              className={`icon-btn ${styles.iconBtnSuccess}`}
                               title="Marcar como pago"
                               onClick={() => onMarkPaid(p.id)}
                             >
@@ -1320,7 +1320,7 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
                 <td>
                   <div className={styles.actionsCell}>
                     <button
-                      className={styles.iconBtn}
+                      className="icon-btn"
                       onClick={() => { setEditing(r); setShowModal(true) }}
                     >
                       <Pencil size={13} />
@@ -1332,7 +1332,7 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
                       </div>
                     ) : (
                       <button
-                        className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                        className={`icon-btn ${styles.iconBtnDanger}`}
                         onClick={() => setDeleteConfirm(r.id)}
                       >
                         <Trash2 size={13} />

@@ -256,11 +256,11 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDe
       </div>
 
       {/* ── Abas ───────────────────────────────────────────── */}
-      <div className={styles.tabs}>
+      <div className="tabs">
         {(['geral', 'produtos', 'financeiro'] as const).map(key => (
           <button
             key={key}
-            className={`${styles.tab} ${activeTab === key ? styles.tabActive : ''}`}
+            className={`tab ${activeTab === key ? 'tab-active' : ''}`}
             onClick={() => setActiveTab(key)}
           >
             {key === 'geral' ? 'Visão Geral' : key === 'produtos' ? 'Produtos' : 'Financeiro'}

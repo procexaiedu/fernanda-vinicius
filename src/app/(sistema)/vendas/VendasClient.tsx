@@ -471,10 +471,10 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                   </td>
                   <td onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'inline-flex', gap: 4 }}>
-                      <button className={styles.iconBtn} onClick={() => setDetalheId(s.id)} title="Ver detalhe">
+                      <button className="icon-btn" onClick={() => setDetalheId(s.id)} title="Ver detalhe">
                         <BarChart2 size={13} />
                       </button>
-                      <Link className={styles.iconBtn} href={`/vendas/${s.id}/editar`} title="Editar venda">
+                      <Link className="icon-btn" href={`/vendas/${s.id}/editar`} title="Editar venda">
                         <Pencil size={13} />
                       </Link>
                     </div>

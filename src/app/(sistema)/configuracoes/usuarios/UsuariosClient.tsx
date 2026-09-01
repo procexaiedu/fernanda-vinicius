@@ -281,14 +281,14 @@ export default function UsuariosClient({ users: initialUsers, stores, currentUse
                           {u.is_active ? 'Inativar?' : 'Reativar?'}
                         </span>
                         <button
-                          className={`${styles.iconBtn} ${u.is_active ? styles.iconBtnDanger : styles.iconBtnSuccess}`}
+                          className={`icon-btn ${u.is_active ? styles.iconBtnDanger : styles.iconBtnSuccess}`}
                           onClick={() => handleToggle(u)}
                           disabled={togglingId === u.id}
                         >
                           {togglingId === u.id ? '…' : 'Sim'}
                         </button>
                         <button
-                          className={styles.iconBtn}
+                          className="icon-btn"
                           onClick={() => setConfirmToggleUser(null)}
                         >
                           Não
@@ -297,28 +297,28 @@ export default function UsuariosClient({ users: initialUsers, stores, currentUse
                     ) : (
                       <div className={styles.actions}>
                         <button
-                          className={styles.iconBtn}
+                          className="icon-btn"
                           title="Ver performance"
                           onClick={() => setDetailUser(u)}
                         >
                           <BarChart2 size={14} />
                         </button>
                         <button
-                          className={styles.iconBtn}
+                          className="icon-btn"
                           title="Editar usuária"
                           onClick={() => { setEditUser(u); setFormOpen(true) }}
                         >
                           <Pencil size={14} />
                         </button>
                         <button
-                          className={styles.iconBtn}
+                          className="icon-btn"
                           title="Redefinir senha"
                           onClick={() => openReset(u)}
                         >
                           <KeyRound size={14} />
                         </button>
                         <button
-                          className={`${styles.iconBtn} ${u.is_active ? styles.iconBtnDanger : styles.iconBtnSuccess}`}
+                          className={`icon-btn ${u.is_active ? styles.iconBtnDanger : styles.iconBtnSuccess}`}
                           title={
                             u.id === currentUserId
                               ? 'Você não pode inativar sua própria conta'
