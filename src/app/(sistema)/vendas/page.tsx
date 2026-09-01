@@ -67,8 +67,21 @@ export default async function VendasPage() {
     .order('sale_date', { ascending: false })
     .limit(200)
 
-  if (profile.role === 'operator' && profile.store_id) {
+  /* Quem tem loja está preso a ela — admin de loja inclusive, não só operadora. */
+  if (profile.store_id) {
     salesQuery = salesQuery.eq('store_id', profile.store_id)
+  }
+
+  /*
+   * Operadora vê só as vendas de HOJE.
+   *
+   * Não é sigilo — é o que ela precisa. O papel dela é atender e fechar o
+   * caixa do dia; histórico de meses é conversa de gestão. E limitar aqui, no
+   * servidor, é o que impede que mudar o filtro na tela revele o resto.
+   */
+  if (profile.role === 'operator') {
+    const hoje = new Date().toISOString().slice(0, 10)
+    salesQuery = salesQuery.gte('sale_date', hoje).lte('sale_date', hoje)
   }
 
   // Fechamentos de caixa (para o filtro) — operadora vê os da própria loja
@@ -77,7 +90,7 @@ export default async function VendasPage() {
     .select('id, closing_date, created_at, period_start, store_id, user_id, sales_count, total_sales, counted_cash, cash_difference')
     .order('created_at', { ascending: false })
     .limit(60)
-  if (profile.role === 'operator' && profile.store_id) {
+  if (profile.store_id) {
     closingsQuery = closingsQuery.eq('store_id', profile.store_id)
   }
 

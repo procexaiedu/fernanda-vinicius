@@ -21,3 +21,18 @@
  * seguro (lento), nunca para o lado inseguro.
  */
 export const CABECALHO_USUARIO = 'x-fv-user-id'
+
+/**
+ * Caminho da requisição, para o layout saber QUAL tela está sendo aberta.
+ *
+ * O layout de `(sistema)` roda em toda página e é o único ponto por onde todas
+ * passam — é lá que a operadora é barrada. Só que Server Component não enxerga
+ * o pathname sozinho, então o proxy escreve aqui.
+ *
+ * Vale a mesma regra do cabeçalho de usuário: o proxy APAGA o que veio do
+ * cliente antes de escrever o seu. Um caminho forjado não sobrevive.
+ *
+ * E o layout nega quando o cabeçalho falta. Se o matcher do proxy encolher e
+ * ele parar de chegar, a operadora perde acesso — falha para o lado seguro.
+ */
+export const CABECALHO_CAMINHO = 'x-fv-pathname'

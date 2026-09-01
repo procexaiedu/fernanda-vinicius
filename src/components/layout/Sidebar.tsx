@@ -28,6 +28,19 @@ interface NavItem {
   href: string
   icon: React.ReactNode
   adminOnly?: boolean
+  /**
+   * Item que a OPERADORA enxerga. Sem esta marca, ela não vê.
+   *
+   * A lista dela é curta de propósito: PDV e as vendas do dia. Não é
+   * desconfiança — é que ela atende no balcão com um computador só, e cada
+   * tela a mais é uma tela onde dá para mudar preço, apagar peça ou ver
+   * margem sem querer.
+   *
+   * Marcar o que ELA vê, em vez de esconder o resto, faz a lista dela ser
+   * explícita: tela nova nasce fora do alcance dela até alguém decidir o
+   * contrário. O inverso — `adminOnly` esquecido — abriria por descuido.
+   */
+  operadoraVe?: boolean
   /** Abre em nova aba/janela (o PDV é uma superfície separada, de operação). */
   newTab?: boolean
 }
@@ -51,13 +64,13 @@ const NAV_GROUPS: NavGroup[] = [
   {
     itens: [
       { label: 'Dashboard', href: '/',    icon: <LayoutDashboard size={18} />, adminOnly: true },
-      { label: 'PDV',       href: '/pdv', icon: <Monitor size={18} /> },
+      { label: 'PDV',       href: '/pdv', icon: <Monitor size={18} />, operadoraVe: true },
     ],
   },
   {
     titulo: 'Vendas',
     itens: [
-      { label: 'Vendas',   href: '/vendas',   icon: <ShoppingCart size={18} /> },
+      { label: 'Vendas',   href: '/vendas',   icon: <ShoppingCart size={18} />, operadoraVe: true },
       { label: 'Clientes', href: '/clientes', icon: <Users size={18} /> },
       { label: 'Disparos', href: '/disparos', icon: <Send size={18} />, adminOnly: true },
     ],
@@ -124,7 +137,13 @@ export default function Sidebar({
   // Um grupo cujos itens são todos adminOnly desaparece inteiro para a operadora
   // — inclusive o título, senão sobraria um rótulo sem nada embaixo.
   const grupos = NAV_GROUPS
-    .map(g => ({ ...g, itens: g.itens.filter(i => !i.adminOnly || userRole === 'admin') }))
+    .map(g => ({
+      ...g,
+      itens: g.itens.filter(i =>
+        userRole === 'operator'
+          ? i.operadoraVe === true          // lista curta e explícita
+          : !i.adminOnly || userRole === 'admin'),
+    }))
     .filter(g => g.itens.length > 0)
 
   async function sair() {

@@ -89,3 +89,63 @@ export async function requireProfile(): Promise<UserProfile> {
   if (!profile || !profile.is_active) redirect('/login')
   return profile
 }
+
+// ─── Hierarquia de acesso ─────────────────────────────────────────────────────
+
+/**
+ * Três níveis, e o banco já os representa — não precisou de coluna nova.
+ *
+ *   ADMIN GLOBAL    role='admin'    · store_id NULL   → vê as duas lojas
+ *   ADMIN DE LOJA   role='admin'    · store_id setado → vê só a loja dele
+ *   OPERADORA       role='operator' · store_id setado → só PDV e vendas do dia
+ *
+ * A regra que faz tudo funcionar é uma só: **quem tem `store_id` está preso a
+ * ela**, seja admin ou não. Antes o código assumia que admin nunca tinha loja
+ * (`isAdmin ? params.store_id : profile.store_id`), então um admin com loja
+ * veria a rede inteira — o nível do meio não existia na prática.
+ */
+
+export function ehAdmin(p: UserProfile): boolean {
+  return p.role === 'admin'
+}
+
+/** Vê as duas lojas e manda na configuração da rede. */
+export function ehAdminGlobal(p: UserProfile): boolean {
+  return p.role === 'admin' && p.store_id === null
+}
+
+/** Administra de verdade, mas dentro de uma loja só. */
+export function ehAdminDeLoja(p: UserProfile): boolean {
+  return p.role === 'admin' && p.store_id !== null
+}
+
+/**
+ * A loja a que a pessoa está presa; `null` significa "vê todas".
+ *
+ * `filtroDaUrl` é o seletor de loja da tela: só vale para quem vê todas. Para
+ * os demais é ignorado de propósito — senão bastaria editar a URL para ver a
+ * outra loja, e o escopo viraria enfeite.
+ */
+export function lojaDoEscopo(p: UserProfile, filtroDaUrl?: string | null): string | null {
+  return p.store_id ?? (filtroDaUrl || null)
+}
+
+/**
+ * Configuração que vale para a rede: lojas, usuários, metas, regras do negócio.
+ * Só o admin global. Um admin de loja que pudesse criar usuário ou mudar a
+ * regra de desconto estaria mexendo na outra loja por tabela.
+ */
+export function podeConfigurarRede(p: UserProfile): boolean {
+  return ehAdminGlobal(p)
+}
+
+/**
+ * A operadora só tem PDV e as vendas do dia.
+ *
+ * Não é desconfiança: é foco. Ela atende no balcão com um computador só, e
+ * cada tela a mais é uma tela onde dá para mudar preço, apagar peça ou ver
+ * margem sem querer.
+ */
+export function ehOperadora(p: UserProfile): boolean {
+  return p.role === 'operator'
+}
