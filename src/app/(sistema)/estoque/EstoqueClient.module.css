@@ -70,13 +70,6 @@
 }
 .toggle input { cursor: pointer; accent-color: var(--accent); }
 
-.counter {
-  font-size: 12px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  margin-left: 4px;
-}
-
 .tableWrapper {
   overflow-x: auto;
   /* Sem scroll interno — a paginação de 10 em 10 já define a altura. */

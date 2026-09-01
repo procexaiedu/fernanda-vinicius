@@ -114,7 +114,15 @@ function FilterDropdown({
         onClick={toggle}
         onBlur={() => setTimeout(() => { setOpen(false); setPos(null) }, 150)}
       >
-        {selected?.label ?? label}
+        {/*
+          "Rótulo: valor", como no Dashboard. Antes mostrava só o rótulo da
+          opção, e como cada lista usava um critério diferente para a opção
+          vazia, a mesma fila misturava nome de CAMPO ("Tipo", "Categoria",
+          "Vendedor") com VALOR selecionado ("Todas as lojas") — dava para ler
+          a fileira inteira sem descobrir o que cada controle filtra.
+        */}
+        <span className={styles.filterBtnLabel}>{label}:</span>
+        <span className={styles.filterBtnValue}>{selected?.label ?? 'Todos'}</span>
         <ChevronDown size={12} />
       </button>
       {open && pos && (
@@ -418,7 +426,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
   const { fatia, pagina, totalPaginas, totalItens, irPara } = usePaginacaoLocal(ord.ordenados)
 
   const catOptions: DropdownOption[] = [
-    { value: '', label: 'Categoria' },
+    { value: '', label: 'Todas' },
     ...categories.map(c => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) })),
   ]
 
@@ -428,18 +436,18 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
   ]
 
   const userOptions: DropdownOption[] = [
-    { value: '', label: 'Vendedor' },
+    { value: '', label: 'Todos' },
     ...users.map(u => ({ value: u.id, label: u.full_name })),
   ]
 
   const typeOptions: DropdownOption[] = [
-    { value: '', label: 'Tipo' },
+    { value: '', label: 'Tudo' },
     { value: 'income', label: 'Entradas' },
     { value: 'expense', label: 'Saídas' },
   ]
 
   const statusOptions: DropdownOption[] = [
-    { value: '', label: 'Status' },
+    { value: '', label: 'Todos' },
     { value: 'completed', label: 'Pago' },
     { value: 'pending', label: 'Pendente' },
   ]

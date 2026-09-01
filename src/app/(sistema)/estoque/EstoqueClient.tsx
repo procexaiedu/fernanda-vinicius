@@ -192,7 +192,7 @@ export default function EstoqueClient({
               Mostrar sem estoque
             </label>
           )}
-          <span className={styles.counter}>{total} produto{total !== 1 ? 's' : ''}</span>
+          <span className="list-count">{total} produto{total !== 1 ? 's' : ''}</span>
         </div>
         <div className={styles.toolbarRight}>
           {/*
@@ -232,7 +232,7 @@ export default function EstoqueClient({
                 <ThOrdenavel ord={ord} coluna="venda" className="col-num">Venda</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="promo" className="col-tertiary col-num">Promo</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="ultimaVenda" className="col-tertiary col-date">Última venda</ThOrdenavel>
-                <ThOrdenavel ord={ord} coluna="giro" className="col-secondary col-num">Em estoque</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="giro" className="col-secondary col-num">Em estoque há</ThOrdenavel>
                 <th className="col-center">Status</th>
                 <th></th>
               </tr>

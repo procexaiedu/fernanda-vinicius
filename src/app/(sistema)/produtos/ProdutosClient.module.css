@@ -69,13 +69,6 @@
 }
 .toggle input { cursor: pointer; accent-color: var(--accent); }
 
-.counter {
-  font-size: 12px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  margin-left: 4px;
-}
-
 /* ─── Tabela ──────────────────────────────────────────────────────────────── */
 .tableWrapper {
   overflow-x: auto;
@@ -166,19 +159,27 @@
   gap: 10px;
 }
 
+/*
+ * 32px, não 40px.
+ *
+ * A miniatura é o que define a altura da linha — o padding das células já vem
+ * de token e já é apertado. Com 40px a linha ficava em 63px e cabiam ~8 peças
+ * na tela de um notebook, para um catálogo de 561. Em 32px cabem ~10, e a
+ * imagem continua reconhecível: quem precisa ver a peça abre a ficha.
+ */
 .photo {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
   object-fit: cover;
   flex-shrink: 0;
   background: var(--bg-elevated);
 }
 
 .photoPlaceholder {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   display: flex;
   align-items: center;

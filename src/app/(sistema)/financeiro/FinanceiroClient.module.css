@@ -692,3 +692,16 @@
   .statsRow { flex-wrap: wrap; gap: 8px; }
   .statsRow > .stat { flex: 1 1 calc(50% - 4px); min-width: 0; padding: 12px; }
 }
+
+
+/* Rótulo do filtro em tom secundário e valor em destaque — o mesmo par que o
+ * Dashboard usa, para a fileira de filtros ler igual nas duas telas. */
+.filterBtnLabel {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.filterBtnValue {
+  color: var(--text-primary);
+  font-weight: 600;
+}

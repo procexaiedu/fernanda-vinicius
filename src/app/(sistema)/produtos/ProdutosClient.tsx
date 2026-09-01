@@ -273,7 +273,7 @@ export default function ProdutosClient({
               Mostrar inativos
             </label>
           )}
-          <span className={styles.counter}>{total} produto{total !== 1 ? 's' : ''}</span>
+          <span className="list-count">{total} produto{total !== 1 ? 's' : ''}</span>
         </div>
         <div className={styles.toolbarRight}>
           {selectedProducts.size > 0 && (
@@ -338,7 +338,7 @@ export default function ProdutosClient({
                 <ThOrdenavel ord={ord} coluna="venda" className="col-num">Venda</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="promo" className="col-tertiary col-num">Promo</ThOrdenavel>
                 <ThOrdenavel ord={ord} coluna="qtd" className="col-num">Qtd.</ThOrdenavel>
-                <ThOrdenavel ord={ord} coluna="giro" className="col-secondary col-num">Em estoque</ThOrdenavel>
+                <ThOrdenavel ord={ord} coluna="giro" className="col-secondary col-num">Em estoque há</ThOrdenavel>
                 <th className="col-center">Status</th>
                 {isAdmin && <th className={styles.actionsCol}>Ações</th>}
               </tr>

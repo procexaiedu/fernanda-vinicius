@@ -497,13 +497,23 @@ table td:first-child:not([class*="col-"]) {
  * barra. O input continua lá dentro, invisível mas real, então o clique no rótulo,
  * o foco por teclado e o leitor de tela seguem funcionando.
  */
+/*
+ * Fundo TRANSPARENTE quando desligado — de propósito.
+ *
+ * Com `--bg-elevated` ele ficava visualmente idêntico às dropdowns ao lado:
+ * mesma altura, mesma borda, mesmo raio, mesmo preenchimento. Na tela de
+ * Produtos, "Mostrar inativos" parecia o quinto filtro da fila e dava a
+ * entender que abriria uma lista. Sem o preenchimento ele lê como o que é —
+ * uma chave que liga e desliga — e continua na mesma linha, do mesmo tamanho,
+ * com o mesmo clique.
+ */
 .filtro-toggle {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   height: var(--altura-controle);
   padding: 0 12px;
-  background: var(--bg-elevated);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-secondary);
@@ -948,4 +958,13 @@ table td:first-child:not([class*="col-"]) {
 .tab-active {
   color: var(--accent);
   border-bottom-color: var(--accent);
+}
+
+
+/* Contagem de itens da lista ("561 produtos"). Três telas mantinham a própria
+ * cópia — idênticas, mas soltas, prontas para divergir na próxima mão. */
+.list-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
