@@ -1087,3 +1087,5 @@
 .cpfBox label { display: flex; flex-direction: column; gap: 4px; }
 .cpfBox span { font-size: 11px; color: var(--text-muted); }
 .cpfDica { font-size: 10.5px; color: var(--text-disabled); }
+
+.creditoTroca { color: var(--success); }

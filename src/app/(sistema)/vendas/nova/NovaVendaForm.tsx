@@ -752,13 +752,24 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Totais ────────────────────────────────────────────────────────────────
   /*
-   * Linha marcada como troca ABATE do subtotal — é peça voltando, não saindo.
-   * Assim "levou um colar de R$300 e devolveu um brinco de R$200" fecha em
-   * R$100, que é o que a cliente paga. Se o que volta valer mais, o subtotal
-   * fica negativo e a loja é que deve — a tela mostra isso em vez de esconder.
+   * A peça devolvida NÃO abate do subtotal: ela é uma forma de PAGAMENTO.
+   *
+   * A loja vendeu um colar de R$498; a cliente pagou R$428 em mercadoria e
+   * R$70 em Pix. O total da venda é 498 — é o que ela levou. Tratar a troca
+   * como desconto faria o faturamento do dia dizer R$70 numa venda de R$498.
+   *
+   * Isso também é o que o SERVIDOR faz: `createSale` calcula o subtotal a
+   * partir de `items`, que já exclui as linhas de troca. Na primeira versão
+   * eu abati aqui e não lá — a tela mostrava R$70 e o banco gravava R$498.
+   * Mesmo erro do arredondamento, no mesmo dia. Enquanto os dois lados
+   * tiverem regras próprias, eles vão divergir.
    */
   const subtotal       = rows.reduce((s, r) =>
-    s + (r.isTroca ? -1 : 1) * r.unitPrice * (r.quantity || 0), 0)
+    r.isTroca ? s : s + r.unitPrice * (r.quantity || 0), 0)
+
+  /* O que a peça devolvida vale — cobre parte do total, como um pagamento. */
+  const creditoTroca   = rows.reduce((s, r) =>
+    r.isTroca ? s + r.unitPrice * (r.quantity || 0) : s, 0)
   /* Em modo %, o valor acompanha o subtotal; em modo R$, é o que foi digitado. */
   const manualDiscount = manualModo === 'pct'
     ? parseFloat((subtotal * manualPct / 100).toFixed(2))
@@ -773,7 +784,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     subtotal, discountPct, manualDiscount,
   })
   const paidTotal      = payments.reduce((s, p) => s + p.amount, 0)
-  const coveredTotal   = paidTotal
+  const coveredTotal   = paidTotal + creditoTroca
   const balanceDiff    = parseFloat((coveredTotal - total).toFixed(2))
 
   // ── Row helpers ───────────────────────────────────────────────────────────
@@ -898,8 +909,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
      * tem valor a receber. Não existe vale no sistema; enquanto não existir, o
      * certo é resolver no balcão, não gravar torto.
      */
-    if (subtotal < -0.009) {
-      setError(`As peças devolvidas valem ${fmt(-subtotal)} a mais que as levadas. Acerte no balcão ou adicione outra peça — o sistema ainda não emite vale.`)
+    if (creditoTroca - subtotal > 0.009) {
+      setError(`As peças devolvidas valem ${fmt(creditoTroca - subtotal)} a mais que as levadas. Acerte no balcão ou adicione outra peça — o sistema ainda não emite vale.`)
       return
     }
 
@@ -921,7 +932,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
      * Sobra e falta são coisas diferentes e passam a ser tratadas assim:
      * cobrar a mais é sempre erro; cobrar a menos é fiado, e precisa ser dito.
      */
-    if (payments.length === 0 && total > 0.009) {
+    if (payments.length === 0 && creditoTroca <= 0 && total > 0.009) {
       setError('Adicione ao menos uma forma de pagamento.')
       return
     }
@@ -1197,7 +1208,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
                     <td className={styles.tdSub}>
                       <span className={`${styles.subtotalText} ${row.isTroca ? styles.subtotalTroca : ''}`}>
-                        {rowSubtotal > 0 ? (row.isTroca ? `− ${fmt(rowSubtotal)}` : fmt(rowSubtotal)) : '—'}
+                        {rowSubtotal > 0
+                          ? (row.isTroca ? `crédito ${fmt(rowSubtotal)}` : fmt(rowSubtotal))
+                          : '—'}
                       </span>
                     </td>
 
@@ -1426,7 +1439,13 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               <span>{fmt(paidTotal)}</span>
             </div>
           )}
-          {payments.length > 0 && (
+          {creditoTroca > 0 && (
+            <div className={styles.summaryRow}>
+              <span>Crédito da troca</span>
+              <span className={styles.creditoTroca}>+ {fmt(creditoTroca)}</span>
+            </div>
+          )}
+          {(payments.length > 0 || creditoTroca > 0) && (
             balanceDiff > 0.01 ? (
               <div className={styles.payStatusWarn}>
                 <AlertTriangle size={13} /> {fmt(balanceDiff)} cobrado a mais — confira

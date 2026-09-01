@@ -99,7 +99,7 @@ export default async function VendasPage() {
       ? admin.from('sale_items').select('sale_id').in('sale_id', saleIds)
       : Promise.resolve({ data: [] as any[] }),
     saleIds.length
-      ? admin.from('exchanges').select('original_sale_id').in('original_sale_id', saleIds)
+      ? admin.from('exchanges').select('id, sale_id, original_sale_id').or(`sale_id.in.(${saleIds.join(',')}),original_sale_id.in.(${saleIds.join(',')})`)
       : Promise.resolve({ data: [] as any[] }),
     sellerIds.length
       ? admin.from('users').select('id, full_name').in('id', sellerIds as string[])
@@ -113,6 +113,37 @@ export default async function VendasPage() {
   const pagoPorVenda = new Map<string, number>()
   for (const p of (paymentsRes.data ?? []) as { sale_id: string; amount: number }[]) {
     pagoPorVenda.set(p.sale_id, (pagoPorVenda.get(p.sale_id) ?? 0) + Number(p.amount))
+  }
+
+  /*
+   * Peça devolvida na troca também PAGA a venda.
+   *
+   * Sem isto a venda da Madalena — colar de R$498 pago com R$70 em Pix e um
+   * colar de R$428 devolvido — aparecia como "FALTA R$428,00". Ela não devia
+   * nada: a mercadoria cobriu a diferença.
+   */
+  const creditoTrocaPorVenda = new Map<string, number>()
+  const trocaIds = ((exchangesRes.data ?? []) as { id?: string; sale_id?: string }[])
+    .map(e => e.id).filter(Boolean) as string[]
+  if (trocaIds.length) {
+    const { data: devolvidos } = await admin
+      .from('exchange_items')
+      .select('exchange_id, quantity, unit_price')
+      .in('exchange_id', trocaIds)
+      .eq('direction', 'returned')
+
+    const vendaPorTroca = new Map<string, string>()
+    for (const e of (exchangesRes.data ?? []) as { id: string; sale_id: string | null }[]) {
+      if (e.sale_id) vendaPorTroca.set(e.id, e.sale_id)
+    }
+    for (const it of (devolvidos ?? []) as { exchange_id: string; quantity: number; unit_price: number }[]) {
+      const vendaId = vendaPorTroca.get(it.exchange_id)
+      if (!vendaId) continue
+      creditoTrocaPorVenda.set(
+        vendaId,
+        (creditoTrocaPorVenda.get(vendaId) ?? 0) + Number(it.unit_price) * Number(it.quantity),
+      )
+    }
   }
 
   const itemCounts = new Map<string, number>()
@@ -143,9 +174,11 @@ export default async function VendasPage() {
     payment_summary: s.payment_summary,
     status:          s.status,
     has_exchange:    exchangeSaleIds.has(s.id),
-    valor_pago:      pagoPorVenda.get(s.id) ?? 0,
+    valor_pago:      (pagoPorVenda.get(s.id) ?? 0) + (creditoTrocaPorVenda.get(s.id) ?? 0),
     /* Arredondado para não gerar "falta R$0,00" por resto de ponto flutuante. */
-    falta_pagar:     parseFloat((Number(s.total) - (pagoPorVenda.get(s.id) ?? 0)).toFixed(2)),
+    falta_pagar:     parseFloat((
+      Number(s.total) - (pagoPorVenda.get(s.id) ?? 0) - (creditoTrocaPorVenda.get(s.id) ?? 0)
+    ).toFixed(2)),
     previsao_pagamento: s.previsao_pagamento ?? null,
   }))
 
