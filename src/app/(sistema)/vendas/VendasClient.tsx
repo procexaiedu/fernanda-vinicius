@@ -193,6 +193,8 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
       if (filterSeller && s.seller_id !== filterSeller) return false
       if (filterStatus === 'exchange'  && !s.has_exchange)       return false
       if (filterStatus === 'completed' && s.status !== 'completed') return false
+      /* "Falta pagar" é o filtro de cobrança: quem levou a peça e ainda deve. */
+      if (filterStatus === 'devendo'   && s.falta_pagar <= 0.009)   return false
       if (q && !(s.customer_name ?? '').toLowerCase().includes(q) && !s.payment_summary?.toLowerCase().includes(q)) return false
       return true
     })
@@ -333,6 +335,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
             placeholder="Todos os status"
             options={[
               { value: 'completed', label: 'Concluídas' },
+              { value: 'devendo', label: 'Falta pagar' },
               { value: 'exchange', label: 'Com troca' },
             ]}
           />
@@ -439,9 +442,28 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                       : <span className={styles.muted}>—</span>}
                   </td>
                   <td>
-                    <Badge variant={s.status === 'completed' ? 'success' : 'muted'}>
-                      {s.status === 'completed' ? 'OK' : s.status}
-                    </Badge>
+                    {/*
+                      Saldo em aberto ganha a coluna de status.
+                      Sem isto, a venda da Bea Baroudi — R$645 com R$300 pagos —
+                      aparecia como "OK" e os R$345 não existiam para quem fosse
+                      cobrar. Mostrar "concluída" numa venda que ainda deve é
+                      pior do que não mostrar nada.
+                    */}
+                    {s.falta_pagar > 0.009 ? (
+                      <div className={styles.devendo}>
+                        <Badge variant="warning">Falta {fmt(s.falta_pagar)}</Badge>
+                        {s.previsao_pagamento && (
+                          <span className={`${styles.devendoData} ${s.previsao_pagamento < today ? styles.devendoAtrasado : ''}`}>
+                            {s.previsao_pagamento < today ? 'venceu ' : 'até '}
+                            {fmtDate(s.previsao_pagamento)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <Badge variant={s.status === 'completed' ? 'success' : 'muted'}>
+                        {s.status === 'completed' ? 'OK' : s.status}
+                      </Badge>
+                    )}
                   </td>
                   <td onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'inline-flex', gap: 4 }}>

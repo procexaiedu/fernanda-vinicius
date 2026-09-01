@@ -626,3 +626,24 @@
   .statsRow { flex-wrap: wrap; gap: 8px; }
   .statsRow > .stat { flex: 1 1 calc(50% - 4px); min-width: 0; padding: 12px; }
 }
+
+/* ── Venda com saldo em aberto ── */
+
+.devendo {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.devendoData {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Prazo vencido é a diferença entre "ela vai pagar" e "ela deveria ter pago". */
+.devendoAtrasado {
+  color: var(--danger);
+  font-weight: 600;
+}
