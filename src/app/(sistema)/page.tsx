@@ -6,7 +6,7 @@ import {
   buscarLojas, buscarDashboardSettings,
   buscarKpis, buscarEstoque, buscarGrafico,
   buscarTopVendedoras,
-  buscarPecasParadas, buscarContasVencer, buscarAniversariantes,
+  buscarPecasParadas, buscarContasVencer, buscarCobrancasDoDia, buscarAniversariantes,
   buscarVendasPorCategoria, buscarEvolucaoVendas,
 } from './actions'
 
@@ -47,7 +47,7 @@ export default async function DashboardPage() {
 
   const [
     lojas, settings,
-    kpis, estoque, grafico, topVendedoras, pecasParadas, contasVencer, aniversariantes, categorias, evolucao,
+    kpis, estoque, grafico, topVendedoras, pecasParadas, contasVencer, cobrancas, aniversariantes, categorias, evolucao,
   ] = await Promise.all([
     buscarLojas(),
     settingsP,
@@ -57,6 +57,7 @@ export default async function DashboardPage() {
     buscarTopVendedoras(storeId, month, year),
     buscarPecasParadas(storeId, staleDaysP),
     buscarContasVencer(storeId),
+    buscarCobrancasDoDia(storeId),
     buscarAniversariantes(storeId),
     buscarVendasPorCategoria(storeId, month, year),
     buscarEvolucaoVendas(storeId, 6),
@@ -76,6 +77,7 @@ export default async function DashboardPage() {
       initialTopVendedoras={topVendedoras}
       initialPecasParadas={pecasParadas}
       initialContasVencer={contasVencer}
+      initialCobrancas={cobrancas}
       initialAniversariantes={aniversariantes}
       initialCategorias={categorias}
       initialEvolucao={evolucao}

@@ -8,7 +8,7 @@ import {
 import {
   ChevronLeft, ChevronRight, ChevronDown,
   TrendingUp, TrendingDown, Package, AlertTriangle, Users, Calendar,
-  DollarSign, ShoppingCart, Award, Clock, ArrowRight,
+  DollarSign, ShoppingCart, Award, Clock, ArrowRight, HandCoins,
 } from 'lucide-react'
 
 import ProdutoDetalheModal, { type ProdutoParaDetalhe } from '@/components/produto/ProdutoDetalheModal'
@@ -22,13 +22,14 @@ import {
   type StoreOption, type DashboardSettings, type DashboardKpis,
   type DashboardStock, type MonthChartData,
   type TopVendedora, type AlertPecaParada,
-  type AlertConta, type AlertAniversariante,
+  type AlertConta, type AlertCobranca, type AlertAniversariante,
   type CategoryChartData, type EvolucaoChartData,
 } from './actions'
 import styles from './DashboardClient.module.css'
 import { formatarTelefone } from '@/lib/telefone'
 import { formatarDinheiro, formatarEixo } from '@/lib/dinheiro'
 import PageHeader from '@/components/ui/PageHeader'
+import Link from 'next/link'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -167,6 +168,7 @@ interface Props {
   initialGrafico: MonthChartData[]
   initialTopVendedoras: TopVendedora[]
   initialPecasParadas: AlertPecaParada[]
+  initialCobrancas: AlertCobranca[]
   initialContasVencer: AlertConta[]
   initialAniversariantes: AlertAniversariante[]
   initialCategorias: CategoryChartData[]
@@ -181,7 +183,7 @@ export default function DashboardClient({
   isAdmin, podeTrocarLoja, initialStoreId, lojas, settings, inactiveDays,
   initialKpis, initialEstoque, initialGrafico,
   initialTopVendedoras,
-  initialPecasParadas, initialContasVencer, initialAniversariantes,
+  initialPecasParadas, initialContasVencer, initialCobrancas, initialAniversariantes,
   initialCategorias, initialEvolucao,
   initialMonth, initialYear,
 }: Props) {
@@ -196,6 +198,7 @@ export default function DashboardClient({
   const [topVendedoras, setTopVendedoras] = useState(initialTopVendedoras)
   const [pecasParadas, setPecasParadas]   = useState(initialPecasParadas)
   const [contasVencer, setContasVencer]   = useState(initialContasVencer)
+  const [cobrancas, setCobrancas]         = useState(initialCobrancas)
   const [aniversariantes, setAniversariantes] = useState(initialAniversariantes)
   const [categorias, setCategorias]   = useState(initialCategorias)
   const [evolucao, setEvolucao]       = useState(initialEvolucao)
@@ -718,6 +721,38 @@ export default function DashboardClient({
                 </div>
                 <span className={styles.alertRowAmount}>{fmt(c.amount)}</span>
               </div>
+            ))}
+          </div>
+        </div>
+
+        {/*
+          A receber — o espelho de "Vence em 15 dias".
+          Aquele é o que a loja deve; este é quem deve para a loja, com a data
+          que a cliente prometeu no balcão. Atrasada não sai da lista no dia
+          seguinte: é justamente quem precisa ser cobrada.
+        */}
+        <div className={styles.alertCard}>
+          <div className={styles.alertHeader}>
+            <HandCoins size={14} className={styles.alertIconWarning} />
+            <span className={styles.alertTitle}>A receber hoje</span>
+            <span className={styles.alertBadge} data-variant={cobrancas.length > 0 ? 'warning' : 'ok'}>
+              {cobrancas.length}
+            </span>
+          </div>
+          <div className={styles.alertList}>
+            {cobrancas.length === 0 ? (
+              <div className={styles.alertEmpty}>Ninguém prometeu pagar hoje</div>
+            ) : cobrancas.map(c => (
+              <Link key={c.sale_id} href={`/vendas?busca=${encodeURIComponent(c.cliente)}`} className={styles.alertRow}>
+                <div className={styles.alertRowInfo}>
+                  <span className={styles.alertRowName}>{c.cliente}</span>
+                  <span className={`${styles.alertRowSub} ${c.atraso > 0 ? styles.cobrancaAtrasada : ''}`}>
+                    {c.atraso === 0 ? 'vence hoje' : `${c.atraso} dia${c.atraso > 1 ? 's' : ''} de atraso`}
+                    {' · '}{fmtDate(c.previsao)}
+                  </span>
+                </div>
+                <span className={styles.alertRowAmount}>{fmt(c.falta)}</span>
+              </Link>
             ))}
           </div>
         </div>
