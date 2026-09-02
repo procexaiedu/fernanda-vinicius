@@ -975,3 +975,27 @@ table td:first-child:not([class*="col-"]) {
   color: var(--text-muted);
   white-space: nowrap;
 }
+
+
+/* ─── Caixa alta nos rótulos e na navegação ─────────────────────────────────
+ *
+ * Pedido da dona no treinamento de 02/09 ("depois você sobe tudo para caixa
+ * alta"). Aplicado onde o texto é RÓTULO, não onde é CONTEÚDO, por três razões:
+ *
+ *  1. Caixa alta em frase corrida é mais lenta de ler — some o contorno da
+ *     palavra. Em "VENDAS" não atrapalha; em "Nenhuma venda encontrada. Tente
+ *     ajustar os filtros" atrapalha.
+ *  2. O sistema JÁ usava maiúscula como sinal de rótulo (cabeçalho de tabela,
+ *     rótulo de KPI). Subir tudo mataria esse sinal.
+ *  3. Nome de cliente e de peça vêm do banco e vão para o comprovante que a
+ *     cliente recebe. "MAGDA ZÁQUIA" na tela e "Magda Záquia" no papel seria
+ *     incoerente.
+ *
+ * É `text-transform`, não texto alterado na fonte: a acentuação e a busca
+ * continuam corretas, e reverter é apagar este bloco.
+ */
+.tab,
+.list-count {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

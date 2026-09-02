@@ -1350,3 +1350,11 @@
   .vendLoja { display: none; }
   .vendTabela th, .vendTabela td { padding-left: 10px; padding-right: 10px; }
 }
+
+
+/* Atraso em vermelho: "vence hoje" é lembrete, "3 dias de atraso" é cobrança
+ * — e a diferença tem de saltar sem precisar ler. */
+.cobrancaAtrasada {
+  color: var(--danger);
+  font-weight: 600;
+}

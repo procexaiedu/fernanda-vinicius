@@ -70,6 +70,8 @@ interface Props {
    * única informação que alguém lê do outro lado do balcão.
    */
   modoBalcao?: boolean
+  /** Abre já com o painel de baixa aberto — usado pelo modo de baixa em série. */
+  abrirNaBaixa?: boolean
   onClose: () => void
   onEdit?: (p: ProdutoParaDetalhe) => void
 }
@@ -87,7 +89,7 @@ function fmtDate(s: string | null) {
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export default function ProdutoDetalheModal({ produto, categoryLabelMap, categories = [], staleDays = 60, isAdmin, modoBalcao = false, onClose, onEdit }: Props) {
+export default function ProdutoDetalheModal({ produto, categoryLabelMap, categories = [], staleDays = 60, isAdmin, modoBalcao = false, abrirNaBaixa = false, onClose, onEdit }: Props) {
   const giro = calcularGiro(produto, staleDays)
 
   /*
@@ -96,7 +98,9 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
    * "deixa no estoque e avisa a equipe", o que mantém o saldo errado de
    * propósito.
    */
-  const [baixaAberta, setBaixaAberta] = useState(false)
+  /* `abrirNaBaixa` vem do modo de baixa em série do /estoque: bipou, o painel
+   * já abre pronto para escolher o motivo — sem o clique intermediário. */
+  const [baixaAberta, setBaixaAberta] = useState(abrirNaBaixa)
   const [baixaQtd, setBaixaQtd] = useState(1)
   const [baixaMotivo, setBaixaMotivo] = useState<MotivoBaixa>('defeito')
   const [baixaNotas, setBaixaNotas] = useState('')

@@ -322,3 +322,13 @@
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+
+/* Caixa alta no menu — pedido da dona (02/09). Rótulo de navegação é o caso em
+ * que maiúscula ajuda: são palavras curtas e o olho procura por forma. */
+.itemLabel,
+.navLabel,
+.linkLabel {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

@@ -122,6 +122,16 @@ export interface AlertConta {
   store_name: string | null
 }
 
+/** Cliente que prometeu pagar e ainda deve. */
+export interface AlertCobranca {
+  sale_id: string
+  cliente: string
+  falta: number
+  previsao: string
+  /** Dias de atraso. 0 = vence hoje. */
+  atraso: number
+}
+
 export interface AlertAniversariante {
   id: string
   name: string
@@ -657,6 +667,106 @@ export async function buscarContasVencer(storeId: string | null): Promise<AlertC
     reference_type: t.reference_type,
     store_name:     (t.stores as { name: string } | null)?.name ?? null,
   }))
+}
+
+/**
+ * Quem prometeu pagar até hoje e ainda deve.
+ *
+ * Pedido no treinamento de 02/09: o sistema guardava a data combinada no balcão
+ * e não avisava ninguém quando ela chegava — "vou fazer um avisozinho no Dash,
+ * que vai mostrar essas pessoas que faltam a gente pagar no dia".
+ *
+ * Sem isso a cobrança dependia da memória da dona, que é justamente o que o
+ * sistema deveria substituir.
+ *
+ * **O saldo NÃO sai de coluna espelho.** `previsao_pagamento` diz a data; quem
+ * sabe quanto foi pago é `fv.sale_payments`, e é de lá que vem o que falta. É a
+ * mesma regra registrada na migration que criou a coluna: dois números
+ * contando a mesma coisa um dia discordam.
+ *
+ * Atrasada NÃO some no dia seguinte — é quem mais precisa ser cobrada.
+ */
+export async function buscarCobrancasDoDia(storeId: string | null): Promise<AlertCobranca[]> {
+  const admin = createAdminClient()
+  const hoje = new Date().toISOString().slice(0, 10)
+
+  let q = admin
+    .from('sales')
+    .select('id, total, previsao_pagamento, store_id, clients(name)')
+    .not('previsao_pagamento', 'is', null)
+    .lte('previsao_pagamento', hoje)
+    .neq('status', 'cancelled')
+    .order('previsao_pagamento', { ascending: true })
+  if (storeId) q = q.eq('store_id', storeId)
+
+  const { data: vendas, error } = await q
+  if (error || !vendas?.length) return []
+
+  const ids = vendas.map(v => v.id)
+  const { data: pagamentos } = await admin
+    .from('sale_payments').select('sale_id, amount').in('sale_id', ids)
+
+  const pagoPorVenda = new Map<string, number>()
+  for (const p of pagamentos ?? []) {
+    pagoPorVenda.set(p.sale_id, (pagoPorVenda.get(p.sale_id) ?? 0) + Number(p.amount))
+  }
+
+  /*
+   * A PEÇA DEVOLVIDA TAMBÉM PAGA.
+   *
+   * Este bloco existe porque eu errei aqui primeiro: somando só
+   * `sale_payments`, a venda da Magda Záquia aparecia devendo R$266 — o valor
+   * exato do brinco que ela devolveu. Ela não deve nada; a mercadoria cobriu.
+   *
+   * É a mesma conta de `vendas/page.tsx`, e o mesmo erro que já tinha
+   * acontecido em 01/09 na tela de venda. Um aviso de cobrança que chama a
+   * cliente por uma dívida quitada é pior que não avisar.
+   */
+  const { data: trocas } = await admin
+    .from('exchanges').select('id, sale_id').in('sale_id', ids)
+
+  const creditoPorVenda = new Map<string, number>()
+  const trocaIds = (trocas ?? []).map(t => t.id)
+  if (trocaIds.length) {
+    const { data: devolvidos } = await admin
+      .from('exchange_items')
+      .select('exchange_id, quantity, unit_price')
+      .in('exchange_id', trocaIds)
+      .eq('direction', 'returned')
+
+    const vendaPorTroca = new Map<string, string>()
+    for (const t of trocas ?? []) if (t.sale_id) vendaPorTroca.set(t.id, t.sale_id)
+
+    for (const it of devolvidos ?? []) {
+      const vendaId = vendaPorTroca.get(it.exchange_id)
+      if (!vendaId) continue
+      creditoPorVenda.set(
+        vendaId,
+        (creditoPorVenda.get(vendaId) ?? 0) + Number(it.unit_price) * Number(it.quantity),
+      )
+    }
+  }
+
+  const msDia = 86_400_000
+  const hojeMs = new Date(hoje).getTime()
+
+  return vendas
+    .map((v: any) => {
+      const falta = parseFloat((
+        Number(v.total) - (pagoPorVenda.get(v.id) ?? 0) - (creditoPorVenda.get(v.id) ?? 0)
+      ).toFixed(2))
+      const cliente = (Array.isArray(v.clients) ? v.clients[0] : v.clients)?.name
+      return {
+        sale_id:  v.id,
+        cliente:  cliente ?? 'Sem cliente',
+        falta,
+        previsao: v.previsao_pagamento,
+        atraso:   Math.max(0, Math.round((hojeMs - new Date(v.previsao_pagamento).getTime()) / msDia)),
+      }
+    })
+    // Centavo de arredondamento não é dívida.
+    .filter(c => c.falta > 0.009)
+    .sort((a, b) => b.atraso - a.atraso)
 }
 
 export async function buscarAniversariantes(storeId: string | null): Promise<AlertAniversariante[]> {

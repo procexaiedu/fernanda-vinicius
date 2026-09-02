@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useTransition, useEffect} from 'react'
 import { useCallback, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { BarChart2, ChevronLeft, ChevronRight, Gem, ArrowLeftRight, ScanLine, Loader2, ClipboardCheck } from 'lucide-react'
@@ -76,6 +76,20 @@ export default function EstoqueClient({
    * uso principal, não a exceção.
    */
   const [modoBalcao, setModoBalcao] = useState(false)
+
+  /*
+   * Modo de baixa em série.
+   *
+   * A mesma tela atende duas coisas que não podem compartilhar o bipe: a
+   * CONSULTA DE BALCÃO (cliente pergunta o preço, a vendedora bipa e mostra a
+   * ficha sem custo) e a BAIXA EM PILHA, que foi o pedido do treinamento de
+   * 02/09 — "faz o BIP abrir a mesma modal".
+   *
+   * Um interruptor resolve sem tirar nada de ninguém: ligado, o bipe abre
+   * direto a baixa; desligado, segue abrindo a ficha de balcão como sempre.
+   * Só admin, porque baixa é dele.
+   */
+  const [modoBaixa, setModoBaixa] = useState(false)
   const [bipando, setBipando] = useState(false)
   const [bipErro, setBipErro] = useState<string | null>(null)
 
@@ -95,15 +109,28 @@ export default function EstoqueClient({
       setBipErro(`Nenhuma peça com o código ${codigo}.`)
       return
     }
-    setModoBalcao(true)
+    setModoBalcao(!modoBaixa)
     setDetalhe(data as ProductWithRelations)
-  }, [])
+  }, [modoBaixa])
 
   useBarcodeScanner({ onScan: aoBipar })
+
+  /* Esc com nada aberto desliga o modo de baixa — a saída rápida de quem
+   * terminou a pilha e não quer que o próximo bipe abra uma baixa sem querer. */
+  useEffect(() => {
+    if (!modoBaixa) return
+    function aoTeclar(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !detalhe) setModoBaixa(false)
+    }
+    document.addEventListener('keydown', aoTeclar)
+    return () => document.removeEventListener('keydown', aoTeclar)
+  }, [modoBaixa, detalhe])
 
   function fecharDetalhe() {
     setDetalhe(null)
     setModoBalcao(false)
+    // O modo de baixa NÃO desliga ao fechar: a dona está com uma pilha na mão
+    // e a próxima peça vem em seguida. Desliga no botão ou no Esc.
   }
 
   /*
@@ -190,6 +217,16 @@ export default function EstoqueClient({
                 onChange={e => pushFilter('qty_zero', e.target.checked ? 'true' : '')}
               />
               Mostrar sem estoque
+            </label>
+          )}
+          {isAdmin && (
+            <label className="filtro-toggle" title="Enquanto ligado, bipar abre direto a baixa da peça">
+              <input
+                type="checkbox"
+                checked={modoBaixa}
+                onChange={e => setModoBaixa(e.target.checked)}
+              />
+              Bipar para dar baixa
             </label>
           )}
           <span className="list-count">{total} produto{total !== 1 ? 's' : ''}</span>
@@ -352,6 +389,7 @@ export default function EstoqueClient({
           produto={detalhe}
           isAdmin={isAdmin}
           modoBalcao={modoBalcao}
+          abrirNaBaixa={modoBaixa}
           onClose={fecharDetalhe}
         />
       )}

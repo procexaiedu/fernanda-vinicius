@@ -65,7 +65,10 @@
   font-weight: 700;
   /* Tracking negativo: em texto grande o espaçamento padrão parece frouxo. É o
    * que dá presença ao título sem precisar de outra família de fonte. */
-  letter-spacing: var(--tracking-title);
+  /* Caixa alta a pedido da dona. Com o tracking negativo do título, maiúscula
+   * fecha demais — aqui o espaçamento volta para levemente positivo. */
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
   color: var(--text-primary);
   line-height: 1.15;
   margin: 0;
