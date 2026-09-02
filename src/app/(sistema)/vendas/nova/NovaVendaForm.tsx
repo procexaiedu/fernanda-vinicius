@@ -227,7 +227,8 @@ function StoreSelect({ value, onChange, stores }: {
 function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
   value: string
   onChange: (c: CustomerOption | null, text: string) => void
-  onCreateClick: () => void
+  /** Recebe o texto já digitado — ver CreateCustomerModal. */
+  onCreateClick: (nomeDigitado: string) => void
   customers: CustomerOption[]
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
@@ -315,7 +316,7 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
               {searching ? 'Buscando…' : `Nenhum cliente encontrado para "${value}"`}
             </div>
           )}
-          <div className={styles.comboCreateBtn} onMouseDown={() => { close(); onCreateClick() }}>
+          <div className={styles.comboCreateBtn} onMouseDown={() => { close(); onCreateClick(value) }}>
             <Plus size={12} /> Criar novo cliente
           </div>
         </div>
@@ -437,12 +438,21 @@ function maskCpf(v: string): string {
 
 // ─── Modal criar cliente ──────────────────────────────────────────────────────
 
-function CreateCustomerModal({ storeId, onClose, onCreated }: {
+/**
+ * `nomeInicial` vem do que a operadora já digitou na busca.
+ *
+ * No treinamento de 02/09 a dona digitou "Rosiane", não achou, clicou em criar
+ * — e o formulário abriu em branco. "Ele já podia continuar de onde eu parei,
+ * né?" Com cliente esperando no balcão, digitar o nome duas vezes é atrito
+ * real, ainda mais para quem se declara lenta no computador.
+ */
+function CreateCustomerModal({ storeId, nomeInicial, onClose, onCreated }: {
   storeId: string
+  nomeInicial?: string
   onClose: () => void
   onCreated: (c: CustomerOption) => void
 }) {
-  const [name, setName]         = useState('')
+  const [name, setName]         = useState(nomeInicial ?? '')
   const [phone, setPhone]       = useState('')
   const [cpf, setCpf]           = useState('')
   const [birthday, setBirthday] = useState('')
@@ -479,7 +489,11 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
         <div className={styles.createRow}>
           <div className={styles.createField}>
             <label>Nome <span className={styles.req}>*</span></label>
-            <input className={styles.createInput} value={name} onChange={e => setName(e.target.value)} placeholder="Nome completo" autoFocus />
+            {/* O foco vai para o NOME quando ele está vazio e para o TELEFONE
+                quando o nome já veio da busca — que é o próximo campo a
+                preencher, e evita o cursor parado num campo já certo. */}
+            <input className={styles.createInput} value={name} onChange={e => setName(e.target.value)}
+              placeholder="Nome completo" autoFocus={!nomeInicial} />
           </div>
         </div>
         <div className={styles.createRow}>
@@ -493,6 +507,7 @@ function CreateCustomerModal({ storeId, onClose, onCreated }: {
                 setPhone(v)
                 clientesComMesmoTelefone(v).then(setDuplicatas)
               }}
+              autoFocus={!!nomeInicial}
               placeholder="+55 (11) 99999-9999"
               inputMode="numeric"
             />
@@ -574,6 +589,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   const [customerSearch, setCustomerSearch] = useState(editSale?.customer?.name ?? '')
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(editSale?.customer ?? null)
   const [showCreateCustomer, setShowCreateCustomer] = useState(false)
+  const [nomeNovoCliente, setNomeNovoCliente] = useState('')
 
   // ── Itens da venda ────────────────────────────────────────────────────────
   const [rows, setRows] = useState<SaleRow[]>(
@@ -733,7 +749,6 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * mas só até alguém discordar. Desconto é concessão comercial: quem decide
    * é quem está atendendo, não o método de pagamento.
    */
-  const pixTocado = useRef(false)
   const aniversarioTocado = useRef(false)
 
   // ── Efeito: birthday discount ──────────────────────────────────────────────
@@ -742,11 +757,17 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     setHasBirthday(!!selectedCustomer && isBirthdayMonth(selectedCustomer.birthday))
   }, [selectedCustomer])
 
-  // ── Efeito: pix discount ───────────────────────────────────────────────────
-  useEffect(() => {
-    if (editInit.current || pixTocado.current) return
-    setHasPix(payments.some(p => p.method === 'pix'))
-  }, [payments])
+  /*
+   * NÃO existe mais efeito ligando o desconto de PIX sozinho.
+   *
+   * Ele ligava ao escolher PIX como forma de pagamento, e foi isso que cobrou
+   * R$14 a menos na troca da Magda, ao vivo, no treinamento de 02/09. O
+   * `pixTocado` só protegia DEPOIS que a operadora mexesse no toggle — na
+   * primeira vez ela não tinha como saber que tinha ligado.
+   *
+   * A dona resolveu na hora: "às vezes eu nem dou desconto". O toggle continua
+   * ali; quem quiser dar desconto, marca.
+   */
 
   // Libera os efeitos acima após o primeiro render (deve rodar DEPOIS deles).
   useEffect(() => { editInit.current = false }, [])
@@ -1058,7 +1079,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               <CustomerCombobox
                 value={customerSearch}
                 onChange={selectCustomer}
-                onCreateClick={() => setShowCreateCustomer(true)}
+                onCreateClick={nome => { setNomeNovoCliente(nome); setShowCreateCustomer(true) }}
                 customers={customers}
               />
             )}
@@ -1129,7 +1150,10 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                 <th className={styles.thTroca}>Troca</th>
                 <th className={`${styles.thQty} col-num`}>Qtd</th>
                 <th className={styles.thPrice}>Preço Unit.</th>
-                <th className={`${styles.thSub} col-num`}>Subtotal</th>
+                {/* "Total do item", não "Subtotal": havia dois "Subtotal" na
+                    mesma tela querendo dizer coisas diferentes — o da LINHA e o
+                    da VENDA. A dona disse duas vezes que a tela confundia. */}
+                <th className={`${styles.thSub} col-num`}>Total do item</th>
                 <th className={styles.thDel}></th>
               </tr>
             </thead>
@@ -1244,7 +1268,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
         <div className={styles.discountsGrid}>
           <label className={styles.discountRow}>
             <input type="checkbox" checked={hasPix}
-              onChange={e => { pixTocado.current = true; setHasPix(e.target.checked) }} />
+              onChange={e => setHasPix(e.target.checked)} />
             <span>PIX</span>
             <span className={styles.discountPct}>−{settings.pixDiscountPct}%</span>
             <span className={styles.discountAmt}>{subtotal > 0 ? fmt(subtotal * settings.pixDiscountPct / 100) : ''}</span>
@@ -1506,6 +1530,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       {showCreateCustomer && (
         <CreateCustomerModal
           storeId={effectiveStoreId}
+          nomeInicial={nomeNovoCliente}
           onClose={() => setShowCreateCustomer(false)}
           onCreated={handleCustomerCreated}
         />
