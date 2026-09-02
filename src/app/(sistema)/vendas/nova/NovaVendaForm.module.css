@@ -223,22 +223,33 @@
   width: 100%;
 }
 
+/*
+ * Posição e altura vêm do componente (`posicionarDropdown`), que já mede o
+ * espaço da janela. Aqui fica só a aparência.
+ *
+ * A BARRA DE ROLAGEM APARECE. Era `scrollbar-width: none`: a lista rolava e
+ * nada dizia isso — a única pista de que havia mais era a última linha
+ * aparecer pela metade.
+ */
 .comboDropdown {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 0;
-  right: 0;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  z-index: 200;
-  max-height: 240px;
   overflow-y: auto;
-  scrollbar-width: none;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-light) transparent;
 }
 
-.comboDropdown::-webkit-scrollbar { display: none; }
+.comboDropdown::-webkit-scrollbar { width: 8px; }
+.comboDropdown::-webkit-scrollbar-track { background: transparent; }
+.comboDropdown::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
 
 .comboOption {
   padding: 8px 12px;

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useId } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 import { matchText } from '@/lib/normalize'
+import { posicionarDropdown, scrollVeioDeDentro, type PosicaoDropdown } from '@/lib/dropdown'
 import styles from './SearchableSelect.module.css'
 
 export interface SelectOption {
@@ -57,7 +58,7 @@ export default function SearchableSelect({
   const [open, setOpen]   = useState(false)
   const [query, setQuery] = useState('')
   const [ativo, setAtivo] = useState(-1)
-  const [pos, setPos]     = useState<{ top: number; left: number; width: number; acima: boolean } | null>(null)
+  const [pos, setPos]     = useState<PosicaoDropdown | null>(null)
 
   const wrapRef  = useRef<HTMLDivElement>(null)
   const btnRef   = useRef<HTMLButtonElement>(null)
@@ -84,16 +85,8 @@ export default function SearchableSelect({
   const posicionar = useCallback(() => {
     const r = btnRef.current?.getBoundingClientRect()
     if (!r) return
-    const alturaMenu = Math.min(280, navegaveis.length * 34 + (searchable ? 44 : 0) + 12)
-    const abaixo = window.innerHeight - r.bottom
-    const acima  = abaixo < alturaMenu && r.top > abaixo
-    setPos({
-      top:   acima ? r.top - 4 - alturaMenu : r.bottom + 4,
-      left:  r.left,
-      width: r.width,
-      acima,
-    })
-  }, [navegaveis.length, searchable])
+    setPos(posicionarDropdown(r))
+  }, [])
 
   function abrir() {
     if (disabled) return
@@ -126,12 +119,15 @@ export default function SearchableSelect({
    */
   useEffect(() => {
     if (!open) return
-    const aoMexer = () => fechar()
-    window.addEventListener('scroll', aoMexer, true)
-    window.addEventListener('resize', aoMexer)
+    /* Scroll de DENTRO do menu não fecha: era o que impedia de alcançar a
+     * última opção numa lista maior que o menu. */
+    const aoRolar = (e: Event) => { if (!scrollVeioDeDentro(e, menuRef.current)) fechar() }
+    const aoRedimensionar = () => fechar()
+    window.addEventListener('scroll', aoRolar, true)
+    window.addEventListener('resize', aoRedimensionar)
     return () => {
-      window.removeEventListener('scroll', aoMexer, true)
-      window.removeEventListener('resize', aoMexer)
+      window.removeEventListener('scroll', aoRolar, true)
+      window.removeEventListener('resize', aoRedimensionar)
     }
   }, [open, fechar])
 
@@ -171,7 +167,12 @@ export default function SearchableSelect({
       id={listaId}
       role="listbox"
       className={styles.dropdown}
-      style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 1200 }}
+      style={{
+        position: 'fixed',
+        left: pos.left, width: pos.width, zIndex: 1200,
+        ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+        maxHeight: pos.maxHeight,
+      }}
     >
       {searchable && (
         <div className={styles.searchWrapper}>

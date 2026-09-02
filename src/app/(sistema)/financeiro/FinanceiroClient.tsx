@@ -26,6 +26,7 @@ import {
   type DespesaManualData, type RecurrenteData,
 } from './actions'
 import { formatarDinheiro, formatarDinheiroComSinal } from '@/lib/dinheiro'
+import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
 
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -92,14 +93,14 @@ function FilterDropdown({
   onChange: (v: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const [pos, setPos] = useState<PosicaoDropdown | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
 
   function toggle() {
     if (open) { setOpen(false); setPos(null); return }
     const r = btnRef.current?.getBoundingClientRect()
     if (!r) return
-    setPos({ top: r.bottom + 4, left: r.left })
+    setPos(posicionarDropdown(r, { altura: 280 }))
     setOpen(true)
   }
 
@@ -128,7 +129,11 @@ function FilterDropdown({
       {open && pos && (
         <div
           className={styles.filterDropdown}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+          style={{
+            position: 'fixed', left: pos.left, zIndex: 9999,
+            ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+            maxHeight: pos.maxHeight, overflowY: 'auto',
+          }}
           onMouseDown={e => e.preventDefault()}
         >
           {options.map(o => (
@@ -157,14 +162,14 @@ function SelectField({
   placeholder?: string
 }) {
   const [open, setOpen] = useState(false)
-  const [pos, setPos]   = useState<{ top: number; left: number; width: number } | null>(null)
+  const [pos, setPos]   = useState<PosicaoDropdown | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
 
   function toggle() {
     if (open) { setOpen(false); setPos(null); return }
     const r = btnRef.current?.getBoundingClientRect()
     if (!r) return
-    setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    setPos(posicionarDropdown(r, { altura: 280 }))
     setOpen(true)
   }
 
@@ -195,7 +200,11 @@ function SelectField({
       {open && pos && (
         <div
           className={styles.filterDropdown}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 10000 }}
+          style={{
+            position: 'fixed', left: pos.left, width: pos.width, zIndex: 10000,
+            ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+            maxHeight: pos.maxHeight, overflowY: 'auto',
+          }}
           onMouseDown={e => e.preventDefault()}
         >
           {options.map(o => (
@@ -224,13 +233,13 @@ function CategoryCombobox({
   placeholder?: string
 }) {
   const [open, setOpen] = useState(false)
-  const [pos, setPos]   = useState<{ top: number; left: number; width: number } | null>(null)
+  const [pos, setPos]   = useState<PosicaoDropdown | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function openMenu() {
     const r = inputRef.current?.getBoundingClientRect()
     if (!r) return
-    setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    setPos(posicionarDropdown(r, { altura: 280 }))
     setOpen(true)
   }
 
@@ -255,7 +264,11 @@ function CategoryCombobox({
       {open && pos && filtered.length > 0 && (
         <div
           className={styles.filterDropdown}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 10000 }}
+          style={{
+            position: 'fixed', left: pos.left, width: pos.width, zIndex: 10000,
+            ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+            maxHeight: pos.maxHeight, overflowY: 'auto',
+          }}
           onMouseDown={e => e.preventDefault()}
         >
           {filtered.map(s => (

@@ -97,10 +97,10 @@
   min-width: 160px;
   max-height: 260px;
   overflow-y: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-light) transparent;
 }
 
-.filterDropdown::-webkit-scrollbar { display: none; }
 
 .filterOption {
   padding: 8px 12px;

@@ -22,6 +22,7 @@ import { formatarTelefone, mascararTelefone, normalizarTelefone, validarTelefone
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { calcularTotalDaVenda } from '@/lib/vendas/total'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -161,12 +162,14 @@ function focusGridCell(row: number, col: number) {
 
 function useFixedDropdown<T extends HTMLElement = HTMLInputElement>() {
   const inputRef = useRef<T>(null)
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [pos, setPos] = useState<PosicaoDropdown | null>(null)
 
+  /* A posição sai de `posicionarDropdown`: abre para cima quando não cabe
+   * embaixo e limita a altura ao espaço da janela. Antes era sempre
+   * `top: bottom + 4`, e perto do pé da tela a lista era cortada sem saída. */
   function measure() {
     if (!inputRef.current) return
-    const r = inputRef.current.getBoundingClientRect()
-    setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    setPos(posicionarDropdown(inputRef.current.getBoundingClientRect()))
   }
 
   function openAt() { measure() }
@@ -179,8 +182,7 @@ function useFixedDropdown<T extends HTMLElement = HTMLInputElement>() {
     if (!isOpen) return
     function reposition() {
       if (!inputRef.current) return
-      const r = inputRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+      setPos(posicionarDropdown(inputRef.current.getBoundingClientRect()))
     }
     window.addEventListener('scroll', reposition, true) // capture: pega scroll de qualquer container
     window.addEventListener('resize', reposition)
@@ -209,7 +211,11 @@ function StoreSelect({ value, onChange, stores }: {
         <ChevronDown size={11} style={{ flexShrink: 0, opacity: 0.5 }} />
       </button>
       {pos && (
-        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 160), zIndex: 9999 }}>
+        <div className={styles.comboDropdown} style={{
+          position: 'fixed', left: pos.left, width: Math.max(pos.width, 160), zIndex: 9999,
+          ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+          maxHeight: pos.maxHeight, display: 'flex', flexDirection: 'column',
+        }}>
           {stores.map(s => (
             <div key={s.id} className={`${styles.comboOption} ${s.id === value ? styles.comboOptionActive : ''}`}
               onMouseDown={() => { onChange(s.id); close() }}>
@@ -295,7 +301,11 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
         />
       </div>
       {pos && (
-        <div ref={listRef} className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 320), zIndex: 9999 }}>
+        <div ref={listRef} className={styles.comboDropdown} style={{
+          position: 'fixed', left: pos.left, width: Math.max(pos.width, 320), zIndex: 9999,
+          ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+          maxHeight: pos.maxHeight, display: 'flex', flexDirection: 'column',
+        }}>
           {filtered.map((c, idx) => (
             <div
               key={c.id}
@@ -390,7 +400,11 @@ function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGrid
         autoComplete="off"
       />
       {isOpen && (
-        <div ref={listRef} className={styles.comboDropdown} style={{ position: 'fixed', top: pos!.top, left: pos!.left, width: Math.max(pos!.width, 320), zIndex: 9999 }}>
+        <div ref={listRef} className={styles.comboDropdown} style={{
+          position: 'fixed', left: pos!.left, width: Math.max(pos!.width, 320), zIndex: 9999,
+          ...(pos!.top !== undefined ? { top: pos!.top } : { bottom: pos!.bottom }),
+          maxHeight: pos!.maxHeight, display: 'flex', flexDirection: 'column',
+        }}>
           {filtered.map((p, idx) => (
             <div
               key={p.id}

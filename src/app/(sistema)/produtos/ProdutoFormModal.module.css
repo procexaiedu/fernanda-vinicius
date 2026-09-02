@@ -193,9 +193,9 @@
   z-index: 110;
   max-height: 180px;
   overflow-y: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-light) transparent;
 }
-.comboDropdown::-webkit-scrollbar { display: none; }
 
 .comboOption {
   padding: 8px 12px;

@@ -15,6 +15,7 @@ import ConfirmDeleteCatalogModal from './ConfirmDeleteCatalogModal'
 import { excluirFornecedorRapido, excluirCategoriaRapida, excluirMaterialRapido } from '../catalog-actions'
 import styles from './NovaCompraForm.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
 
 // ─── Tipos de props ────────────────────────────────────────────────────────────
 
@@ -140,12 +141,13 @@ function focusGridCell(row: number, col: number) {
 
 function useFixedDropdown<T extends HTMLElement = HTMLInputElement>() {
   const inputRef = useRef<T>(null)
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [pos, setPos] = useState<PosicaoDropdown | null>(null)
 
+  /* Abre para cima quando não cabe embaixo e limita a altura ao espaço da
+   * janela — antes era sempre para baixo, e no pé da tela a lista era cortada. */
   function openAt() {
     if (!inputRef.current) return
-    const r = inputRef.current.getBoundingClientRect()
-    setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    setPos(posicionarDropdown(inputRef.current.getBoundingClientRect()))
   }
 
   function close() { setPos(null) }
@@ -237,7 +239,11 @@ function Combobox({ value, onChange, options, placeholder, className, rowIndex, 
         onKeyDown={handleKeyDown}
       />
       {pos && totalItems > 0 && (
-        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 160), zIndex: 9999 }}>
+        <div className={styles.comboDropdown} style={{
+          position: 'fixed', left: pos.left, width: Math.max(pos.width, 160), zIndex: 9999,
+          ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+          maxHeight: pos.maxHeight, display: 'flex', flexDirection: 'column',
+        }}>
           {filtered.map((o, idx) => (
             <div
               key={o}
@@ -353,7 +359,11 @@ function SupplierCombobox({ value, onChange, suppliers, placeholder, rowIndex, c
         onKeyDown={handleKeyDown}
       />
       {pos && totalItems > 0 && (
-        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 240), zIndex: 9999 }}>
+        <div className={styles.comboDropdown} style={{
+          position: 'fixed', left: pos.left, width: Math.max(pos.width, 240), zIndex: 9999,
+          ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+          maxHeight: pos.maxHeight, display: 'flex', flexDirection: 'column',
+        }}>
           {filtered.map((s, idx) => (
             <div
               key={s.id}
@@ -428,7 +438,11 @@ function PaySelect({ value, onChange, options, disabled }: {
         {!disabled && <ChevronDown size={11} style={{ flexShrink: 0, opacity: 0.5 }} />}
       </button>
       {pos && !disabled && (
-        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 130), zIndex: 9999 }}>
+        <div className={styles.comboDropdown} style={{
+          position: 'fixed', left: pos.left, width: Math.max(pos.width, 130), zIndex: 9999,
+          ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+          maxHeight: pos.maxHeight, display: 'flex', flexDirection: 'column',
+        }}>
           {options.map(o => (
             <div
               key={o.value}
@@ -467,7 +481,11 @@ function StoreSelect({ value, onChange, stores }: {
         <ChevronDown size={11} style={{ flexShrink: 0, opacity: 0.5 }} />
       </button>
       {pos && (
-        <div className={styles.comboDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: Math.max(pos.width, 160), zIndex: 9999 }}>
+        <div className={styles.comboDropdown} style={{
+          position: 'fixed', left: pos.left, width: Math.max(pos.width, 160), zIndex: 9999,
+          ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+          maxHeight: pos.maxHeight, display: 'flex', flexDirection: 'column',
+        }}>
           {stores.map(s => (
             <div
               key={s.id}

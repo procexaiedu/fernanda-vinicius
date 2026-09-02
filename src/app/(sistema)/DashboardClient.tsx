@@ -30,6 +30,7 @@ import { formatarTelefone } from '@/lib/telefone'
 import { formatarDinheiro, formatarEixo } from '@/lib/dinheiro'
 import PageHeader from '@/components/ui/PageHeader'
 import Link from 'next/link'
+import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -86,7 +87,7 @@ function FilterDropdown({ label, value, options, onChange }: {
   onChange: (v: string) => void
 }) {
   const [open, setOpen]   = useState(false)
-  const [pos, setPos]     = useState<{ top: number; left: number; width: number } | null>(null)
+  const [pos, setPos]     = useState<PosicaoDropdown | null>(null)
   const ref               = useRef<HTMLDivElement>(null)
   const selected          = options.find(o => o.value === value)
 
@@ -94,7 +95,7 @@ function FilterDropdown({ label, value, options, onChange }: {
     if (open) { setOpen(false); setPos(null); return }
     if (!ref.current) return
     const r = ref.current.getBoundingClientRect()
-    setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 160) })
+    setPos(posicionarDropdown(r, { altura: 280 }))
     setOpen(true)
   }
 
@@ -118,7 +119,11 @@ function FilterDropdown({ label, value, options, onChange }: {
       {open && pos && (
         <div
           className={styles.dropdownMenu}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 1000 }}
+          style={{
+            position: 'fixed', left: pos.left, width: Math.max(pos.width, 160), zIndex: 1000,
+            ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+            maxHeight: pos.maxHeight, overflowY: 'auto',
+          }}
         >
           {options.map(o => (
             <div

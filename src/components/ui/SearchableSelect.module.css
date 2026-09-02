@@ -45,10 +45,12 @@
  * `overflow-y: auto` do corpo do modal, que é justamente onde este select mais
  * aparece.
  */
+/* A altura máxima vem do componente (o espaço que sobra na janela). Aqui só a
+ * estrutura: a busca fica fixa e a lista rola. */
 .dropdown {
-  max-height: 280px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -56,7 +58,9 @@
   overflow: hidden;
 }
 
+/* A busca fica fixa no topo enquanto a lista rola por baixo. */
 .searchWrapper {
+  flex-shrink: 0;
   padding: 8px 8px 4px;
   border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
 }
@@ -76,13 +80,33 @@
 .searchInput:focus { border-color: var(--accent); }
 .searchInput::placeholder { color: var(--text-muted); }
 
+/*
+ * A lista ocupa o que sobra do menu e rola por dentro — o teto vem do
+ * componente, calculado sobre o espaço da janela.
+ *
+ * A BARRA APARECE, de propósito. Antes era `scrollbar-width: none`: a lista
+ * rolava e nada dizia isso. Numa lista cortada pelo pé da tela, sem barra, a
+ * única pista de que havia mais opções era a última linha aparecer pela
+ * metade — e quem tentava rolar fechava o menu.
+ */
 .list {
-  max-height: 200px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  scrollbar-width: none;
   padding: 4px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-light) transparent;
 }
-.list::-webkit-scrollbar { display: none; }
+
+.list::-webkit-scrollbar { width: 8px; }
+.list::-webkit-scrollbar-track { background: transparent; }
+.list::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.list::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: content-box; }
 
 .option {
   padding: 8px 12px;

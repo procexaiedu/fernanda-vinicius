@@ -229,6 +229,9 @@
   z-index: 300;
   max-height: 220px;
   overflow-y: auto;
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-light) transparent;
 }
 
 .selectOption {

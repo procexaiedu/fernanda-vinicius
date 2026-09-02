@@ -16,6 +16,7 @@ import type { SaleRow, ClosingOption } from './page'
 import styles from './VendasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import PageHeader from '@/components/ui/PageHeader'
+import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,13 +59,13 @@ function FilterSelect({ value, onChange, placeholder, options, searchable, minWi
   const ref = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [pos, setPos] = useState<PosicaoDropdown | null>(null)
 
   function toggle() {
     if (open) { setOpen(false); setPos(null); return }
     if (!ref.current) return
     const r = ref.current.getBoundingClientRect()
-    setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, minWidth ?? 160) })
+    setPos(posicionarDropdown(r, { altura: 280 }))
     setOpen(true)
     setQuery('')
     if (searchable) setTimeout(() => searchRef.current?.focus(), 30)
@@ -99,7 +100,14 @@ function FilterSelect({ value, onChange, placeholder, options, searchable, minWi
         <ChevronDown size={11} style={{ flexShrink: 0, opacity: 0.5, transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
       </button>
       {pos && (
-        <div className={styles.filterDropdown} style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}>
+        <div
+          className={styles.filterDropdown}
+          style={{
+            position: 'fixed', left: pos.left, width: Math.max(pos.width, minWidth ?? 160), zIndex: 9999,
+            ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+            maxHeight: pos.maxHeight, display: 'flex', flexDirection: 'column',
+          }}
+        >
           {searchable && (
             <div className={styles.filterSearchWrap}>
               <input

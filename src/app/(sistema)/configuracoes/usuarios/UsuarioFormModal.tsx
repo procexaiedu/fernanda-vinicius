@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button'
 import type { UserWithMetrics } from './page'
 import { createUser, updateUser } from './actions'
 import styles from './UsuarioFormModal.module.css'
+import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
 
 // ─── FormSelect ───────────────────────────────────────────────────────────────
 
@@ -19,13 +20,13 @@ function FormSelect<T extends string>({ value, onChange, options, error }: {
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [pos, setPos] = useState<PosicaoDropdown | null>(null)
 
   function toggle() {
     if (open) { setOpen(false); setPos(null); return }
     if (!ref.current) return
     const r = ref.current.getBoundingClientRect()
-    setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    setPos(posicionarDropdown(r, { altura: 280 }))
     setOpen(true)
   }
 
@@ -55,7 +56,11 @@ function FormSelect<T extends string>({ value, onChange, options, error }: {
       {pos && (
         <div
           className={styles.selectDropdown}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
+          style={{
+            position: 'fixed', left: pos.left, width: pos.width, zIndex: 9999,
+            ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+            maxHeight: pos.maxHeight, overflowY: 'auto',
+          }}
         >
           {options.map(o => (
             <div
@@ -83,13 +88,13 @@ function StoreSelect({ value, onChange, stores, placeholder, error }: {
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [pos, setPos] = useState<PosicaoDropdown | null>(null)
 
   function toggle() {
     if (open) { setOpen(false); setPos(null); return }
     if (!ref.current) return
     const r = ref.current.getBoundingClientRect()
-    setPos({ top: r.bottom + 4, left: r.left, width: r.width })
+    setPos(posicionarDropdown(r, { altura: 280 }))
     setOpen(true)
   }
 
@@ -121,7 +126,11 @@ function StoreSelect({ value, onChange, stores, placeholder, error }: {
       {pos && (
         <div
           className={styles.selectDropdown}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 9999 }}
+          style={{
+            position: 'fixed', left: pos.left, width: pos.width, zIndex: 9999,
+            ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }),
+            maxHeight: pos.maxHeight, overflowY: 'auto',
+          }}
         >
           <div
             className={`${styles.selectOption} ${!value ? styles.selectOptionActive : ''} ${styles.selectOptionMuted}`}
