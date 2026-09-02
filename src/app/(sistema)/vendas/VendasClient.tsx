@@ -422,7 +422,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                   title="Clique para ver detalhes"
                 >
                   <td className={`${styles.dateCell} col-date`}>{fmtDate(s.sale_date)}</td>
-                  <td>{s.customer_name ?? <span className={styles.muted}>—</span>}</td>
+                  <td className="nome-cliente">{s.customer_name ?? <span className={styles.muted}>—</span>}</td>
                   {podeTrocarLoja && <td className={`${styles.muted} col-secondary`}>{s.store_name}</td>}
                   {userRole === 'admin' && (
                     <td className={`${styles.muted} col-secondary`}>{s.seller_name ?? <span className={styles.muted}>—</span>}</td>

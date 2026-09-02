@@ -320,7 +320,7 @@ export default function ClientesClient({
                           {getInitials(c.name)}
                         </div>
                         <div className={styles.customerInfo}>
-                          <div className={styles.customerName}>
+                          <div className={`${styles.customerName} nome-cliente`}>
                             {c.name}
                             {birthday && (
                               <span className={styles.birthdayBadge} title="Aniversariante este mês">🎂</span>

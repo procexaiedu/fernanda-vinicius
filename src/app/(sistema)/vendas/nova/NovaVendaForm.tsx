@@ -305,7 +305,7 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
               onMouseDown={() => pick(c)}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontWeight: 600 }}>{c.name}</span>
+                <span className="nome-cliente" style={{ fontWeight: 600 }}>{c.name}</span>
                 {isBirthdayMonth(c.birthday) && <Cake size={12} style={{ color: 'var(--accent)' }} />}
               </div>
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatarTelefone(c.phone)}{c.cpf ? ` · CPF: ${c.cpf}` : ''}</span>

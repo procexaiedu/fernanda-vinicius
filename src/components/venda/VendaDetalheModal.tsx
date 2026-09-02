@@ -102,7 +102,7 @@ export default function VendaDetalheModal({ saleId, onClose, onDeleted, canDelet
                   {venda.customer_name && (
                     <>
                       <span className={styles.detailSep}>·</span>
-                      <span>{venda.customer_name}</span>
+                      <span><span className="nome-cliente">{venda.customer_name}</span></span>
                     </>
                   )}
                   {venda.seller_name && (

@@ -747,7 +747,7 @@ export default function DashboardClient({
             ) : cobrancas.map(c => (
               <Link key={c.sale_id} href={`/vendas?busca=${encodeURIComponent(c.cliente)}`} className={styles.alertRow}>
                 <div className={styles.alertRowInfo}>
-                  <span className={styles.alertRowName}>{c.cliente}</span>
+                  <span className={`${styles.alertRowName} nome-cliente`}>{c.cliente}</span>
                   <span className={`${styles.alertRowSub} ${c.atraso > 0 ? styles.cobrancaAtrasada : ''}`}>
                     {c.atraso === 0 ? 'vence hoje' : `${c.atraso} dia${c.atraso > 1 ? 's' : ''} de atraso`}
                     {' · '}{fmtDate(c.previsao)}
@@ -774,7 +774,7 @@ export default function DashboardClient({
             ) : aniversariantes.map(a => (
               <div key={a.id} className={styles.alertRow}>
                 <div className={styles.alertRowInfo}>
-                  <span className={styles.alertRowName}>{a.name}</span>
+                  <span className={`${styles.alertRowName} nome-cliente`}>{a.name}</span>
                   <span className={styles.alertRowSub}>{formatarTelefone(a.phone)} · {fmtBirthday(a.birthday)}</span>
                 </div>
                 <span className={styles.alertRowMuted}>

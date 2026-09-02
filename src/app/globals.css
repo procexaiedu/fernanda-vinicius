@@ -977,25 +977,43 @@ table td:first-child:not([class*="col-"]) {
 }
 
 
-/* ─── Caixa alta nos rótulos e na navegação ─────────────────────────────────
+
+
+
+/* ─── Caixa alta ────────────────────────────────────────────────────────────
  *
- * Pedido da dona no treinamento de 02/09 ("depois você sobe tudo para caixa
- * alta"). Aplicado onde o texto é RÓTULO, não onde é CONTEÚDO, por três razões:
+ * Decisão da dona, reafirmada em 02/09: "tirando cliente, deixe tudo em caixa
+ * alta, tudo mesmo". Eu havia entregue só rótulo e navegação e argumentado
+ * contra o resto; ela decidiu, e decide mesmo.
  *
- *  1. Caixa alta em frase corrida é mais lenta de ler — some o contorno da
- *     palavra. Em "VENDAS" não atrapalha; em "Nenhuma venda encontrada. Tente
- *     ajustar os filtros" atrapalha.
- *  2. O sistema JÁ usava maiúscula como sinal de rótulo (cabeçalho de tabela,
- *     rótulo de KPI). Subir tudo mataria esse sinal.
- *  3. Nome de cliente e de peça vêm do banco e vão para o comprovante que a
- *     cliente recebe. "MAGDA ZÁQUIA" na tela e "Magda Záquia" no papel seria
- *     incoerente.
+ * Fica registrado o que eu tinha levantado, porque é o que vai aparecer no uso:
+ * texto corrido em maiúscula é mais lento de ler, porque some o contorno da
+ * palavra. Onde isso mais vai pesar é em mensagem de estado vazio e em
+ * observação de venda.
  *
- * É `text-transform`, não texto alterado na fonte: a acentuação e a busca
- * continuam corretas, e reverter é apagar este bloco.
+ * É `text-transform`, não texto alterado na origem. A acentuação, a busca e o
+ * que vai para o banco continuam iguais, e reverter é apagar este bloco.
  */
-.tab,
-.list-count {
+body {
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+}
+
+/*
+ * O que NÃO sobe.
+ *
+ * 1. NOME DE CLIENTE — exceção pedida. Também é o que vai no comprovante que a
+ *    cliente recebe; "MAGDA ZÁQUIA" na tela e "Magda Záquia" no papel seria
+ *    incoerente.
+ * 2. CAMPO DE DIGITAÇÃO — o que ela digita tem de ser o que ela vê. Com
+ *    `uppercase` no input, digitar "Magda" mostra "MAGDA" e grava "Magda": a
+ *    tela passaria a mentir sobre o que está sendo salvo.
+ * 3. CÓDIGO E DOCUMENTO — CPF, CNPJ, código de barras e afins não têm caixa.
+ */
+.nome-cliente,
+input,
+textarea,
+code,
+kbd,
+samp {
+  text-transform: none;
 }
