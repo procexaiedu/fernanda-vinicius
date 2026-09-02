@@ -10,6 +10,7 @@ import { formatarDinheiro } from '@/lib/dinheiro'
 import { buscarPecaPorCodigo, enviarTransferencia, type PecaBipada } from './actions'
 import type { LojaOption } from './page'
 import styles from './NovaTransferenciaModal.module.css'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 interface Linha extends PecaBipada {
   quantidade: number
@@ -131,21 +132,31 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
     <Modal isOpen title="Nova transferência" size="xl" onClose={onClose}>
       <div className={styles.corpo}>
         <div className={styles.rotas}>
-          <label className={styles.campo}>
+          <div className={styles.campo}>
             <span>De</span>
-            <select value={origem} onChange={e => trocarOrigem(e.target.value)} disabled={enviando}>
-              {lojas.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
-          </label>
+            <SearchableSelect
+              value={origem}
+              onChange={trocarOrigem}
+              options={lojas.map(l => ({ value: l.id, label: l.name }))}
+              placeholder="Loja de origem"
+              searchable={false}
+              permitirLimpar={false}
+              disabled={enviando}
+            />
+          </div>
           <span className={styles.seta}>→</span>
-          <label className={styles.campo}>
+          <div className={styles.campo}>
             <span>Para</span>
-            <select value={destino} onChange={e => setDestino(e.target.value)} disabled={enviando}>
-              {lojas.filter(l => l.id !== origem).map(l => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
-          </label>
+            <SearchableSelect
+              value={destino}
+              onChange={setDestino}
+              options={lojas.filter(l => l.id !== origem).map(l => ({ value: l.id, label: l.name }))}
+              placeholder="Loja de destino"
+              searchable={false}
+              permitirLimpar={false}
+              disabled={enviando}
+            />
+          </div>
         </div>
 
         <div className={styles.bipeArea}>

@@ -575,11 +575,21 @@
   margin-bottom: 16px;
 }
 
+/*
+ * A forma de pagamento e as parcelas agora são o select do sistema, cuja
+ * largura mínima é 112px — pensada para a barra de filtros, larga demais para
+ * esta linha, que tem valor e ações do lado. Aqui elas ficam com largura fixa,
+ * como o campo de valor ao lado.
+ */
 .paymentRow {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
+.paymentRow > div:first-child { width: 122px; flex-shrink: 0; }
+.paymentRow > div:first-child button { min-width: 0; }
+.installmentsWrap > div button { min-width: 0; }
 
 .payCell {
   height: 34px;

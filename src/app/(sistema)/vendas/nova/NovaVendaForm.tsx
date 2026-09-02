@@ -21,6 +21,7 @@ import styles from './NovaVendaForm.module.css'
 import { formatarTelefone, mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/telefone'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { calcularTotalDaVenda } from '@/lib/vendas/total'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -1345,23 +1346,26 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             {payments.map((p, i) => (
               <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div className={styles.paymentRow}>
-                  <select
-                    className={styles.payCell}
+                  <SearchableSelect
                     value={p.method}
-                    onChange={e => {
-                      const m = e.target.value as PaymentRow['method']
+                    onChange={v => {
+                      const m = v as PaymentRow['method']
                       updatePayment(i, {
                         method: m,
                         installments: 1,
                         cardBrand: (m === 'credit' || m === 'debit') ? (p.cardBrand ?? null) : null,
                       })
                     }}
-                  >
-                    <option value="pix">PIX</option>
-                    <option value="cash">Dinheiro</option>
-                    <option value="debit">Débito</option>
-                    <option value="credit">Crédito</option>
-                  </select>
+                    options={[
+                      { value: 'pix',    label: 'PIX' },
+                      { value: 'cash',   label: 'Dinheiro' },
+                      { value: 'debit',  label: 'Débito' },
+                      { value: 'credit', label: 'Crédito' },
+                    ]}
+                    placeholder="Forma"
+                    searchable={false}
+                    permitirLimpar={false}
+                  />
 
                   <input
                     type="number" min="0" step="0.01"
@@ -1373,15 +1377,16 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
                   {p.method === 'credit' ? (
                     <div className={styles.installmentsWrap}>
-                      <select
-                        className={styles.payCell}
-                        value={p.installments}
-                        onChange={e => updatePayment(i, { installments: parseInt(e.target.value) })}
-                      >
-                        {Array.from({ length: maxInstallments }, (_, k) => k + 1).map(n => (
-                          <option key={n} value={n}>{n}x</option>
-                        ))}
-                      </select>
+                      <SearchableSelect
+                        value={String(p.installments)}
+                        onChange={v => updatePayment(i, { installments: parseInt(v) || 1 })}
+                        options={Array.from({ length: maxInstallments }, (_, k) => k + 1).map(n => ({
+                          value: String(n), label: `${n}x`,
+                        }))}
+                        placeholder="1x"
+                        searchable={false}
+                        permitirLimpar={false}
+                      />
                       {p.installments > 1 && p.amount > 0 && (
                         <span className={styles.installmentHint}>{fmt(p.amount / p.installments)}/parcela</span>
                       )}

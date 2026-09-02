@@ -14,6 +14,7 @@ import Romaneio from './Romaneio'
 import { cancelarTransferencia } from './actions'
 import type { LojaOption, Romaneio as RomaneioT } from './page'
 import styles from './TransferenciasClient.module.css'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 const ROTULO: Record<RomaneioT['status'], string> = {
   enviada:    'Em trânsito',
@@ -94,14 +95,19 @@ export default function TransferenciasClient({
     <>
       <div className={styles.toolbar}>
         <div className={styles.toolbarLeft}>
-          <select className={styles.filtro} value={filtroStatus}
-            onChange={e => pushParam('status', e.target.value)} disabled={pendente}>
-            <option value="">Todos os status</option>
-            <option value="enviada">Em trânsito</option>
-            <option value="recebida">Recebidas</option>
-            <option value="divergente">Com divergência</option>
-            <option value="cancelada">Canceladas</option>
-          </select>
+          <SearchableSelect
+            value={filtroStatus}
+            onChange={v => pushParam('status', v)}
+            options={[
+              { value: 'enviada',    label: 'Em trânsito' },
+              { value: 'recebida',   label: 'Recebidas' },
+              { value: 'divergente', label: 'Com divergência' },
+              { value: 'cancelada',  label: 'Canceladas' },
+            ]}
+            placeholder="Todos os status"
+            searchable={false}
+            disabled={pendente}
+          />
           <span className={styles.contador}>
             {total} transferência{total !== 1 ? 's' : ''}
           </span>

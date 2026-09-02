@@ -411,6 +411,7 @@
 }
 
 .baixaLinha label,
+.baixaMotivo,
 .baixaObs {
   display: flex;
   flex-direction: column;
@@ -424,7 +425,6 @@
 }
 
 .baixaLinha input,
-.baixaLinha select,
 .baixaObs input {
   height: 32px;
   padding: 0 9px;
@@ -438,6 +438,10 @@
 
 .baixaLinha input { width: 74px; }
 .baixaMotivo { flex: 1; min-width: 190px; }
+
+/* O gatilho do select do sistema acompanha a altura dos campos ao lado —
+ * sem isso ele fica 2px mais alto e a linha desalinha na base. */
+.baixaMotivo button { height: 32px; }
 .baixaObs input { width: 100%; }
 
 .baixaDisponivel {

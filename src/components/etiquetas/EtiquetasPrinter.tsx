@@ -420,17 +420,16 @@ function AgentStatusBar({ agent }: { agent: ReturnType<typeof useLocalPrintAgent
         <strong>Agente conectado</strong>
         <p>
           Impressora:{' '}
-          <select
+          <SearchableSelect
             value={agent.selectedPrinter ?? ''}
-            onChange={e => agent.setSelectedPrinter(e.target.value || null)}
-            className={styles.printerSelect}
-          >
-            {agent.printers.map(p => (
-              <option key={p.name} value={p.name}>
-                {p.name}{p.isDefault ? ' (padrão)' : ''}
-              </option>
-            ))}
-          </select>
+            onChange={v => agent.setSelectedPrinter(v || null)}
+            options={agent.printers.map(p => ({
+              value: p.name,
+              label: `${p.name}${p.isDefault ? ' (padrão)' : ''}`,
+            }))}
+            placeholder="Escolha a impressora"
+            searchable={false}
+          />
         </p>
       </div>
     </div>

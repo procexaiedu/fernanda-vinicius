@@ -15,6 +15,7 @@ import type { BipeRegistrado } from './page'
 /* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
 import { formatarDinheiro as fmt } from '@/lib/dinheiro'
 import styles from './SessaoClient.module.css'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 interface SessaoInfo {
   id: string
@@ -478,14 +479,13 @@ function GrupoDivergencia({ titulo, descricao, linhas, motivo, setMotivo, exceco
           <label className={styles.grupoMotivoRotulo}>
             Motivo {aplicando > 0 && <span className={styles.obrigatorio}>obrigatório</span>}
           </label>
-          <select
-            className={styles.select}
+          <SearchableSelect
             value={motivo}
-            onChange={e => setMotivo(e.target.value)}
-          >
-            <option value="">Escolha…</option>
-            {MOTIVOS.map(m => <option key={m.valor} value={m.valor}>{m.rotulo}</option>)}
-          </select>
+            onChange={setMotivo}
+            options={MOTIVOS.map(m => ({ value: m.valor, label: m.rotulo }))}
+            placeholder="Escolha…"
+            searchable={false}
+          />
           <span className={styles.grupoResumo}>
             {aplicando} de {linhas.length} vão ser ajustadas
           </span>

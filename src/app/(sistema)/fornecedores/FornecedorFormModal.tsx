@@ -12,6 +12,7 @@ import { mascararTelefone } from '@/lib/telefone'
 import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
 import { mascararCep } from '@/lib/cep'
 import { useCep } from '@/hooks/useCep'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 interface NominatimResult {
   display_name: string
@@ -468,10 +469,14 @@ export default function FornecedorFormModal({ supplier, allInitials, onClose }: 
           </div>
           <div className={styles.stateCol}>
             <label className={styles.selectLabel} htmlFor="supplier-state">Estado</label>
-            <select id="supplier-state" className={styles.select}
-              value={form.state} onChange={e => set('state', e.target.value)}>
-              {BR_STATES.map(uf => <option key={uf} value={uf}>{uf}</option>)}
-            </select>
+            <SearchableSelect
+              id="supplier-state"
+              value={form.state}
+              onChange={v => set('state', v)}
+              options={BR_STATES.map(uf => ({ value: uf, label: uf }))}
+              placeholder="UF"
+              permitirLimpar={false}
+            />
           </div>
         </div>
 

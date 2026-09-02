@@ -263,19 +263,29 @@ export default function ProdutoFormModal({ product, suppliers, stores, categorie
           <div className={styles.grid3} style={{ marginTop: 12 }}>
             <div className={styles.field}>
               <label className={styles.label}>Mês da compra <span className={styles.required}>*</span></label>
-              <select className={styles.select} value={month} onChange={e => setMonth(e.target.value)}>
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                  <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={month}
+                onChange={setMonth}
+                options={Array.from({ length: 12 }, (_, i) => i + 1).map(m => ({
+                  value: String(m), label: String(m).padStart(2, '0'),
+                }))}
+                placeholder="Mês"
+                searchable={false}
+                permitirLimpar={false}
+              />
             </div>
             <div className={styles.field}>
               <label className={styles.label}>Ano <span className={styles.required}>*</span></label>
-              <select className={styles.select} value={year} onChange={e => setYear(e.target.value)}>
-                {Array.from({ length: 5 }, (_, i) => currentYear - i).map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={year}
+                onChange={setYear}
+                options={Array.from({ length: 5 }, (_, i) => currentYear - i).map(y => ({
+                  value: String(y), label: String(y),
+                }))}
+                placeholder="Ano"
+                searchable={false}
+                permitirLimpar={false}
+              />
             </div>
             <div className={styles.field}>
               <label className={styles.label}>Qtd. em estoque</label>
