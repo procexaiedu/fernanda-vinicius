@@ -26,7 +26,7 @@
   height: 34px;
   padding: 0 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   color: var(--text-primary);
   font-size: 13px;
@@ -43,7 +43,7 @@
   height: 34px;
   padding: 0 28px 0 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   color: var(--text-primary);
   font-size: 13px;
@@ -70,18 +70,11 @@
 }
 .toggle input { cursor: pointer; accent-color: var(--accent); }
 
-.counter {
-  font-size: 12px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  margin-left: 4px;
-}
-
 .tableWrapper {
   overflow-x: auto;
   /* Sem scroll interno — a paginação de 10 em 10 já define a altura. */
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   scrollbar-width: none;
 }
@@ -129,7 +122,7 @@
 .photo {
   width: 36px;
   height: 36px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   object-fit: cover;
   flex-shrink: 0;
   background: var(--bg-elevated);
@@ -138,7 +131,7 @@
 .photoPlaceholder {
   width: 36px;
   height: 36px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   display: flex;
   align-items: center;
@@ -171,7 +164,7 @@
   color: var(--text-secondary);
   background: var(--bg-elevated);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   white-space: nowrap;
 }
 
@@ -187,7 +180,7 @@
   min-width: 24px;
   height: 22px;
   padding: 0 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 700;
   background: var(--bg-elevated);
@@ -219,21 +212,6 @@
   white-space: nowrap;
 }
 
-.iconBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-.iconBtn:hover { background: var(--bg-elevated); color: var(--text-primary); }
-
 .transferBtn {
   display: flex;
   align-items: center;
@@ -261,7 +239,7 @@
   height: 30px;
   padding: 0 6px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg-surface);
   color: var(--text-secondary);
   font-size: 13px;
@@ -300,7 +278,7 @@
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   box-shadow: 0 8px 24px rgb(0 0 0 / 28%);
@@ -320,7 +298,7 @@
   margin-left: 4px;
   padding: 2px 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
   font-size: 12.5px;

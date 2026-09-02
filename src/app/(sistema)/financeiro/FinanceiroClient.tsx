@@ -25,7 +25,7 @@ import {
   type TransactionRow, type PnlData, type RecurrenteRow,
   type DespesaManualData, type RecurrenteData,
 } from './actions'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { formatarDinheiro, formatarDinheiroComSinal } from '@/lib/dinheiro'
 
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -114,7 +114,15 @@ function FilterDropdown({
         onClick={toggle}
         onBlur={() => setTimeout(() => { setOpen(false); setPos(null) }, 150)}
       >
-        {selected?.label ?? label}
+        {/*
+          "Rótulo: valor", como no Dashboard. Antes mostrava só o rótulo da
+          opção, e como cada lista usava um critério diferente para a opção
+          vazia, a mesma fila misturava nome de CAMPO ("Tipo", "Categoria",
+          "Vendedor") com VALOR selecionado ("Todas as lojas") — dava para ler
+          a fileira inteira sem descobrir o que cada controle filtra.
+        */}
+        <span className={styles.filterBtnLabel}>{label}:</span>
+        <span className={styles.filterBtnValue}>{selected?.label ?? 'Todos'}</span>
         <ChevronDown size={12} />
       </button>
       {open && pos && (
@@ -296,7 +304,7 @@ export default function FinanceiroClient({ stores, podeTrocarLoja, users, catego
         ] as const).map(([key, label]) => (
           <button
             key={key}
-            className={`${styles.tab} ${activeTab === key ? styles.tabActive : ''}`}
+            className={`tab ${activeTab === key ? 'tab-active' : ''}`}
             onClick={() => setActiveTab(key)}
           >
             {label}
@@ -418,7 +426,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
   const { fatia, pagina, totalPaginas, totalItens, irPara } = usePaginacaoLocal(ord.ordenados)
 
   const catOptions: DropdownOption[] = [
-    { value: '', label: 'Categoria' },
+    { value: '', label: 'Todas' },
     ...categories.map(c => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) })),
   ]
 
@@ -428,18 +436,18 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
   ]
 
   const userOptions: DropdownOption[] = [
-    { value: '', label: 'Vendedor' },
+    { value: '', label: 'Todos' },
     ...users.map(u => ({ value: u.id, label: u.full_name })),
   ]
 
   const typeOptions: DropdownOption[] = [
-    { value: '', label: 'Tipo' },
+    { value: '', label: 'Tudo' },
     { value: 'income', label: 'Entradas' },
     { value: 'expense', label: 'Saídas' },
   ]
 
   const statusOptions: DropdownOption[] = [
-    { value: '', label: 'Status' },
+    { value: '', label: 'Todos' },
     { value: 'completed', label: 'Pago' },
     { value: 'pending', label: 'Pendente' },
   ]
@@ -589,7 +597,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                 <td className={`${styles.muted} col-tertiary`}>{METHOD_LABELS[tx.payment_method ?? ''] ?? tx.payment_method ?? '—'}</td>
                 <td className="col-num">
                   <span className={tx.type === 'income' ? styles.amountIncome : styles.amountExpense}>
-                    {tx.type === 'income' ? '+' : '−'} {fmt(tx.amount)}
+                    {formatarDinheiroComSinal(tx.amount, tx.type === 'income' ? 'entrada' : 'saida')}
                   </span>
                 </td>
                 <td className="col-center">
@@ -601,7 +609,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                   <div className={styles.actionsCell}>
                     {tx.status === 'pending' && (
                       <button
-                        className={`${styles.iconBtn} ${styles.iconBtnSuccess}`}
+                        className={`icon-btn ${styles.iconBtnSuccess}`}
                         title="Marcar como pago"
                         onClick={() => handleMarkPaid(tx.id)}
                       >
@@ -611,7 +619,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                     {tx.reference_type === 'manual' && (
                       <>
                         <button
-                          className={styles.iconBtn}
+                          className="icon-btn"
                           title="Editar"
                           onClick={() => { setEditingTx(tx); setShowModal(true) }}
                         >
@@ -624,7 +632,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                           </div>
                         ) : (
                           <button
-                            className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                            className={`icon-btn ${styles.iconBtnDanger}`}
                             title="Deletar"
                             onClick={() => setDeleteConfirm(tx.id)}
                           >
@@ -783,7 +791,7 @@ function PendenciasModal({
                         <td onClick={e => e.stopPropagation()}>
                           <div className={styles.actionsCell}>
                             <button
-                              className={`${styles.iconBtn} ${styles.iconBtnSuccess}`}
+                              className={`icon-btn ${styles.iconBtnSuccess}`}
                               title="Marcar como pago"
                               onClick={() => onMarkPaid(p.id)}
                             >
@@ -1320,7 +1328,7 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
                 <td>
                   <div className={styles.actionsCell}>
                     <button
-                      className={styles.iconBtn}
+                      className="icon-btn"
                       onClick={() => { setEditing(r); setShowModal(true) }}
                     >
                       <Pencil size={13} />
@@ -1332,7 +1340,7 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
                       </div>
                     ) : (
                       <button
-                        className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                        className={`icon-btn ${styles.iconBtnDanger}`}
                         onClick={() => setDeleteConfirm(r.id)}
                       >
                         <Trash2 size={13} />

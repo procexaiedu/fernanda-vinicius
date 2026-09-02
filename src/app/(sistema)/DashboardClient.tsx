@@ -28,6 +28,7 @@ import {
 import styles from './DashboardClient.module.css'
 import { formatarTelefone } from '@/lib/telefone'
 import { formatarDinheiro, formatarEixo } from '@/lib/dinheiro'
+import PageHeader from '@/components/ui/PageHeader'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -298,6 +299,12 @@ export default function DashboardClient({
     { value: '__all__', label: 'Todas as lojas' },
     ...lojas.map(l => ({ value: l.id, label: l.name })),
   ]
+  /* Vazio de verdade: nenhum mês do período tem faturamento nem compra. Um
+   * array com seis meses zerados não é "sem dados" para o Recharts — ele
+   * desenha os eixos e some com as linhas. */
+  const graficoVazio = grafico.length === 0
+    || grafico.every(m => !m.faturamento && !m.custoCompras)
+
   const isCurrentMonth = new Date().getMonth() + 1 === month && new Date().getFullYear() === year
 
   // ─── Render ──────────────────────────────────────────────────────────────────
@@ -306,12 +313,10 @@ export default function DashboardClient({
     <div className={`${styles.page} ${loading ? styles.loading : ''}`}>
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div className={styles.header}>
-        <div className={styles.headerLeft}>
-          <h1 className={styles.title}>Dashboard</h1>
-          <p className={styles.subtitle}>Visão geral do seu negócio</p>
-        </div>
-        <div className={styles.controls}>
+      <PageHeader
+        title="Dashboard"
+        subtitle="Visão geral do seu negócio"
+        actions={<>
           {/*
             O seletor só existe para quem pode trocar de loja. Quem está preso a
             uma via "Todas as lojas" ali e podia clicar — o dado vinha filtrado
@@ -332,8 +337,8 @@ export default function DashboardClient({
               <ChevronRight size={16} />
             </button>
           </div>
-        </div>
-      </div>
+        </>}
+      />
 
       {/*
         ── Seção 1: resultado do mês + indicadores ──────────────────────────
@@ -468,8 +473,15 @@ export default function DashboardClient({
             </div>
           </div>
           <div className={styles.chartWrap}>
-            {/* Mais alto agora que ocupa a linha inteira: numa faixa larga e baixa as
-                três séries se achatam e a variação entre os meses some. */}
+            {/*
+              Sem movimento nenhum no período, o gráfico virava um retângulo
+              preto de 260px: eixos sem escala, três linhas coladas no zero e
+              nada escrito. Todo painel vizinho já dizia "Nenhuma venda no
+              período"; este era o único que só sumia.
+            */}
+            {graficoVazio ? (
+              <div className={styles.chartEmpty}>Nenhum movimento no período</div>
+            ) : (
             <ResponsiveContainer width="100%" height={260}>
               <LineChart
                 data={grafico}
@@ -487,6 +499,7 @@ export default function DashboardClient({
                 <Line dataKey="lucroLiquido" name="Lucro Líquido" stroke="var(--gem-esmeralda)" strokeWidth={2} strokeDasharray="5 3" dot={false} activeDot={{ r: 4, fill: 'var(--gem-esmeralda)' }} type="monotone" />
               </LineChart>
             </ResponsiveContainer>
+            )}
           </div>
         </div>
       )}
@@ -926,8 +939,16 @@ function StockCard({ label, value, alert, hint, small, onClick }: {
       title={`Ver os produtos por trás de ${label.toLocaleLowerCase('pt-BR')}`}
     >
       <div className={styles.stockValue} style={{ fontSize: small ? 15 : undefined }}>{value}</div>
-      <div className={styles.stockLabel}>{label}</div>
-      {hint && <div className={styles.stockHint}>{hint}</div>}
+      {/*
+        Rótulo e dica num bloco só. No cartão em pé isso não muda nada; no de
+        "Peças Paradas", que é deitado de propósito para pesar mais, é o que
+        tira o "+30 dias sem venda" de cima da mesma linha do rótulo — era onde
+        ele ficava espremido e ilegível.
+      */}
+      <div className={styles.stockTextos}>
+        <div className={styles.stockLabel}>{label}</div>
+        {hint && <div className={styles.stockHint}>{hint}</div>}
+      </div>
     </button>
   )
 }

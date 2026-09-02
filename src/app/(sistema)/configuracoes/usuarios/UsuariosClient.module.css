@@ -174,7 +174,7 @@
   letter-spacing: 0.04em;
   background: var(--accent-subtle);
   color: var(--accent);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 1px 5px;
 }
 
@@ -220,34 +220,6 @@
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-}
-
-.iconBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 28px;
-  height: 28px;
-  padding: 0 6px;
-  border: 1px solid var(--border-light);
-  background: transparent;
-  color: var(--text-muted);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 12px;
-  font-family: inherit;
-  font-weight: 500;
-  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
-}
-
-.iconBtn:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-}
-
-.iconBtn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
 }
 
 .iconBtnDanger:hover {

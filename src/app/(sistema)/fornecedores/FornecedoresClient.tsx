@@ -369,14 +369,14 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
                           </>
                         ) : (
                           <>
-                            <button className={styles.iconBtn} title="Ver detalhes" onClick={e => { e.stopPropagation(); setDetalhe(s) }}>
+                            <button className="icon-btn" title="Ver detalhes" onClick={e => { e.stopPropagation(); setDetalhe(s) }}>
                               <BarChart2 size={14} />
                             </button>
-                            <button className={styles.iconBtn} title="Editar" onClick={e => openEdit(s, e)}>
+                            <button className="icon-btn" title="Editar" onClick={e => openEdit(s, e)}>
                               <Pencil size={14} />
                             </button>
                             <button
-                              className={`${styles.iconBtn} ${s.is_active ? styles.iconBtnDanger : styles.iconBtnSuccess}`}
+                              className={`icon-btn ${s.is_active ? styles.iconBtnDanger : styles.iconBtnSuccess}`}
                               title={s.is_active ? 'Inativar' : 'Reativar'}
                               disabled={togglingId === s.id}
                               onClick={e => handleToggle(s, e)}

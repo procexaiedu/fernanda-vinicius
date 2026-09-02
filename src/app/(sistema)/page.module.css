@@ -4,22 +4,8 @@
   gap: 24px;
 }
 
-.heading {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
 
-.title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
 
-.subtitle {
-  font-size: 13px;
-  color: var(--text-muted);
-}
 
 .placeholder {
   display: flex;

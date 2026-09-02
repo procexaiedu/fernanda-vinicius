@@ -7,7 +7,7 @@ import Badge from '@/components/ui/Badge'
 import { createClient } from '@/lib/supabase/client'
 import type { UserWithMetrics } from './page'
 import styles from './FuncionariaDetalheModal.module.css'
-import { formatarDinheiro } from '@/lib/dinheiro'
+import { formatarDinheiro, formatarDinheiroComSinal } from '@/lib/dinheiro'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -244,11 +244,11 @@ export default function FuncionariaDetalheModal({ user, onClose, onEdit }: Props
       </div>
 
       {/* ── Abas ───────────────────────────────────────────── */}
-      <div className={styles.tabs}>
+      <div className="tabs">
         {tabs.map(tab => (
           <button
             key={tab.key}
-            className={`${styles.tab} ${activeTab === tab.key ? styles.tabActive : ''}`}
+            className={`tab ${activeTab === tab.key ? 'tab-active' : ''}`}
             onClick={() => setActiveTab(tab.key)}
           >
             {tab.label}
@@ -371,8 +371,8 @@ export default function FuncionariaDetalheModal({ user, onClose, onEdit }: Props
                         <th>Data</th>
                         <th>Cliente</th>
                         <th>Pagamento</th>
-                        <th className={styles.rightCol}>Desconto</th>
-                        <th className={styles.rightCol}>Total</th>
+                        <th className={`${styles.rightCol} col-num`}>Desconto</th>
+                        <th className={`${styles.rightCol} col-num`}>Total</th>
                         <th>Status</th>
                       </tr>
                     </thead>
@@ -382,10 +382,10 @@ export default function FuncionariaDetalheModal({ user, onClose, onEdit }: Props
                           <td className={`${styles.mutedCell} col-date`}>{formatDate(s.sale_date)}</td>
                           <td>{s.customers?.name ?? <span className={styles.mutedCell}>—</span>}</td>
                           <td className={styles.mutedCell}>{s.payment_summary ?? '—'}</td>
-                          <td className={`${styles.rightCol} ${styles.mutedCell}`}>
-                            {Number(s.discount_amount) > 0 ? `-${formatCurrency(Number(s.discount_amount))}` : '—'}
+                          <td className={`${styles.rightCol} ${styles.mutedCell} col-num`}>
+                            {Number(s.discount_amount) > 0 ? formatarDinheiroComSinal(Number(s.discount_amount), 'saida') : '—'}
                           </td>
-                          <td className={`${styles.rightCol} ${styles.valueText}`}>
+                          <td className={`${styles.rightCol} ${styles.valueText} col-num`}>
                             {formatCurrency(Number(s.total))}
                           </td>
                           <td>
@@ -431,7 +431,7 @@ export default function FuncionariaDetalheModal({ user, onClose, onEdit }: Props
                         <tr>
                           <th>Data</th>
                           <th>Motivo</th>
-                          <th className={styles.rightCol}>Diferença</th>
+                          <th className={`${styles.rightCol} col-num`}>Diferença</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -464,16 +464,16 @@ export default function FuncionariaDetalheModal({ user, onClose, onEdit }: Props
                       <thead>
                         <tr>
                           <th>Data</th>
-                          <th className={styles.rightCol}>Vendas</th>
-                          <th className={styles.rightCol}>Total</th>
+                          <th className={`${styles.rightCol} col-num`}>Vendas</th>
+                          <th className={`${styles.rightCol} col-num`}>Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {data?.cashClosings.map(c => (
                           <tr key={c.id}>
                             <td className={`${styles.mutedCell} col-date`}>{formatDate(c.closing_date)}</td>
-                            <td className={`${styles.rightCol} ${styles.mutedCell}`}>{c.sales_count}</td>
-                            <td className={`${styles.rightCol} ${styles.valueText}`}>
+                            <td className={`${styles.rightCol} ${styles.mutedCell} col-num`}>{c.sales_count}</td>
+                            <td className={`${styles.rightCol} ${styles.valueText} col-num`}>
                               {formatCurrency(Number(c.total_sales))}
                             </td>
                           </tr>

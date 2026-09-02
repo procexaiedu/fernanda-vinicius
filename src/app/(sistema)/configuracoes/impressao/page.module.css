@@ -4,24 +4,8 @@
   gap: 24px;
 }
 
-.heading {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
 
-.title {
-  font-size: var(--fs-page-title);
-  letter-spacing: var(--tracking-title);
-  line-height: 1.15;
-  font-weight: 700;
-  color: var(--text-primary);
-}
 
-.subtitle {
-  font-size: 13px;
-  color: var(--text-muted);
-}
 
 /* O nome do executável no subtítulo. Mesma marcação de `code` dos cartões —
  * ver a regra em ImpressaoClient.module.css. */

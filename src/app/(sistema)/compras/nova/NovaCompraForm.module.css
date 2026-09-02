@@ -62,7 +62,7 @@
   border: none;
   background: transparent;
   color: var(--text-muted);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -384,7 +384,7 @@
   padding: 0 6px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
   font-size: 13px;
   font-family: inherit;
@@ -473,7 +473,7 @@
   height: 22px;
   padding: 0;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--text-disabled);
   cursor: pointer;
@@ -555,7 +555,7 @@
   font-size: 12px;
   font-weight: 700;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -615,7 +615,7 @@
   height: 28px;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -815,7 +815,7 @@
 
 .diffOk {
   font-size: 12px;
-  color: var(--success, #4caf82);
+  color: var(--success);
   font-weight: 600;
   padding: 4px 10px;
   background: rgba(76, 175, 130, 0.1);

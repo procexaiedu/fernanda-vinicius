@@ -3,6 +3,7 @@ import { requireProfile, ehAdminGlobal, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import FinanceiroClient from './FinanceiroClient'
 import { buscarTransacoes } from './actions'
+import PageHeader from '@/components/ui/PageHeader'
 
 export default async function FinanceiroPage() {
   const profile = await requireProfile()
@@ -43,13 +44,11 @@ export default async function FinanceiroPage() {
   const categories = Array.from(catSet).sort()
 
   return (
-    <div className="page-pad">
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)' }}>Financeiro</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-          Ledger de transações, P&L e despesas recorrentes.
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        title="Financeiro"
+        subtitle="Ledger de transações, P&L e despesas recorrentes."
+      />
 
       <FinanceiroClient
         podeTrocarLoja={ehAdminGlobal(profile)}

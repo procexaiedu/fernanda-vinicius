@@ -374,10 +374,10 @@ export default function ClienteDetalheModal({ customer, inactiveDays, isAdmin = 
                               <tr>
                                 <th>Código</th>
                                 <th>Produto</th>
-                                <th className={styles.numCol}>Qtd</th>
-                                {isAdmin && <th className={styles.numCol}>Custo unit.</th>}
-                                <th className={styles.numCol}>Preço unit.</th>
-                                <th className={styles.numCol}>Subtotal</th>
+                                <th className={`${styles.numCol} col-num`}>Qtd</th>
+                                {isAdmin && <th className={`${styles.numCol} col-num`}>Custo unit.</th>}
+                                <th className={`${styles.numCol} col-num`}>Preço unit.</th>
+                                <th className={`${styles.numCol} col-num`}>Subtotal</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -385,10 +385,10 @@ export default function ClienteDetalheModal({ customer, inactiveDays, isAdmin = 
                                 <tr key={item.id}>
                                   <td className={styles.codeCell}>{item.product_code}</td>
                                   <td>{item.product_name}</td>
-                                  <td className={styles.numCol}>{item.quantity}</td>
-                                  {isAdmin && <td className={styles.numCol}>{formatCurrency(item.unit_cost)}</td>}
-                                  <td className={styles.numCol}>{formatCurrency(item.unit_price)}</td>
-                                  <td className={`${styles.numCol} ${styles.subtotalCell}`}>{formatCurrency(item.subtotal)}</td>
+                                  <td className={`${styles.numCol} col-num`}>{item.quantity}</td>
+                                  {isAdmin && <td className={`${styles.numCol} col-num`}>{formatCurrency(item.unit_cost)}</td>}
+                                  <td className={`${styles.numCol} col-num`}>{formatCurrency(item.unit_price)}</td>
+                                  <td className={`${styles.numCol} ${styles.subtotalCell} col-num`}>{formatCurrency(item.subtotal)}</td>
                                 </tr>
                               ))}
                             </tbody>

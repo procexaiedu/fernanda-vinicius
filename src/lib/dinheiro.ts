@@ -13,14 +13,52 @@
  * R$ 32,90 é R$ 32,90; R$ 33 é outro número.
  */
 
-/** Sempre com 2 casas: `1062.4` → `"R$ 1.062,40"`. */
+/**
+ * Sempre com 2 casas: `1062.4` → `"R$ 1.062,40"`.
+ *
+ * O negativo sai com o menos TIPOGRÁFICO (U+2212), não com o hífen que o
+ * `toLocaleString` devolve. Nas fontes com `tabular-nums` o U+2212 tem a
+ * largura de um dígito e o hífen não — numa coluna alinhada à direita, o hífen
+ * empurra a primeira casa e o valor negativo desalinha dos vizinhos.
+ *
+ * É também o que faz `-R$ 1.779,00` do card bater com o `−R$ 95,00` da tabela:
+ * eram dois desenhos do mesmo fato na mesma tela.
+ *
+ * Só troca o caractere de exibição — o número não muda.
+ */
 export function formatarDinheiro(valor: number | null | undefined): string {
-  return (Number(valor) || 0).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+  return (Number(valor) || 0)
+    .toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    .replace('-', '−')
+}
+
+/**
+ * Dinheiro com sinal explícito, para lançamento de ledger.
+ *
+ * Existe pelo mesmo motivo de `formatarDinheiro`: o sinal era decidido em cada
+ * chamada e divergiu. Numa mesma tela do Financeiro conviviam `− R$ 95,00` na
+ * tabela (menos tipográfico U+2212, com espaço) e `-R$ 1.779,00` no card
+ * (hífen, sem espaço) — dois desenhos para o mesmo fato.
+ *
+ * A escolha: **menos tipográfico, colado no valor**. O U+2212 tem a largura de
+ * um dígito nas fontes com `tabular-nums`, então a coluna continua empilhando
+ * alinhada; o hífen é mais estreito e desalinha a primeira casa. Sem espaço
+ * porque com `text-align: right` o sinal precisa acompanhar o número, não
+ * flutuar longe dele.
+ *
+ * `entrada` = crédito (mostra `+`), `saida` = débito (mostra `−`).
+ */
+export function formatarDinheiroComSinal(
+  valor: number | null | undefined,
+  tipo: 'entrada' | 'saida',
+): string {
+  const sinal = tipo === 'entrada' ? '+' : '−'
+  return sinal + formatarDinheiro(Math.abs(Number(valor) || 0))
 }
 
 /**

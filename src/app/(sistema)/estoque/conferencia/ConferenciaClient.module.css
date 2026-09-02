@@ -12,7 +12,7 @@
   padding: 14px 18px;
   margin-bottom: 20px;
   border: 1px solid var(--accent);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--bg-elevated);
   color: var(--text-primary);
   font-size: 14px;
@@ -43,7 +43,7 @@
   padding: 22px;
   margin-bottom: 28px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
 }
 
@@ -76,7 +76,7 @@
   gap: 4px;
   padding: 14px 16px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--bg-elevated);
   color: var(--text-primary);
   text-align: left;
@@ -128,7 +128,7 @@
   gap: 9px;
   margin-top: 16px;
   padding: 12px 14px;
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   background: var(--bg-elevated);
   color: var(--text-secondary);
   font-size: 13px;
@@ -163,14 +163,14 @@
   color: var(--text-muted);
   font-size: 13.5px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
 }
 
 .tableWrapper {
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--bg-surface);
   scrollbar-width: none;
 }

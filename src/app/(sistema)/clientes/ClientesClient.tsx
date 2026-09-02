@@ -198,9 +198,9 @@ export default function ClientesClient({
         ocupando espaço para não filtrar nada.
       */}
       {stores.length > 1 && (
-        <div className={styles.lojaAbas}>
+        <div className="tabs">
           <button
-            className={`${styles.lojaAba} ${!lojaAba ? styles.lojaAbaAtiva : ''}`}
+            className={`tab ${!lojaAba ? 'tab-active' : ''}`}
             onClick={() => setLojaAba('')}
           >
             Todas <span className={styles.lojaAbaCount}>{customers.length}</span>
@@ -208,7 +208,7 @@ export default function ClientesClient({
           {stores.map(loja => (
             <button
               key={loja.id}
-              className={`${styles.lojaAba} ${lojaAba === loja.id ? styles.lojaAbaAtiva : ''}`}
+              className={`tab ${lojaAba === loja.id ? 'tab-active' : ''}`}
               onClick={() => setLojaAba(loja.id)}
             >
               {loja.name} <span className={styles.lojaAbaCount}>{porLoja.get(loja.id) ?? 0}</span>
@@ -387,21 +387,21 @@ export default function ClientesClient({
                         ) : (
                           <>
                             <button
-                              className={styles.iconBtn}
+                              className="icon-btn"
                               title="Ver detalhes"
                               onClick={e => { e.stopPropagation(); setDetalhe(c) }}
                             >
                               <Eye size={14} />
                             </button>
                             <button
-                              className={styles.iconBtn}
+                              className="icon-btn"
                               title="Editar"
                               onClick={e => openEdit(c, e)}
                             >
                               <Pencil size={14} />
                             </button>
                             <button
-                              className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                              className={`icon-btn ${styles.iconBtnDanger}`}
                               title="Excluir"
                               disabled={deletingId === c.id}
                               onClick={e => handleDelete(c.id, e)}

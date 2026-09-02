@@ -119,11 +119,11 @@ export default function MetasClient({ mode, monthKey, rows }: Props) {
           <thead>
             <tr>
               <th>Vendedora</th>
-              {!isDefault && <th className={styles.numCol}>Realizado</th>}
+              {!isDefault && <th className={`${styles.numCol} col-num`}>Realizado</th>}
               {!isDefault && <th className={styles.progressCol}>Progresso</th>}
-              <th className={styles.numCol}>Meta (R$)</th>
-              <th className={styles.numCol}>Comissão (%)</th>
-              {!isDefault && <th className={styles.numCol}>Comissão</th>}
+              <th className={`${styles.numCol} col-num`}>Meta (R$)</th>
+              <th className={`${styles.numCol} col-num`}>Comissão (%)</th>
+              {!isDefault && <th className={`${styles.numCol} col-num`}>Comissão</th>}
               <th className={styles.actionsCol}></th>
             </tr>
           </thead>
@@ -182,7 +182,7 @@ function MetaRowEditor({ row, isDefault, monthKey, onSaved }: {
       </td>
 
       {!isDefault && (
-        <td className={styles.numCol}>
+        <td className={`${styles.numCol} col-num`}>
           <span className={styles.realized}>{fmtBRL(row.realized)}</span>
           <span className={styles.salesCount}>{row.salesCount} venda{row.salesCount !== 1 ? 's' : ''}</span>
         </td>
@@ -206,7 +206,7 @@ function MetaRowEditor({ row, isDefault, monthKey, onSaved }: {
         </td>
       )}
 
-      <td className={styles.numCol}>
+      <td className={`${styles.numCol} col-num`}>
         <input
           type="number" min={0} step={50}
           className={styles.input}
@@ -216,7 +216,7 @@ function MetaRowEditor({ row, isDefault, monthKey, onSaved }: {
         />
       </td>
 
-      <td className={styles.numCol}>
+      <td className={`${styles.numCol} col-num`}>
         <input
           type="number" min={0} max={100} step={0.5}
           className={`${styles.input} ${styles.inputSmall}`}
@@ -227,7 +227,7 @@ function MetaRowEditor({ row, isDefault, monthKey, onSaved }: {
       </td>
 
       {!isDefault && (
-        <td className={styles.numCol}>
+        <td className={`${styles.numCol} col-num`}>
           {row.reached
             ? <span className={`${styles.commission} ${row.commissionGenerated ? styles.commissionPaid : ''}`}>
                 {fmtBRL(row.commission)}{row.commissionGenerated && <Check size={12} />}

@@ -74,7 +74,7 @@
   height: 26px;
   background: none;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -117,7 +117,7 @@
   justify-content: center;
   height: 30px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--text-secondary);
   font-size: 13px;
@@ -159,7 +159,7 @@
   color: var(--accent);
   cursor: pointer;
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-family: inherit;
   transition: background var(--transition-fast);
 }

@@ -1,6 +1,7 @@
 import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ConferenciaClient from './ConferenciaClient'
+import PageHeader from '@/components/ui/PageHeader'
 
 export interface SessaoResumo {
   id: string
@@ -148,14 +149,10 @@ export default async function ConferenciaPage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-          Conferência de estoque
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          Bipe a gaveta e compare com o sistema. Cada ajuste fica registrado com motivo.
-        </p>
-      </div>
+      <PageHeader
+        title="Conferência de estoque"
+        subtitle="Bipe a gaveta e compare com o sistema. Cada ajuste fica registrado com motivo."
+      />
       <ConferenciaClient
         sessoes={sessoes}
         escopos={escopos}

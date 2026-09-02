@@ -15,6 +15,7 @@ import { normalize } from '@/lib/normalize'
 import type { SaleRow, ClosingOption } from './page'
 import styles from './VendasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import PageHeader from '@/components/ui/PageHeader'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -232,37 +233,33 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
 
   return (
     <>
-      {/* Page header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)' }}>Vendas</h1>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+      <PageHeader
+        title="Vendas"
+        subtitle="Histórico de vendas, trocas e fechamentos de caixa."
+        actions={<>
           {/* Navega no mesmo lugar: o PDV passou a viver dentro do layout, com
-              sidebar e trilha, em vez de ser uma superfície separada em outra aba. */}
+              sidebar e trilha, em vez de ser uma superfície separada em outra aba.
+              O estilo saiu do inline e passou a usar as classes do Button — era a
+              única "casca de botão" desenhada à mão do cabeçalho, e por isso a
+              altura dela não batia com a do Nova Venda ao lado. */}
           <Link
             href="/pdv"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '7px 16px',
-              background: 'transparent', color: 'var(--text-primary)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600,
-              textDecoration: 'none',
-            }}
+            className={`${btn.btn} ${btn.outline} ${btn.sm}`}
             title="Abrir o PDV (registro rápido + caixa do dia)"
           >
-            <Monitor size={14} /> Abrir PDV
+            <span className={btn.label}>
+              <Monitor size={14} />
+              Abrir PDV
+            </span>
           </Link>
-          {/* Usa as classes do Button em vez de estilo inline: fica idêntico aos
-              botões das outras telas e continua sendo um link de verdade (abre em
-              nova aba com o meio do mouse, o que um <button> perderia). */}
           <Link href="/vendas/nova" className={`${btn.btn} ${btn.primary} ${btn.sm}`}>
             <span className={btn.label}>
               <Plus size={14} />
               Nova Venda
             </span>
           </Link>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Stats — refletem o período selecionado */}
       <div className={styles.statsRow}>
@@ -474,10 +471,10 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                   </td>
                   <td onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'inline-flex', gap: 4 }}>
-                      <button className={styles.iconBtn} onClick={() => setDetalheId(s.id)} title="Ver detalhe">
+                      <button className="icon-btn" onClick={() => setDetalheId(s.id)} title="Ver detalhe">
                         <BarChart2 size={13} />
                       </button>
-                      <Link className={styles.iconBtn} href={`/vendas/${s.id}/editar`} title="Editar venda">
+                      <Link className="icon-btn" href={`/vendas/${s.id}/editar`} title="Editar venda">
                         <Pencil size={13} />
                       </Link>
                     </div>

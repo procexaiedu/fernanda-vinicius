@@ -126,7 +126,7 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--bg-elevated);
   color: var(--text-muted);
 }
@@ -134,7 +134,7 @@
 .tagInativo {
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--danger-subtle);
   color: var(--danger);
   font-weight: 600;

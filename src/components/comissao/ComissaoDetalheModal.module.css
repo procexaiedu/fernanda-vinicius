@@ -25,7 +25,7 @@
 .cardIcon {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -52,6 +52,6 @@
   margin-top: 2px;
 }
 
-.cardGreen { color: #4CAF7D; }
+.cardGreen { color: var(--success); }
 .cardGold  { color: var(--accent); }
-.cardRed   { color: #E05252; }
+.cardRed   { color: var(--danger); }

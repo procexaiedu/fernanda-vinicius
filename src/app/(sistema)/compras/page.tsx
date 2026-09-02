@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ComprasClient from './ComprasClient'
+import PageHeader from '@/components/ui/PageHeader'
 
 export default async function ComprasPage() {
   const profile = await requireProfile()
@@ -81,13 +82,11 @@ export default async function ComprasPage() {
   }))
 
   return (
-    <div className="page-pad">
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)' }}>Compras</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-          Registro de entradas de estoque — compras próprias e consignações.
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        title="Compras"
+        subtitle="Registro de entradas de estoque — compras próprias e consignações."
+      />
       <ComprasClient purchases={purchasesWithMeta} consignments={consignmentsWithMeta} />
     </div>
   )

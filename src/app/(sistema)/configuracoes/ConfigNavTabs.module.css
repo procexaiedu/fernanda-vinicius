@@ -16,27 +16,6 @@
   gap: 0;
 }
 
-.tab {
-  padding: 8px 18px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-muted);
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
-  white-space: nowrap;
-}
-
-.tab:hover {
-  color: var(--text-secondary);
-}
-
-.tabActive {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
-
 /* ─── Telefone ──────────────────────────────────────────────────────────────
  *
  * Cinco abas com `white-space: nowrap` numa linha rígida somam mais que 366px, e

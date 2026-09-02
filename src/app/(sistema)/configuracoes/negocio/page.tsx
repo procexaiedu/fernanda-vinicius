@@ -3,6 +3,7 @@ import { requireProfile, podeConfigurarRede } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ConfiguracoesNegocioClient from './ConfiguracoesNegocioClient'
 import styles from './page.module.css'
+import PageHeader from '@/components/ui/PageHeader'
 
 export interface SettingRow {
   key: string
@@ -31,10 +32,10 @@ export default async function ConfiguracoesNegocioPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.heading}>
-        <h1 className={styles.title}>Configurações do Negócio</h1>
-        <p className={styles.subtitle}>Parâmetros que definem as regras comerciais aplicadas automaticamente no sistema.</p>
-      </div>
+      <PageHeader
+        title="Configurações do Negócio"
+        subtitle="Parâmetros que definem as regras comerciais aplicadas automaticamente no sistema."
+      />
       <ConfiguracoesNegocioClient settings={settings} />
     </div>
   )

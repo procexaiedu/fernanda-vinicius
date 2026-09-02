@@ -256,11 +256,11 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDe
       </div>
 
       {/* ── Abas ───────────────────────────────────────────── */}
-      <div className={styles.tabs}>
+      <div className="tabs">
         {(['geral', 'produtos', 'financeiro'] as const).map(key => (
           <button
             key={key}
-            className={`${styles.tab} ${activeTab === key ? styles.tabActive : ''}`}
+            className={`tab ${activeTab === key ? 'tab-active' : ''}`}
             onClick={() => setActiveTab(key)}
           >
             {key === 'geral' ? 'Visão Geral' : key === 'produtos' ? 'Produtos' : 'Financeiro'}
@@ -343,8 +343,8 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDe
                       <tr>
                         <th>Código</th><th>Nome</th><th>Categoria</th>
                         <th>Loja</th>
-                        <th className={styles.rightCol}>Estoque</th>
-                        <th className={styles.rightCol}>Preço</th>
+                        <th className={`${styles.rightCol} col-num`}>Estoque</th>
+                        <th className={`${styles.rightCol} col-num`}>Preço</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -359,8 +359,8 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDe
                           </td>
                           <td className={styles.mutedCell}>{p.category}</td>
                           <td className={styles.mutedCell}>{p.store_name}</td>
-                          <td className={`${styles.mutedCell} ${styles.rightCol}`}>{p.quantity_in_stock}</td>
-                          <td className={`${styles.mutedCell} ${styles.rightCol}`}>{formatCurrency(p.sale_price)}</td>
+                          <td className={`${styles.mutedCell} ${styles.rightCol} col-num`}>{p.quantity_in_stock}</td>
+                          <td className={`${styles.mutedCell} ${styles.rightCol} col-num`}>{formatCurrency(p.sale_price)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -397,8 +397,8 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDe
                   <thead>
                     <tr>
                       <th>Data</th><th>Loja</th>
-                      <th className={styles.rightCol}>Peças</th>
-                      <th className={styles.rightCol}>Total</th>
+                      <th className={`${styles.rightCol} col-num`}>Peças</th>
+                      <th className={`${styles.rightCol} col-num`}>Total</th>
                       <th>Pagamento</th><th>NF</th>
                     </tr>
                   </thead>
@@ -407,8 +407,8 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDe
                       <tr key={p.id}>
                         <td>{formatPurchaseDate(p.purchase_date)}</td>
                         <td className={styles.mutedCell}>{p.store_name}</td>
-                        <td className={`${styles.mutedCell} ${styles.rightCol}`}>{p.total_items}</td>
-                        <td className={styles.rightCol} style={{ fontWeight: 600 }}>
+                        <td className={`${styles.mutedCell} ${styles.rightCol} col-num`}>{p.total_items}</td>
+                        <td className={`${styles.rightCol} col-num`} style={{ fontWeight: 600 }}>
                           {formatCurrency(p.total_cost)}
                         </td>
                         <td className={styles.mutedCell}>{p.payment_summary || '—'}</td>
@@ -428,7 +428,7 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDe
                         <tr>
                           <th>Vencimento</th><th>Parcela</th>
                           <th>Método</th>
-                          <th className={styles.rightCol}>Valor</th>
+                          <th className={`${styles.rightCol} col-num`}>Valor</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -451,7 +451,7 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDe
                                 {pp.installment_number ? `Parcela ${pp.installment_number}` : 'À vista'}
                               </td>
                               <td className={styles.mutedCell}>{formatPaymentMethod(pp.payment_method)}</td>
-                              <td className={styles.rightCol}
+                              <td className={`${styles.rightCol} col-num`}
                                 style={{ fontWeight: 600, color: 'var(--danger)' }}>
                                 {formatCurrency(pp.amount)}
                               </td>

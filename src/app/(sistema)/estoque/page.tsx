@@ -3,6 +3,7 @@ import { requireProfile, lojaDoEscopo, ehAdminGlobal, ehOperadora } from '@/lib/
 import { createAdminClient } from '@/lib/supabase/admin'
 import EstoqueClient from './EstoqueClient'
 import type { ProductWithRelations, StoreOption } from '../produtos/page'
+import PageHeader from '@/components/ui/PageHeader'
 
 const PAGE_SIZE = 50
 
@@ -74,14 +75,10 @@ export default async function EstoquePage({ searchParams }: PageProps) {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-          Estoque
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          Visão operacional do estoque disponível por loja.
-        </p>
-      </div>
+      <PageHeader
+        title="Estoque"
+        subtitle="Visão operacional do estoque disponível por loja."
+      />
       <EstoqueClient
         products={products}
         total={total}

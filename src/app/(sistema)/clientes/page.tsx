@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireProfile, ehOperadora } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ClientesClient from './ClientesClient'
+import PageHeader from '@/components/ui/PageHeader'
 
 /** Vendas sem cliente vinculado — parte do faturamento, fora da divisão por cliente. */
 export interface VendaAvulsa {
@@ -107,14 +108,10 @@ export default async function ClientesPage() {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', letterSpacing: 'var(--tracking-title)', lineHeight: 1.15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-          Clientes
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          Gerencie a base de clientes e acompanhe o histórico de compras.
-        </p>
-      </div>
+      <PageHeader
+        title="Clientes"
+        subtitle="Gerencie a base de clientes e acompanhe o histórico de compras."
+      />
       <ClientesClient
         customers={customersWithStats}
         vendaAvulsa={vendaAvulsa}

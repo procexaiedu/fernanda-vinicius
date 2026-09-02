@@ -94,9 +94,16 @@
   --header-height:          56px;
   /* Raio mais generoso que o anterior (4/8/12): card com canto macio é o que
    * diferencia "painel de sistema" de "produto desenhado". */
-  --radius-sm:  6px;
+  /* Escala de raio. Havia 16 valores cravados espalhados pelos Modules — 2, 3,
+   * 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 20, 99, 100 e 999px — quase todos a um
+   * ou dois pixels de um destes. A escala é a régua; quem precisa de outra
+   * coisa está pedindo um componente novo, não um número novo. */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
   --radius-md:  10px;
   --radius-lg:  16px;
+  /* Pílula: 999px, 100px e 99px eram a mesma intenção escrita de três jeitos. */
+  --radius-pill: 999px;
 
   /* Transitions */
   --transition-fast: 150ms ease;
@@ -406,10 +413,21 @@ table td:first-child:not([class*="col-"]) {
 .col-meio { text-align: center !important; }
 
 .col-num {
-  /* Centralizada como todo o resto. O `tabular-nums` fica e passa a ser o que
-   * faz o trabalho sozinho: com dígitos de largura fixa, valores centralizados
-   * ainda empilham alinhados entre si. */
-  text-align: center !important;
+  /*
+   * À DIREITA. Esta linha já foi `center`, com o argumento de que `tabular-nums`
+   * bastava — dígitos de largura fixa empilhariam alinhados mesmo centralizados.
+   *
+   * O argumento vale para valores do MESMO comprimento e só para esses. Numa
+   * lista real de produtos convivem `R$ 49,00`, `R$ 110,00` e `R$ 1.779,00`:
+   * centralizados, cada vírgula cai numa posição diferente e a coluna serrilha.
+   * Alinhar à direita é o que faz a casa decimal casar, que é o motivo de a
+   * convenção existir.
+   *
+   * Vale só para as numéricas. Data, status e ações seguem centralizados como o
+   * sistema decidiu — `dd/mm/aaaa` tem largura fixa e empilha igual dos dois
+   * jeitos, então ali o argumento acima realmente se aplica.
+   */
+  text-align: right !important;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
   white-space: nowrap;
@@ -486,13 +504,23 @@ table td:first-child:not([class*="col-"]) {
  * barra. O input continua lá dentro, invisível mas real, então o clique no rótulo,
  * o foco por teclado e o leitor de tela seguem funcionando.
  */
+/*
+ * Fundo TRANSPARENTE quando desligado — de propósito.
+ *
+ * Com `--bg-elevated` ele ficava visualmente idêntico às dropdowns ao lado:
+ * mesma altura, mesma borda, mesmo raio, mesmo preenchimento. Na tela de
+ * Produtos, "Mostrar inativos" parecia o quinto filtro da fila e dava a
+ * entender que abriria uma lista. Sem o preenchimento ele lê como o que é —
+ * uma chave que liga e desliga — e continua na mesma linha, do mesmo tamanho,
+ * com o mesmo clique.
+ */
 .filtro-toggle {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   height: var(--altura-controle);
   padding: 0 12px;
-  background: var(--bg-elevated);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-secondary);
@@ -793,26 +821,6 @@ table td:first-child:not([class*="col-"]) {
   }
 }
 
-/*
- * Respiro da página, no lugar do `style={{ padding: '24px 32px' }}` que sete
- * páginas repetiam inline (vendas, compras, financeiro e os formulários).
- *
- * Inline vence qualquer folha de estilo, então nenhuma media query alcançava
- * aqueles 32px: em 390px eles comiam 64px — 17% da tela — e a tabela do
- * /financeiro ficava com 302px, rolando mesmo com só 5 colunas visíveis.
- *
- * Como classe, o valor acompanha o `--page-padding`, que já é fluido e já cai
- * para 12px no telefone.
- */
-.page-pad {
-  padding: 24px var(--page-padding);
-  max-width: 100%;
-}
-
-@media (max-width: 700px) {
-  .page-pad { padding: 16px var(--page-padding); }
-}
-
 /* ─── Fileira de cartões de resumo no telefone ──────────────────────────────
  *
  * Vários topos de tela têm 3–4 cartões em `flex: 1` numa linha só (compras,
@@ -867,4 +875,103 @@ table td:first-child:not([class*="col-"]) {
   [role="dialog"] table { display: block; overflow-x: auto; white-space: nowrap; }
   [role="dialog"] table thead,
   [role="dialog"] table tbody { display: table; width: 100%; }
+}
+
+
+/* ─── Botão de ícone das tabelas ────────────────────────────────────────────
+ *
+ * Havia NOVE cópias de `.iconBtn`, uma por CSS Module, e elas divergiram:
+ * três raios diferentes (`6px`, `--radius-sm`, `--radius-md`), dois fundos de
+ * hover (`--bg-elevated`, `--bg-base`) e uma com borda enquanto as outras oito
+ * não tinham. Nenhuma declarava `font-size`, então todas caíam nos 13,33px
+ * padrão do navegador — o sinal de que ninguém as tinha estilizado de fato.
+ *
+ * Uma definição só, aqui. Os modificadores (`iconBtnDanger`, `iconBtnSend`)
+ * continuam no Module de cada tela: eles são a exceção, e exceção é local.
+ */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+
+/* ─── Abas de sublinhado ────────────────────────────────────────────────────
+ *
+ * Sete telas desenharam esta mesma aba no próprio Module — Financeiro,
+ * Configurações, Clientes e os modais de Loja, Funcionária, Fornecedor e
+ * Produto — e as sete divergiram no detalhe: `padding` de `0 16px`, `8px 14px`,
+ * `8px 16px` e `8px 18px`; `font-weight` 500 e 600; hover em
+ * `--text-secondary` e em `--text-primary`. Medido na tela, a fileira do
+ * Financeiro tinha 37px de altura e a de Clientes 34px.
+ *
+ * Uma definição só. O que é específico de cada tela — contagem ao lado do
+ * nome, ícone, largura — continua no Module dela.
+ */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.tab:hover { color: var(--text-secondary); }
+
+.tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+
+/* Contagem de itens da lista ("561 produtos"). Três telas mantinham a própria
+ * cópia — idênticas, mas soltas, prontas para divergir na próxima mão. */
+.list-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
 }

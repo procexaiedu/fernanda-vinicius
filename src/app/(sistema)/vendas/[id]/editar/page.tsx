@@ -66,7 +66,7 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
   }
 
   return (
-    <div className="page-pad">
+    <div>
       <PageHeader title="Editar Venda" backHref="/vendas" backLabel="Voltar para Vendas" />
 
       <NovaVendaForm

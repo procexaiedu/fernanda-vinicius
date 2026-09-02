@@ -29,7 +29,7 @@ export default async function NovaCompraPage() {
   const materials  = [...new Set((materialsRes.data ?? []).map(r => r.name as string).filter(Boolean))].sort()
 
   return (
-    <div className="page-pad">
+    <div>
       <PageHeader title="Nova Compra" backHref="/compras" backLabel="Voltar para Compras" />
 
       <NovaCompraForm

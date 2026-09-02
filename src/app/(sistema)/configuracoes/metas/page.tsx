@@ -6,6 +6,7 @@ import {
 } from '@/lib/metas/compute'
 import { resolveGoal } from '@/lib/metas/server'
 import MetasClient, { type MetaRow } from './MetasClient'
+import PageHeader from '@/components/ui/PageHeader'
 
 interface PageProps {
   searchParams: Promise<{ month?: string }>
@@ -107,12 +108,10 @@ export default async function MetasPage({ searchParams }: PageProps) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <h1 style={{ fontSize: 'var(--fs-page-title)', fontWeight: 700, color: 'var(--text-primary)' }}>Metas de Vendas</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-          Defina a meta de faturamento e a comissão de cada vendedora, e acompanhe o progresso do mês.
-        </p>
-      </div>
+      <PageHeader
+        title="Metas de Vendas"
+        subtitle="Defina a meta de faturamento e a comissão de cada vendedora, e acompanhe o progresso do mês."
+      />
       <MetasClient mode={isDefaultMode ? 'default' : 'month'} monthKey={monthKey} rows={rows} />
     </div>
   )

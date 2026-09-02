@@ -210,14 +210,14 @@ export default function LojasClient({ stores: initialStores }: Props) {
                       ) : (
                         <>
                           <button
-                            className={styles.iconBtn}
+                            className="icon-btn"
                             title="Editar"
                             onClick={(e) => { e.stopPropagation(); openEditModal(store) }}
                           >
                             <Pencil size={14} />
                           </button>
                           <button
-                            className={`${styles.iconBtn} ${store.is_active ? styles.iconBtnDanger : styles.iconBtnSuccess}`}
+                            className={`icon-btn ${store.is_active ? styles.iconBtnDanger : styles.iconBtnSuccess}`}
                             title={store.is_active ? 'Desativar' : 'Reativar'}
                             disabled={togglingId === store.id}
                             onClick={(e) => handleToggle(store, e)}
