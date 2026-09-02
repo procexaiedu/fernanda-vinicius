@@ -214,7 +214,7 @@ export default function ClienteDetalheModal({ customer, inactiveDays, isAdmin = 
             {initials}
           </div>
           <div className={styles.headerInfo}>
-            <div className={styles.customerName}>{customer.name}</div>
+            <div className={styles.customerName}><span className="nome-cliente">{customer.name}</span></div>
             <div className={styles.headerBadges}>
               {isBirthday && <Badge variant="accent">🎂 Aniversariante</Badge>}
               {!loading && inactive && <Badge variant="muted">Inativa</Badge>}

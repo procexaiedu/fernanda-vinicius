@@ -275,7 +275,7 @@ export default function PanoramaClientes({ customers, vendaAvulsa }: Props) {
                             {iniciais(c.name)}
                           </span>
                           <div className={styles.itemInfo}>
-                            <span className={styles.itemNome} title={c.name}>{c.name}</span>
+                            <span className={`${styles.itemNome} nome-cliente`} title={c.name}>{c.name}</span>
                             <span className={styles.itemMotivo} data-tom={m.tom}>{m.texto}</span>
                           </div>
                           <div className={styles.itemNumeros}>

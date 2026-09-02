@@ -570,7 +570,7 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
                     {salesItems.map(si => (
                       <tr key={si.id}>
                         <td>{fmtDate(si.sale_date)}</td>
-                        {interno && <td>{si.customer_name ?? '—'}</td>}
+                        {interno && <td><span className="nome-cliente">{si.customer_name ?? '—'}</span></td>}
                         <td>{si.quantity}</td>
                         <td>{fmt(si.unit_price)}</td>
                         {interno && <td>{si.seller_name ?? '—'}</td>}
