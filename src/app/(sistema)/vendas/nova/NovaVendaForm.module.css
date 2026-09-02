@@ -360,9 +360,18 @@
 
 /* ── Células grid ───────────────────────────────────────────────────────── */
 
+/*
+ * `text-align: inherit` é o que faz o INPUT seguir a coluna.
+ *
+ * Sem isto o campo alinha por conta própria e o cabeçalho por outra regra —
+ * era o que deixava "PREÇO UNIT." centralizado sobre um "0,00" encostado à
+ * esquerda. Herdando, quem manda é a classe da coluna, uma só para o `th` e
+ * para o `td`.
+ */
 .cell {
   width: 100%;
   height: 30px;
+  text-align: inherit;
   padding: 0 6px;
   background: transparent;
   border: 1px solid transparent;

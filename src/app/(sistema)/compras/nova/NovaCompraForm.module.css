@@ -378,9 +378,12 @@
 
 /* ── Células ────────────────────────────────────────────────────────────── */
 
+/* Herda o alinhamento da coluna — sem isto o input alinha por conta própria e
+ * o cabeçalho por outra regra, e os dois apontam para lados diferentes. */
 .cell {
   width: 100%;
   height: 30px;
+  text-align: inherit;
   padding: 0 6px;
   background: transparent;
   border: 1px solid transparent;

@@ -1169,10 +1169,10 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             <thead>
               <tr>
                 <th className={styles.thNum}>#</th>
-                <th className={styles.thProd}>Produto</th>
+                <th className={`${styles.thProd} col-esq`}>Produto</th>
                 <th className={styles.thTroca}>Troca</th>
                 <th className={`${styles.thQty} col-num`}>Qtd</th>
-                <th className={styles.thPrice}>Preço Unit.</th>
+                <th className={`${styles.thPrice} col-num`}>Preço Unit.</th>
                 {/* "Total do item", não "Subtotal": havia dois "Subtotal" na
                     mesma tela querendo dizer coisas diferentes — o da LINHA e o
                     da VENDA. A dona disse duas vezes que a tela confundia. */}
@@ -1193,7 +1193,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                   <tr key={i} className={styles.row}>
                     <td className={styles.tdNum}>{i + 1}</td>
 
-                    <td className={styles.tdProd}>
+                    <td className={`${styles.tdProd} col-esq`}>
                       <ProductCombobox
                         value={row.productName}
                         onChange={(name, p) => handleProductSelect(i, name, p)}
@@ -1229,7 +1229,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                       </button>
                     </td>
 
-                    <td className={styles.tdQty}>
+                    <td className={`${styles.tdQty} col-num`}>
                       <input
                         type="number" min="1" step="1"
                         className={styles.cell}
@@ -1241,7 +1241,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                       />
                     </td>
 
-                    <td className={styles.tdPrice}>
+                    <td className={`${styles.tdPrice} col-num`}>
                       <input
                         type="number" min="0" step="0.01"
                         className={styles.cell}
@@ -1254,7 +1254,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                       />
                     </td>
 
-                    <td className={styles.tdSub}>
+                    <td className={`${styles.tdSub} col-num`}>
                       <span className={`${styles.subtotalText} ${row.isTroca ? styles.subtotalTroca : ''}`}>
                         {rowSubtotal > 0
                           ? (row.isTroca ? `crédito ${fmt(rowSubtotal)}` : fmt(rowSubtotal))

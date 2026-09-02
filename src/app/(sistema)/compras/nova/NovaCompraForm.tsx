@@ -1128,7 +1128,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                     </td>
 
                     {/* Custo */}
-                    <td className={styles.tdNum2}>
+                    <td className={`${styles.tdNum2} col-num`}>
                       <input
                         type="number" min="0" step="0.01" onWheel={blurOnWheel}
                         className={styles.cell}
@@ -1142,7 +1142,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                     </td>
 
                     {/* Venda */}
-                    <td className={styles.tdNum2}>
+                    <td className={`${styles.tdNum2} col-num`}>
                       <input
                         type="number" min="0" step="0.01" onWheel={blurOnWheel}
                         className={styles.cell}
@@ -1156,7 +1156,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                     </td>
 
                     {/* Promo */}
-                    <td className={styles.tdNum2}>
+                    <td className={`${styles.tdNum2} col-num`}>
                       <input
                         type="number" min="0" step="0.01" onWheel={blurOnWheel}
                         className={styles.cell}
@@ -1188,7 +1188,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                     </td>
 
                     {/* Qtd */}
-                    <td className={styles.tdQty}>
+                    <td className={`${styles.tdQty} col-num`}>
                       <input
                         type="number" min="1" step="1" onWheel={blurOnWheel}
                         className={styles.cell}
@@ -1216,7 +1216,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                     </td>
 
                     {/* Subtotal */}
-                    <td className={styles.tdSub}>
+                    <td className={`${styles.tdSub} col-num`}>
                       <span className={styles.subtotalText}>{subtotal > 0 ? fmt(subtotal) : '—'}</span>
                     </td>
 
