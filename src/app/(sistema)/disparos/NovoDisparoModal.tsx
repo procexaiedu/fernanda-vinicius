@@ -9,6 +9,7 @@ import { renderPreview } from './templates'
 import type { StoreOption, DisparoRow } from './page'
 import styles from './NovoDisparoModal.module.css'
 import { formatarTelefone } from '@/lib/telefone'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 interface Props {
   stores: StoreOption[]
@@ -269,13 +270,16 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
                 {tplError ? `Erro: ${tplError}` : 'Nenhum template aprovado nesta WABA ainda.'}
               </div>
             ) : (
-              <select className={styles.input} value={form.template_name} onChange={e => set('template_name', e.target.value)}>
-                {templates.map(t => (
-                  <option key={`${t.name}/${t.language}`} value={t.name}>
-                    {t.name} · {t.category}{t.headerFormat === 'IMAGE' ? ' · imagem' : ''}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={form.template_name}
+                onChange={v => set('template_name', v)}
+                options={templates.map(t => ({
+                  value: t.name,
+                  label: `${t.name} · ${t.category}${t.headerFormat === 'IMAGE' ? ' · imagem' : ''}`,
+                }))}
+                placeholder="Escolha o template"
+                permitirLimpar={false}
+              />
             )}
           </Field>
 

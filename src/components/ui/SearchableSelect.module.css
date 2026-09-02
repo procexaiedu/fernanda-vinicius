@@ -39,16 +39,20 @@
 }
 .chevronOpen { transform: rotate(180deg); }
 
+/*
+ * A posição vem do componente, em `fixed`, calculada a partir do gatilho.
+ * Aqui ficam só a aparência e o teto de altura — `absolute` era cortado pelo
+ * `overflow-y: auto` do corpo do modal, que é justamente onde este select mais
+ * aparece.
+ */
 .dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 100%;
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-  z-index: 200;
   overflow: hidden;
 }
 
@@ -99,4 +103,16 @@
   font-size: 12px;
   color: var(--text-muted);
   text-align: center;
+}
+
+
+/*
+ * Opção sob o cursor OU sob a navegação por teclado.
+ *
+ * É separada de `.optionActive` de propósito: uma diz "é este o valor
+ * escolhido", a outra diz "é aqui que a seta está". Com uma classe só, andar
+ * de seta parecia trocar a escolha antes do Enter.
+ */
+.optionFocada {
+  background: var(--bg-elevated);
 }

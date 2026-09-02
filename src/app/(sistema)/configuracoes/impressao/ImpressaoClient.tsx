@@ -9,6 +9,7 @@ import {
   getDefaultPrinter,
 } from '@/lib/etiquetas/printAgent'
 import styles from './ImpressaoClient.module.css'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 export default function ImpressaoClient() {
   const agent = useLocalPrintAgent()
@@ -85,17 +86,16 @@ export default function ImpressaoClient() {
           <div className={styles.formRow}>
             <label className={styles.label}>
               <span>Selecione a impressora</span>
-              <select
+              <SearchableSelect
                 value={agent.selectedPrinter ?? ''}
-                onChange={e => agent.setSelectedPrinter(e.target.value || null)}
-                className={styles.input}
-              >
-                {agent.printers.map(p => (
-                  <option key={p.name} value={p.name}>
-                    {p.name}{p.isDefault ? ' (padrão do Windows)' : ''}
-                  </option>
-                ))}
-              </select>
+                onChange={v => agent.setSelectedPrinter(v || null)}
+                options={agent.printers.map(p => ({
+                  value: p.name,
+                  label: `${p.name}${p.isDefault ? ' (padrão do Windows)' : ''}`,
+                }))}
+                placeholder="Escolha a impressora"
+                searchable={false}
+              />
               <small className={styles.hint}>
                 Salvo localmente neste navegador (<code>localStorage</code>). Cada operadora pode escolher a sua.
               </small>

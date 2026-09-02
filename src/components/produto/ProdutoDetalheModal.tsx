@@ -13,6 +13,7 @@ import { MOTIVOS_BAIXA, type MotivoBaixa } from '@/lib/estoque/baixa'
 import styles from './ProdutoDetalheModal.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { calcularGiro, ROTULO_FAIXA, textoDias } from '@/lib/giro'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -344,15 +345,24 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
                   </label>
                   <span className={styles.baixaDisponivel}>de {produto.quantity_in_stock}</span>
 
-                  <label className={styles.baixaMotivo}>
+                  <div className={styles.baixaMotivo}>
                     <span>Motivo</span>
-                    <select value={baixaMotivo}
-                      onChange={e => setBaixaMotivo(e.target.value as MotivoBaixa)}>
-                      {MOTIVOS_BAIXA.map(m => (
-                        <option key={m.valor} value={m.valor}>{m.rotulo}</option>
-                      ))}
-                    </select>
-                  </label>
+                    {/*
+                      Era `<select>` nativo — o menu abria branco sobre o tema
+                      escuro e não aparecia no compartilhamento de tela, o que
+                      obrigou a dona a escolher às cegas no treinamento de 02/09.
+                      `permitirLimpar={false}` porque motivo é obrigatório: a
+                      linha vazia só ofereceria um estado inválido.
+                    */}
+                    <SearchableSelect
+                      value={baixaMotivo}
+                      onChange={v => setBaixaMotivo(v as MotivoBaixa)}
+                      options={MOTIVOS_BAIXA.map(m => ({ value: m.valor, label: m.rotulo }))}
+                      placeholder="Escolha o motivo"
+                      searchable={false}
+                      permitirLimpar={false}
+                    />
+                  </div>
                 </div>
 
                 <label className={styles.baixaObs}>

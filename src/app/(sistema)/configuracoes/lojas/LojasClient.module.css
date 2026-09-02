@@ -227,3 +227,10 @@
    * apertados no canto. */
   .formFooter > * { flex: 1; }
 }
+
+
+/* O erro pinta a BORDA DO GATILHO, não a do wrapper: quem tem borda no select
+ * do sistema é o botão de dentro. Sem isto o aviso de campo obrigatório some. */
+.selectError button {
+  border-color: var(--danger);
+}

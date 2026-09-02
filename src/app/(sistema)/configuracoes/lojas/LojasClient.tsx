@@ -11,6 +11,7 @@ import type { Store } from '@/types'
 import { createStore, updateStore, toggleStoreStatus, type StoreFormData } from './actions'
 import styles from './LojasClient.module.css'
 import { mascararTelefone } from '@/lib/telefone'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 const BR_STATES = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA',
@@ -262,16 +263,17 @@ export default function LojasClient({ stores: initialStores }: Props) {
             </div>
             <div className={styles.stateCol}>
               <label className={styles.selectLabel} htmlFor="loja-state">Estado *</label>
-              <select
+              {/* 27 opções: aqui a busca vale a pena — digitar "SP" é mais
+                  rápido que rolar a lista inteira. */}
+              <SearchableSelect
                 id="loja-state"
-                className={`${styles.select} ${errors.state ? styles.selectError : ''}`}
+                className={errors.state ? styles.selectError : ''}
                 value={form.state}
-                onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))}
-              >
-                {BR_STATES.map((uf) => (
-                  <option key={uf} value={uf}>{uf}</option>
-                ))}
-              </select>
+                onChange={(v) => setForm((f) => ({ ...f, state: v }))}
+                options={BR_STATES.map((uf) => ({ value: uf, label: uf }))}
+                placeholder="UF"
+                permitirLimpar={false}
+              />
               {errors.state && <span className={styles.errorMsg}>{errors.state}</span>}
             </div>
           </div>

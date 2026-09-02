@@ -13,6 +13,7 @@ import ThOrdenavel from '@/components/ui/ThOrdenavel'
 import { useOrdenacao } from '@/hooks/useOrdenacao'
 import styles from './ComprasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -167,17 +168,31 @@ export default function ComprasClient({ purchases, consignments }: Props) {
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          <select className={styles.filter} value={typeFilter} onChange={e => setTypeFilter(e.target.value as typeof typeFilter)}>
-            <option value="all">Todos os tipos</option>
-            <option value="purchase">Compras próprias</option>
-            <option value="consignment">Consignações</option>
-          </select>
-          <select className={styles.filter} value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}>
-            <option value="all">Todos os status</option>
-            <option value="paid">Pago</option>
-            <option value="pending">Pendente</option>
-            <option value="active">Consig. ativa</option>
-          </select>
+          <SearchableSelect
+            value={typeFilter}
+            onChange={v => setTypeFilter((v || 'all') as typeof typeFilter)}
+            options={[
+              { value: 'all',         label: 'Todos os tipos' },
+              { value: 'purchase',    label: 'Compras próprias' },
+              { value: 'consignment', label: 'Consignações' },
+            ]}
+            placeholder="Todos os tipos"
+            searchable={false}
+            permitirLimpar={false}
+          />
+          <SearchableSelect
+            value={statusFilter}
+            onChange={v => setStatusFilter((v || 'all') as typeof statusFilter)}
+            options={[
+              { value: 'all',     label: 'Todos os status' },
+              { value: 'paid',    label: 'Pago' },
+              { value: 'pending', label: 'Pendente' },
+              { value: 'active',  label: 'Consig. ativa' },
+            ]}
+            placeholder="Todos os status"
+            searchable={false}
+            permitirLimpar={false}
+          />
         </div>
         <div className={styles.toolbarRight}>
           <Button size="sm" onClick={() => router.push('/compras/nova')}>

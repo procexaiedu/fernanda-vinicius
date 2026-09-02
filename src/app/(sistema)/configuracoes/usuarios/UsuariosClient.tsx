@@ -12,6 +12,7 @@ import type { UserWithMetrics } from './page'
 import { toggleUserStatus, resetPassword } from './actions'
 import styles from './UsuariosClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -131,16 +132,17 @@ export default function UsuariosClient({ users: initialUsers, stores, currentUse
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          <select
-            className={styles.select}
+          <SearchableSelect
             value={storeFilter}
-            onChange={e => setStoreFilter(e.target.value)}
-          >
-            <option value="all">Todas as lojas</option>
-            {stores.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
+            onChange={v => setStoreFilter(v || 'all')}
+            options={[
+              { value: 'all', label: 'Todas as lojas' },
+              ...stores.map(s => ({ value: s.id, label: s.name })),
+            ]}
+            placeholder="Todas as lojas"
+            searchable={false}
+            permitirLimpar={false}
+          />
           <label className={styles.toggleLabel}>
             <input
               type="checkbox"

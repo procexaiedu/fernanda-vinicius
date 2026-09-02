@@ -5,6 +5,7 @@ import { Lock, CheckCircle2, AlertTriangle, X } from 'lucide-react'
 import { buscarCaixaDoDia, finalizarCaixa, type CaixaDoDia as CaixaData } from './actions'
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
 import styles from './pdv.module.css'
+import SearchableSelect from '@/components/ui/SearchableSelect'
 
 interface StoreOpt { id: string; name: string; city: string }
 
@@ -98,9 +99,15 @@ export default function CaixaDoDia({ stores, isAdmin, date, caixa, onCaixaChange
       {/* Cabeçalho: loja + dia + último fechamento */}
       <div className={styles.caixaHead}>
         {isAdmin ? (
-          <select className={styles.storeSel} value={caixa.storeId} onChange={e => changeStore(e.target.value)} disabled={loading}>
-            {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <SearchableSelect
+            value={caixa.storeId}
+            onChange={changeStore}
+            options={stores.map(s => ({ value: s.id, label: s.name }))}
+            placeholder="Loja"
+            searchable={false}
+            permitirLimpar={false}
+            disabled={loading}
+          />
         ) : (
           <span className={styles.storeFixed}>{stores.find(s => s.id === caixa.storeId)?.name ?? 'Loja'}</span>
         )}
