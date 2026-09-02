@@ -198,7 +198,9 @@ export default function DashboardClient({
   const [topVendedoras, setTopVendedoras] = useState(initialTopVendedoras)
   const [pecasParadas, setPecasParadas]   = useState(initialPecasParadas)
   const [contasVencer, setContasVencer]   = useState(initialContasVencer)
-  const [cobrancas, setCobrancas]         = useState(initialCobrancas)
+  /* Sem setter: diferente dos KPIs, a lista de cobrança não muda com o mês
+   * escolhido — quem prometeu pagar hoje é sempre hoje. Recarrega na navegação. */
+  const [cobrancas] = useState(initialCobrancas)
   const [aniversariantes, setAniversariantes] = useState(initialAniversariantes)
   const [categorias, setCategorias]   = useState(initialCategorias)
   const [evolucao, setEvolucao]       = useState(initialEvolucao)
