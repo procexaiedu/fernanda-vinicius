@@ -1099,3 +1099,21 @@
 .cpfDica { font-size: 10.5px; color: var(--text-disabled); }
 
 .creditoTroca { color: var(--success); }
+
+
+/* A peça devolvida abate como desconto abate — mesma leitura visual, porque
+ * para quem está no balcão as duas coisas fazem a mesma coisa: diminuem o que
+ * ela vai cobrar. A cor é a do crédito, não a do desconto, para continuar
+ * dando para distinguir de onde veio o abatimento. */
+.trocaRow {
+  color: var(--success);
+}
+
+/* O faturamento em segundo plano: não é o número do balcão, mas não pode
+ * sumir — é o que a loja vendeu, e o que vai para a nota. */
+.vendaBruta {
+  margin-top: 2px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-muted);
+}

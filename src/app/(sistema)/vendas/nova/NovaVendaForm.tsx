@@ -806,6 +806,15 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     subtotal, discountPct, manualDiscount,
   })
   const paidTotal      = payments.reduce((s, p) => s + p.amount, 0)
+  /*
+   * O QUE A CLIENTE PAGA — total da venda menos a mercadoria que ela devolveu.
+   *
+   * `total` continua sendo o faturamento (o que ela LEVOU) e é o que vai para o
+   * banco. Mas quem está no balcão precisa de outro número: quanto cobrar. Eram
+   * dois números diferentes espalhados em dois blocos, e a dona teve de fazer a
+   * conta de cabeça — "aparece 182 + 152 e falta 30, fica confuso".
+   */
+  const aCobrar        = parseFloat((total - creditoTroca).toFixed(2))
   const coveredTotal   = paidTotal + creditoTroca
   const balanceDiff    = parseFloat((coveredTotal - total).toFixed(2))
 
@@ -1328,21 +1337,45 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
           </div>
         </div>
 
+        {/*
+          A CONTA INTEIRA, NUM LUGAR SÓ.
+          Antes o valor da venda aparecia três vezes — "Subtotal" e "Total" aqui,
+          e "Total da venda" no bloco de pagamento — enquanto a troca era abatida
+          lá embaixo. A dona tinha de somar de cabeça para saber quanto cobrar:
+          "aparece 182 + 152 e falta 30, fica confuso".
+
+          Agora desce em linha reta: o que ela levou, o que abate, o que cobrar.
+        */}
         <div className={styles.totalSummary}>
-          <div className={styles.summaryRow}>
-            <span>Subtotal</span>
-            <span>{fmt(subtotal)}</span>
-          </div>
+          {/* Só aparece quando há algo a abater — sem desconto e sem troca ele
+              seria idêntico ao total logo abaixo, que é o que confundia. */}
+          {(discountAmt > 0 || creditoTroca > 0) && (
+            <div className={styles.summaryRow}>
+              <span>Peças levadas</span>
+              <span>{fmt(subtotal)}</span>
+            </div>
+          )}
           {discountAmt > 0 && (
             <div className={`${styles.summaryRow} ${styles.discountRow2}`}>
               <span>Desconto ({discountPct > 0 ? `${discountPct}%` : ''}{manualDiscount > 0 && discountPct > 0 ? ' + R$' : ''}{manualDiscount > 0 && discountPct === 0 ? 'R$' : ''}{manualDiscount > 0 ? fmt(manualDiscount) : ''})</span>
               <span>− {fmt(discountAmt)}</span>
             </div>
           )}
+          {creditoTroca > 0 && (
+            <div className={`${styles.summaryRow} ${styles.trocaRow}`}>
+              <span>Peça devolvida na troca</span>
+              <span>− {fmt(creditoTroca)}</span>
+            </div>
+          )}
           <div className={`${styles.summaryRow} ${styles.totalRow}`}>
-            <span>Total</span>
-            <strong>{fmt(total)}</strong>
+            <span>{creditoTroca > 0 ? 'A cobrar' : 'Total'}</span>
+            <strong>{fmt(aCobrar)}</strong>
           </div>
+          {/* O faturamento não some: é o que a loja vendeu, e o que vai para o
+              banco e para a nota. Fica miúdo porque não é o número do balcão. */}
+          {creditoTroca > 0 && (
+            <div className={styles.vendaBruta}>venda de {fmt(total)}</div>
+          )}
         </div>
       </div>
 
@@ -1457,32 +1490,29 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
 
         {/* Resumo de pagamento */}
+        {/* "Total da venda" e "Crédito da troca" saíram daqui: subiram para o
+            bloco de totais, que agora é o único lugar onde a conta acontece.
+            Aqui fica só o que foi recebido e o que ainda falta. */}
         <div className={styles.paymentSummary}>
           <div className={styles.summaryRow}>
-            <span>Total da venda</span>
-            <strong>{fmt(total)}</strong>
+            <span>A cobrar</span>
+            <strong>{fmt(aCobrar)}</strong>
           </div>
           {paidTotal > 0 && (
             <div className={styles.summaryRow}>
-              <span>Cobrado</span>
+              <span>Recebido</span>
               <span>{fmt(paidTotal)}</span>
-            </div>
-          )}
-          {creditoTroca > 0 && (
-            <div className={styles.summaryRow}>
-              <span>Crédito da troca</span>
-              <span className={styles.creditoTroca}>+ {fmt(creditoTroca)}</span>
             </div>
           )}
           {(payments.length > 0 || creditoTroca > 0) && (
             balanceDiff > 0.01 ? (
               <div className={styles.payStatusWarn}>
-                <AlertTriangle size={13} /> {fmt(balanceDiff)} cobrado a mais — confira
+                <AlertTriangle size={13} /> Recebido {fmt(balanceDiff)} a mais — confira
               </div>
             ) : balanceDiff < -0.01 ? (
               <>
                 <div className={styles.payStatusError}>
-                  <AlertTriangle size={13} /> Falta {fmt(Math.abs(balanceDiff))} para cobrir o total
+                  <AlertTriangle size={13} /> Falta receber {fmt(Math.abs(balanceDiff))}
                 </div>
                 {/*
                   Fiado é decisão de quem está no balcão, não do sistema. Sem
