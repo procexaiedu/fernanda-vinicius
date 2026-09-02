@@ -628,3 +628,12 @@
   color: var(--danger);
   font-weight: 600;
 }
+
+
+/* O desfazer venda fica cinza como os vizinhos e só assume o vermelho no hover:
+ * é ação destrutiva, mas não é a principal da linha — pintá-la de vermelho o
+ * tempo todo puxaria o olho para ela em cada venda da lista. */
+.btnExcluir:hover:not(:disabled) {
+  background: var(--danger-subtle);
+  color: var(--danger);
+}

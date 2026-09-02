@@ -25,12 +25,20 @@ interface Props {
   onClose: () => void
   onDeleted?: () => void
   canDelete?: boolean
+  /**
+   * Abre já na confirmação de exclusão.
+   *
+   * É o que o lixinho da LISTA usa. Assim o caminho encurta sem pular etapa: a
+   * confirmação continua sendo esta, que já mostra o que vai ser revertido —
+   * peças que voltam ao estoque, valor, cliente.
+   */
+  abrirNaExclusao?: boolean
 }
 
-export default function VendaDetalheModal({ saleId, onClose, onDeleted, canDelete = true }: Props) {
+export default function VendaDetalheModal({ saleId, onClose, onDeleted, canDelete = true, abrirNaExclusao = false }: Props) {
   const [venda, setVenda]           = useState<VendaDetail | null>(null)
   const [loading, setLoading]       = useState(true)
-  const [confirmDel, setConfirmDel] = useState(false)
+  const [confirmDel, setConfirmDel] = useState(abrirNaExclusao)
   const [deleting, setDeleting]     = useState(false)
   const [deleteErr, setDeleteErr]   = useState('')
 

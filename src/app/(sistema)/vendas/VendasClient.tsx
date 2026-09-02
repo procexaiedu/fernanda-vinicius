@@ -5,7 +5,7 @@ import { usePersistedState } from '@/hooks/usePersistedState'
 import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import {
-  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil, Plus, Monitor,
+  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil, Plus, Monitor, Trash2,
 } from 'lucide-react'
 import btn from '@/components/ui/Button.module.css'
 import Badge from '@/components/ui/Badge'
@@ -165,6 +165,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
   const [sortKey, setSortKey]         = usePersistedState<SortKey>('fv-filtros-vendas-sortkey', 'date')
   const [sortDir, setSortDir]         = usePersistedState<SortDir>('fv-filtros-vendas-sortdir', 'desc')
   const [detalheId, setDetalheId]     = useState<string | null>(null)
+  const [abrirExclusao, setAbrirExclusao] = useState(false)
   // Filtro por fechamento de caixa (transitório — não persiste entre acessos)
   const [filterClosing, setFilterClosing] = useState('')
 
@@ -408,7 +409,6 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                   Total <SortIcon col="total" />
                 </th>
                 <th className="col-secondary">Pagamento</th>
-                <th className="col-tertiary">Troca</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -440,12 +440,18 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                   <td className={`${styles.muted} col-secondary`} style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {s.payment_summary ?? '—'}
                   </td>
-                  <td className="col-tertiary">
-                    {s.has_exchange
-                      ? <span className={styles.exchangeBadge}><ArrowLeftRight size={11} /> Sim</span>
-                      : <span className={styles.muted}>—</span>}
-                  </td>
                   <td>
+                    {/*
+                      O selo de troca mora AQUI, junto do status, e não na
+                      própria coluna: aquela era `col-tertiary` e sumia nas
+                      larguras de notebook. Foi por isso que, no treinamento de
+                      02/09, a dona abriu a venda da Madalena e não conseguiu
+                      ver que era troca — o dado estava certo, a coluna é que
+                      não estava na tela.
+                    */}
+                    {s.has_exchange && (
+                      <span className={styles.exchangeBadge}><ArrowLeftRight size={11} /> Troca</span>
+                    )}
                     {/*
                       Saldo em aberto ganha a coluna de status.
                       Sem isto, a venda da Bea Baroudi — R$645 com R$300 pagos —
@@ -477,6 +483,26 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                       <Link className="icon-btn" href={`/vendas/${s.id}/editar`} title="Editar venda">
                         <Pencil size={13} />
                       </Link>
+                      {/*
+                        Excluir direto da lista. Antes só existia dentro do
+                        detalhe da venda, e no treinamento de 02/09 a dona
+                        precisou caçar: "isso aqui não tá fácil".
+
+                        Só admin: a lista é visível para a operadora (vendas do
+                        dia) e desfazer venda mexe em estoque, comissão e
+                        financeiro. A confirmação continua sendo a do detalhe,
+                        que já diz o que vai ser revertido — o botão aqui só
+                        encurta o caminho até ela, não pula etapa.
+                      */}
+                      {userRole === 'admin' && (
+                        <button
+                          className={`icon-btn ${styles.btnExcluir}`}
+                          onClick={() => { setDetalheId(s.id); setAbrirExclusao(true) }}
+                          title="Desfazer venda"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -489,10 +515,13 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
       {detalheId && (
         <VendaDetalheModal
           saleId={detalheId}
-          onClose={() => setDetalheId(null)}
+          abrirNaExclusao={abrirExclusao}
+          canDelete={userRole === 'admin'}
+          onClose={() => { setDetalheId(null); setAbrirExclusao(false) }}
           onDeleted={() => {
             setSales(prev => prev.filter(s => s.id !== detalheId))
             setDetalheId(null)
+            setAbrirExclusao(false)
           }}
         />
       )}
