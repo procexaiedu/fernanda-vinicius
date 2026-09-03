@@ -60,10 +60,11 @@ export interface VendaParaNota {
 /**
  * Código `tPag` do layout 4.00.
  *
- * ⚠️ **O PIX precisa ser confirmado em homologação.** O layout traz `17` para
- * Pagamento Instantâneo, mas houve NT posterior separando PIX dinâmico de
- * estático, e a doc da Focus que consultei em 02/09 não lista o código. Se o
- * SEFAZ recusar, o erro vai apontar o campo — e é este mapa que muda.
+ * O PIX como `17` foi **CONFIRMADO em homologação** em 02/09: nota autorizada
+ * pela SEFAZ-DF (status 100), chave
+ * `NFe5326091213722900015165003000000001115757248 5`, com pagamento único em
+ * PIX. A dúvida era legítima — a doc da Focus não lista o código e houve NT
+ * separando PIX dinâmico de estático —, e o teste resolveu.
  *
  * Os outros três são estáveis desde sempre e não têm ambiguidade.
  */
@@ -71,8 +72,32 @@ export const TPAG: Record<MetodoPagamento, string> = {
   cash:   '01',  // Dinheiro
   credit: '03',  // Cartão de crédito
   debit:  '04',  // Cartão de débito
-  pix:    '17',  // Pagamento instantâneo (PIX) — CONFERIR
+  pix:    '17',  // Pagamento instantâneo (PIX) — confirmado em homologação 02/09
 }
+
+/**
+ * ⚠️ CSOSN 203 NÃO PASSA NO SCHEMA — descoberto em homologação, 02/09.
+ *
+ * O 203 que extraímos do Hiper significa "isenção do ICMS no Simples **com
+ * cobrança do ICMS por substituição tributária**". Ao usá-lo, o SEFAZ recusa
+ * antes de olhar a nota:
+ *
+ *   erro_validacao_schema — Element 'vBCST': This element is not expected.
+ *   Expected is ( modBCST )
+ *
+ * Ou seja: declarar 203 obriga a mandar também os campos de ST (`modBCST`,
+ * `pICMSST`, `vICMSST`). Com CSOSN **102** a mesma nota foi AUTORIZADA
+ * (status 100), o que prova que o resto do payload está correto e isola o
+ * problema no código de situação tributária.
+ *
+ * São duas hipóteses e quem responde é a contadora, não nós:
+ *   a) o 203 está certo e faltam os campos de ST; ou
+ *   b) para venda no balcão o código é outro — 102, ou 500 (ICMS já cobrado
+ *      antes por ST), que é o comum no varejo que compra de quem recolheu.
+ *
+ * Até ela responder, o valor semeado em `fv.fiscal_categorias` segue 203 —
+ * mudar por conta própria seria escolher regime tributário no lugar dela.
+ */
 
 // ─── Validação ────────────────────────────────────────────────────────────────
 
