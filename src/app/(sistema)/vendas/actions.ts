@@ -100,6 +100,17 @@ export interface VendaDetail {
     returned_items: Array<{ product_name: string; product_code: string; quantity: number; unit_price: number }>
     given_items: Array<{ product_name: string; product_code: string; quantity: number; unit_price: number }>
   } | null
+  /** A nota, quando existe. `null` em status = nunca pediu nota. */
+  nfce: {
+    status: string | null
+    chave: string | null
+    numero: number | null
+    serie: number | null
+    danfe_url: string | null
+    motivo_rejeicao: string | null
+    emitida_em: string | null
+  }
+  destinatario_cpf: string | null
 }
 
 export interface VendaParaTroca {
@@ -382,7 +393,7 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
   const [saleRes, itemsRes, paymentsRes, exchangesRes] = await Promise.all([
     admin
       .from('sales')
-      .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, seller_id, customers(name), stores(name)')
+      .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, seller_id, destinatario_cpf, nfce_status, nfce_chave, nfce_numero, nfce_serie, nfce_danfe_url, nfce_motivo_rejeicao, nfce_emitida_em, customers(name), stores(name)')
       .eq('id', saleId)
       .single(),
     admin
@@ -484,6 +495,16 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
         installments:   p.installments,
       })),
       exchange: exchangeDetail,
+      nfce: {
+        status:          sale.nfce_status ?? null,
+        chave:           sale.nfce_chave ?? null,
+        numero:          sale.nfce_numero ?? null,
+        serie:           sale.nfce_serie ?? null,
+        danfe_url:       sale.nfce_danfe_url ?? null,
+        motivo_rejeicao: sale.nfce_motivo_rejeicao ?? null,
+        emitida_em:      sale.nfce_emitida_em ?? null,
+      },
+      destinatario_cpf: sale.destinatario_cpf ?? null,
     }
   }
 }

@@ -216,3 +216,116 @@ export function cancelarNfce(ambiente: AmbienteFiscal, ref: string, justificativ
   }
   return chamar(ambiente, 'DELETE', `/v2/nfce/${encodeURIComponent(ref)}`, { justificativa: j })
 }
+
+
+// ─── Cadastro da empresa ──────────────────────────────────────────────────────
+
+/**
+ * Campos do `POST /v2/empresas`, conferidos na doc em 02/09.
+ *
+ * Doc: https://doc.focusnfe.com.br/reference/criar_empresa.md
+ */
+export interface EmpresaFocus {
+  nome: string
+  cnpj: string
+  inscricao_estadual?: string
+  regime_tributario?: number
+  cnae_fiscal?: string
+  logradouro: string
+  numero: string
+  complemento?: string
+  bairro: string
+  municipio: string
+  uf: string
+  cep: string
+  telefone?: string
+  email?: string
+
+  /** Modelo 65. É o que a loja emite. */
+  habilita_nfce?: boolean
+  /** Modelo 55 — precisa dele para a nota de REMESSA entre as duas lojas. */
+  habilita_nfe?: boolean
+
+  /**
+   * CSC e id do token, um par por ambiente.
+   *
+   * O de produção veio do Hiper (Configurações → Loja → Cupom fiscal), com
+   * `id_token = 1`. O de homologação não existia e a contadora vai gerar no
+   * portal da SEFAZ-DF.
+   */
+  csc_nfce_producao?: string
+  id_token_nfce_producao?: number
+  csc_nfce_homologacao?: string
+  id_token_nfce_homologacao?: number
+
+  /**
+   * ⚠️ O `.pfx` em base64 e a senha, no MESMO POST.
+   *
+   * **O caminho recomendado NÃO é este: é subir o certificado pelo painel da
+   * Focus.** Assim o arquivo nunca passa pelo nosso código, nem por log, nem
+   * por variável de ambiente, nem por backup — e o que a gente guarda é só o
+   * token, que dá para rotacionar.
+   *
+   * Estes dois campos existem para automação e para o `dry_run`. Se um dia
+   * forem usados de verdade, a regra é: ler de arquivo no ato, mandar, e não
+   * guardar em lugar nenhum.
+   */
+  arquivo_certificado_base64?: string
+  senha_certificado?: string
+}
+
+export interface RespostaEmpresa {
+  ok: boolean
+  id?: number
+  /** Token da empresa, quando a Focus devolve na criação. */
+  token?: string
+  mensagem?: string
+  bruto?: unknown
+}
+
+/**
+ * Cadastra (ou valida) a empresa na conta da Focus.
+ *
+ * `dryRun` usa o `?dry_run=1` da API: valida tudo — inclusive o certificado e a
+ * senha — e **não persiste**. É o jeito de conferir o cadastro antes de criar
+ * de verdade, e o primeiro passo que vale rodar.
+ */
+export async function cadastrarEmpresa(
+  ambiente: AmbienteFiscal,
+  empresa: EmpresaFocus,
+  dryRun = false,
+): Promise<RespostaEmpresa> {
+  const token = tokenFocus(ambiente)
+  if (!token) {
+    return { ok: false, mensagem: `Token da Focus não configurado para ${ambiente}.` }
+  }
+
+  let resp: Response
+  try {
+    resp = await fetch(`${BASES[ambiente]}/v2/empresas${dryRun ? '?dry_run=1' : ''}`, {
+      method: 'POST',
+      headers: { Authorization: cabecalhoAuth(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify(empresa),
+      signal: AbortSignal.timeout(60_000),   // instalar certificado é lento
+    })
+  } catch (e) {
+    return { ok: false, mensagem: `Falha de rede: ${e instanceof Error ? e.message : String(e)}` }
+  }
+
+  let corpo: Record<string, unknown> = {}
+  try { corpo = await resp.json() as Record<string, unknown> } catch { /* sem corpo */ }
+
+  const erros = corpo.erros as { campo?: string; mensagem?: string }[] | undefined
+  const mensagem =
+    erros?.map(e => [e.campo, e.mensagem].filter(Boolean).join(': ')).join(' · ') ||
+    (corpo.mensagem as string | undefined) ||
+    (resp.ok ? undefined : `HTTP ${resp.status}`)
+
+  return {
+    ok: resp.ok,
+    id: corpo.id as number | undefined,
+    token: corpo.token as string | undefined,
+    mensagem,
+    bruto: corpo,
+  }
+}

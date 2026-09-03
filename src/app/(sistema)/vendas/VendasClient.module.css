@@ -637,3 +637,121 @@
   background: var(--danger-subtle);
   color: var(--danger);
 }
+
+/* ─── Bloco fiscal do detalhe da venda ──────────────────────────────────────
+ *
+ * O desenho parte de que emitir nota é ação que FALHA — SEFAZ recusa, rede cai,
+ * campo errado. Então o motivo tem o mesmo peso visual que o sucesso: quem está
+ * no balcão precisa saber o que fazer, não que "deu erro".
+ */
+
+.fiscalVazio {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.fiscalLinha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fiscalSelo {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.fiscal_autorizada { background: var(--success-subtle); color: var(--success); }
+.fiscal_pendente   { background: var(--warning-subtle, rgba(251,191,36,0.12)); color: var(--warning); }
+.fiscal_rejeitada  { background: var(--danger-subtle);  color: var(--danger); }
+.fiscal_erro       { background: var(--danger-subtle);  color: var(--danger); }
+.fiscal_cancelada  { background: var(--bg-elevated);    color: var(--text-muted); }
+
+.fiscalNumero {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A chave é o que a contadora pede. Monoespaçada e quebrando em qualquer ponto:
+ * são 44 dígitos e ela precisa caber no modal sem cortar. */
+.fiscalChave {
+  margin-top: 6px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.fiscalMotivo,
+.fiscalErro {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-subtle);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.fiscalRecusas {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--danger);
+  line-height: 1.6;
+}
+
+.fiscalAcoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.fiscalDanfe {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.fiscalDanfe:hover { text-decoration: underline; }
+
+.fiscalCancelar {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fiscalJustificativa {
+  height: 34px;
+  padding: 0 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.fiscalCancelarAcoes {
+  display: flex;
+  gap: 8px;
+}
+
+.fiscalAviso {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
