@@ -90,25 +90,25 @@ export default function DashboardDetalhe({
     const resumo: ItemResumo[] =
       chave === 'resultado'
         ? [
+            /* Entrou menos saiu, e só. O CMV saiu daqui: ele contava a compra
+             * pela segunda vez — inteira ao entrar como despesa, e de novo
+             * peça a peça ao sair. Agora esta lista É a conta do cartão, sem
+             * linha que não esteja no ledger. */
             { rotulo: 'Entrou', valor: fmt(entradas), tom: 'pos' },
-            { rotulo: 'Saiu (despesas do ledger)', valor: fmt(saidas), tom: 'neg' },
-            /* O resultado do cartão desconta TAMBÉM o CMV, que não é lançamento do
-             * ledger — sai do custo das vendas. Sem esta linha a conta aqui não
-             * fecharia com o número lá em cima e pareceria erro. */
-            { rotulo: 'Custo dos produtos vendidos (CMV)', valor: fmt(kpis.cmv), tom: 'neg' },
+            { rotulo: 'Saiu', valor: fmt(saidas), tom: 'neg' },
             { rotulo: 'Resultado do mês', valor: fmt(kpis.lucroLiquido), total: true,
               tom: kpis.lucroLiquido < 0 ? 'neg' : 'pos' },
           ]
         : chave === 'receita'
           ? [{ rotulo: 'Receita bruta do mês', valor: fmt(entradas), total: true, tom: 'pos' }]
-          : [{ rotulo: 'Despesas pagas no mês', valor: fmt(saidas), total: true, tom: 'neg' }]
+          : [{ rotulo: 'Saídas pagas no mês', valor: fmt(saidas), total: true, tom: 'neg' }]
 
     return (
       <DetalheListaModal<LinhaMovimento>
         titulo={
           chave === 'resultado' ? 'Resultado do mês'
           : chave === 'receita' ? 'Receita bruta'
-          : 'Despesas operacionais'
+          : 'Saídas do mês'
         }
         subtitulo={`${periodo} · lançamentos concluídos no financeiro`}
         linhas={movimentos}
