@@ -434,17 +434,27 @@
   width: 100%;
 }
 
+/*
+ * SEM `position`, `top`, `left` ou `right` aqui — quem posiciona é o componente,
+ * em `fixed`, com a conta de `src/lib/dropdown.ts`.
+ *
+ * O `top: calc(100% + 2px)` que morava aqui foi o bug que a dona reportou como
+ * "às vezes puxa o fornecedor, às vezes não". Quando o campo está no alto da
+ * tela o menu abre para BAIXO e o `top` inline vence este — funciona. Quando
+ * está no pé, abre para CIMA ancorado por `bottom`, e aí os dois convivem:
+ * elemento `fixed` com `top` E `bottom` tem a altura definida pela diferença
+ * entre eles. `top` valia a altura da janela inteira, então a diferença dava
+ * negativo e o menu colapsava para 2px — as duas bordas. Ele estava lá, com as
+ * opções dentro, invisível.
+ */
 .comboDropdown {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 0;
-  right: 0;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  z-index: 200;
-  max-height: 200px;
+  /* Sem `max-height` fixo: o teto vem do componente, que mede o espaço real
+   * da janela. Um valor cravado aqui ignoraria uma tela baixa. */
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
 
