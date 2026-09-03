@@ -259,6 +259,22 @@ export interface EmpresaFocus {
   id_token_nfce_homologacao?: number
 
   /**
+   * ⚠️ SÉRIE E NUMERAÇÃO — TEM DE SER INFORMADO, o padrão está errado para nós.
+   *
+   * Descoberto no `dry_run` de 02/09: a Focus assume `serie_nfce = 1` e
+   * `proximo_numero = 1`. O Hiper parou na **série 2, número 1429**, e a
+   * contadora aprovou começarmos na **série 3 a partir do 1**.
+   *
+   * Deixar no padrão faria a primeira nota sair como série 1 nº 1 — número que
+   * pode colidir com o histórico e que não é o combinado. Não é erro que a API
+   * recuse: ela emite, e o problema aparece depois, na contabilidade.
+   */
+  serie_nfce_producao?: number
+  proximo_numero_nfce_producao?: number
+  serie_nfce_homologacao?: number
+  proximo_numero_nfce_homologacao?: number
+
+  /**
    * ⚠️ O `.pfx` em base64 e a senha, no MESMO POST.
    *
    * **O caminho recomendado NÃO é este: é subir o certificado pelo painel da
