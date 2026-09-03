@@ -66,6 +66,15 @@ function today() {
  * uma linha nunca preenchida ia para o banco como R$ 0,00 já pago, deixando a
  * despesa da compra fora do ledger. Agora salvar exige valor e situação.
  */
+/**
+ * Métodos que aceitam parcela.
+ *
+ * Cheque entrou em 03/09 a pedido da dona: ela compra em São Paulo e paga em
+ * cheques pré-datados, um por mês. Pix, dinheiro, transferência e débito saem
+ * de uma vez por natureza — parcelar ali seria oferecer o que não existe.
+ */
+const PARCELAVEL = new Set<PaymentRow['method']>(['credit', 'check'])
+
 function emptyPayment(): PaymentRow {
   return {
     method: 'pix',
@@ -569,6 +578,15 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
   // Pagamentos por fornecedor
   const [supplierPayments, setSupplierPayments] = useState<Record<string, PaymentRow[]>>({})
 
+  /*
+   * Desconto que o FORNECEDOR deu, em % sobre o subtotal daquele fornecedor.
+   *
+   * Pedido da dona em 03/09: "tem compras que ela ganha cinco, dez por cento".
+   * É desconto comercial na negociação, aplicado depois de somar as peças —
+   * então entra aqui, no fechamento, e não no custo digitado item a item.
+   */
+  const [supplierDescontos, setSupplierDescontos] = useState<Record<string, number>>({})
+
   /**
    * `null` = pagamentos completos. Se não, a mensagem do que falta — usada para
    * deixar o botão Salvar com aparência de desabilitado e no title do botão.
@@ -805,10 +823,28 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
 
   // ── Pagamentos por fornecedor ─────────────────────────────────────────────
 
+  /*
+   * A nova linha já nasce com O QUE FALTA para fechar.
+   *
+   * A dona disse em 03/09 que o sistema "só aceita uma forma de pagamento".
+   * Aceitava — o botão "Adicionar pagamento" sempre esteve aqui. O que não
+   * havia era motivo para acreditar nisso: a segunda linha nascia zerada, e
+   * dividir R$640 entre Pix e cheque virava conta de cabeça a cada tentativa.
+   *
+   * Nascendo com o restante, o caminho fica óbvio: ela põe 300 no Pix, clica
+   * em adicionar, e os 340 já estão lá esperando o método.
+   */
   function addPaymentForSupplier(groupKey: string) {
+    const grupo    = supplierGroups.find(g => g.groupKey === groupKey)
+    const desconto = supplierDescontos[groupKey] ?? 0
+    const aPagar   = grupo ? parseFloat((grupo.subtotal * (1 - desconto / 100)).toFixed(2)) : 0
+    const jaLancado = (supplierPayments[groupKey] ?? []).reduce((s, p) => s + (p.totalAmount || 0), 0)
+    const restante = parseFloat((aPagar - jaLancado).toFixed(2))
+
     setSupplierPayments(prev => ({
       ...prev,
-      [groupKey]: [...(prev[groupKey] ?? []), emptyPayment()]
+      // Negativo (ela lançou a mais) não vira valor: melhor zero do que sugerir bobagem.
+      [groupKey]: [...(prev[groupKey] ?? []), { ...emptyPayment(), totalAmount: Math.max(0, restante) }]
     }))
   }
 
@@ -862,7 +898,8 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
       const payErr = validatePaymentGroups(
         supplierGroups.map(g => ({
           label: g.supplierName,
-          subtotal: g.subtotal,
+          // Com desconto do fornecedor, o que tem de fechar é o LÍQUIDO.
+          subtotal: parseFloat((g.subtotal * (1 - (supplierDescontos[g.groupKey] ?? 0) / 100)).toFixed(2)),
           payments: (supplierPayments[g.groupKey] ?? []).map(p => ({ amount: p.totalAmount, status: p.status })),
         }))
       )
@@ -873,26 +910,55 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
           if (p.method === 'check' && !p.firstDueDate) {
             setError(`"${group.supplierName}": informe a data de compensação do cheque (bom para).`); return
           }
+          /* Parcelado sem data não tem como gerar os vencimentos — e é o que
+             transforma "3x" em três contas a pagar de verdade. */
+          if (PARCELAVEL.has(p.method) && p.installments > 1 && !p.firstDueDate) {
+            setError(`"${group.supplierName}": informe a data da 1ª parcela.`); return
+          }
         }
       }
     }
 
     setSaving(true)
-    const result = await salvarCompra({
-      purchaseDate,
-      notes,
-      rows: validRows,
-      supplierPayments: supplierGroups.map(g => ({
-        groupKey: g.groupKey,
-        payments: supplierPayments[g.groupKey] ?? [],
-        nfNumber: supplierNFs[g.groupKey]?.nfNumber ?? '',
-        nfUrl:    supplierNFs[g.groupKey]?.nfUrl    ?? '',
-      })),
-      isConsignment,
-      returnDeadline,
-      minPurchasePct: minPurchasePct ? parseFloat(minPurchasePct) : null,
-    })
-    setSaving(false)
+
+    /*
+     * O try/catch existe por causa de 03/09: a dona ficou com o botão girando
+     * para sempre numa compra grande. `salvarCompra` estourou o tempo, a
+     * promessa quebrou, e o `setSaving(false)` logo abaixo nunca rodou — sem
+     * erro na tela, sem nada. Ela esperou, tentou de novo, e o risco real ali
+     * era duplicar a compra.
+     *
+     * O `finally` é o que importa: aconteça o que acontecer, o botão volta.
+     */
+    let result: Awaited<ReturnType<typeof salvarCompra>>
+    try {
+      result = await salvarCompra({
+        purchaseDate,
+        notes,
+        rows: validRows,
+        supplierPayments: supplierGroups.map(g => ({
+          groupKey: g.groupKey,
+          payments: supplierPayments[g.groupKey] ?? [],
+          nfNumber: supplierNFs[g.groupKey]?.nfNumber ?? '',
+          nfUrl:    supplierNFs[g.groupKey]?.nfUrl    ?? '',
+          descontoPct: supplierDescontos[g.groupKey] ?? 0,
+        })),
+        isConsignment,
+        returnDeadline,
+        minPurchasePct: minPurchasePct ? parseFloat(minPurchasePct) : null,
+      })
+    } catch (e) {
+      // Rascunho INTACTO de propósito: o `clearDraft()` só roda no sucesso, lá
+      // embaixo. Falhou, ela recarrega a página e recupera tudo que digitou.
+      setError(
+        e instanceof Error && e.message
+          ? `NÃO FOI POSSÍVEL SALVAR: ${e.message.toUpperCase()}`
+          : 'NÃO FOI POSSÍVEL SALVAR. SEU RASCUNHO FOI MANTIDO — RECARREGUE A PÁGINA E TENTE DE NOVO.',
+      )
+      return
+    } finally {
+      setSaving(false)
+    }
 
     if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
 
@@ -1256,7 +1322,12 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
             const gp  = supplierPayments[group.groupKey] ?? []
             const nf  = supplierNFs[group.groupKey] ?? { nfNumber: '', nfUrl: '', uploading: false }
             const gpTotal = gp.reduce((s, p) => s + (p.totalAmount || 0), 0)
-            const diff    = gpTotal - group.subtotal
+            const descontoPct = supplierDescontos[group.groupKey] ?? 0
+            const descontoVal  = parseFloat((group.subtotal * descontoPct / 100).toFixed(2))
+            /* O que ela vai PAGAR — é contra isto que os pagamentos precisam
+               fechar, não contra o subtotal cheio. */
+            const aPagar       = parseFloat((group.subtotal - descontoVal).toFixed(2))
+            const diff         = gpTotal - aPagar
 
             return (
               <div key={group.groupKey} className={styles.supplierPayCard}>
@@ -1264,6 +1335,30 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                   <div className={styles.supplierPayInfo}>
                     <span className={styles.supplierPayName}>{group.supplierName}</span>
                     <span className={styles.supplierPaySubtotal}>Subtotal: <strong>{fmt(group.subtotal)}</strong></span>
+                    {/*
+                      Desconto do fornecedor. Fica junto do subtotal porque é
+                      sobre ele que incide, e o resultado aparece na mesma linha
+                      — ela precisa ver quanto vai pagar, não fazer a conta.
+                    */}
+                    <label className={styles.descontoWrap}>
+                      <span>Desconto</span>
+                      <input
+                        type="number" min="0" max="100" step="0.01" onWheel={blurOnWheel}
+                        className={styles.descontoInput}
+                        value={descontoPct || ''}
+                        onChange={e => {
+                          const v = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0))
+                          setSupplierDescontos(prev => ({ ...prev, [group.groupKey]: v }))
+                        }}
+                        placeholder="0"
+                      />
+                      <span>%</span>
+                    </label>
+                    {descontoPct > 0 && (
+                      <span className={styles.supplierPayLiquido}>
+                        − {fmt(descontoVal)} · a pagar <strong>{fmt(aPagar)}</strong>
+                      </span>
+                    )}
                   </div>
                   <div className={styles.supplierPayActions}>
                     <input
@@ -1318,7 +1413,9 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                             value={p.method}
                             onChange={v => updatePaymentForSupplier(group.groupKey, i, {
                               method: v as PaymentRow['method'],
-                              installments: 1,
+                              // Só zera a parcela se o método novo NÃO parcela — trocar
+                              // crédito por cheque mantendo 3x é troca legítima.
+                              ...(PARCELAVEL.has(v as PaymentRow['method']) ? {} : { installments: 1 }),
                               // Cheque entra como "A pagar" (compensação futura) por padrão
                               ...(v === 'check' ? { status: 'pending' as const } : {}),
                             })}
@@ -1335,12 +1432,18 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                           placeholder="R$ 0,00"
                         />
 
-                        <div style={{ flex: '0 0 80px', opacity: p.method !== 'credit' ? 0.3 : 1 }}>
+                        {/*
+                          CHEQUE TAMBÉM PARCELA.
+                          Ela compra em São Paulo e paga em cheques pré-datados —
+                          3 cheques, 3 datas de compensação. Estava travado em
+                          cartão, o que não corresponde a como a loja compra.
+                        */}
+                        <div style={{ flex: '0 0 80px', opacity: PARCELAVEL.has(p.method) ? 1 : 0.3 }}>
                           <PaySelect
                             value={String(p.installments)}
                             onChange={v => updatePaymentForSupplier(group.groupKey, i, { installments: parseInt(v) })}
                             options={Array.from({ length: 12 }, (_, k) => ({ value: String(k + 1), label: `${k + 1}x` }))}
-                            disabled={p.method !== 'credit'}
+                            disabled={!PARCELAVEL.has(p.method)}
                           />
                         </div>
 
@@ -1359,9 +1462,10 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                           />
                         </div>
 
-                        {p.method === 'credit' && p.installments > 1 && (
+                        {PARCELAVEL.has(p.method) && p.installments > 1 && (
                           <span className={styles.installmentHint}>
                             {p.installments}x de {fmt(p.totalAmount / p.installments)}
+                            {p.method === 'check' && ' · uma por mês a partir da 1ª data'}
                           </span>
                         )}
 
@@ -1377,8 +1481,8 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                         <span className={styles.diffWarning}>
                           <AlertTriangle size={13} />
                           {diff < 0
-                            ? <>Falta {fmt(Math.abs(diff))} para fechar o subtotal de {fmt(group.subtotal)}</>
-                            : <>{fmt(diff)} a mais que o subtotal de {fmt(group.subtotal)}</>}
+                            ? <>Falta {fmt(Math.abs(diff))} para fechar {fmt(aPagar)}</>
+                            : <>{fmt(diff)} a mais que os {fmt(aPagar)} a pagar</>}
                         </span>
                       )}
                       {Math.abs(diff) <= 0.01 && gpTotal > 0 && (
