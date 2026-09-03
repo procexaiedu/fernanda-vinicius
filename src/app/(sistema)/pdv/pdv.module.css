@@ -134,3 +134,63 @@
   .strip { grid-template-columns: 1fr 1fr; }
   .caixaMain { grid-template-columns: 1fr; }
 }
+
+/* ── Painel da venda recém-fechada ────────────────────────────
+ *
+ * Substitui o toast que sumia em 2,2s. A diferença não é estética: a NFC-e tem
+ * 5 minutos de janela, e se a barra some antes de a cliente pedir a nota, ela
+ * não sai mais na hora. Este painel fica até alguém fechar.
+ */
+.painelVenda {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+  min-width: 340px; max-width: min(560px, calc(100vw - 32px));
+  background: var(--bg-surface); border: 1px solid var(--success);
+  border-radius: var(--radius-md); padding: 14px 16px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.45); z-index: 100;
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+.painelLinha {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 14px; color: var(--success);
+}
+
+.painelLinha strong { color: var(--text-primary); flex-shrink: 0; }
+
+/* Empurra o fechar para a borda, mantendo o botão de nota junto do texto. */
+.btnFechar {
+  margin-left: auto; background: none; border: none; padding: 4px;
+  color: var(--text-muted); cursor: pointer; border-radius: var(--radius-sm);
+}
+.btnFechar:hover { background: var(--bg-elevated); color: var(--text-primary); }
+
+/* A nota é a ação principal deste painel — é ela que tem prazo. */
+.btnNota {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 14px;
+  background: var(--accent); color: var(--accent-fg);
+  border: none; border-radius: var(--radius-md);
+  font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+}
+.btnNota:hover { opacity: .9; }
+
+.painelInfo { font-size: 13px; color: var(--text-muted); }
+.painelOk    { font-size: 13px; font-weight: 600; color: var(--success); }
+
+.painelDanfe {
+  font-size: 13px; color: var(--accent); text-decoration: none;
+}
+.painelDanfe:hover { text-decoration: underline; }
+
+.painelErro {
+  display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap;
+  padding: 9px 11px; border-radius: var(--radius-sm);
+  background: var(--danger-subtle); color: var(--danger);
+  font-size: 12.5px; line-height: 1.45;
+}
+
+.btnTentar {
+  margin-left: auto; background: none; border: 1px solid currentColor;
+  color: inherit; font-family: inherit; font-size: 12px; font-weight: 600;
+  padding: 4px 10px; border-radius: var(--radius-sm); cursor: pointer;
+}

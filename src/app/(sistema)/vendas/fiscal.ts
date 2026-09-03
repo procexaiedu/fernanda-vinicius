@@ -35,6 +35,28 @@ export interface ResultadoFiscal {
   recusas?: { campo: string; motivo: string }[]
 }
 
+/**
+ * Quem pode EMITIR: qualquer pessoa autenticada que registra venda.
+ *
+ * Eu tinha travado isto em admin, e estava errado. A nota tem **5 minutos** de
+ * janela e quem está no balcão com a cliente é a operadora — exigir admin
+ * significaria, na prática, que nota nenhuma sai na hora. Emitir o documento
+ * da venda que ela acabou de fazer é parte do trabalho dela, não um ato
+ * administrativo privilegiado.
+ */
+async function verificarUsuario(): Promise<{ userId: string | null; error: string | null }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { userId: null, error: 'Não autenticado.' }
+  return { userId: user.id, error: null }
+}
+
+/**
+ * Quem pode CANCELAR: só admin.
+ *
+ * Aqui a trava fica. Cancelar é desfazer um documento fiscal já autorizado,
+ * com justificativa que o contador vai ler — é correção, não operação.
+ */
 async function verificarAdmin(): Promise<{ userId: string | null; error: string | null }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -43,19 +65,14 @@ async function verificarAdmin(): Promise<{ userId: string | null; error: string 
   const { data: profile } = await supabase
     .from('users').select('role').eq('id', user.id).single()
 
-  /*
-   * Emitir nota é ato fiscal em nome da empresa. A operadora registra venda;
-   * quem emite documento fiscal é admin. Se um dia isso mudar, muda aqui — e
-   * não em cada tela.
-   */
-  if (profile?.role !== 'admin') return { userId: user.id, error: 'Só administrador emite nota.' }
+  if (profile?.role !== 'admin') return { userId: user.id, error: 'Só administrador cancela nota.' }
   return { userId: user.id, error: null }
 }
 
 // ─── Emitir ───────────────────────────────────────────────────────────────────
 
 export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal> {
-  const { error: authErr } = await verificarAdmin()
+  const { error: authErr } = await verificarUsuario()
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
@@ -277,7 +294,7 @@ async function gravarResultado(
  * o que diz a verdade, e a `ref` é o que torna a pergunta possível.
  */
 export async function sincronizarNota(saleId: string): Promise<ResultadoFiscal> {
-  const { error: authErr } = await verificarAdmin()
+  const { error: authErr } = await verificarUsuario()
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
