@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireProfile, ehOperadora } from '@/lib/auth'
+import { requireProfile, ehOperadora, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ClientesClient from './ClientesClient'
 import PageHeader from '@/components/ui/PageHeader'
@@ -44,13 +44,44 @@ export default async function ClientesPage() {
 
   const admin = createAdminClient()
 
-  const [customersRes, storesRes, salesRes, settingRes] = await Promise.all([
-    admin.from('customers').select('*, stores(name)').order('name'),
-    admin.from('stores').select('id, name').eq('is_active', true).order('name'),
+  /*
+   * Cliente virou coisa da LOJA em 04/09, por decisão do dono.
+   *
+   * Reverte o que estava documentado em 01/09 ("cliente é da rede, a mesma
+   * pessoa compra nas duas"). O custo foi aceito na hora: cliente de Brasília
+   * que comprar em Campinas não aparece para a Rosi, que a cadastra de novo.
+   * São 2.838 clientes em Brasília e 444 em Campinas.
+   *
+   * As VENDAS precisam do mesmo corte, senão o painel de faturamento desta tela
+   * somaria as vendas da outra loja e ninguém entenderia o total.
+   */
+  const escopo = lojaDoEscopo(profile)
+
+  const carregarClientes = () => {
+    let q = admin.from('customers').select('*, stores(name)')
+    if (escopo) q = q.eq('origin_store_id', escopo)
+    return q.order('name')
+  }
+
+  const carregarVendas = () => {
     // Traz TAMBÉM as vendas sem cliente vinculado: elas fazem parte do
     // faturamento e o painel precisa mostrá-las, senão o total não bate com o
     // financeiro e a diferença parece erro de cálculo.
-    admin.from('sales').select('customer_id, sale_date, total').neq('status', 'cancelled'),
+    let q = admin.from('sales').select('customer_id, sale_date, total').neq('status', 'cancelled')
+    if (escopo) q = q.eq('store_id', escopo)
+    return q
+  }
+
+  const carregarLojas = () => {
+    let q = admin.from('stores').select('id, name').eq('is_active', true)
+    if (escopo) q = q.eq('id', escopo)
+    return q.order('name')
+  }
+
+  const [customersRes, storesRes, salesRes, settingRes] = await Promise.all([
+    carregarClientes(),
+    carregarLojas(),
+    carregarVendas(),
     admin.from('settings').select('value').eq('key', 'inactive_customer_days').maybeSingle(),
   ])
 

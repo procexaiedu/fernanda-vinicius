@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireProfile } from '@/lib/auth'
+import { requireProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ComprasClient from './ComprasClient'
 import PageHeader from '@/components/ui/PageHeader'
@@ -10,16 +10,48 @@ export default async function ComprasPage() {
 
   const admin = createAdminClient()
 
-  const [purchasesRes, paymentsRes, consignmentsRes, storesRes] = await Promise.all([
-    admin.from('purchases')
+  const escopo = lojaDoEscopo(profile)
+
+  /*
+   * A compra pertence à loja pelas PEÇAS, não pelo cabeçalho.
+   *
+   * `purchases.store_id` é nulo em todas as 16 compras do banco, de propósito:
+   * a ida a São Paulo abastece as duas lojas de uma vez. Filtrar por ele
+   * esconderia TODAS as compras da Eleandra em vez de mostrar as dela.
+   *
+   * `fv.compra_rateio_loja` responde quais compras têm peça daquela loja — a
+   * mesma view que faz a despesa aparecer por loja no painel.
+   */
+  const idsDaLoja = escopo
+    ? ((await admin.from('compra_rateio_loja').select('purchase_id').eq('store_id', escopo)).data ?? [])
+        .map((r: any) => r.purchase_id as string)
+    : null
+
+  const carregarCompras = () => {
+    let q = admin.from('purchases')
       .select('id, purchase_date, total_cost, total_items, nf_number, nf_url, notes, created_at')
-      .order('purchase_date', { ascending: false }),
+    if (idsDaLoja) q = q.in('id', idsDaLoja)
+    return q.order('purchase_date', { ascending: false })
+  }
+
+  const carregarLojas = () => {
+    let q = admin.from('stores').select('id, name, city')
+    if (escopo) q = q.eq('id', escopo)
+    return q
+  }
+
+  const [purchasesRes, paymentsRes, consignmentsRes, storesRes] = await Promise.all([
+    carregarCompras(),
     admin.from('purchase_payments')
       .select('purchase_id, status, amount'),
-    admin.from('consignments')
-      .select('id, received_date, return_deadline, total_pieces, total_cost_value, status, supplier_id, store_id')
-      .order('received_date', { ascending: false }),
-    admin.from('stores').select('id, name, city'),
+    (() => {
+      // Consignação tem loja própria — aqui o filtro é direto.
+      let q = admin.from('consignments')
+        .select('id, received_date, return_deadline, total_pieces, total_cost_value, status, supplier_id, store_id')
+      if (escopo) q = q.eq('store_id', escopo)
+      return q.order('received_date', { ascending: false })
+    })(),
+    carregarLojas(),
   ])
 
   const purchases    = purchasesRes.data ?? []

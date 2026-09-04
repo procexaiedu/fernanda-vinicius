@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { formatarNomeProprio } from '@/lib/nomeProprio'
-import { requireProfile } from '@/lib/auth'
+import { requireProfile, getProfile, lojaDoEscopo } from '@/lib/auth'
 import { normalizarTelefone } from '@/lib/telefone'
 
 export interface ActionResult {
@@ -43,9 +43,17 @@ export async function searchCustomers(term: string): Promise<CustomerSearchResul
 }
 
 export async function createCustomer(data: CustomerFormData): Promise<ActionResult> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'Não autenticado.' }
+  const perfil = await getProfile()
+  if (!perfil) return { success: false, error: 'Não autenticado.' }
+
+  /*
+   * A loja de origem sai do PERFIL, não do formulário.
+   *
+   * Vinha como `data.origin_store_id || null`, direto do navegador: quem é de
+   * Campinas cadastrava cliente em Brasília só alterando o campo. Para admin
+   * global o formulário continua mandando — é ele quem escolhe.
+   */
+  const origem = lojaDoEscopo(perfil, data.origin_store_id)
 
   const admin = createAdminClient()
   const { data: created, error } = await admin.from('customers').insert({
@@ -58,7 +66,7 @@ export async function createCustomer(data: CustomerFormData): Promise<ActionResu
     city:            data.city.trim() || null,
     state:           data.state.trim().toUpperCase() || null,
     zip_code:        data.zip_code.trim() || null,
-    origin_store_id: data.origin_store_id || null,
+    origin_store_id: origem,
     notes:           data.notes.trim() || null,
   }).select('id').single()
 
@@ -72,6 +80,16 @@ export async function updateCustomer(id: string, data: CustomerFormData): Promis
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Não autenticado.' }
 
+  const perfil = await getProfile()
+  if (!perfil) return { success: false, error: 'Não autenticado.' }
+
+  /*
+   * Editar não pode ser a porta dos fundos: sem isto, quem é de Campinas
+   * abriria uma cliente e a MUDARIA para Brasília — ou trouxesse uma de lá
+   * para si. A regra é a mesma da criação.
+   */
+  const origem = lojaDoEscopo(perfil, data.origin_store_id)
+
   const admin = createAdminClient()
   const { error } = await admin.from('customers').update({
     name:            formatarNomeProprio(data.name),
@@ -83,7 +101,7 @@ export async function updateCustomer(id: string, data: CustomerFormData): Promis
     city:            data.city.trim() || null,
     state:           data.state.trim().toUpperCase() || null,
     zip_code:        data.zip_code.trim() || null,
-    origin_store_id: data.origin_store_id,
+    origin_store_id: origem,
     notes:           data.notes.trim() || null,
     updated_at:      new Date().toISOString(),
   }).eq('id', id)

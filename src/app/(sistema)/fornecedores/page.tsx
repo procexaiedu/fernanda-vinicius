@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireProfile } from '@/lib/auth'
+import { requireProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import FornecedoresClient from './FornecedoresClient'
 import PageHeader from '@/components/ui/PageHeader'
@@ -40,11 +40,38 @@ export default async function FornecedoresPage() {
 
   const admin = createAdminClient()
 
+  /*
+   * O FORNECEDOR é da rede; os NÚMEROS dele, não.
+   *
+   * Ela compra dos mesmos fornecedores de São Paulo para as duas lojas, então
+   * esconder o cadastro quebraria a compra. Mas peças, total investido, última
+   * compra e pendente são dinheiro: sem o corte, a admin de Brasília abriria
+   * esta tela e leria quanto Campinas comprou de cada fornecedor.
+   *
+   * O corte é pela LOJA DA PEÇA (`products.store_id`), que é o que liga item de
+   * compra a loja — `purchases.store_id` é nulo em todas, porque a ida a São
+   * Paulo abastece as duas.
+   */
+  const escopo = lojaDoEscopo(profile)
+
+  const carregarProdutos = () => {
+    let q = admin.from('products').select('supplier_id').eq('is_active', true)
+    if (escopo) q = q.eq('store_id', escopo)
+    return q
+  }
+
+  const carregarItens = () => {
+    // Join purchase_items → products para obter supplier_id e purchase_date por item
+    let q = admin.from('purchase_items')
+      .select('purchase_id, unit_cost, quantity, products!inner(supplier_id, store_id), purchases(purchase_date)')
+    if (escopo) q = q.eq('products.store_id', escopo)
+    return q
+  }
+
   const [suppliersRes, productCountsRes, purchaseItemsRes, purchasesRes] = await Promise.all([
     admin.from('suppliers').select('*').order('name'),
-    admin.from('products').select('supplier_id').eq('is_active', true),
-    // Join purchase_items → products para obter supplier_id e purchase_date por item
-    admin.from('purchase_items').select('purchase_id, unit_cost, quantity, products(supplier_id), purchases(purchase_date)'),
+    carregarProdutos(),
+    carregarItens(),
     admin.from('purchases').select('id, purchase_date'),
   ])
 
@@ -54,7 +81,7 @@ export default async function FornecedoresPage() {
     purchase_id: string
     unit_cost: number
     quantity: number
-    products: { supplier_id: string } | null
+    products: { supplier_id: string; store_id: string | null } | null
     purchases: { purchase_date: string } | null
   }>
   const purchases     = purchasesRes.data ?? []

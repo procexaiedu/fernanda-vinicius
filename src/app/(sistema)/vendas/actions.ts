@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { calcularTotalDaVenda } from '@/lib/vendas/total'
+import { getProfile, lojaDoEscopo } from '@/lib/auth'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -169,8 +170,17 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
 
   const admin = createAdminClient()
 
-  // Loja: operadora usa sua própria loja, admin usa a do form
-  const finalStoreId = role === 'operator' && userStoreId ? userStoreId : data.storeId
+  /*
+   * QUEM TEM LOJA ESTÁ PRESO A ELA — admin ou não. É a regra de
+   * `lojaDoEscopo` em src/lib/auth.ts, escrita aqui à mão porque só temos
+   * `role` e `storeId`, não o perfil inteiro.
+   *
+   * Era `role === 'operator' && userStoreId ? userStoreId : data.storeId`: a
+   * Eleandra é ADMIN COM LOJA, caía no segundo ramo e lançava venda em
+   * Campinas mandando outro `storeId` pelo navegador. O ternário sobre o papel
+   * não sabe responder sobre escopo — são eixos diferentes.
+   */
+  const finalStoreId = userStoreId ?? data.storeId
   if (!finalStoreId) return { success: false, error: 'Loja não definida.' }
   if (!data.items.length) return { success: false, error: 'Adicione ao menos um produto.' }
 
@@ -491,6 +501,12 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
 // ─── Action: vendas do cliente para troca ─────────────────────────────────────
 
 export async function buscarVendasCliente(customerId: string, storeId: string): Promise<VendaParaTroca[]> {
+  // Troca só olha as vendas da própria loja. Ver lib/auth.
+  const perfil = await getProfile()
+  const loja = perfil ? lojaDoEscopo(perfil, storeId) : null
+  if (!loja) return []
+  storeId = loja
+
   const admin = createAdminClient()
 
   const { data: sales } = await admin
@@ -711,7 +727,8 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
 
   const admin = createAdminClient()
 
-  const finalStoreId = role === 'operator' && userStoreId ? userStoreId : data.storeId
+  // Mesma regra do `salvarVenda`: quem tem loja está preso a ela, admin ou não.
+  const finalStoreId = userStoreId ?? data.storeId
   if (!finalStoreId) return { success: false, error: 'Loja não definida.' }
   if (!data.items.length) return { success: false, error: 'Adicione ao menos um produto.' }
 

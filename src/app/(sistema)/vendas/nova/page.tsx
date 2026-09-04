@@ -1,4 +1,5 @@
-import { requireProfile } from '@/lib/auth'
+import { requireProfile, lojaDoEscopo } from '@/lib/auth'
+import { listasDoEscopo } from '@/lib/listas-do-escopo'
 import PageHeader from '@/components/ui/PageHeader'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAll } from '@/lib/supabase/fetch-all'
@@ -15,22 +16,14 @@ export default async function NovaVendaPage({ searchParams }: PageProps) {
 
   const admin = createAdminClient()
 
-  // Operadora só vende na própria loja → carrega apenas o catálogo dela (menos dados).
-  const isOperator = profile.role === 'operator' && !!profile.store_id
-  // Paginado: o Supabase corta em 1000 linhas por requisição e já são 1.031
-  // produtos ativos — 31 ficavam invisíveis para o leitor. Ver lib/supabase/fetch-all.
-  const carregarProdutos = (de: number, ate: number) => {
-    let q = admin.from('products')
-      .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock, is_service')
-      .eq('is_active', true)
-    if (isOperator) q = q.eq('store_id', profile.store_id!)
-    return q.order('name').range(de, ate)
-  }
+  // Quem tem loja está preso a ela — admin de loja inclusive. Ver lib/listas-do-escopo.
+  const escopo = lojaDoEscopo(profile)
+  const listas = listasDoEscopo(admin, escopo)
 
   const [storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
-    admin.from('stores').select('id, name, city').eq('is_active', true).order('name'),
-    fetchAll(carregarProdutos),
-    admin.from('customers').select('id, name, phone, cpf, birthday').order('name').limit(400),
+    listas.lojas(),
+    fetchAll((de, ate) => listas.produtos(de, ate)),
+    listas.clientes(),
     admin.from('settings').select('key, value').in('key', [
       'pix_discount_pct',
       'birthday_discount_pct',
@@ -41,7 +34,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps) {
     profile.store_id
       ? admin.from('stores').select('id, name').eq('id', profile.store_id).single()
       : Promise.resolve({ data: null }),
-    admin.from('users').select('id, full_name, store_id').eq('is_active', true).order('full_name'),
+    listas.usuarios(),
   ])
 
   const stores    = storesRes.data ?? []

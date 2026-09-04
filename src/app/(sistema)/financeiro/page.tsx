@@ -19,9 +19,18 @@ export default async function FinanceiroPage() {
   const lastDay = new Date(y, m, 0).getDate()
   const dateTo = `${y}-${String(m).padStart(2, '0')}-${lastDay}`
 
+  const escopoP = lojaDoEscopo(profile)
+
+  const carregarUsuarios = () => {
+    // O filtro por pessoa não pode oferecer quem é da outra loja.
+    let q = admin.from('users').select('id, full_name').eq('is_active', true)
+    if (escopoP) q = q.eq('store_id', escopoP)
+    return q.order('full_name')
+  }
+
   const [storesRes, usersRes, categoriesRes, txInitial] = await Promise.all([
     admin.from('stores').select('id, name').eq('is_active', true).order('name'),
-    admin.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+    carregarUsuarios(),
     admin.from('transactions').select('category').order('category'),
     buscarTransacoes({ dateFrom, dateTo }),
   ])
@@ -31,7 +40,7 @@ export default async function FinanceiroPage() {
    * despesa. Para quem está preso a uma loja ela tem um item só, senão o
    * cadastro de despesa deixaria lançar conta na loja da outra.
    */
-  const escopo = lojaDoEscopo(profile)
+  const escopo = escopoP
   const todasAsLojas = storesRes.data ?? []
   const stores = escopo ? todasAsLojas.filter(s => s.id === escopo) : todasAsLojas
   const users  = usersRes.data ?? []

@@ -97,8 +97,19 @@ export default async function VendasPage() {
   // Lote 1 — vendas + listas de filtro (lojas/vendedoras/fechamentos não dependem das vendas)
   const [salesRes, storesRes, usersRes, closingsRes] = await Promise.all([
     salesQuery,
-    admin.from('stores').select('id, name').eq('is_active', true).order('name'),
-    admin.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+    /* Os filtros seguem o mesmo corte das vendas logo acima. Sem isto a tela
+       oferece "vendedora: Rayane" para quem só tem venda de Campinas — filtro
+       que nunca devolve nada e parece defeito. */
+    (() => {
+      let q = admin.from('stores').select('id, name').eq('is_active', true)
+      if (profile.store_id) q = q.eq('id', profile.store_id)
+      return q.order('name')
+    })(),
+    (() => {
+      let q = admin.from('users').select('id, full_name').eq('is_active', true)
+      if (profile.store_id) q = q.eq('store_id', profile.store_id)
+      return q.order('full_name')
+    })(),
     closingsQuery,
   ])
 
