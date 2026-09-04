@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArrowLeftRight, AlertTriangle, X, Trash2, Receipt } from 'lucide-react'
+import { ArrowLeftRight, AlertTriangle, X, Trash2, Receipt, FileText, RefreshCw, Download, MessageCircle } from 'lucide-react'
 import Badge from '@/components/ui/Badge'
+import Button from '@/components/ui/Button'
+import { emitirNotaDaVenda, sincronizarNota, cancelarNotaDaVenda } from '@/app/(sistema)/vendas/fiscal'
 import { buscarDetalheVenda, deletarVenda, type VendaDetail } from '@/app/(sistema)/vendas/actions'
 import styles from '@/app/(sistema)/vendas/VendasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import { linkDaNotaNoWhatsApp } from '@/lib/fiscal/enviarDanfe'
 
 /* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
 const fmt = formatarDinheiro
@@ -165,6 +168,24 @@ export default function VendaDetalheModal({ saleId, onClose, onDeleted, canDelet
                 </div>
               </div>
 
+              {/*
+                A NOTA FISCAL.
+                Fica aqui, no detalhe, e não no fechamento da venda: emitir é
+                ato separado, que pode falhar sem derrubar a venda, e que
+                alguém precisa poder repetir depois. Ver src/app/(sistema)/
+                vendas/fiscal.ts.
+              */}
+              <BlocoFiscal
+                saleId={venda.id}
+                nfce={venda.nfce}
+                cpf={venda.destinatario_cpf}
+                cliente={venda.customer_name}
+                telefone={venda.customer_phone}
+                loja={venda.store_name}
+                podeEmitir={canDelete}
+                onMudou={() => buscarDetalheVenda(saleId).then(r => r.data && setVenda(r.data))}
+              />
+
               {venda.payments.length > 0 && (
                 <div className={styles.detailSection}>
                   <div className={styles.detailSectionTitle}>Pagamentos</div>
@@ -234,6 +255,179 @@ export default function VendaDetalheModal({ saleId, onClose, onDeleted, canDelet
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Bloco fiscal ─────────────────────────────────────────────────────────────
+
+const ROTULO_STATUS: Record<string, string> = {
+  autorizada: 'Nota autorizada',
+  pendente:   'Emissão em andamento',
+  rejeitada:  'Nota rejeitada',
+  cancelada:  'Nota cancelada',
+  erro:       'Não foi possível emitir',
+}
+
+/**
+ * A nota da venda: estado, emitir, reconsultar, cancelar.
+ *
+ * O que dita o desenho é que **emitir é uma ação que falha**. O SEFAZ recusa,
+ * a rede cai, um campo está errado. Então o bloco tem de mostrar o MOTIVO com
+ * a mesma clareza que mostra o sucesso — quem está no balcão precisa saber o
+ * que fazer, não que "deu erro".
+ */
+function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, onMudou }: {
+  saleId: string
+  nfce: VendaDetail['nfce']
+  cpf: string | null
+  cliente: string | null
+  telefone: string | null
+  loja: string | null
+  podeEmitir: boolean
+  onMudou: () => void
+}) {
+  /*
+   * O link é montado NA RENDERIZAÇÃO, não no clique.
+   *
+   * Abrir o WhatsApp depois de um `await` é o que o navegador barra como
+   * pop-up — foi a armadilha que apareceu no comprovante do SM Imports. Com o
+   * link pronto em mãos, o clique é síncrono e passa.
+   *
+   * `null` quando a cliente não tem telefone ou a nota não saiu: aí o botão
+   * simplesmente não existe, em vez de abrir o WhatsApp em branco.
+   */
+  const linkWhats = linkDaNotaNoWhatsApp({
+    telefone,
+    danfeUrl: nfce.danfe_url,
+    nomeDaCliente: cliente,
+    loja,
+  })
+  const [ocupado, setOcupado] = useState<'emitir' | 'sincronizar' | 'cancelar' | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const [recusas, setRecusas] = useState<{ campo: string; motivo: string }[]>([])
+  const [pedindoJustificativa, setPedindoJustificativa] = useState(false)
+  const [justificativa, setJustificativa] = useState('')
+
+  async function rodar(qual: 'emitir' | 'sincronizar' | 'cancelar') {
+    setOcupado(qual); setErro(null); setRecusas([])
+    const r = qual === 'emitir'      ? await emitirNotaDaVenda(saleId)
+            : qual === 'sincronizar' ? await sincronizarNota(saleId)
+            :                          await cancelarNotaDaVenda(saleId, justificativa)
+    setOcupado(null)
+    if (!r.success) {
+      setErro(r.error ?? 'Falhou.')
+      setRecusas(r.recusas ?? [])
+    } else {
+      setPedindoJustificativa(false); setJustificativa('')
+    }
+    onMudou()
+  }
+
+  const status = nfce.status
+  const autorizada = status === 'autorizada'
+
+  return (
+    <div className={styles.detailSection}>
+      <div className={styles.detailSectionTitle}>Nota fiscal</div>
+
+      {!status && (
+        <div className={styles.fiscalVazio}>
+          Esta venda não tem nota.
+          {cpf && <> A cliente pediu no CPF <strong>{cpf}</strong>.</>}
+        </div>
+      )}
+
+      {status && (
+        <div className={styles.fiscalLinha}>
+          <span className={`${styles.fiscalSelo} ${styles[`fiscal_${status}`] ?? ''}`}>
+            {ROTULO_STATUS[status] ?? status}
+          </span>
+          {nfce.numero && <span className={styles.fiscalNumero}>nº {nfce.numero}/série {nfce.serie}</span>}
+        </div>
+      )}
+
+      {/* A chave é o que a contadora pede. Quebrada em blocos de 4 para dar
+          para ler e conferir sem perder a conta. */}
+      {nfce.chave && (
+        <div className={styles.fiscalChave}>{nfce.chave.replace(/(\d{4})(?=\d)/g, '$1 ')}</div>
+      )}
+
+      {nfce.motivo_rejeicao && !autorizada && (
+        <div className={styles.fiscalMotivo}>{nfce.motivo_rejeicao}</div>
+      )}
+
+      {erro && <div className={styles.fiscalErro}>{erro}</div>}
+      {recusas.length > 0 && (
+        <ul className={styles.fiscalRecusas}>
+          {recusas.map((r, i) => <li key={i}><strong>{r.campo}</strong>: {r.motivo}</li>)}
+        </ul>
+      )}
+
+      {podeEmitir && (
+        <div className={styles.fiscalAcoes}>
+          {!autorizada && status !== 'cancelada' && (
+            <Button size="sm" variant="outline" onClick={() => rodar('emitir')} loading={ocupado === 'emitir'}>
+              <FileText size={13} /> {status ? 'Tentar de novo' : 'Emitir nota'}
+            </Button>
+          )}
+
+          {/* Só faz sentido reconsultar quando a emissão ficou no meio do
+              caminho — é o caso "a rede caiu e não sei se a nota saiu". */}
+          {status === 'pendente' && (
+            <Button size="sm" variant="ghost" onClick={() => rodar('sincronizar')} loading={ocupado === 'sincronizar'}>
+              <RefreshCw size={13} /> Consultar na Receita
+            </Button>
+          )}
+
+          {nfce.danfe_url && (
+            <a className={styles.fiscalDanfe} href={nfce.danfe_url} target="_blank" rel="noopener noreferrer">
+              <Download size={13} /> Baixar DANFE
+            </a>
+          )}
+
+          {/* Abre a conversa com o texto pronto — quem envia é a vendedora. */}
+          {linkWhats && (
+            <a className={styles.fiscalWhats} href={linkWhats} target="_blank" rel="noopener noreferrer">
+              <MessageCircle size={13} /> Mandar no WhatsApp
+            </a>
+          )}
+
+          {autorizada && !pedindoJustificativa && (
+            <Button size="sm" variant="ghost" onClick={() => setPedindoJustificativa(true)}>
+              Cancelar nota
+            </Button>
+          )}
+        </div>
+      )}
+
+      {pedindoJustificativa && (
+        <div className={styles.fiscalCancelar}>
+          {/* 15 caracteres é exigência do SEFAZ, não nossa. O contador vai ler
+              esta justificativa, então ela precisa dizer algo de verdade. */}
+          <input
+            className={styles.fiscalJustificativa}
+            value={justificativa}
+            onChange={e => setJustificativa(e.target.value)}
+            placeholder="Motivo do cancelamento (mínimo 15 letras)"
+            maxLength={255}
+          />
+          <div className={styles.fiscalCancelarAcoes}>
+            <Button size="sm" variant="ghost" onClick={() => setPedindoJustificativa(false)}>Voltar</Button>
+            <Button
+              size="sm" variant="danger"
+              disabled={justificativa.trim().length < 15}
+              loading={ocupado === 'cancelar'}
+              onClick={() => rodar('cancelar')}
+            >
+              Cancelar a nota
+            </Button>
+          </div>
+          <span className={styles.fiscalAviso}>
+            Cancelar a nota não desfaz a venda. O SEFAZ aceita cancelamento por 30 minutos.
+          </span>
+        </div>
+      )}
     </div>
   )
 }

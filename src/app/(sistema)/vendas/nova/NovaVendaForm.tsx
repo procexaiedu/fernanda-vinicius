@@ -102,7 +102,12 @@ interface Props {
   userProfile: UserProfile
   users: UserOption[]
   editSale?: EditSaleData    // presente = modo edição de uma venda existente
-  onSaved?: () => void       // presente (PDV) = após salvar, fica na tela e reseta em vez de navegar
+  /**
+   * Presente (PDV) = após salvar, fica na tela e reseta em vez de navegar.
+   * Recebe o id da venda para o PDV poder oferecer a emissão da nota — que só
+   * faz sentido ali, com a cliente ainda no balcão e dentro dos 5 minutos.
+   */
+  onSaved?: (saleId: string) => void
   /**
    * `barcode_number` lido em outra tela do sistema. A venda abre já com essa peça
    * na primeira linha, preenchida com tudo que dá para deduzir do produto.
@@ -1069,7 +1074,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     setSaving(false)
 
     if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
-    if (onSaved) { onSaved(); return }   // PDV: fica na tela (o pai reseta o form)
+    if (onSaved) { onSaved(result.saleId ?? ''); return }   // PDV: fica na tela (o pai reseta o form)
     router.push('/vendas')
     router.refresh()
   }
