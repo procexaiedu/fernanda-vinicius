@@ -76,27 +76,29 @@ export const TPAG: Record<MetodoPagamento, string> = {
 }
 
 /**
- * ⚠️ CSOSN 203 NÃO PASSA NO SCHEMA — descoberto em homologação, 02/09.
+ * CSOSN 102 — DEFINIDO PELA CONTADORA EM 04/09. Não mude sem falar com ela.
  *
- * O 203 que extraímos do Hiper significa "isenção do ICMS no Simples **com
- * cobrança do ICMS por substituição tributária**". Ao usá-lo, o SEFAZ recusa
- * antes de olhar a nota:
+ * Extraímos 203 do Hiper em 31/08 e semeamos com ele. Em homologação, 02/09, o
+ * SEFAZ recusou antes de olhar a nota:
  *
  *   erro_validacao_schema — Element 'vBCST': This element is not expected.
  *   Expected is ( modBCST )
  *
- * Ou seja: declarar 203 obriga a mandar também os campos de ST (`modBCST`,
- * `pICMSST`, `vICMSST`). Com CSOSN **102** a mesma nota foi AUTORIZADA
- * (status 100), o que prova que o resto do payload está correto e isola o
- * problema no código de situação tributária.
+ * O 203 é "isenção do ICMS no Simples para faixa de receita bruta COM
+ * substituição tributária": declará-lo obriga a mandar junto os campos de ST
+ * (`modBCST`, `pICMSST`, `vICMSST`). A venda de balcão não tem ST, os campos
+ * iam vazios, e o schema recusava. Com 102 a mesma nota foi AUTORIZADA
+ * (status 100, série 3 nº 1), o que já isolava o problema no código de
+ * situação tributária.
  *
- * São duas hipóteses e quem responde é a contadora, não nós:
- *   a) o 203 está certo e faltam os campos de ST; ou
- *   b) para venda no balcão o código é outro — 102, ou 500 (ICMS já cobrado
- *      antes por ST), que é o comum no varejo que compra de quem recolheu.
+ * O valor NÃO foi trocado na hora de propósito: qual CSOSN usar é decisão de
+ * regime tributário, não escolha de quem escreve o código. A pergunta foi para
+ * a contadora, e a resposta veio em 04/09 — "optante pelo Simples Nacional [...]
+ * 102 - Tributada pelo Simples Nacional sem permissão de crédito".
  *
- * Até ela responder, o valor semeado em `fv.fiscal_categorias` segue 203 —
- * mudar por conta própria seria escolher regime tributário no lugar dela.
+ * Migration: `supabase/migrations/20260904_csosn_102.sql`. O valor vive em
+ * `fv.fiscal_categorias` (11 linhas) e em `fiscal_emitentes.csosn_padrao`, com
+ * override opcional por peça em `products.csosn` — hoje nulo em todas.
  */
 
 // ─── Validação ────────────────────────────────────────────────────────────────
@@ -266,9 +268,10 @@ export function montarNfce(venda: VendaParaNota, emitente: EmitenteFiscal) {
         valor_bruto: v2(bruto),
         ...(item.desconto > 0 ? { valor_desconto: v2(item.desconto) } : {}),
 
-        /* Simples Nacional: o CSOSN substitui o CST, e o 203 da loja significa
-         * isenção por faixa de receita. Não há base nem alíquota de ICMS a
-         * declarar — é o que torna o item fiscalmente simples aqui. */
+        /* Simples Nacional: o CSOSN substitui o CST, e o 102 da loja é
+         * "tributada pelo Simples sem permissão de crédito". Não há base,
+         * alíquota nem ST a declarar — é o que torna o item fiscalmente
+         * simples aqui. Ver o bloco do CSOSN no topo do arquivo. */
         icms_origem: Number(item.icms_origem),
         icms_situacao_tributaria: item.csosn!,
       }
