@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAll } from '@/lib/supabase/fetch-all'
+import { getProfile, lojaDoEscopo } from '@/lib/auth'
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -18,8 +19,12 @@ export interface DashboardSettings {
 
 export interface DashboardKpis {
   receitaBruta: number
+  /** Custo das peças VENDIDAS no mês. Lente de margem, não de caixa. */
   cmv: number
   lucroBruto: number
+  /** Compra de estoque paga no mês, já rateada pela loja de destino das peças. */
+  custoCompras: number
+  /** Despesa que NÃO é compra de peça: aluguel, salário, luz. Hoje: nenhuma. */
   despesasOp: number
   lucroLiquido: number
   disponivelCompra: number
@@ -186,6 +191,49 @@ export async function buscarLojas(): Promise<StoreOption[]> {
   return (data ?? []) as StoreOption[]
 }
 
+/**
+ * Em qual loja o admin global cai ao abrir o painel.
+ *
+ * Ele é o único sem loja própria, e o painel não tem mais "todas as lojas" —
+ * misturar as duas produzia o número que ninguém conseguia explicar. Alguém
+ * tem de escolher a primeira, e por nome cairia em BRASÍLIA, que ainda não
+ * vendeu nada: painel zerado na abertura parece defeito, não loja nova.
+ *
+ * Cai na loja com a venda mais recente. Hoje é Campinas; no dia em que
+ * Brasília começar a vender, muda sozinho, sem ninguém lembrar de vir aqui.
+ */
+export async function lojaPadrao(lojas: StoreOption[]): Promise<string | null> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('sales')
+    .select('store_id')
+    .neq('status', 'cancelled')
+    .not('store_id', 'is', null)
+    .order('sale_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  // Sistema sem nenhuma venda ainda: a primeira da lista serve.
+  return (data?.store_id as string | undefined) ?? lojas[0]?.id ?? null
+}
+
+/**
+ * A loja que ESTA requisição pode ver.
+ *
+ * Toda função daqui recebe `storeId` do navegador e lê com
+ * `createAdminClient()` — service_role, que ignora RLS. Sem esta linha, a
+ * admin de Brasília chamava a ação direto pelo console com o id de Campinas e
+ * recebia KPI, gráfico, ranking de vendedoras e peças paradas da outra loja: o
+ * corte na página seria enfeite.
+ *
+ * O que vem do cliente é SUGESTÃO. Só vale para quem não tem loja própria.
+ */
+async function escopoDeLoja(filtroDaTela: string | null): Promise<string | null> {
+  const perfil = await getProfile()
+  if (!perfil) return null
+  return lojaDoEscopo(perfil, filtroDaTela)
+}
+
 // ─── KPIs Financeiros ─────────────────────────────────────────────────────────
 
 /*
@@ -204,16 +252,37 @@ export async function buscarKpis(
   year: number,
   reservePct: number | Promise<number>,
 ): Promise<DashboardKpis> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
-  let txQ = admin
+  let receitaQ = admin
     .from('transactions')
-    .select('type, amount')
+    .select('amount')
+    .eq('type', 'income')
     .eq('status', 'completed')
     .gte('transaction_date', dateFrom)
     .lte('transaction_date', dateTo)
-  if (storeId) txQ = txQ.eq('store_id', storeId)
+  if (storeId) receitaQ = receitaQ.eq('store_id', storeId)
+
+  /*
+   * Despesa sai de `fv.despesas_por_loja`, não de `transactions`.
+   *
+   * Toda despesa do sistema é compra de fornecedor, e toda ela tem `store_id`
+   * nulo — a compra é uma ida a São Paulo que abastece as duas lojas. Lendo
+   * direto de `transactions`, filtrar por Campinas devolvia ZERO despesa e a
+   * loja parecia lucrar tudo, enquanto "todas as lojas" levava o rombo inteiro.
+   *
+   * A view rateia pela loja de destino de cada peça. O pagamento continua
+   * inteiro em `transactions` para quem tem de pagar o cheque.
+   */
+  let despesaQ = admin
+    .from('despesas_por_loja')
+    .select('amount, category, reference_type')
+    .eq('status', 'completed')
+    .gte('transaction_date', dateFrom)
+    .lte('transaction_date', dateTo)
+  if (storeId) despesaQ = despesaQ.eq('store_id', storeId)
 
   let salesQ = admin
     .from('sales')
@@ -232,22 +301,38 @@ export async function buscarKpis(
     .lte('exchanges.exchange_date', dateTo)
   if (storeId) exchQ = exchQ.eq('exchanges.store_id', storeId)
 
-  const [txRes, salesRes, exchRes] = await Promise.all([txQ, salesQ, exchQ])
+  const [receitaRes, despesaRes, salesRes, exchRes] = await Promise.all([receitaQ, despesaQ, salesQ, exchQ])
 
-  const txRows = txRes.data ?? []
-  const receitaBruta = txRows.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
-  const despesasOp   = txRows.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
+  const receitaBruta = (receitaRes.data ?? []).reduce((s: number, t: any) => s + Number(t.amount), 0)
+
+  /*
+   * COMPRA DE PEÇA E DESPESA OPERACIONAL SÃO COISAS DIFERENTES.
+   *
+   * Estavam somadas, e o mesmo dinheiro era contado duas vezes: a compra
+   * inteira ao entrar, e de novo peça a peça no CMV ao sair. Com R$105 mil de
+   * estoque comprado contra R$18 mil vendidos, o painel mostrava a formação do
+   * estoque como prejuízo.
+   */
+  const despesaRows  = despesaRes.data ?? []
+  const ehCompra     = (d: any) => d.category === 'compra_fornecedor' || d.reference_type === 'purchase'
+  const custoCompras = despesaRows.filter(ehCompra).reduce((s: number, d: any) => s + Number(d.amount), 0)
+  const despesasOp   = despesaRows.filter((d: any) => !ehCompra(d)).reduce((s: number, d: any) => s + Number(d.amount), 0)
+
   const cmvBruto     = (salesRes.data ?? []).reduce((s: number, r: any) => s + Number(r.total_cost ?? 0), 0)
   const cmvCredito   = (exchRes.data ?? []).reduce((s: number, r: any) => s + Number(r.unit_cost ?? 0) * Number(r.quantity), 0)
   const cmv          = cmvBruto - cmvCredito
+
+  /* Lente de MARGEM: quanto sobrou do que foi vendido. Não entra no resultado. */
   const lucroBruto   = receitaBruta - cmv
-  const lucroLiquido = lucroBruto - despesasOp
+
+  /* Lente de CAIXA: entrou menos saiu. É o que a dona chama de resultado. */
+  const lucroLiquido = receitaBruta - custoCompras - despesasOp
 
   // Só aqui a reserva é cobrada — as 3 consultas acima já foram e voltaram.
   const pct = await reservePct
   const disponivelCompra = lucroLiquido * (1 - pct / 100)
 
-  return { receitaBruta, cmv, lucroBruto, despesasOp, lucroLiquido, disponivelCompra, reservePct: pct }
+  return { receitaBruta, cmv, lucroBruto, custoCompras, despesasOp, lucroLiquido, disponivelCompra, reservePct: pct }
 }
 
 // ─── Estoque ──────────────────────────────────────────────────────────────────
@@ -256,6 +341,7 @@ export async function buscarEstoque(
   storeId: string | null,
   staleDays: number | Promise<number>,
 ): Promise<DashboardStock> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
 
   /*
@@ -304,6 +390,7 @@ export async function buscarGrafico(
   storeId: string | null,
   meses: number,
 ): Promise<MonthChartData[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
 
   // Calcula intervalo: de (hoje - meses + 1) até fim do mês atual
@@ -315,13 +402,23 @@ export async function buscarGrafico(
   const lastDay   = new Date(endYear, endMonth, 0).getDate()
   const dateTo    = `${endYear}-${String(endMonth).padStart(2,'0')}-${lastDay}`
 
-  let txQ = admin
+  let receitaQ = admin
     .from('transactions')
-    .select('type, amount, category, reference_type, transaction_date')
+    .select('amount, transaction_date')
+    .eq('type', 'income')
     .eq('status', 'completed')
     .gte('transaction_date', dateFrom)
     .lte('transaction_date', dateTo)
-  if (storeId) txQ = txQ.eq('store_id', storeId)
+  if (storeId) receitaQ = receitaQ.eq('store_id', storeId)
+
+  // Mesma view do KPI — ver a explicação em buscarKpis.
+  let despesaQ = admin
+    .from('despesas_por_loja')
+    .select('amount, category, reference_type, transaction_date')
+    .eq('status', 'completed')
+    .gte('transaction_date', dateFrom)
+    .lte('transaction_date', dateTo)
+  if (storeId) despesaQ = despesaQ.eq('store_id', storeId)
 
   let salesQ = admin
     .from('sales')
@@ -340,27 +437,29 @@ export async function buscarGrafico(
     .lte('exchanges.exchange_date', dateTo)
   if (storeId) exchQ = exchQ.eq('exchanges.store_id', storeId)
 
-  const [txRes, salesRes, exchRes] = await Promise.all([txQ, salesQ, exchQ])
+  const [receitaRes, despesaRes, salesRes, exchRes] = await Promise.all([receitaQ, despesaQ, salesQ, exchQ])
 
   // Monta mapa por "YYYY-MM"
-  type MonthMap = { income: number; expenseAll: number; custoCompras: number; cmv: number }
+  type MonthMap = { income: number; despesasOp: number; custoCompras: number; cmv: number }
   const map = new Map<string, MonthMap>()
 
   for (let i = 0; i < meses; i++) {
     const d = new Date(endYear, endMonth - 1 - i, 1)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`
-    map.set(key, { income: 0, expenseAll: 0, custoCompras: 0, cmv: 0 })
+    map.set(key, { income: 0, despesasOp: 0, custoCompras: 0, cmv: 0 })
   }
 
-  for (const t of txRes.data ?? []) {
-    const key = (t.transaction_date as string).slice(0, 7)
-    const entry = map.get(key)
+  for (const t of receitaRes.data ?? []) {
+    const entry = map.get((t.transaction_date as string).slice(0, 7))
+    if (entry) entry.income += Number(t.amount)
+  }
+
+  for (const d of despesaRes.data ?? []) {
+    const entry = map.get((d.transaction_date as string).slice(0, 7))
     if (!entry) continue
-    if (t.type === 'income') entry.income += Number(t.amount)
-    if (t.type === 'expense') {
-      entry.expenseAll += Number(t.amount)
-      if (t.category === 'compra_fornecedor' || t.reference_type === 'purchase') entry.custoCompras += Number(t.amount)
-    }
+    const ehCompra = d.category === 'compra_fornecedor' || d.reference_type === 'purchase'
+    if (ehCompra) entry.custoCompras += Number(d.amount)
+    else          entry.despesasOp   += Number(d.amount)
   }
 
   for (const s of salesRes.data ?? []) {
@@ -386,8 +485,8 @@ export async function buscarGrafico(
   for (const key of keys) {
     const [y, m] = key.split('-').map(Number)
     const e = map.get(key)!
-    const lucroBruto   = e.income - e.cmv
-    const lucroLiquido = lucroBruto - e.expenseAll
+    const lucroBruto   = e.income - e.cmv                          // margem
+    const lucroLiquido = e.income - e.custoCompras - e.despesasOp // caixa
     result.push({
       label:       `${MONTHS_PT_SHORT[m - 1]}/${String(y).slice(2)}`,
       year:        y,
@@ -409,6 +508,7 @@ export async function buscarTopProdutos(
   month: number,
   year: number,
 ): Promise<TopProduto[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
@@ -455,6 +555,7 @@ export async function buscarTopProdutos(
 }
 
 export async function buscarTopClientes(storeId: string | null): Promise<TopCliente[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
 
   let salesQ = admin
@@ -518,6 +619,7 @@ export async function buscarTopVendedoras(
   month: number,
   year: number,
 ): Promise<TopVendedora[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
@@ -585,6 +687,7 @@ export async function buscarPecasParadas(
   storeId: string | null,
   staleDays: number | Promise<number>,
 ): Promise<AlertPecaParada[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   // Esta é a única que precisa do staleDays ANTES de consultar (ele entra no
   // WHERE). Como o settings já está voando desde t=0, aqui só se paga a espera
@@ -642,6 +745,7 @@ export async function buscarPecasParadas(
 }
 
 export async function buscarContasVencer(storeId: string | null): Promise<AlertConta[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const today   = new Date().toISOString().slice(0, 10)
   const in15    = new Date(); in15.setDate(in15.getDate() + 15)
@@ -687,6 +791,7 @@ export async function buscarContasVencer(storeId: string | null): Promise<AlertC
  * Atrasada NÃO some no dia seguinte — é quem mais precisa ser cobrada.
  */
 export async function buscarCobrancasDoDia(storeId: string | null): Promise<AlertCobranca[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const hoje = new Date().toISOString().slice(0, 10)
 
@@ -770,6 +875,7 @@ export async function buscarCobrancasDoDia(storeId: string | null): Promise<Aler
 }
 
 export async function buscarAniversariantes(storeId: string | null): Promise<AlertAniversariante[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const currentMonth = new Date().getMonth() + 1
 
@@ -837,6 +943,7 @@ export async function buscarVendasPorCategoria(
   month: number,
   year: number,
 ): Promise<CategoryChartData[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
@@ -869,6 +976,7 @@ export async function buscarEvolucaoVendas(
   storeId: string | null,
   meses: number,
 ): Promise<EvolucaoChartData[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const now = new Date()
   const endYear  = now.getFullYear()
@@ -935,32 +1043,80 @@ export async function buscarMovimentosDoMes(
   year: number,
   tipo: 'income' | 'expense' | null,
 ): Promise<LinhaMovimento[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
-  let q = admin
-    .from('transactions')
-    .select('id, type, amount, category, description, transaction_date, stores(name)')
-    .eq('status', 'completed')
-    .gte('transaction_date', dateFrom)
-    .lte('transaction_date', dateTo)
-  if (storeId) q = q.eq('store_id', storeId)
-  if (tipo)    q = q.eq('type', tipo)
+  /*
+   * DUAS FONTES, e não é capricho.
+   *
+   * A receita vem de `transactions`, que já tem loja. A despesa vem de
+   * `fv.despesas_por_loja`, porque em `transactions` ela está com `store_id`
+   * nulo — a compra abastece as duas lojas. Lendo de lá com uma loja
+   * selecionada, esta lista voltaria VAZIA enquanto o cartão acima mostra
+   * R$105 mil: a tela se contradiria e quem visse acharia que o sistema perdeu
+   * lançamento.
+   */
+  const receitaP = (async () => {
+    if (tipo === 'expense') return []
+    let q = admin
+      .from('transactions')
+      .select('id, type, amount, category, description, transaction_date, stores(name)')
+      .eq('type', 'income')
+      .eq('status', 'completed')
+      .gte('transaction_date', dateFrom)
+      .lte('transaction_date', dateTo)
+    if (storeId) q = q.eq('store_id', storeId)
+    const { data, error } = await q
+    if (error) throw new Error(`Falha ao buscar receitas do mês: ${error.message}`)
+    return data ?? []
+  })()
 
-  const { data, error } = await q.order('transaction_date', { ascending: false })
+  const despesaP = (async () => {
+    if (tipo === 'income') return []
+    let q = admin
+      .from('despesas_por_loja')
+      // Sem `stores(name)`: view não tem chave estrangeira, e o PostgREST não
+      // resolve o vínculo — devolve 400. O nome da loja vem do mapa abaixo.
+      .select('transaction_id, amount, category, description, transaction_date, store_id')
+      .eq('status', 'completed')
+      .gte('transaction_date', dateFrom)
+      .lte('transaction_date', dateTo)
+    if (storeId) q = q.eq('store_id', storeId)
+    const { data, error } = await q
+    if (error) throw new Error(`Falha ao buscar despesas do mês: ${error.message}`)
+    return data ?? []
+  })()
+
+  const lojasP = admin.from('stores').select('id, name')
+
   // Ver a nota em `buscarVendasDoMes`: lista vazia por erro engolido é pior que
   // erro na cara, porque parece dado.
-  if (error) throw new Error(`Falha ao buscar movimentos do mês: ${error.message}`)
+  const [receitas, despesas, lojasRes] = await Promise.all([receitaP, despesaP, lojasP])
+  const nomeDaLoja = new Map((lojasRes.data ?? []).map((l: any) => [l.id, l.name as string]))
 
-  return (data ?? []).map((r: any) => ({
-    id: r.id,
-    data: String(r.transaction_date).slice(0, 10),
-    descricao: r.description,
-    categoria: r.category,
-    loja: r.stores?.name ?? null,
-    valor: Number(r.amount),
-    tipo: r.type,
-  }))
+  const linhas: LinhaMovimento[] = [
+    ...receitas.map((r: any) => ({
+      id: r.id,
+      data: String(r.transaction_date).slice(0, 10),
+      descricao: r.description,
+      categoria: r.category,
+      loja: r.stores?.name ?? null,
+      valor: Number(r.amount),
+      tipo: 'income' as const,
+    })),
+    ...despesas.map((r: any) => ({
+      id: r.transaction_id,
+      data: String(r.transaction_date).slice(0, 10),
+      descricao: r.description,
+      categoria: r.category,
+      loja: nomeDaLoja.get(r.store_id) ?? null,
+      valor: Number(r.amount),
+      tipo: 'expense' as const,
+    })),
+  ]
+
+  return linhas.sort((a, b) => b.data.localeCompare(a.data))
 }
 
 export interface LinhaVendaCusto {
@@ -986,6 +1142,7 @@ export async function buscarVendasDoMes(
   month: number,
   year: number,
 ): Promise<LinhaVendaCusto[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
@@ -1053,6 +1210,7 @@ export async function buscarProdutosDoEstoque(
   filtro: 'todos' | 'parados',
   staleDays: number,
 ): Promise<LinhaProdutoEstoque[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
 
   // Mesma paginação de `buscarEstoque`: 970 SKUs com o teto do PostgREST em 1000.

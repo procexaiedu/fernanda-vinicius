@@ -34,6 +34,7 @@ interface ProductOption {
 
 interface CustomerOption {
   id: string; name: string; phone: string; cpf: string | null; birthday: string | null
+  origin_store_id?: string | null
 }
 
 interface StoreOption { id: string; name: string; city: string }
@@ -235,12 +236,14 @@ function StoreSelect({ value, onChange, stores }: {
 
 // ─── CustomerCombobox ─────────────────────────────────────────────────────────
 
-function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
+function CustomerCombobox({ value, onChange, onCreateClick, customers, storeId }: {
   value: string
   onChange: (c: CustomerOption | null, text: string) => void
   /** Recebe o texto já digitado — ver CreateCustomerModal. */
   onCreateClick: (nomeDigitado: string) => void
   customers: CustomerOption[]
+  /** Loja da venda — a busca de cliente segue ela, não o perfil de quem digita. */
+  storeId: string
 }) {
   const { inputRef, pos, openAt, close } = useFixedDropdown()
   const q = value.trim()
@@ -253,11 +256,11 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers }: {
     let active = true
     setSearching(true)
     const t = setTimeout(async () => {
-      const res = await searchCustomers(q)
+      const res = await searchCustomers(q, storeId)
       if (active) { setServerResults(res as CustomerOption[]); setSearching(false) }
     }, 250)
     return () => { active = false; clearTimeout(t) }
-  }, [q])
+  }, [q, storeId])
 
   // Termo vazio: primeiros do conjunto inicial (instantâneo). Digitando: servidor.
   const filtered = q === '' ? customers.slice(0, 8) : serverResults.slice(0, 8)
@@ -601,10 +604,43 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   // Admin que bipa uma peça de Brasília abre a venda já naquela loja
   const [storeId, setStoreId]     = useState(editSale?.storeId ?? userProfile.storeId ?? produtoBipado?.store_id ?? defaultAdminStore)
   const [sellerId, setSellerId]   = useState<string>(editSale?.sellerId ?? userProfile.userId)
+
+  /*
+   * A VENDEDORA SEGUE A LOJA DA VENDA, não o perfil de quem está no balcão.
+   *
+   * Para quem tem loja fixa a lista já chega cortada do servidor. Para a
+   * Fernanda, não: ela é admin global, recebe as duas lojas de propósito — é
+   * ela quem escolhe onde a venda acontece — e por isso o corte tem de
+   * acontecer aqui, contra o `storeId` do formulário. Sem isto ela lançava uma
+   * venda de Campinas e o seletor oferecia Alba e Rayane, de Brasília.
+   *
+   * Quem NÃO tem loja (a própria Fernanda) continua na lista: ela vende nas
+   * duas, e é o valor inicial do campo.
+   */
+  const vendedorasDaLoja = users.filter(u => !u.store_id || u.store_id === storeId)
+
+  /*
+   * Trocou a loja e a vendedora escolhida não é de lá? Limpa o campo.
+   *
+   * Sem isto o seletor some com o nome da lista mas o `sellerId` continua no
+   * estado, e a venda vai para o banco com uma vendedora da outra loja — o
+   * corte de cima viraria enfeite. `storeId` sozinho na dependência de
+   * propósito: é a troca de loja que invalida a escolha.
+   */
+  useEffect(() => {
+    if (sellerId && !users.some(u => u.id === sellerId && (!u.store_id || u.store_id === storeId))) {
+      setSellerId('')
+    }
+  }, [storeId])  // eslint-disable-line react-hooks/exhaustive-deps
   const [notes, setNotes]         = useState(editSale?.notes ?? '')
 
   // ── Cliente ───────────────────────────────────────────────────────────────
   const [customers, setCustomers]           = useState(initialCustomers)
+
+  /* Mesma ideia para a cliente: a lista de partida é da loja da venda. A busca
+   * por digitação já vai cortada do servidor — ver `searchCustomers`. */
+  const clientesDaLoja = customers.filter(c => !c.origin_store_id || c.origin_store_id === storeId)
+
   const [customerSearch, setCustomerSearch] = useState(editSale?.customer?.name ?? '')
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(editSale?.customer ?? null)
   const [showCreateCustomer, setShowCreateCustomer] = useState(false)
@@ -1108,7 +1144,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                 value={customerSearch}
                 onChange={selectCustomer}
                 onCreateClick={nome => { setNomeNovoCliente(nome); setShowCreateCustomer(true) }}
-                customers={customers}
+                customers={clientesDaLoja}
+                storeId={storeId}
               />
             )}
             {selectedCustomer && cpfAberto && (
@@ -1138,7 +1175,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               <StoreSelect
                 value={sellerId}
                 onChange={setSellerId}
-                stores={users.map(u => ({ id: u.id, name: u.full_name, city: '' }))}
+                stores={vendedorasDaLoja.map(u => ({ id: u.id, name: u.full_name, city: '' }))}
               />
             </div>
           )}

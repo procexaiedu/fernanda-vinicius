@@ -51,6 +51,19 @@ export interface SupplierPaymentGroup {
   payments: PaymentRow[]
   nfNumber?: string
   nfUrl?: string
+  /**
+   * Desconto comercial que o fornecedor deu, em % sobre o subtotal dele.
+   *
+   * Pedido da dona em 03/09: "tem compras que ela ganha cinco, dez por cento".
+   * Reduz o que ela PAGA — é contra o líquido que os pagamentos têm de fechar.
+   *
+   * NÃO altera o custo gravado de cada peça, e isso é decisão consciente: o
+   * custo unitário é o que ela digitou da nota do fornecedor, e é dele que
+   * saem etiqueta, margem e CMV. Ratear o desconto nos custos mudaria o preço
+   * de venda de peças já etiquetadas. Se um dia for para refletir no custo,
+   * é mudança de regra de negócio e precisa ser decidida, não deduzida.
+   */
+  descontoPct?: number
 }
 
 export interface CompraFormData {
@@ -65,14 +78,12 @@ export interface CompraFormData {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function installmentDate(firstDate: string, index: number): string {
-  if (index === 0) return firstDate
-  const d = new Date(firstDate + 'T12:00:00')
-  d.setDate(d.getDate() + 30 * index)
-  // Se dia não existe no mês (ex: 31/fev), usa último dia
-  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
-  if (d.getDate() > lastDay) d.setDate(lastDay)
-  return d.toISOString().slice(0, 10)
+/** Subtotal menos o desconto do fornecedor. Percentual fora de 0–100 é ignorado. */
+function aplicarDesconto(subtotal: number | undefined, pct: number | undefined): number | undefined {
+  if (subtotal === undefined) return undefined
+  const p = Number(pct) || 0
+  if (p <= 0 || p > 100) return subtotal
+  return parseFloat((subtotal * (1 - p / 100)).toFixed(2))
 }
 
 async function verifyAdmin(): Promise<{ userId: string | null; error: string | null }> {
@@ -111,7 +122,9 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   const payErr = validatePaymentGroups(
     data.supplierPayments.map(g => ({
       label: nomePorGrupo.get(g.groupKey) ?? g.groupKey,
-      subtotal: subtotalPorGrupo.get(g.groupKey),
+      // O que tem de fechar é o LÍQUIDO. O subtotal continua recalculado aqui
+      // (nunca vem do cliente); só o percentual de desconto é declarado.
+      subtotal: aplicarDesconto(subtotalPorGrupo.get(g.groupKey), g.descontoPct),
       payments: g.payments.map(p => ({ amount: p.totalAmount, status: p.status })),
     }))
   )
@@ -264,6 +277,31 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
     .join(' | ') || null
   const firstNfUrl = data.supplierPayments.find(g => g.nfUrl?.trim())?.nfUrl?.trim() || null
 
+  /*
+   * O desconto do fornecedor vira LINHA NA OBSERVAÇÃO da compra.
+   *
+   * Sem isso a compra fica inexplicável: `total_cost` guarda o BRUTO — a soma
+   * dos custos das peças, que é o que alimenta etiqueta, margem e CMV — e os
+   * pagamentos somam o LIQUIDO. Quem abrir esta compra em dezembro veria
+   * R$640 de custo e R$576 pagos, sem saber se faltou pagar ou se houve
+   * desconto.
+   *
+   * Vai em `notes`, e não numa coluna nova, porque é informação para LER: o
+   * número que o financeiro usa já está nas transações. Coluna nova pediria
+   * migração para guardar um texto.
+   */
+  const linhasDesconto = data.supplierPayments
+    .filter(g => (Number(g.descontoPct) || 0) > 0)
+    .map(g => {
+      const nome    = nomePorGrupo.get(g.groupKey) ?? g.groupKey
+      const bruto   = subtotalPorGrupo.get(g.groupKey) ?? 0
+      const liquido = aplicarDesconto(bruto, g.descontoPct) ?? bruto
+      return `DESCONTO ${nome.toUpperCase()}: ${g.descontoPct}% (R$ ${bruto.toFixed(2)} -> R$ ${liquido.toFixed(2)})`
+    })
+
+  const notasComDesconto =
+    [data.notes?.trim(), ...linhasDesconto].filter(Boolean).join('\n') || null
+
   const { data: purchase, error: purchErr } = await admin
     .from('purchases')
     .insert({
@@ -275,7 +313,7 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
       total_items:   totalItems,
       nf_number:     allNfNumbers,
       nf_url:        firstNfUrl,
-      notes:         data.notes || null,
+      notes:         notasComDesconto,
     })
     .select('id')
     .single()
@@ -306,52 +344,69 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   }
 
   // ── 7. Criar purchase_payments + transactions ─────────────────────────────
+  //
+  // CADA PARCELA É UMA LINHA. Antes, uma compra em 3x gravava UMA linha com a
+  // contagem em `installment_number` e UMA transação com o valor cheio numa
+  // data só — ou seja, o financeiro via uma despesa de R$3.000 hoje em vez de
+  // três de R$1.000 nos três meses. Para cheque isso é ainda mais errado:
+  // cheque parcelado é literalmente três papéis com três datas.
   for (const group of data.supplierPayments) {
     const nfNum           = group.nfNumber?.trim() || null
     const groupSupplierId = resolveGroupSupplier(group.groupKey)
+
     for (const payment of group.payments) {
-      const isCredit  = payment.method === 'credit'
+      const parcelas = PARCELAVEL.has(payment.method) ? Math.max(1, payment.installments) : 1
+
       // A situação declarada é respeitada. Antes, `(isCredit || !isPending)`
       // forçava 'completed': crédito sempre virava pago, e qualquer status não
       // 'pending' também — o que tornava a declaração da usuária irrelevante.
-      const status    = payment.status === 'pending' ? 'pending' : 'completed'
-      const paidAt    = status === 'completed' ? new Date().toISOString() : null
-      const dueDate   = payment.firstDueDate
+      const status = payment.status === 'pending' ? 'pending' : 'completed'
+      const paidAt = status === 'completed' ? new Date().toISOString() : null
 
-      const { error: ppErr } = await admin.from('purchase_payments').insert({
-        purchase_id:        purchase.id,
-        supplier_id:        groupSupplierId,
-        payment_method:     payment.method,
-        amount:             payment.totalAmount,
-        installment_number: isCredit && payment.installments > 1 ? payment.installments : null,
-        due_date:           dueDate,
-        status,
-        paid_at:            paidAt,
-      })
-      if (ppErr) return { success: false, error: `Erro ao criar pagamento: ${ppErr.message}` }
+      const valores = dividirEmParcelas(payment.totalAmount, parcelas)
 
-      const desc = isCredit && payment.installments > 1
-        ? `Compra — Crédito ${payment.installments}x${nfNum ? ` NF ${nfNum}` : ''}`
-        : payment.method === 'check'
-        ? `Compra — Cheque${nfNum ? ` NF ${nfNum}` : ''}`
-        : `Compra${nfNum ? ` NF ${nfNum}` : ''}`
+      for (let i = 0; i < parcelas; i++) {
+        const vencimento = vencimentoDaParcela(payment.firstDueDate, i)
 
-      const { error: txErr } = await admin.from('transactions').insert({
-        store_id:         null,
-        type:             'expense',
-        amount:           payment.totalAmount,
-        category:         'compra_fornecedor',
-        description:      desc,
-        reference_type:   'purchase',
-        reference_id:     purchase.id,
-        user_id:          userId,
-        payment_method:   payment.method,
-        transaction_date: data.purchaseDate,
-        due_date:         dueDate,
-        status,
-        paid_at:          paidAt,
-      })
-      if (txErr) return { success: false, error: `Erro ao criar transação: ${txErr.message}` }
+        const { error: ppErr } = await admin.from('purchase_payments').insert({
+          purchase_id:        purchase.id,
+          supplier_id:        groupSupplierId,
+          payment_method:     payment.method,
+          amount:             valores[i],
+          // ORDINAL (1, 2, 3…), não a contagem. Antes guardava o TOTAL de
+          // parcelas aqui, o que tornava a coluna inútil para saber "qual
+          // parcela é esta". Conferido em 03/09: 282 pagamentos no banco, o
+          // campo sempre nulo — nunca foi usado, então dá para acertar sem
+          // migrar nada.
+          installment_number: parcelas > 1 ? i + 1 : null,
+          due_date:           vencimento,
+          status,
+          paid_at:            paidAt,
+        })
+        if (ppErr) return { success: false, error: `Erro ao criar pagamento: ${ppErr.message}` }
+
+        const rotulo = METODO_ROTULO[payment.method] ?? 'Compra'
+        const desc = parcelas > 1
+          ? `Compra — ${rotulo} ${i + 1}/${parcelas}${nfNum ? ` NF ${nfNum}` : ''}`
+          : `Compra${payment.method === 'check' ? ' — Cheque' : ''}${nfNum ? ` NF ${nfNum}` : ''}`
+
+        const { error: txErr } = await admin.from('transactions').insert({
+          store_id:         null,
+          type:             'expense',
+          amount:           valores[i],
+          category:         'compra_fornecedor',
+          description:      desc,
+          reference_type:   'purchase',
+          reference_id:     purchase.id,
+          user_id:          userId,
+          payment_method:   payment.method,
+          transaction_date: data.purchaseDate,
+          due_date:         vencimento,
+          status,
+          paid_at:          paidAt,
+        })
+        if (txErr) return { success: false, error: `Erro ao criar transação: ${txErr.message}` }
+      }
     }
   }
 
@@ -359,6 +414,60 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   revalidatePath('/produtos')
   revalidatePath('/estoque')
   return { success: true, purchaseId: purchase.id }
+}
+
+
+// ─── Parcelamento ─────────────────────────────────────────────────────────────
+
+/**
+ * Métodos que aceitam parcela. Precisa bater com o `PARCELAVEL` da tela.
+ *
+ * Cheque entrou em 03/09: a dona compra em São Paulo e paga em cheques
+ * pré-datados, um por mês. Pix, dinheiro, transferência e débito saem de uma
+ * vez por natureza.
+ */
+const PARCELAVEL = new Set(['credit', 'check'])
+
+const METODO_ROTULO: Record<string, string> = {
+  credit: 'Crédito', check: 'Cheque', pix: 'PIX',
+  cash: 'Dinheiro', transfer: 'Transferência', debit: 'Débito',
+}
+
+/**
+ * Divide um total em N parcelas que somam EXATAMENTE o total.
+ *
+ * R$100 em 3x não dá 33,33 três vezes — dá 99,99, e some um centavo do que ela
+ * deve ao fornecedor. A última parcela absorve o resto.
+ *
+ * É a mesma regra do rateio de desconto da NFC-e: o erro de arredondamento tem
+ * de morar em algum lugar, e concentrá-lo numa parcela é melhor que espalhá-lo.
+ */
+function dividirEmParcelas(total: number, parcelas: number): number[] {
+  if (parcelas <= 1) return [parseFloat((total || 0).toFixed(2))]
+  const base = Math.floor((total * 100) / parcelas) / 100
+  const valores = Array.from({ length: parcelas - 1 }, () => base)
+  const somaAteAqui = parseFloat((base * (parcelas - 1)).toFixed(2))
+  valores.push(parseFloat((total - somaAteAqui).toFixed(2)))
+  return valores
+}
+
+/**
+ * Vencimento da parcela `i`, contando meses a partir da primeira data.
+ *
+ * Usa o dia 1 como âncora ao somar meses e depois recoloca o dia, para 31/01
+ * + 1 mês não virar 03/03. Quem paga em cheque marca "todo dia 10" — e o
+ * sistema tem de respeitar isso mesmo em fevereiro.
+ */
+function vencimentoDaParcela(primeira: string | null | undefined, i: number): string | null {
+  if (!primeira) return null
+  const [ano, mes, dia] = primeira.slice(0, 10).split('-').map(Number)
+  if (!ano || !mes || !dia) return null
+
+  const alvo = new Date(Date.UTC(ano, mes - 1 + i, 1))
+  // Dia 31 num mês de 30 cai para o último dia daquele mês, não para o mês seguinte.
+  const ultimoDia = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0)).getUTCDate()
+  alvo.setUTCDate(Math.min(dia, ultimoDia))
+  return alvo.toISOString().slice(0, 10)
 }
 
 // ─── Action: detalhe de uma compra ───────────────────────────────────────────

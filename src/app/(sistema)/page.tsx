@@ -3,7 +3,7 @@ import { requireProfile, lojaDoEscopo, ehAdminGlobal } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import DashboardClient from './DashboardClient'
 import {
-  buscarLojas, buscarDashboardSettings,
+  buscarLojas, lojaPadrao, buscarDashboardSettings,
   buscarKpis, buscarEstoque, buscarGrafico,
   buscarTopVendedoras,
   buscarPecasParadas, buscarContasVencer, buscarCobrancasDoDia, buscarAniversariantes,
@@ -17,13 +17,30 @@ export default async function DashboardPage() {
   if (profile.role === 'operator') redirect('/pdv')
 
   const isAdmin  = profile.role === 'admin'
-  // Operators always see their own store; admins start with null (all)
   /*
    * Quem tem loja está preso a ela — admin de loja inclusive.
    * Era `isAdmin ? null : profile.store_id`, que dava a rede inteira a
    * qualquer admin. Ver src/lib/auth.ts.
    */
-  const storeId  = lojaDoEscopo(profile)
+  const escopo = lojaDoEscopo(profile)
+
+  /*
+   * O PAINEL SEMPRE MOSTRA UMA LOJA. Nunca as duas somadas.
+   *
+   * "Todas as lojas" produzia o número que ninguém explicava: −R$86 mil no
+   * total, Campinas positiva e Brasília zerada — três valores que não podem
+   * coexistir se um for a soma dos outros. Não eram: as despesas não tinham
+   * loja e só apareciam no total.
+   *
+   * A despesa passou a ser rateada (`fv.despesas_por_loja`), então cada loja
+   * agora fecha sozinha e a soma perdeu a razão de existir.
+   *
+   * `lojasP` vai sem await: quem tem loja própria não espera nada, e a onda
+   * única de consultas continua partindo em t=0. Só o admin global paga a
+   * espera de descobrir em qual loja cair.
+   */
+  const lojasP  = buscarLojas()
+  const storeId = escopo ?? await lojaPadrao(await lojasP)
 
   const now   = new Date()
   const month = now.getMonth() + 1
@@ -49,7 +66,7 @@ export default async function DashboardPage() {
     lojas, settings,
     kpis, estoque, grafico, topVendedoras, pecasParadas, contasVencer, cobrancas, aniversariantes, categorias, evolucao,
   ] = await Promise.all([
-    buscarLojas(),
+    lojasP,
     settingsP,
     buscarKpis(storeId, month, year, reservePctP),
     buscarEstoque(storeId, staleDaysP),

@@ -278,9 +278,10 @@ export default function DashboardClient({
   }, [settings])
 
   function changeStore(v: string) {
-    const sid = v === '__all__' ? null : v
-    setStoreId(sid)
-    reload(sid, month, year, grafMeses)
+    // Nunca null: o painel sempre olha uma loja. Ver storeOptions.
+    if (!v) return
+    setStoreId(v)
+    reload(v, month, year, grafMeses)
   }
 
   function prevMonth() {
@@ -305,10 +306,17 @@ export default function DashboardClient({
     reload(storeId, month, year, m)
   }
 
-  const storeOptions = [
-    { value: '__all__', label: 'Todas as lojas' },
-    ...lojas.map(l => ({ value: l.id, label: l.name })),
-  ]
+  /*
+   * SEM "TODAS AS LOJAS", de propósito.
+   *
+   * A opção somava Campinas e Brasília e produzia o número que ninguém
+   * explicava: −R$86 mil no total, Campinas positiva, Brasília zerada. Não era
+   * soma de nada — as despesas não tinham loja e só apareciam ali.
+   *
+   * Agora a despesa é rateada pela loja de destino das peças e cada loja fecha
+   * sozinha. Uma loja de cada vez, que é como ela decide.
+   */
+  const storeOptions = lojas.map(l => ({ value: l.id, label: l.name }))
   /* Vazio de verdade: nenhum mês do período tem faturamento nem compra. Um
    * array com seis meses zerados não é "sem dados" para o Recharts — ele
    * desenha os eixos e some com as linhas. */
@@ -335,7 +343,7 @@ export default function DashboardClient({
           {podeTrocarLoja && (
             <FilterDropdown
               label="Loja"
-              value={storeId ?? '__all__'}
+              value={storeId ?? ''}
               options={storeOptions}
               onChange={changeStore}
             />
@@ -361,7 +369,10 @@ export default function DashboardClient({
         {isAdmin && (
           <ResultadoDoMes
             receita={kpis.receitaBruta}
-            saidas={kpis.cmv + kpis.despesasOp}
+            /* Saiu de verdade no mês: compra de peça + despesa. Era
+               `cmv + despesasOp`, que contava a compra duas vezes — inteira ao
+               entrar, e de novo peça a peça no CMV ao sair. */
+            saidas={kpis.custoCompras + kpis.despesasOp}
             resultado={kpis.lucroLiquido}
             pctReceita={`${kpis.receitaBruta > 0 ? ((kpis.lucroLiquido / kpis.receitaBruta) * 100).toFixed(0) : '0'}%`}
             periodo={`${MONTHS_PT[month - 1]} ${year}`}
@@ -389,12 +400,25 @@ export default function DashboardClient({
         )}
         {isAdmin && (
           <KpiCard
-            label="Lucro Bruto"
+            label="Margem das Vendas"
             value={fmt(kpis.lucroBruto)}
             icon={<DollarSign size={16} />}
             color={kpis.lucroBruto >= 0 ? 'info' : 'danger'}
+            /* Receita menos CMV. NÃO é o resultado do mês — não desconta a
+               compra de estoque. Rotulado como margem para não ser lido como
+               lucro, que era metade da confusão. */
             hint={`${kpis.receitaBruta > 0 ? ((kpis.lucroBruto / kpis.receitaBruta) * 100).toFixed(1) : '0'}% da receita`}
             onClick={() => abrirDetalhe('lucroBruto')}
+          />
+        )}
+        {isAdmin && (
+          <KpiCard
+            label="Compra de Estoque"
+            value={fmt(kpis.custoCompras)}
+            icon={<Package size={16} />}
+            color="warning"
+            hint="Peças compradas e pagas no mês"
+            onClick={() => abrirDetalhe('despesas')}
           />
         )}
         {isAdmin && (
@@ -403,7 +427,7 @@ export default function DashboardClient({
             value={fmt(kpis.despesasOp)}
             icon={<TrendingDown size={16} />}
             color="warning"
-            hint="Despesas pagas no mês"
+            hint="Aluguel, salário, luz — fora a compra de peça"
             onClick={() => abrirDetalhe('despesas')}
           />
         )}

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getProfile, podeConfigurarRede } from '@/lib/auth'
 import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
 import { formatarNomeProprio } from '@/lib/nomeProprio'
 
@@ -158,6 +159,20 @@ export interface FornecedorDuplicado {
  * atrapalha o trabalho dela.
  */
 export async function buscarFornecedoresDuplicados(): Promise<FornecedorDuplicado[]> {
+  /*
+   * Só admin global.
+   *
+   * As contagens aqui são propositalmente da REDE INTEIRA — é assim que se
+   * decide qual cadastro duplicado fica (o que tem mais peça e mais compra
+   * atrás). Filtrar por loja daria a resposta errada e mesclaria o fornecedor
+   * errado; não filtrar mostraria os números de Campinas à admin de Brasília.
+   *
+   * Mesclar fornecedor é manutenção da rede, então a saída é fechar a porta em
+   * vez de escolher entre duas respostas ruins.
+   */
+  const perfil = await getProfile()
+  if (!perfil || !podeConfigurarRede(perfil)) return []
+
   const admin = createAdminClient()
 
   const [fornRes, prodRes, compRes, consRes] = await Promise.all([

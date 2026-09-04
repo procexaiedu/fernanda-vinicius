@@ -1,4 +1,4 @@
-import { requireProfile } from '@/lib/auth'
+import { requireProfile, ehAdminGlobal, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ConferenciaClient from './ConferenciaClient'
 import PageHeader from '@/components/ui/PageHeader'
@@ -52,20 +52,29 @@ export default async function ConferenciaPage({ searchParams }: PageProps) {
       .select('id, scope_type, scope_value, status, started_at, closed_at, totals, scope_product_ids, store_id, users!user_id(full_name), stores!store_id(name)')
       .order('started_at', { ascending: false })
       .limit(50),
-    isAdmin
+    /* `isAdmin` dava a lista das duas lojas à admin de Brasília. Quem escolhe
+       loja é quem não tem uma. */
+    ehAdminGlobal(profile)
       ? admin.from('stores').select('id, name').eq('is_active', true).order('name')
       : Promise.resolve({ data: [] }),
   ])
 
   const stores = (storesRes.data ?? []) as { id: string; name: string }[]
 
-  // Operadora só enxerga a própria loja; admin vê tudo.
+  /*
+   * Quem tem loja enxerga só as conferências dela — admin de loja inclusive.
+   *
+   * Era `isAdmin || s.store_id === profile.store_id`: a Eleandra é admin, o
+   * primeiro lado bastava, e ela lia as contagens de Campinas — inclusive as
+   * divergências, que é justamente o número que não deve circular.
+   */
+  const escopo = lojaDoEscopo(profile)
   const brutas = (sessoesRes.data ?? []) as unknown as (SessaoResumo & {
     scope_product_ids: string[] | null
     store_id: string
   })[]
   const sessoes: SessaoResumo[] = brutas
-    .filter(s => isAdmin || s.store_id === profile.store_id)
+    .filter(s => !escopo || s.store_id === escopo)
     .map(({ scope_product_ids, ...s }) => ({
       ...s,
       em_escopo: scope_product_ids?.length ?? 0,
@@ -110,12 +119,13 @@ export default async function ConferenciaPage({ searchParams }: PageProps) {
    * sistema, quebrado. O padrão agora é a loja com mais estoque.
    */
   const lojaPadrao = [...porLoja.entries()].sort((a, b) => b[1].unidades - a[1].unidades)[0]?.[0]
-  const lojaDoEscopo = profile.store_id ?? params.store_id ?? lojaPadrao ?? stores[0]?.id ?? null
+  // Mesma regra do helper, com os fallbacks de tela por cima.
+  const lojaEscolhida = escopo ?? params.store_id ?? lojaPadrao ?? stores[0]?.id ?? null
 
   const contagem = new Map<string, { pecas: number; unidades: number; cadastros: number }>()
   const totalLoja = { pecas: 0, unidades: 0, cadastros: 0 }
   for (const p of linhas) {
-    if (p.store_id !== lojaDoEscopo) continue
+    if (p.store_id !== lojaEscolhida) continue
 
     totalLoja.cadastros += 1
     if (p.quantity_in_stock > 0) {
@@ -158,7 +168,7 @@ export default async function ConferenciaPage({ searchParams }: PageProps) {
         escopos={escopos}
         totalLoja={totalLoja}
         stores={lojasComContagem}
-        lojaAtual={lojaDoEscopo}
+        lojaAtual={lojaEscolhida}
         isAdmin={isAdmin}
         abertaId={abertaId}
       />
