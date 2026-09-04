@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { apiKey, wabaId, listTemplates } from '@/lib/ycloud'
 import { enviarLote } from '@/lib/disparo/enviarLote'
 
@@ -23,18 +24,26 @@ export interface ClienteOption {
   phone: string
 }
 
-// Lista os clientes elegíveis de uma loja (para o seletor de destinatários).
+/*
+ * Clientes elegíveis de uma loja, para o seletor de destinatários.
+ *
+ * O `store_id` que chega é SUGESTÃO, não ordem. Quem tem loja própria recebe a
+ * dela, venha o que vier do navegador: a leitura roda com `createAdminClient()`
+ * (service_role, ignora RLS), então confiar no parâmetro seria deixar a base de
+ * clientes da outra loja a um F12 de distância.
+ */
 export async function listarClientes(store_id: string): Promise<ClienteOption[]> {
-  if (!store_id) return []
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
+  const perfil = await getProfile()
+  if (!perfil) return []
+
+  const loja = lojaDoEscopo(perfil, store_id)
+  if (!loja) return []
 
   const admin = createAdminClient()
   const { data } = await admin
     .from('customers')
     .select('id, name, phone')
-    .eq('origin_store_id', store_id)
+    .eq('origin_store_id', loja)
     .eq('whatsapp_opt_out', false)
     .not('phone', 'is', null)
     .order('name')
@@ -175,7 +184,11 @@ export async function excluirDisparo(id: string): Promise<{ success: boolean; er
 
 // Conta quantos clientes elegíveis a loja tem (para mostrar no formulário)
 export async function contarDestinatarios(store_id: string): Promise<number> {
-  if (!store_id) return 0
+  // Mesma regra de `listarClientes`: a loja sai do perfil.
+  const perfil = await getProfile()
+  const loja = perfil ? lojaDoEscopo(perfil, store_id) : null
+  if (!loja) return 0
+  store_id = loja
   const admin = createAdminClient()
   const { count } = await admin
     .from('customers')

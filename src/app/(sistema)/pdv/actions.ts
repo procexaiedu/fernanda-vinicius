@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getProfile, lojaDoEscopo } from '@/lib/auth'
 
 export interface CaixaLancamento {
   id: string
@@ -52,6 +53,14 @@ function horaSP(iso: string | null | undefined): string {
  * Não existe caixa "aberto/fechado": fechar apenas consolida e zera a visão dali.
  */
 export async function buscarCaixaDoDia(storeId: string, date: string): Promise<CaixaDoDia> {
+  /*
+   * A loja vem do PERFIL, não do parâmetro. Quem tem loja própria lê o caixa
+   * dela e só dela — sem isto, a admin de Brasília consultava o caixa de
+   * Campinas mandando outro id, e a leitura roda com service_role.
+   */
+  const perfil = await getProfile()
+  storeId = (perfil ? lojaDoEscopo(perfil, storeId) : null) ?? ''
+
   const empty: CaixaDoDia = {
     date, storeId, totals: { cash: 0, debit: 0, credit: 0, pix: 0 },
     totalSales: 0, salesCount: 0, lancamentos: [], lastClosing: null,
@@ -139,7 +148,12 @@ export async function finalizarCaixa(storeId: string, date: string, countedCash:
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Não autenticado.' }
-  if (!storeId) return { success: false, error: 'Loja não definida.' }
+
+  // Fechar caixa é ESCRITA: a loja tem de ser a de quem fecha, nunca a do form.
+  const perfil = await getProfile()
+  const loja = perfil ? lojaDoEscopo(perfil, storeId) : null
+  if (!loja) return { success: false, error: 'Loja não definida.' }
+  storeId = loja
 
   const caixa = await buscarCaixaDoDia(storeId, date)
   if (caixa.salesCount === 0) return { success: false, error: 'Não há vendas novas para fechar.' }

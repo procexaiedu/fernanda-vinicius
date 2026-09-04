@@ -1,4 +1,4 @@
-import { requireProfile } from '@/lib/auth'
+import { requireProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import TransferenciasClient from './TransferenciasClient'
 import PageHeader from '@/components/ui/PageHeader'
@@ -72,9 +72,19 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
     .order('sent_at', { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1)
 
-  // Operadora só vê o que envolve a loja dela — nas duas pontas.
-  if (!isAdmin && profile.store_id) {
-    q = q.or(`from_store_id.eq.${profile.store_id},to_store_id.eq.${profile.store_id}`)
+  /*
+   * Quem tem loja só vê o que ENVOLVE a loja dela — nas duas pontas.
+   *
+   * Era `!isAdmin && profile.store_id`, que deixava o admin de loja de fora: a
+   * Eleandra via os romaneios entre lojas que não são a dela. Papel e escopo
+   * são eixos diferentes.
+   *
+   * A LISTA DE LOJAS continua inteira de propósito: transferência sem destino
+   * não existe, e o destino é, por definição, a outra loja.
+   */
+  const escopo = lojaDoEscopo(profile)
+  if (escopo) {
+    q = q.or(`from_store_id.eq.${escopo},to_store_id.eq.${escopo}`)
   }
   if (params.status) q = q.eq('status', params.status)
 

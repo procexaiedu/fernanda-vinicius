@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAll } from '@/lib/supabase/fetch-all'
+import { getProfile, lojaDoEscopo } from '@/lib/auth'
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -216,6 +217,23 @@ export async function lojaPadrao(lojas: StoreOption[]): Promise<string | null> {
   return (data?.store_id as string | undefined) ?? lojas[0]?.id ?? null
 }
 
+/**
+ * A loja que ESTA requisição pode ver.
+ *
+ * Toda função daqui recebe `storeId` do navegador e lê com
+ * `createAdminClient()` — service_role, que ignora RLS. Sem esta linha, a
+ * admin de Brasília chamava a ação direto pelo console com o id de Campinas e
+ * recebia KPI, gráfico, ranking de vendedoras e peças paradas da outra loja: o
+ * corte na página seria enfeite.
+ *
+ * O que vem do cliente é SUGESTÃO. Só vale para quem não tem loja própria.
+ */
+async function escopoDeLoja(filtroDaTela: string | null): Promise<string | null> {
+  const perfil = await getProfile()
+  if (!perfil) return null
+  return lojaDoEscopo(perfil, filtroDaTela)
+}
+
 // ─── KPIs Financeiros ─────────────────────────────────────────────────────────
 
 /*
@@ -234,6 +252,7 @@ export async function buscarKpis(
   year: number,
   reservePct: number | Promise<number>,
 ): Promise<DashboardKpis> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
@@ -322,6 +341,7 @@ export async function buscarEstoque(
   storeId: string | null,
   staleDays: number | Promise<number>,
 ): Promise<DashboardStock> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
 
   /*
@@ -370,6 +390,7 @@ export async function buscarGrafico(
   storeId: string | null,
   meses: number,
 ): Promise<MonthChartData[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
 
   // Calcula intervalo: de (hoje - meses + 1) até fim do mês atual
@@ -487,6 +508,7 @@ export async function buscarTopProdutos(
   month: number,
   year: number,
 ): Promise<TopProduto[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
@@ -533,6 +555,7 @@ export async function buscarTopProdutos(
 }
 
 export async function buscarTopClientes(storeId: string | null): Promise<TopCliente[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
 
   let salesQ = admin
@@ -596,6 +619,7 @@ export async function buscarTopVendedoras(
   month: number,
   year: number,
 ): Promise<TopVendedora[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
@@ -663,6 +687,7 @@ export async function buscarPecasParadas(
   storeId: string | null,
   staleDays: number | Promise<number>,
 ): Promise<AlertPecaParada[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   // Esta é a única que precisa do staleDays ANTES de consultar (ele entra no
   // WHERE). Como o settings já está voando desde t=0, aqui só se paga a espera
@@ -720,6 +745,7 @@ export async function buscarPecasParadas(
 }
 
 export async function buscarContasVencer(storeId: string | null): Promise<AlertConta[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const today   = new Date().toISOString().slice(0, 10)
   const in15    = new Date(); in15.setDate(in15.getDate() + 15)
@@ -765,6 +791,7 @@ export async function buscarContasVencer(storeId: string | null): Promise<AlertC
  * Atrasada NÃO some no dia seguinte — é quem mais precisa ser cobrada.
  */
 export async function buscarCobrancasDoDia(storeId: string | null): Promise<AlertCobranca[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const hoje = new Date().toISOString().slice(0, 10)
 
@@ -848,6 +875,7 @@ export async function buscarCobrancasDoDia(storeId: string | null): Promise<Aler
 }
 
 export async function buscarAniversariantes(storeId: string | null): Promise<AlertAniversariante[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const currentMonth = new Date().getMonth() + 1
 
@@ -915,6 +943,7 @@ export async function buscarVendasPorCategoria(
   month: number,
   year: number,
 ): Promise<CategoryChartData[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
@@ -947,6 +976,7 @@ export async function buscarEvolucaoVendas(
   storeId: string | null,
   meses: number,
 ): Promise<EvolucaoChartData[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const now = new Date()
   const endYear  = now.getFullYear()
@@ -1013,6 +1043,7 @@ export async function buscarMovimentosDoMes(
   year: number,
   tipo: 'income' | 'expense' | null,
 ): Promise<LinhaMovimento[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
@@ -1111,6 +1142,7 @@ export async function buscarVendasDoMes(
   month: number,
   year: number,
 ): Promise<LinhaVendaCusto[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
@@ -1178,6 +1210,7 @@ export async function buscarProdutosDoEstoque(
   filtro: 'todos' | 'parados',
   staleDays: number,
 ): Promise<LinhaProdutoEstoque[]> {
+  storeId = await escopoDeLoja(storeId)
   const admin = createAdminClient()
 
   // Mesma paginação de `buscarEstoque`: 970 SKUs com o teto do PostgREST em 1000.

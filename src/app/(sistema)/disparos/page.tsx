@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireProfile, ehOperadora } from '@/lib/auth'
+import { requireProfile, ehOperadora, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import DisparosClient from './DisparosClient'
 import PageHeader from '@/components/ui/PageHeader'
@@ -37,10 +37,26 @@ export default async function DisparosPage() {
 
   const admin = createAdminClient()
 
+  // Campanha é da loja: quem é de Campinas não vê nem dispara para Brasília.
+  const escopo = lojaDoEscopo(profile)
+
+  const carregarLojas = () => {
+    let q = admin.from('stores').select('id, name').eq('is_active', true)
+    if (escopo) q = q.eq('id', escopo)
+    return q.order('name')
+  }
+
+  const carregarDisparos = () => {
+    let q = admin.from('disparos')
+      .select('id, template_name, template_language, param2_default, param3_default, image_url')
+    if (escopo) q = q.eq('store_id', escopo)
+    return q
+  }
+
   const [storesRes, metricsRes, disparosRes] = await Promise.all([
-    admin.from('stores').select('id, name').eq('is_active', true).order('name'),
+    carregarLojas(),
     admin.from('v_disparo_metrics').select('*').order('created_at', { ascending: false }),
-    admin.from('disparos').select('id, template_name, template_language, param2_default, param3_default, image_url'),
+    carregarDisparos(),
   ])
 
   const stores: StoreOption[] = storesRes.data ?? []

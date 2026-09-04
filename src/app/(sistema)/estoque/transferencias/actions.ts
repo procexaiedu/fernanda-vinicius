@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireProfile } from '@/lib/auth'
+import { lojaDoEscopo, requireProfile } from '@/lib/auth'
 
 /**
  * Transferência entre lojas — romaneio, trânsito e conferência no destino.
@@ -165,7 +165,9 @@ export async function buscarPecaPorCodigo(
   barcode: string,
   storeId: string,
 ): Promise<{ success: true; peca: PecaBipada } | { success: false; error: string }> {
-  await requireProfile()
+  const perfil = await requireProfile()
+  // Quem tem loja só bipa peça dela — o id que vem da tela é sugestão.
+  storeId = lojaDoEscopo(perfil, storeId) ?? storeId
 
   const { data, error } = await createAdminClient()
     .from('products')
