@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { emitirNfce, consultarNfce, cancelarNfce, type AmbienteFiscal } from '@/lib/fiscal/focus'
@@ -73,6 +74,24 @@ async function verificarAdmin(): Promise<{ userId: string | null; error: string 
   return { userId: user.id, error: null }
 }
 
+/**
+ * A venda é da loja de quem pediu?
+ *
+ * As três ações fiscais recebem um `saleId` do navegador e leem com
+ * `createAdminClient()` (service_role, ignora RLS). Sem esta conferência, quem
+ * é de Campinas emitia, sincronizava ou CANCELAVA a nota de uma venda de
+ * Brasília só trocando o id — e nota fiscal cancelada não volta.
+ *
+ * Admin global (`lojaDoEscopo` devolve null) passa por todas, como em todo o
+ * resto do sistema.
+ */
+async function daMinhaLoja(storeIdDaVenda: string | null): Promise<boolean> {
+  const perfil = await getProfile()
+  if (!perfil) return false
+  const escopo = lojaDoEscopo(perfil)
+  return !escopo || escopo === storeIdDaVenda
+}
+
 // ─── Emitir ───────────────────────────────────────────────────────────────────
 
 export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal> {
@@ -91,6 +110,7 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
     .single()
 
   if (erroVenda || !venda) return { success: false, error: 'Venda não encontrada.' }
+  if (!(await daMinhaLoja(venda.store_id))) return { success: false, error: 'Esta venda é de outra loja.' }
 
   /*
    * Já tem nota autorizada: para aqui.
@@ -318,6 +338,7 @@ export async function sincronizarNota(saleId: string): Promise<ResultadoFiscal> 
   const { data: venda } = await admin
     .from('sales').select('id, store_id, nfce_ref').eq('id', saleId).single()
 
+  if (!(await daMinhaLoja(venda?.store_id ?? null))) return { success: false, error: 'Esta venda é de outra loja.' }
   if (!venda?.nfce_ref) return { success: false, error: 'Esta venda nunca teve emissão iniciada.' }
 
   const { data: emitente } = await admin
@@ -363,6 +384,7 @@ export async function cancelarNotaDaVenda(saleId: string, justificativa: string)
   const { data: venda } = await admin
     .from('sales').select('id, store_id, nfce_ref, nfce_status').eq('id', saleId).single()
 
+  if (!(await daMinhaLoja(venda?.store_id ?? null))) return { success: false, error: 'Esta venda é de outra loja.' }
   if (!venda?.nfce_ref) return { success: false, error: 'Esta venda não tem nota.' }
   if (venda.nfce_status !== 'autorizada') {
     return { success: false, error: `Só nota autorizada pode ser cancelada (esta está "${venda.nfce_status}").` }
