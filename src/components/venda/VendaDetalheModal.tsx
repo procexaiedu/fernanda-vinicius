@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArrowLeftRight, AlertTriangle, X, Trash2, Receipt, FileText, RefreshCw, Download } from 'lucide-react'
+import { ArrowLeftRight, AlertTriangle, X, Trash2, Receipt, FileText, RefreshCw, Download, MessageCircle } from 'lucide-react'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import { emitirNotaDaVenda, sincronizarNota, cancelarNotaDaVenda } from '@/app/(sistema)/vendas/fiscal'
 import { buscarDetalheVenda, deletarVenda, type VendaDetail } from '@/app/(sistema)/vendas/actions'
 import styles from '@/app/(sistema)/vendas/VendasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import { linkDaNotaNoWhatsApp } from '@/lib/fiscal/enviarDanfe'
 
 /* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
 const fmt = formatarDinheiro
@@ -178,6 +179,9 @@ export default function VendaDetalheModal({ saleId, onClose, onDeleted, canDelet
                 saleId={venda.id}
                 nfce={venda.nfce}
                 cpf={venda.destinatario_cpf}
+                cliente={venda.customer_name}
+                telefone={venda.customer_phone}
+                loja={venda.store_name}
                 podeEmitir={canDelete}
                 onMudou={() => buscarDetalheVenda(saleId).then(r => r.data && setVenda(r.data))}
               />
@@ -273,13 +277,32 @@ const ROTULO_STATUS: Record<string, string> = {
  * a mesma clareza que mostra o sucesso — quem está no balcão precisa saber o
  * que fazer, não que "deu erro".
  */
-function BlocoFiscal({ saleId, nfce, cpf, podeEmitir, onMudou }: {
+function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, onMudou }: {
   saleId: string
   nfce: VendaDetail['nfce']
   cpf: string | null
+  cliente: string | null
+  telefone: string | null
+  loja: string | null
   podeEmitir: boolean
   onMudou: () => void
 }) {
+  /*
+   * O link é montado NA RENDERIZAÇÃO, não no clique.
+   *
+   * Abrir o WhatsApp depois de um `await` é o que o navegador barra como
+   * pop-up — foi a armadilha que apareceu no comprovante do SM Imports. Com o
+   * link pronto em mãos, o clique é síncrono e passa.
+   *
+   * `null` quando a cliente não tem telefone ou a nota não saiu: aí o botão
+   * simplesmente não existe, em vez de abrir o WhatsApp em branco.
+   */
+  const linkWhats = linkDaNotaNoWhatsApp({
+    telefone,
+    danfeUrl: nfce.danfe_url,
+    nomeDaCliente: cliente,
+    loja,
+  })
   const [ocupado, setOcupado] = useState<'emitir' | 'sincronizar' | 'cancelar' | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [recusas, setRecusas] = useState<{ campo: string; motivo: string }[]>([])
@@ -360,6 +383,13 @@ function BlocoFiscal({ saleId, nfce, cpf, podeEmitir, onMudou }: {
           {nfce.danfe_url && (
             <a className={styles.fiscalDanfe} href={nfce.danfe_url} target="_blank" rel="noopener noreferrer">
               <Download size={13} /> Baixar DANFE
+            </a>
+          )}
+
+          {/* Abre a conversa com o texto pronto — quem envia é a vendedora. */}
+          {linkWhats && (
+            <a className={styles.fiscalWhats} href={linkWhats} target="_blank" rel="noopener noreferrer">
+              <MessageCircle size={13} /> Mandar no WhatsApp
             </a>
           )}
 

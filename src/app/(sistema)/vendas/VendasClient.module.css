@@ -727,6 +727,22 @@
 
 .fiscalDanfe:hover { text-decoration: underline; }
 
+/*
+ * Mandar a nota no WhatsApp. Mesma anatomia do "Baixar DANFE" ao lado — muda
+ * só a cor, para a ação que sai do sistema e vai para a cliente se distinguir
+ * da que fica aqui dentro.
+ */
+.fiscalWhats {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--success);
+  text-decoration: none;
+}
+
+.fiscalWhats:hover { text-decoration: underline; }
+
 .fiscalCancelar {
   margin-top: 12px;
   display: flex;

@@ -68,6 +68,7 @@ export interface VendaDetail {
   sale_date: string
   store_name: string
   customer_name: string | null
+  customer_phone: string | null
   customer_id: string | null
   seller_name: string | null
   subtotal: number
@@ -393,7 +394,7 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
   const [saleRes, itemsRes, paymentsRes, exchangesRes] = await Promise.all([
     admin
       .from('sales')
-      .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, seller_id, destinatario_cpf, nfce_status, nfce_chave, nfce_numero, nfce_serie, nfce_danfe_url, nfce_motivo_rejeicao, nfce_emitida_em, customers(name), stores(name)')
+      .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, seller_id, destinatario_cpf, nfce_status, nfce_chave, nfce_numero, nfce_serie, nfce_danfe_url, nfce_motivo_rejeicao, nfce_emitida_em, customers(name, phone), stores(name)')
       .eq('id', saleId)
       .single(),
     admin
@@ -468,6 +469,8 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
       sale_date:       s.sale_date,
       store_name:      s.stores?.name ?? '—',
       customer_name:   s.customers?.name ?? null,
+      // Telefone só para o botão de mandar a nota no WhatsApp.
+      customer_phone:  s.customers?.phone ?? null,
       customer_id:     s.customer_id,
       seller_name:     sellerName,
       subtotal:        Number(s.subtotal),

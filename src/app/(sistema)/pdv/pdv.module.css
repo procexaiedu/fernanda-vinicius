@@ -182,6 +182,21 @@
 }
 .painelDanfe:hover { text-decoration: underline; }
 
+/* As duas saídas da nota lado a lado: imprimir aqui, mandar para a cliente. */
+.painelLinks {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.painelWhats {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--success); text-decoration: none;
+}
+
+.painelWhats:hover { text-decoration: underline; }
+
 .painelErro {
   display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap;
   padding: 9px 11px; border-radius: var(--radius-sm);

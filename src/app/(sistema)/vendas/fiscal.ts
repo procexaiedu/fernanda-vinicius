@@ -25,6 +25,10 @@ import {
  */
 
 export interface ResultadoFiscal {
+  /** Para montar o link do WhatsApp na hora, sem uma segunda ida ao servidor. */
+  cliente?: string | null
+  telefone?: string | null
+  loja?: string | null
   success: boolean
   status?: string
   chave?: string
@@ -80,7 +84,9 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
   // ── A venda ──
   const { data: venda, error: erroVenda } = await admin
     .from('sales')
-    .select('id, sale_date, created_at, store_id, total, discount_amount, destinatario_cpf, notes, nfce_status, nfce_chave')
+    // `customers(name, phone)` é só para o botão de mandar a nota no WhatsApp
+    // logo depois de emitir — o PDV não tem a cliente em mãos, só o id da venda.
+    .select('id, sale_date, created_at, store_id, total, discount_amount, destinatario_cpf, notes, nfce_status, nfce_chave, customers(name, phone), stores(name)')
     .eq('id', saleId)
     .single()
 
@@ -94,8 +100,13 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
    * como se algo tivesse acontecido.
    */
   if (venda.nfce_status === 'autorizada' && venda.nfce_chave) {
-    return { success: true, status: 'autorizada', chave: venda.nfce_chave,
-             error: 'Esta venda já tem nota autorizada.' }
+    return {
+      success: true, status: 'autorizada', chave: venda.nfce_chave,
+      error: 'Esta venda já tem nota autorizada.',
+      cliente:  (venda as any).customers?.name  ?? null,
+      telefone: (venda as any).customers?.phone ?? null,
+      loja:     (venda as any).stores?.name     ?? null,
+    }
   }
 
   // ── O emitente da loja ──
@@ -220,8 +231,14 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
   await gravarResultado(saleId, resp, emitenteFiscal.ambiente, ref)
   revalidatePath('/vendas')
 
+  const daCliente = {
+    cliente:  (venda as any).customers?.name  ?? null,
+    telefone: (venda as any).customers?.phone ?? null,
+    loja:     (venda as any).stores?.name     ?? null,
+  }
+
   return resp.ok
-    ? { success: true, status: 'autorizada', chave: resp.chave, danfeUrl: resp.danfeUrl }
+    ? { success: true, status: 'autorizada', chave: resp.chave, danfeUrl: resp.danfeUrl, ...daCliente }
     : { success: false, status: resp.status, error: resp.mensagem ?? 'A nota não foi autorizada.' }
 }
 

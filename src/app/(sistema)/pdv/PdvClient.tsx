@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ShoppingCart, Receipt, CheckCircle2, FileText, X,
+import { ShoppingCart, Receipt, CheckCircle2, FileText, X, MessageCircle,
 } from 'lucide-react'
 import NovaVendaForm from '../vendas/nova/NovaVendaForm'
 import CaixaDoDia from './CaixaDoDia'
@@ -9,6 +9,7 @@ import PageHeader from '@/components/ui/PageHeader'
 import { buscarCaixaDoDia, type CaixaDoDia as CaixaData } from './actions'
 import styles from './pdv.module.css'
 import { emitirNotaDaVenda } from '@/app/(sistema)/vendas/fiscal'
+import { linkDaNotaNoWhatsApp } from '@/lib/fiscal/enviarDanfe'
 
 type FormProps = React.ComponentProps<typeof NovaVendaForm>
 
@@ -117,6 +118,9 @@ function PainelNota({ saleId, onFechar }: { saleId: string; onFechar: () => void
   const [estado, setEstado] = useState<'pronta' | 'emitindo' | 'ok' | 'erro'>('pronta')
   const [mensagem, setMensagem] = useState<string | null>(null)
   const [danfe, setDanfe] = useState<string | null>(null)
+  /* Link pronto ANTES do clique: abrir o WhatsApp depois de um `await` é o que
+   * o navegador barra como pop-up. */
+  const [linkWhats, setLinkWhats] = useState<string | null>(null)
 
   async function emitir() {
     setEstado('emitindo'); setMensagem(null)
@@ -124,6 +128,9 @@ function PainelNota({ saleId, onFechar }: { saleId: string; onFechar: () => void
     if (r.success) {
       setEstado('ok')
       setDanfe(r.danfeUrl ?? null)
+      setLinkWhats(linkDaNotaNoWhatsApp({
+        telefone: r.telefone, danfeUrl: r.danfeUrl, nomeDaCliente: r.cliente, loja: r.loja,
+      }))
     } else {
       setEstado('erro')
       /* As recusas da validação são mais úteis que a mensagem genérica: dizem
@@ -156,9 +163,21 @@ function PainelNota({ saleId, onFechar }: { saleId: string; onFechar: () => void
       </div>
 
       {danfe && (
-        <a className={styles.painelDanfe} href={danfe} target="_blank" rel="noopener noreferrer">
-          Abrir DANFE para imprimir
-        </a>
+        <div className={styles.painelLinks}>
+          <a className={styles.painelDanfe} href={danfe} target="_blank" rel="noopener noreferrer">
+            Abrir DANFE para imprimir
+          </a>
+          {/*
+            Só aparece se a venda tem cliente COM telefone. Venda avulsa não
+            tem para quem mandar, e um botão que abre o WhatsApp em branco no
+            meio do balcão é pior que botão nenhum.
+          */}
+          {linkWhats && (
+            <a className={styles.painelWhats} href={linkWhats} target="_blank" rel="noopener noreferrer">
+              <MessageCircle size={13} /> Mandar no WhatsApp
+            </a>
+          )}
+        </div>
       )}
 
       {estado === 'erro' && (
