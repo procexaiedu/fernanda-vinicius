@@ -54,7 +54,9 @@ export function listasDoEscopo(admin: SupabaseClient<any, any, any>, escopo: str
      * de novo, partindo o histórico. Não "conserte" de volta sem falar com ele.
      */
     clientes(limite = 400) {
-      let q = admin.from('customers').select('id, name, phone, cpf, birthday')
+      // `origin_store_id` vai junto para o formulário poder cortar pela loja
+      // DA VENDA — o admin global recebe as duas e decide na hora.
+      let q = admin.from('customers').select('id, name, phone, cpf, birthday, origin_store_id')
       if (escopo) q = q.eq('origin_store_id', escopo)
       return q.order('name').limit(limite)
     },

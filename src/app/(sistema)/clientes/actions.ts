@@ -31,11 +31,32 @@ export interface CustomerSearchResult {
   id: string; name: string; phone: string; cpf: string | null; birthday: string | null
 }
 
-// Busca server-side (unaccent + telefone/CPF), limitada — evita carregar toda a
-// base de clientes no front. Termo vazio devolve os primeiros por nome.
-export async function searchCustomers(term: string): Promise<CustomerSearchResult[]> {
+/**
+ * Busca server-side (unaccent + telefone/CPF), limitada — evita carregar toda a
+ * base de clientes no front. Termo vazio devolve os primeiros por nome.
+ *
+ * `lojaDaTela` é a loja DA VENDA, não a de quem busca. A distinção importa para
+ * a Fernanda: ela é admin global, atende nas duas, e quem decide de qual base
+ * ela está falando é a loja que escolheu no formulário.
+ *
+ * Para quem tem loja própria o parâmetro é ignorado, como em toda leitura.
+ *
+ * Sem isto o corte de 04/09 seria enfeite: a LISTA inicial vinha cortada, mas
+ * bastava digitar três letras para a base inteira voltar.
+ */
+export async function searchCustomers(
+  term: string,
+  lojaDaTela?: string | null,
+): Promise<CustomerSearchResult[]> {
+  const perfil = await getProfile()
+  if (!perfil) return []
+
   const admin = createAdminClient()
-  const { data, error } = await admin.rpc('search_customers', { term: term ?? '', lim: 20 })
+  const { data, error } = await admin.rpc('search_customers', {
+    term: term ?? '',
+    lim: 20,
+    p_store_id: lojaDoEscopo(perfil, lojaDaTela),
+  })
   if (error) return []
   return (data ?? []).map((c: any) => ({
     id: c.id, name: c.name, phone: c.phone, cpf: c.cpf, birthday: c.birthday,
