@@ -127,9 +127,24 @@ export function validarVenda(venda: VendaParaNota, emitente: EmitenteFiscal): Re
     const faltando = (['codigo_ncm', 'cfop', 'csosn', 'icms_origem', 'unidade'] as const)
       .filter(c => !item[c])
     if (faltando.length) {
+      /*
+       * A mensagem é para QUEM ESTÁ NO BALCÃO, não para quem programa.
+       *
+       * Dizia "Sem classificação fiscal (codigo_ncm, cfop, csosn). Classifique
+       * a categoria em fv.fiscal_categorias" — nome de tabela do banco, na
+       * cara da dona, com a cliente esperando. Ela não tem o que fazer com
+       * isso, e a venda não pode travar por causa da nota.
+       *
+       * Em 04/09 o dono decidiu deixar as 7 peças sem classificação como
+       * estão (caixas de embalagem, conserto, ourives, um colar cadastrado em
+       * "cinto" e um lenço de seda). Ou seja: esta recusa não é transitória,
+       * vai acontecer de verdade — o lenço tem estoque. Merece uma frase que
+       * diga o que fazer.
+       */
       recusas.push({
-        campo: `item ${item.codigo}`,
-        motivo: `Sem classificação fiscal (${faltando.join(', ')}). Classifique a categoria em fv.fiscal_categorias.`,
+        campo: item.descricao || item.codigo,
+        motivo: 'Esta peça não tem classificação fiscal e não pode entrar na nota. '
+              + 'A venda está registrada normalmente — só a nota não sai com ela.',
       })
     }
     if (item.quantidade <= 0) {
