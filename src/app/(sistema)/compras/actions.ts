@@ -119,16 +119,31 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
     if (!nomePorGrupo.has(key)) nomePorGrupo.set(key, row.supplierName.trim())
   }
 
-  const payErr = validatePaymentGroups(
-    data.supplierPayments.map(g => ({
-      label: nomePorGrupo.get(g.groupKey) ?? g.groupKey,
-      // O que tem de fechar é o LÍQUIDO. O subtotal continua recalculado aqui
-      // (nunca vem do cliente); só o percentual de desconto é declarado.
-      subtotal: aplicarDesconto(subtotalPorGrupo.get(g.groupKey), g.descontoPct),
-      payments: g.payments.map(p => ({ amount: p.totalAmount, status: p.status })),
-    }))
-  )
-  if (payErr) return { success: false, error: payErr }
+  /*
+   * CONSIGNAÇÃO NÃO TEM PAGAMENTO, e por isso não passa por aqui.
+   *
+   * Na consignação o fornecedor DEIXA as peças; a loja só paga o que vender.
+   * Não existe valor a informar no recebimento, e exigir um trava a tela: a
+   * dona relatou em 07/09 que ao fechar uma consignação o sistema pedia "informe
+   * o valor do pagamento" e não salvava. O banco confirma — `fv.consignments`
+   * está VAZIA, ou seja, nunca foi possível salvar uma.
+   *
+   * O formulário já sabia disso (esconde a área de pagamento e pula a própria
+   * checagem), mas a trava do servidor não olhava `isConsignment` e reprovava
+   * o que a tela nem tinha perguntado.
+   */
+  if (!data.isConsignment) {
+    const payErr = validatePaymentGroups(
+      data.supplierPayments.map(g => ({
+        label: nomePorGrupo.get(g.groupKey) ?? g.groupKey,
+        // O que tem de fechar é o LÍQUIDO. O subtotal continua recalculado aqui
+        // (nunca vem do cliente); só o percentual de desconto é declarado.
+        subtotal: aplicarDesconto(subtotalPorGrupo.get(g.groupKey), g.descontoPct),
+        payments: g.payments.map(p => ({ amount: p.totalAmount, status: p.status })),
+      }))
+    )
+    if (payErr) return { success: false, error: payErr }
+  }
 
   const admin = createAdminClient()
   const purchaseMonth = parseInt(data.purchaseDate.slice(5, 7))
@@ -350,7 +365,18 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   // data só — ou seja, o financeiro via uma despesa de R$3.000 hoje em vez de
   // três de R$1.000 nos três meses. Para cheque isso é ainda mais errado:
   // cheque parcelado é literalmente três papéis com três datas.
-  for (const group of data.supplierPayments) {
+  /*
+   * De novo: consignação não gera pagamento NEM despesa.
+   *
+   * Sem esta guarda, uma linha de pagamento que sobrou na tela — trocar de
+   * "Compra Própria" para "Consignação" depois de preencher, ou um rascunho
+   * recuperado — viraria conta a pagar e despesa no financeiro de peças que
+   * ainda são do fornecedor. O custo entra quando a peça vende, não quando
+   * chega.
+   */
+  const gruposDePagamento = data.isConsignment ? [] : data.supplierPayments
+
+  for (const group of gruposDePagamento) {
     const nfNum           = group.nfNumber?.trim() || null
     const groupSupplierId = resolveGroupSupplier(group.groupKey)
 
