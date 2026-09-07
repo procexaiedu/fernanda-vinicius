@@ -6,6 +6,7 @@ import { Plus, Trash2, AlertTriangle, Upload, ChevronDown, RotateCcw, X } from '
 import Button from '@/components/ui/Button'
 import DatePicker from '@/components/ui/DatePicker'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 import { salvarCompra, getItensCompraParaEtiquetas } from '../actions'
 import type { GridRow, PaymentRow } from '../actions'
 import { validatePaymentGroups } from '@/lib/compras/validate-payments'
@@ -950,11 +951,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
     } catch (e) {
       // Rascunho INTACTO de propósito: o `clearDraft()` só roda no sucesso, lá
       // embaixo. Falhou, ela recarrega a página e recupera tudo que digitou.
-      setError(
-        e instanceof Error && e.message
-          ? `NÃO FOI POSSÍVEL SALVAR: ${e.message.toUpperCase()}`
-          : 'NÃO FOI POSSÍVEL SALVAR. SEU RASCUNHO FOI MANTIDO — RECARREGUE A PÁGINA E TENTE DE NOVO.',
-      )
+      setError(mensagemDeErroAoSalvar(e))
       return
     } finally {
       setSaving(false)

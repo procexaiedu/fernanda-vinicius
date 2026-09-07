@@ -29,7 +29,7 @@ export default async function ComprasPage() {
 
   const carregarCompras = () => {
     let q = admin.from('purchases')
-      .select('id, purchase_date, total_cost, total_items, nf_number, nf_url, notes, created_at')
+      .select('id, purchase_date, total_cost, total_items, nf_number, nf_url, notes, created_at, consignment_id')
     if (idsDaLoja) q = q.in('id', idsDaLoja)
     return q.order('purchase_date', { ascending: false })
   }
@@ -45,7 +45,14 @@ export default async function ComprasPage() {
     admin.from('purchase_payments')
       .select('purchase_id, status, amount'),
     (() => {
-      // Consignação tem loja própria — aqui o filtro é direto.
+      /*
+       * Consignação tem loja própria — aqui o filtro é direto.
+       *
+       * Desde 07/09 o lote consignado TAMBÉM cria uma `purchase`, para ganhar
+       * detalhe, edição, exclusão e impressão de etiqueta como qualquer compra.
+       * Listar os dois mostraria o mesmo lote duas vezes, então esta consulta
+       * traz só os lotes ANTIGOS, que nasceram sem compra atrás.
+       */
       let q = admin.from('consignments')
         .select('id, received_date, return_deadline, total_pieces, total_cost_value, status, supplier_id, store_id')
       if (escopo) q = q.eq('store_id', escopo)
@@ -107,11 +114,24 @@ export default async function ComprasPage() {
 
   const storeMap = new Map(stores.map(s => [s.id, s.name]))
 
-  const consignmentsWithMeta = consignments.map(c => ({
-    ...c,
-    storeName: storeMap.get(c.store_id ?? '') ?? '—',
-    type: 'consignment' as const,
-  }))
+  /*
+   * Lote que já virou compra sai daqui — senão aparece duas vezes na lista.
+   *
+   * A partir de 07/09 a consignação cria uma `purchase` junto, e é ela que
+   * carrega detalhe, edição e etiqueta. Sobram nesta lista só os lotes antigos,
+   * criados antes da mudança, que não têm compra atrás.
+   */
+  const lotesJaNaLista = new Set(
+    purchases.map((p: any) => p.consignment_id).filter(Boolean) as string[]
+  )
+
+  const consignmentsWithMeta = consignments
+    .filter(c => !lotesJaNaLista.has(c.id))
+    .map(c => ({
+      ...c,
+      storeName: storeMap.get(c.store_id ?? '') ?? '—',
+      type: 'consignment' as const,
+    }))
 
   return (
     <div>

@@ -246,6 +246,8 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   }
 
   // ── 4. Consignação ────────────────────────────────────────────────────────
+  let consignmentId: string | null = null
+
   if (data.isConsignment) {
     const totalPieces = data.rows.reduce((s, r) => s + r.quantity, 0)
     const totalCost   = data.rows.reduce((s, r) => s + r.costPrice * r.quantity, 0)
@@ -269,16 +271,29 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
 
     if (error || !consignment) return { success: false, error: `Erro ao criar consignação: ${error?.message}` }
 
+    consignmentId = consignment.id
+
     for (const productId of resolvedProductIds) {
       await admin.from('products')
         .update({ consignment_id: consignment.id })
         .eq('id', productId)
     }
 
-    revalidatePath('/compras')
-    revalidatePath('/produtos')
-    revalidatePath('/estoque')
-    return { success: true }
+    /*
+     * E SEGUE PARA CRIAR A COMPRA — não retorna mais aqui.
+     *
+     * Consignação era um beco sem saída: criava o lote, marcava as peças e
+     * voltava. Como detalhe, edição, exclusão e IMPRESSÃO DE ETIQUETA são todos
+     * pendurados em `purchases`, a consignação não tinha nenhum dos quatro. Em
+     * 07/09 a dona carregou 65 peças de Brasília e não conseguiu imprimir uma
+     * etiqueta sequer — precisei criar a compra na mão, no banco, para
+     * destravá-la.
+     *
+     * Nas palavras dele: "esse consignado é exatamente igual a compra, mas é
+     * uma compra que ela ainda não pagou". Então é isso que ele é agora — uma
+     * `purchase` como qualquer outra, com `consignment_id` ligando ao lote. O
+     * que NÃO acontece é pagamento: essas peças só viram despesa no acerto.
+     */
   }
 
   // ── 5. Criar purchase ─────────────────────────────────────────────────────
@@ -329,6 +344,8 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
       nf_number:     allNfNumbers,
       nf_url:        firstNfUrl,
       notes:         notasComDesconto,
+      // Nulo em compra própria; preenchido quando o lote é consignado.
+      consignment_id: consignmentId,
     })
     .select('id')
     .single()

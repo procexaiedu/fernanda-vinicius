@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, ExternalLink, AlertTriangle, RefreshCw, CheckCircle, Clock, Printer } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import CompraDetalheModal from '@/components/compra/CompraDetalheModal'
+import ConsignacaoDetalheModal from '@/components/compra/ConsignacaoDetalheModal'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { getItensCompraParaEtiquetas } from './actions'
 import ThOrdenavel from '@/components/ui/ThOrdenavel'
@@ -30,6 +31,8 @@ interface Purchase {
   supplierInitials: string[]
   storeNames: string[]
   paymentStatus: 'paid' | 'pending'
+  /** Preenchido quando esta compra é um lote consignado. */
+  consignment_id?: string | null
   type: 'purchase'
 }
 
@@ -66,6 +69,9 @@ export default function ComprasClient({ purchases, consignments }: Props) {
   const router = useRouter()
   const [search, setSearch]         = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'purchase' | 'consignment'>('all')
+  /* Lote consignado aberto. A linha não era clicável: dava para criar a
+   * consignação e nunca mais mexer nela — nem para pagar o fornecedor. */
+  const [consignSelecionada, setConsignSelecionada] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = usePersistedState<'all' | 'paid' | 'pending' | 'active'>('fv-filtros-compras-status', 'all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [reprintOpen, setReprintOpen]   = useState(false)
@@ -235,7 +241,13 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                       title="Clique para ver detalhes"
                     >
                       <td className={`${styles.date} col-date`}>{fmtDate(row.purchase_date)}</td>
-                      <td className="col-center col-tertiary"><span className={styles.badgeMuted}>Própria</span></td>
+                      {/* Consignação é uma compra como outra qualquer — muda o
+                          rótulo, não a linha. */}
+                      <td className="col-center col-tertiary">
+                        {row.consignment_id
+                          ? <span className={styles.badgeAccent}>Consignação</span>
+                          : <span className={styles.badgeMuted}>Própria</span>}
+                      </td>
                       <td className={styles.suppliers}>
                         {row.suppliers.length > 0
                           ? row.suppliers.length === 1
@@ -261,7 +273,12 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                       <td className={`col-num col-secondary ${styles.muted}`}>{row.total_items}</td>
                       <td className={`col-num ${styles.cost}`}>{fmt(row.total_cost)}</td>
                       <td className="col-center">
-                        {row.paymentStatus === 'paid'
+                        {/* Consignado não tem pagamento na entrada: mostrar
+                            "Pendente" faria parecer conta atrasada. O que ele
+                            tem é acerto, e isso vive no lote. */}
+                        {row.consignment_id
+                          ? <span className={styles.statusActive}><RefreshCw size={12} /> A acertar</span>
+                          : row.paymentStatus === 'paid'
                           ? <span className={styles.statusPaid}><CheckCircle size={12} /> Pago</span>
                           : <span className={styles.statusPending}><Clock size={12} /> Pendente</span>}
                       </td>
@@ -280,7 +297,12 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                 } else {
                   const isOverdue = row.return_deadline && row.return_deadline < new Date().toISOString().slice(0, 10)
                   return (
-                    <tr key={row.id} className={styles.row}>
+                    <tr
+                      key={row.id}
+                      className={styles.row}
+                      onClick={() => setConsignSelecionada(row.id)}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <td className={`${styles.date} col-date`}>{fmtDate(row.received_date)}</td>
                       <td className="col-center col-tertiary"><span className={styles.badgeAccent}>Consignação</span></td>
                       <td className={styles.muted}>—</td>
@@ -311,6 +333,14 @@ export default function ComprasClient({ purchases, consignments }: Props) {
             </tbody>
           </table>
         </div>
+      )}
+
+      {consignSelecionada && (
+        <ConsignacaoDetalheModal
+          id={consignSelecionada}
+          onClose={() => setConsignSelecionada(null)}
+          onMudou={() => router.refresh()}
+        />
       )}
 
       {/* Modal de detalhe */}
