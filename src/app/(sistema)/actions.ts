@@ -314,7 +314,15 @@ export async function buscarKpis(
    * estoque como prejuízo.
    */
   const despesaRows  = despesaRes.data ?? []
-  const ehCompra     = (d: any) => d.category === 'compra_fornecedor' || d.reference_type === 'purchase'
+  /*
+   * O acerto de consignação também é COMPRA DE ESTOQUE, não despesa
+   * operacional. É dinheiro saindo para pagar peça — só que depois de vender,
+   * em vez de na entrada. Sem esta linha ele cairia em "Despesas Op.", que é
+   * onde moram aluguel, salário e luz, e a leitura do painel ficaria errada.
+   */
+  const ehCompra     = (d: any) =>
+    d.category === 'compra_fornecedor' || d.category === 'acerto_consignacao' ||
+    d.reference_type === 'purchase'    || d.reference_type === 'consignment'
   const custoCompras = despesaRows.filter(ehCompra).reduce((s: number, d: any) => s + Number(d.amount), 0)
   const despesasOp   = despesaRows.filter((d: any) => !ehCompra(d)).reduce((s: number, d: any) => s + Number(d.amount), 0)
 
@@ -457,7 +465,9 @@ export async function buscarGrafico(
   for (const d of despesaRes.data ?? []) {
     const entry = map.get((d.transaction_date as string).slice(0, 7))
     if (!entry) continue
-    const ehCompra = d.category === 'compra_fornecedor' || d.reference_type === 'purchase'
+    // Mesma regra do KPI — ver a nota em buscarKpis.
+    const ehCompra = d.category === 'compra_fornecedor' || d.category === 'acerto_consignacao'
+                  || d.reference_type === 'purchase'    || d.reference_type === 'consignment'
     if (ehCompra) entry.custoCompras += Number(d.amount)
     else          entry.despesasOp   += Number(d.amount)
   }

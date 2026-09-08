@@ -93,3 +93,17 @@ CREATE INDEX IF NOT EXISTS purchases_consignment_idx ON fv.purchases (consignmen
 
 COMMENT ON COLUMN fv.purchases.consignment_id IS
   'Preenchido quando esta compra é um lote consignado. Consignação é uma compra como outra qualquer (detalhe, edição, etiqueta) que ainda não foi paga.';
+
+
+-- O acerto precisa de um reference_type próprio em transactions.
+-- Sem isto: new row violates check constraint "transactions_reference_type_check".
+ALTER TABLE fv.transactions DROP CONSTRAINT IF EXISTS transactions_reference_type_check;
+
+ALTER TABLE fv.transactions ADD CONSTRAINT transactions_reference_type_check
+  CHECK (reference_type = ANY (ARRAY[
+    'sale'::text, 'purchase'::text, 'exchange'::text, 'manual'::text,
+    'seller_commission'::text,
+    -- Acerto de lote consignado: aponta para fv.consignments, não para a
+    -- compra, porque o que está sendo quitado é o LOTE.
+    'consignment'::text
+  ]));
