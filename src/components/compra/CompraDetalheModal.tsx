@@ -6,6 +6,7 @@ import { ExternalLink, AlertTriangle, CheckCircle, Clock, Trash2, X, Package, Cr
 import { buscarDetalheCompra, deletarCompra, type PurchaseDetail } from '@/app/(sistema)/compras/actions'
 import styles from '@/app/(sistema)/compras/ComprasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import BlocoAcertos from './BlocoAcertos'
 
 /* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
 const fmt = formatarDinheiro
@@ -151,6 +152,15 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
                   </tbody>
                 </table>
               </div>
+            )}
+
+            {/*
+              Lote consignado: o acerto com o fornecedor mora aqui dentro.
+              Consignação é uma compra, então a lista mostra uma linha só — e é
+              por ela que se chega ao pagamento parcial das peças.
+            */}
+            {detail.consignment_id && (
+              <BlocoAcertos id={detail.consignment_id} onMudou={() => router.refresh()} />
             )}
 
             <div className={styles.modalActions}>

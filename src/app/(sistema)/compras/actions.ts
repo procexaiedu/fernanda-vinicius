@@ -518,6 +518,8 @@ function vencimentoDaParcela(primeira: string | null | undefined, i: number): st
 export interface PurchaseDetail {
   id: string
   purchase_date: string
+  /** Preenchido quando esta compra é um lote consignado — abre o bloco de acertos. */
+  consignment_id: string | null
   nf_number: string | null
   nf_url: string | null
   notes: string | null
@@ -552,7 +554,7 @@ export async function buscarDetalheCompra(purchaseId: string): Promise<{ data: P
 
   const { data: purchase, error: purchErr } = await admin
     .from('purchases')
-    .select('id, purchase_date, nf_number, nf_url, notes, total_cost, total_items')
+    .select('id, purchase_date, nf_number, nf_url, notes, total_cost, total_items, consignment_id')
     .eq('id', purchaseId)
     .single()
 

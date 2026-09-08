@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation'
 import { Plus, ExternalLink, AlertTriangle, RefreshCw, CheckCircle, Clock, Printer } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import CompraDetalheModal from '@/components/compra/CompraDetalheModal'
-import ConsignacaoDetalheModal from '@/components/compra/ConsignacaoDetalheModal'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { getItensCompraParaEtiquetas } from './actions'
 import ThOrdenavel from '@/components/ui/ThOrdenavel'
@@ -69,9 +68,6 @@ export default function ComprasClient({ purchases, consignments }: Props) {
   const router = useRouter()
   const [search, setSearch]         = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'purchase' | 'consignment'>('all')
-  /* Lote consignado aberto. A linha não era clicável: dava para criar a
-   * consignação e nunca mais mexer nela — nem para pagar o fornecedor. */
-  const [consignSelecionada, setConsignSelecionada] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = usePersistedState<'all' | 'paid' | 'pending' | 'active'>('fv-filtros-compras-status', 'all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [reprintOpen, setReprintOpen]   = useState(false)
@@ -300,8 +296,6 @@ export default function ComprasClient({ purchases, consignments }: Props) {
                     <tr
                       key={row.id}
                       className={styles.row}
-                      onClick={() => setConsignSelecionada(row.id)}
-                      style={{ cursor: 'pointer' }}
                     >
                       <td className={`${styles.date} col-date`}>{fmtDate(row.received_date)}</td>
                       <td className="col-center col-tertiary"><span className={styles.badgeAccent}>Consignação</span></td>
@@ -333,14 +327,6 @@ export default function ComprasClient({ purchases, consignments }: Props) {
             </tbody>
           </table>
         </div>
-      )}
-
-      {consignSelecionada && (
-        <ConsignacaoDetalheModal
-          id={consignSelecionada}
-          onClose={() => setConsignSelecionada(null)}
-          onMudou={() => router.refresh()}
-        />
       )}
 
       {/* Modal de detalhe */}
