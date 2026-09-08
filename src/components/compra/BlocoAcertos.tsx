@@ -129,7 +129,9 @@ export default function BlocoAcertos({ id, onMudou }: {
           <span className={styles.placarRotulo}>Já acertado</span>
           <strong className={`${styles.placarValor} ${styles.pos}`}>{formatarDinheiro(lote.acertado)}</strong>
           <span className={styles.placarNota}>
-            {lote.acertos.length} {lote.acertos.length === 1 ? 'acerto' : 'acertos'}
+            {lote.acertos.length === 0
+              ? 'nenhum pagamento ainda'
+              : `${lote.acertos.length} ${lote.acertos.length === 1 ? 'pagamento' : 'pagamentos'}`}
           </span>
         </div>
         <div className={styles.placarItem}>
@@ -143,12 +145,16 @@ export default function BlocoAcertos({ id, onMudou }: {
         </div>
       </div>
 
-      <div className={styles.barra}>
-        <div
-          className={styles.barraCheia}
-          style={{ width: `${Math.min(100, (lote.acertado / (lote.total || 1)) * 100)}%` }}
-        />
-      </div>
+      {/* Em zero a barra vazia virava um bloco cinza atravessado, lido como
+          divisor quebrado. Só aparece quando há o que mostrar. */}
+      {lote.acertado > 0 && (
+        <div className={styles.barra}>
+          <div
+            className={styles.barraCheia}
+            style={{ width: `${Math.min(100, (lote.acertado / (lote.total || 1)) * 100)}%` }}
+          />
+        </div>
+      )}
 
       {atrasado && (
         <div className={styles.aviso}>

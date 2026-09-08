@@ -1,19 +1,38 @@
 /*
  * Bloco de acertos dentro do detalhe da compra consignada.
- * Segue a régua do sistema — mesmos tokens de raio, cor e espaçamento.
+ *
+ * Usa os mesmos tokens do resto do sistema — `--bg-elevated` no campo,
+ * `--radius-md`, altura 34px — para não parecer uma tela de outro lugar.
  */
 
 .bloco {
-  margin-top: 22px;
+  margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid var(--border);
 }
 
 .vazio {
-  padding: 18px 0;
+  padding: 16px 0;
   text-align: center;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12.5px;
+}
+
+.secaoTopo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.secaoTitulo {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
 }
 
 /* ── Os três números ─────────────────────────────────────────────────────── */
@@ -21,35 +40,57 @@
 .placar {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 10px;
 }
 
 .placarItem {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 12px 14px;
+  gap: 2px;
+  padding: 11px 13px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--surface-2, var(--surface));
+  background: var(--bg-elevated);
 }
 
 .placarRotulo {
-  font-size: 11px;
+  font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-tertiary, var(--text-secondary));
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
 }
 
-.placarValor { font-size: 19px; font-weight: 600; }
-.placarNota  { font-size: 11.5px; color: var(--text-secondary); }
+.placarValor {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.placarNota {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
 
 .pos { color: var(--success); }
-.neg { color: var(--danger); }
 
+/*
+ * "Falta" NÃO é vermelho.
+ *
+ * Vermelho grita erro, e ter saldo a pagar num lote consignado é o estado
+ * normal — o lote nasce assim. A cor de atenção só entra quando o prazo de
+ * devolução vence, e aí ela aparece no aviso, não no número.
+ */
+.neg { color: var(--text-primary); }
+
+/* ── Progresso ───────────────────────────────────────────────────────────── */
+
+/*
+ * Só aparece quando já existe algum acerto. Em zero, a barra vazia virava um
+ * bloco cinza atravessado no meio do bloco, e lia como divisor quebrado.
+ */
 .barra {
-  margin-top: 12px;
-  height: 5px;
+  margin-top: 10px;
+  height: 4px;
   border-radius: 999px;
   background: var(--border);
   overflow: hidden;
@@ -68,89 +109,96 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  margin-top: 14px;
-  padding: 9px 11px;
-  border-radius: var(--radius-sm);
+  margin-top: 12px;
+  padding: 8px 11px;
+  border-radius: var(--radius-md);
   font-size: 12.5px;
   line-height: 1.45;
 }
 
-.aviso   { background: var(--warning-subtle, rgba(250, 204, 21, 0.12)); color: var(--warning, #facc15); }
+.aviso   { background: var(--warning-subtle); color: var(--warning); }
 .avisoOk { background: var(--success-subtle); color: var(--success); }
-.erro    { background: var(--danger-subtle); color: var(--danger); }
+.erro    { background: var(--danger-subtle);  color: var(--danger); }
 
-/* ── Acertos ─────────────────────────────────────────────────────────────── */
-
-.secaoTopo {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 22px 0 10px;
-}
-
-.secaoTitulo {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-secondary);
-}
+/* ── Formulário do acerto ────────────────────────────────────────────────── */
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 14px;
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--surface-2, var(--surface));
-  margin-bottom: 14px;
+  background: var(--bg-elevated);
 }
 
 .formLinha {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 150px 1fr 160px;
   gap: 10px;
 }
 
-.campo { display: flex; flex-direction: column; gap: 5px; }
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
 
 .rotulo {
-  font-size: 11px;
+  font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--text-secondary);
 }
 
 .input {
   height: 34px;
   padding: 0 10px;
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--input-bg, var(--surface));
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: 13px;
   font-family: inherit;
+  width: 100%;
 }
 
 .input:focus { outline: none; border-color: var(--accent); }
 
-.formAcoes { display: flex; justify-content: flex-end; gap: 8px; }
+/* O ícone nativo do seletor de data vem preto no tema escuro. */
+.input::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.input::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+.formAcoes {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Histórico ───────────────────────────────────────────────────────────── */
 
 .tabela {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
+  margin-top: 14px;
 }
 
 .tabela th {
   text-align: left;
-  padding: 8px 10px;
-  font-size: 11px;
+  padding: 7px 10px;
+  font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border);
 }
@@ -160,7 +208,9 @@
   border-bottom: 1px solid var(--border);
 }
 
-/* col-num alinha th E td — a lição do globals.css. */
+.tabela tr:last-child td { border-bottom: none; }
+
+/* col-num alinha th E td — a lição já registrada no globals.css. */
 .tabela th.col-num, .tabela td.col-num { text-align: right; }
 
 .valor { font-weight: 600; }
@@ -169,13 +219,15 @@
 .remover {
   background: none;
   border: none;
-  color: var(--text-tertiary, var(--text-secondary));
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px;
   border-radius: var(--radius-sm);
+  display: inline-flex;
+  opacity: 0.55;
 }
 
-.remover:hover { color: var(--danger); background: var(--danger-subtle); }
+.remover:hover { color: var(--danger); background: var(--danger-subtle); opacity: 1; }
 
 @media (max-width: 720px) {
   .placar, .formLinha { grid-template-columns: 1fr; }
