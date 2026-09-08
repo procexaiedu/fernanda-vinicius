@@ -5,11 +5,12 @@
  * `--radius-md`, altura 34px — para não parecer uma tela de outro lugar.
  */
 
-.bloco {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-}
+/*
+ * Sem margem nem borda próprias: o bloco vive dentro de `modalSection`, que já
+ * dá o respiro lateral (24px) e a linha divisória. Ter as duas coisas
+ * empilhava borda sobre borda e encostava os cartões na lateral do modal.
+ */
+.bloco { display: block; }
 
 .vazio {
   padding: 16px 0;

@@ -78,6 +78,20 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
               <div className={styles.notesBox}>{detail.notes}</div>
             )}
 
+            {/*
+              Lote consignado: o acerto vem ANTES dos itens, de propósito.
+              São 46 linhas de peça neste lote; deixar o pagamento embaixo delas
+              obrigava a rolar a lista inteira toda vez que ela fosse acertar
+              com a fornecedora — que é a ação mais repetida do lote, não a mais
+              rara. Usa `modalSection` para respeitar o respiro lateral das
+              demais seções.
+            */}
+            {detail.consignment_id && (
+              <div className={styles.modalSection}>
+                <BlocoAcertos id={detail.consignment_id} onMudou={() => router.refresh()} />
+              </div>
+            )}
+
             <div className={styles.modalSection}>
               <div className={styles.modalSectionTitle}><Package size={13} /> Itens ({detail.items.length})</div>
               <table className={styles.detailTable}>
@@ -152,15 +166,6 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
                   </tbody>
                 </table>
               </div>
-            )}
-
-            {/*
-              Lote consignado: o acerto com o fornecedor mora aqui dentro.
-              Consignação é uma compra, então a lista mostra uma linha só — e é
-              por ela que se chega ao pagamento parcial das peças.
-            */}
-            {detail.consignment_id && (
-              <BlocoAcertos id={detail.consignment_id} onMudou={() => router.refresh()} />
             )}
 
             <div className={styles.modalActions}>
