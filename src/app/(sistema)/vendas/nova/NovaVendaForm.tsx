@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
+import { consertosAbertosDaCliente } from '@/app/(sistema)/consertos/actions'
 import {
   Plus, Trash2, AlertTriangle, ChevronDown, Cake, X, CreditCard,
   Banknote, Smartphone, ArrowLeftRight, RefreshCw, User, CheckCircle2, Wrench,
@@ -78,6 +79,8 @@ interface SaleRow {
   isTroca: boolean
   /** Serviço do Ourives cobrado junto com as peças. Ver src/lib/conserto.ts. */
   isConserto: boolean
+  /** O conserto registrado que esta linha cobra, quando houver. */
+  consertoId: string | null
 }
 
 interface PaymentRow {
@@ -138,7 +141,7 @@ function isBirthdayMonth(birthday: string | null): boolean {
 }
 
 function emptyRow(): SaleRow {
-  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false, isConserto: false }
+  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false, isConserto: false, consertoId: null }
 }
 
 /**
@@ -158,6 +161,7 @@ function rowDoProduto(p: ProductOption): SaleRow {
     isService: p.is_service,
     isTroca: false,
     isConserto: false,
+    consertoId: null,
   }
 }
 
@@ -651,7 +655,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Itens da venda ────────────────────────────────────────────────────────
   const [rows, setRows] = useState<SaleRow[]>(
-    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r, isTroca: false, isConserto: false }))
+    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r, isTroca: false, isConserto: false, consertoId: null }))
       : produtoBipado ? [rowDoProduto(produtoBipado)]
       : [emptyRow()]
   )
@@ -813,6 +817,23 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   useEffect(() => {
     if (editInit.current || aniversarioTocado.current) return
     setHasBirthday(!!selectedCustomer && isBirthdayMonth(selectedCustomer.birthday))
+  }, [selectedCustomer])
+
+  /*
+   * As peças desta cliente que estão na loja ou com o ourives.
+   *
+   * É o que liga o PDV à tela de Consertos: quando ela vem buscar e pagar, a
+   * linha de conserto aponta para o registro e ele se fecha sozinho. Antes,
+   * cobrar e devolver eram dois gestos desligados — a peça continuava marcada
+   * como "na loja" para sempre.
+   */
+  const [consertosAbertos, setConsertosAbertos] = useState<{ id: string; rotulo: string }[]>([])
+
+  useEffect(() => {
+    let ativo = true
+    if (!selectedCustomer?.id) { setConsertosAbertos([]); return }
+    consertosAbertosDaCliente(selectedCustomer.id).then(r => { if (ativo) setConsertosAbertos(r) })
+    return () => { ativo = false }
   }, [selectedCustomer])
 
   /*
@@ -1058,6 +1079,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
        * ela gasta com ele é declarado uma vez por mês. */
       unitCost:    r.isConserto ? 0 : r.unitCost,
       isConserto:  r.isConserto || undefined,
+      consertoId:  r.isConserto ? r.consertoId : null,
     }))
 
     const devolvidos: ExchangeItemSelected[] = rows.filter(r => r.isTroca).map(r => ({
@@ -1254,11 +1276,27 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
                     <td className={`${styles.tdProd} col-esq`}>
                       {row.isConserto ? (
-                        /* Nada a buscar: a peça é da cliente. Só o valor
-                           importa, e ele é a próxima coluna. */
-                        <span className={styles.consertoRotulo}>
-                          <Wrench size={12} /> Conserto
-                        </span>
+                        /*
+                          Com peça registrada, ela escolhe QUAL está pagando —
+                          e ao salvar a venda o conserto se fecha sozinho.
+                          Sem nenhuma registrada (ou sem cliente selecionada),
+                          continua sendo só o rótulo: cobrar um conserto que
+                          ninguém cadastrou tem de seguir funcionando, senão ela
+                          trava no balcão.
+                        */
+                        consertosAbertos.length > 0 ? (
+                          <SearchableSelect
+                            value={row.consertoId ?? ''}
+                            onChange={v => updateRow(i, { consertoId: v || null })}
+                            options={consertosAbertos.map(c => ({ value: c.id, label: c.rotulo }))}
+                            placeholder="Qual peça? (opcional)"
+                            searchable={false}
+                          />
+                        ) : (
+                          <span className={styles.consertoRotulo}>
+                            <Wrench size={12} /> Conserto
+                          </span>
+                        )
                       ) : (
                       <ProductCombobox
                         value={row.productName}

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calcularTotalDaVenda } from '@/lib/vendas/total'
 import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { produtoDeConserto } from '@/lib/conserto'
+import { entregarPelaVenda } from '@/app/(sistema)/consertos/actions'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,17 @@ export interface SaleItem {
    * serviço da loja é o servidor.
    */
   isConserto?: boolean
+  /**
+   * O conserto registrado que esta linha está cobrando, quando houver.
+   *
+   * Ao salvar a venda, ele é marcado como ENTREGUE e passa a apontar para esta
+   * linha. É o que faz a tela de consertos e o PDV falarem a mesma língua: sem
+   * isso, ela cobrava na venda e a peça continuava "na loja" para sempre.
+   *
+   * Opcional de propósito — cobrar um conserto que ninguém registrou tem de
+   * continuar funcionando, senão ela trava no balcão.
+   */
+  consertoId?: string | null
 }
 
 export interface SalePaymentRow {
@@ -208,6 +220,32 @@ async function resolverConsertos(
   }
 }
 
+/**
+ * Fecha os consertos que esta venda cobrou.
+ *
+ * O `RETURNING` de um INSERT com várias linhas devolve na MESMA ORDEM em que
+ * foram enviadas, então o índice casa item com a linha criada. É o que permite
+ * gravar em qual `sale_item` cada conserto foi cobrado.
+ *
+ * Falhar aqui não derruba a venda: a venda aconteceu e o dinheiro entrou. Um
+ * conserto que ficou marcado como "pronto" é corrigível na tela; uma venda
+ * perdida, não.
+ */
+async function fecharConsertosDaVenda(
+  items: SaleItem[],
+  criados: { id: string }[] | null,
+): Promise<void> {
+  if (!criados?.length) return
+
+  for (let i = 0; i < items.length; i++) {
+    const consertoId = items[i]?.consertoId
+    if (!consertoId || !criados[i]) continue
+    try {
+      await entregarPelaVenda(consertoId, criados[i].id)
+    } catch { /* ver a nota acima: a venda vale mais que o vínculo */ }
+  }
+}
+
 // ─── Action: salvar venda ─────────────────────────────────────────────────────
 
 export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
@@ -308,8 +346,10 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
     subtotal:   parseFloat((i.unitPrice * i.quantity).toFixed(2)),
   }))
 
-  const { error: itemsErr } = await admin.from('sale_items').insert(saleItems)
+  const { data: itensCriados, error: itemsErr } = await admin.from('sale_items').insert(saleItems).select('id')
   if (itemsErr) return { success: false, error: `Erro ao criar itens: ${itemsErr.message}` }
+
+  await fecharConsertosDaVenda(data.items, itensCriados)
 
   for (const item of data.items) {
     const { data: prod } = await admin.from('products').select('quantity_in_stock, is_service').eq('id', item.productId).single()
@@ -888,8 +928,10 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
     unit_cost:  i.unitCost,
     subtotal:   parseFloat((i.unitPrice * i.quantity).toFixed(2)),
   }))
-  const { error: itemsErr } = await admin.from('sale_items').insert(saleItems)
+  const { data: itensCriados, error: itemsErr } = await admin.from('sale_items').insert(saleItems).select('id')
   if (itemsErr) return { success: false, error: `Erro ao criar itens: ${itemsErr.message}` }
+
+  await fecharConsertosDaVenda(data.items, itensCriados)
 
   for (const item of data.items) {
     const { data: prod } = await admin.from('products').select('quantity_in_stock, is_service').eq('id', item.productId).single()

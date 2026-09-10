@@ -74,6 +74,57 @@ export async function listarConsertos(incluirEntregues = false): Promise<Consert
   }))
 }
 
+export interface ConsertoAberto {
+  id: string
+  rotulo: string
+}
+
+/**
+ * Os consertos desta cliente que ainda não foram entregues.
+ *
+ * Alimenta o PDV: quando a cliente vem buscar a peça e pagar, a linha de
+ * conserto da venda aponta para o registro, e ele se fecha sozinho. Sem isto,
+ * cobrar e devolver eram dois gestos desligados — ela cobrava na venda e o
+ * conserto continuava marcado como "na loja" para sempre.
+ */
+export async function consertosAbertosDaCliente(customerId: string): Promise<ConsertoAberto[]> {
+  const ctx = await escopo()
+  if (!ctx || !customerId) return []
+
+  const admin = createAdminClient()
+  let q = admin
+    .from('consertos')
+    .select('id, peca, servico, recebido_em, status')
+    .eq('customer_id', customerId)
+    .neq('status', 'entregue')
+
+  if (ctx.loja) q = q.eq('store_id', ctx.loja)
+
+  const { data } = await q.order('recebido_em', { ascending: false })
+
+  return ((data ?? []) as any[]).map(c => ({
+    id: c.id,
+    // O rótulo carrega o que ela precisa para reconhecer a peça no balcão.
+    rotulo: [c.peca, c.servico].filter(Boolean).join(' — '),
+  }))
+}
+
+/**
+ * Fecha o conserto porque a cliente pagou e levou.
+ *
+ * Chamado pelo salvamento da venda, não pela tela: é a venda que prova que a
+ * peça saiu daqui.
+ */
+export async function entregarPelaVenda(consertoId: string, saleItemId: string): Promise<void> {
+  const admin = createAdminClient()
+  await admin.from('consertos').update({
+    status:       'entregue',
+    entregue_em:  new Date().toISOString().slice(0, 10),
+    sale_item_id: saleItemId,
+    updated_at:   new Date().toISOString(),
+  }).eq('id', consertoId)
+}
+
 export async function registrarConserto(dados: {
   customerId: string
   peca: string
