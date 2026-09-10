@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import {
   Plus, Trash2, AlertTriangle, ChevronDown, Cake, X, CreditCard,
-  Banknote, Smartphone, ArrowLeftRight, RefreshCw, User, CheckCircle2,
+  Banknote, Smartphone, ArrowLeftRight, RefreshCw, User, CheckCircle2, Wrench,
 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
@@ -76,6 +76,8 @@ interface SaleRow {
    * ou recebe.
    */
   isTroca: boolean
+  /** Serviço do Ourives cobrado junto com as peças. Ver src/lib/conserto.ts. */
+  isConserto: boolean
 }
 
 interface PaymentRow {
@@ -136,7 +138,7 @@ function isBirthdayMonth(birthday: string | null): boolean {
 }
 
 function emptyRow(): SaleRow {
-  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false }
+  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false, isConserto: false }
 }
 
 /**
@@ -155,6 +157,7 @@ function rowDoProduto(p: ProductOption): SaleRow {
     stockAvailable: p.quantity_in_stock,
     isService: p.is_service,
     isTroca: false,
+    isConserto: false,
   }
 }
 
@@ -648,7 +651,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Itens da venda ────────────────────────────────────────────────────────
   const [rows, setRows] = useState<SaleRow[]>(
-    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r, isTroca: false }))
+    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r, isTroca: false, isConserto: false }))
       : produtoBipado ? [rowDoProduto(produtoBipado)]
       : [emptyRow()]
   )
@@ -965,11 +968,21 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   async function handleSubmit() {
     setError('')
 
-    const activeRows = rows.filter(r => r.productId || r.productName.trim())
+    const activeRows = rows.filter(r => r.productId || r.productName.trim() || r.isConserto)
     if (!activeRows.length) { setError('Adicione ao menos um produto.'); return }
     for (let i = 0; i < rows.length; i++) {
-      if (!rows[i].productId) { setError(`Linha ${i + 1}: selecione um produto do catálogo.`); return }
-      if (rows[i].unitPrice <= 0) { setError(`Linha ${i + 1}: preço inválido.`); return }
+      /* Conserto não sai do catálogo: a peça é da cliente e quem consertou foi
+       * o Ourives. O que a linha precisa é do valor cobrado, conferido logo
+       * abaixo como em qualquer outra. */
+      if (!rows[i].isConserto && !rows[i].productId) {
+        setError(`Linha ${i + 1}: selecione um produto do catálogo.`); return
+      }
+      if (rows[i].unitPrice <= 0) {
+        setError(rows[i].isConserto
+          ? `Linha ${i + 1}: informe quanto você cobrou pelo conserto.`
+          : `Linha ${i + 1}: preço inválido.`)
+        return
+      }
       if (!rows[i].quantity || (rows[i].quantity as number) < 1) { setError(`Linha ${i + 1}: quantidade deve ser ao menos 1.`); return }
     }
     if (!storeId) { setError('Selecione a loja.'); return }
@@ -1041,7 +1054,10 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       productName: r.productName,
       quantity:    (r.quantity as number) || 1,
       unitPrice:   r.unitPrice,
-      unitCost:    r.unitCost,
+      /* Conserto não tem custo: o dinheiro vai inteiro para o Ourives, e o que
+       * ela gasta com ele é declarado uma vez por mês. */
+      unitCost:    r.isConserto ? 0 : r.unitCost,
+      isConserto:  r.isConserto || undefined,
     }))
 
     const devolvidos: ExchangeItemSelected[] = rows.filter(r => r.isTroca).map(r => ({
@@ -1236,6 +1252,13 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                     <td className={styles.tdNum}>{i + 1}</td>
 
                     <td className={`${styles.tdProd} col-esq`}>
+                      {row.isConserto ? (
+                        /* Nada a buscar: a peça é da cliente. Só o valor
+                           importa, e ele é a próxima coluna. */
+                        <span className={styles.consertoRotulo}>
+                          <Wrench size={12} /> Conserto
+                        </span>
+                      ) : (
                       <ProductCombobox
                         value={row.productName}
                         onChange={(name, p) => handleProductSelect(i, name, p)}
@@ -1244,7 +1267,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                         colIndex={0}
                         onGridKeyDown={handleGridKeyDown}
                       />
-                      {stockWarn && (
+                      )}
+                      {!row.isConserto && stockWarn && (
                         <div className={styles.stockWarn}>
                           <AlertTriangle size={11} />
                           {noStock ? 'Sem estoque' : `Apenas ${row.stockAvailable} em estoque`}
@@ -1268,6 +1292,32 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                           : 'Marcar como peça devolvida pela cliente'}
                       >
                         <ArrowLeftRight size={13} />
+                      </button>
+
+                      {/*
+                        CONSERTO, ao lado da troca e pelo mesmo gesto.
+                        Pedido da dona em 09/09: "onde teve troca, tem um
+                        botãozinho escrito conserto, aí aparece um conserto, eu
+                        só digito o valor". Não precisa de produto: a peça é da
+                        cliente, quem consertou foi o Ourives, e a loja só
+                        cobra e repassa.
+                      */}
+                      <button
+                        type="button"
+                        className={`${styles.trocaBtn} ${row.isConserto ? styles.consertoBtnAtivo : ''}`}
+                        onClick={() => updateRow(i, {
+                          isConserto: !row.isConserto,
+                          // Vira conserto: some o produto e a troca, que não se
+                          // combinam com serviço.
+                          ...(row.isConserto
+                            ? { productId: null, productName: '', unitPrice: 0 }
+                            : { productId: null, productName: 'Conserto', isTroca: false, quantity: 1, unitCost: 0 }),
+                        })}
+                        title={row.isConserto
+                          ? 'É um conserto. Clique para voltar a peça.'
+                          : 'Marcar como conserto — só o valor cobrado'}
+                      >
+                        <Wrench size={13} />
                       </button>
                     </td>
 

@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { calcularTotalDaVenda } from '@/lib/vendas/total'
 import { getProfile, lojaDoEscopo } from '@/lib/auth'
+import { produtoDeConserto } from '@/lib/conserto'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -20,6 +21,14 @@ export interface SaleItem {
   quantity: number
   unitPrice: number
   unitCost: number
+  /**
+   * Linha de CONSERTO: serviço do Ourives que a cliente paga junto com as
+   * peças. Sem custo, sem estoque e fora da comissão — ver src/lib/conserto.ts.
+   *
+   * Quando marcada, o `productId` que vem da tela é IGNORADO: quem resolve o
+   * serviço da loja é o servidor.
+   */
+  isConserto?: boolean
 }
 
 export interface SalePaymentRow {
@@ -174,6 +183,31 @@ function buildPaymentSummary(payments: SalePaymentRow[], hasExchange: boolean, e
 // reescritos quando uma venda é criada/editada/excluída depois — o snapshot vale
 // como "o que foi conferido naquele momento". A verdade contábil está nas vendas.
 
+/**
+ * Troca as linhas de conserto pelo serviço da loja, com custo zero.
+ *
+ * Roda no servidor de propósito: a tela só declara "isto é conserto e custa
+ * tanto". Deixar o `productId` vir de lá abriria caminho para lançar qualquer
+ * produto como serviço — e serviço não baixa estoque, então a peça sairia da
+ * loja sem sair do sistema.
+ */
+async function resolverConsertos(
+  admin: ReturnType<typeof createAdminClient>,
+  storeId: string,
+  items: SaleItem[],
+): Promise<{ items: SaleItem[]; error?: string }> {
+  if (!items.some(i => i.isConserto)) return { items }
+
+  const { id, error } = await produtoDeConserto(admin, storeId)
+  if (!id) return { items, error }
+
+  return {
+    items: items.map(i => i.isConserto
+      ? { ...i, productId: id, productName: 'Conserto', unitCost: 0 }
+      : i),
+  }
+}
+
 // ─── Action: salvar venda ─────────────────────────────────────────────────────
 
 export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
@@ -261,6 +295,10 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
   if (saleErr || !sale) return { success: false, error: `Erro ao criar venda: ${saleErr?.message}` }
 
   // ── 6. Criar sale_items e decrementar estoque ─────────────────────────────
+  const { items: itensResolvidos, error: consertoErr } = await resolverConsertos(admin, finalStoreId, data.items)
+  if (consertoErr) return { success: false, error: consertoErr }
+  data = { ...data, items: itensResolvidos }
+
   const saleItems = data.items.map(i => ({
     sale_id:    sale.id,
     product_id: i.productId,
@@ -838,6 +876,10 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
   if (updErr) return { success: false, error: `Erro ao atualizar venda: ${updErr.message}` }
 
   // ── 4. Reinserir itens + baixar estoque (skip serviço) ────────────────────
+  const { items: itensResolvidos, error: consertoErr } = await resolverConsertos(admin, finalStoreId, data.items)
+  if (consertoErr) return { success: false, error: consertoErr }
+  data = { ...data, items: itensResolvidos }
+
   const saleItems = data.items.map(i => ({
     sale_id:    saleId,
     product_id: i.productId,
