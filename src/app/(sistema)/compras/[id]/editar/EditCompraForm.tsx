@@ -12,6 +12,7 @@ import {
 } from '@/app/(sistema)/compras/actions'
 import styles from './EditCompraForm.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import DatePicker from '@/components/ui/DatePicker'
 
 interface Props {
   compra: CompraParaEdicao
@@ -272,12 +273,9 @@ export default function EditCompraForm({ compra }: Props) {
         <div className={styles.headerGrid}>
           <div className={styles.field}>
             <label className={styles.label}>Data da compra</label>
-            <input
-              type="date"
-              className={styles.input}
-              value={purchaseDate}
-              onChange={e => setPurchaseDate(e.target.value)}
-            />
+            {/* O seletor do sistema: o nativo abre em inglês no Windows e
+                ignora o tema escuro. */}
+            <DatePicker value={purchaseDate} onChange={setPurchaseDate} />
           </div>
           <div className={styles.field}>
             <label className={styles.label}>Observações</label>
@@ -524,11 +522,9 @@ export default function EditCompraForm({ compra }: Props) {
                   </td>
 
                   <td>
-                    <input
-                      type="date"
-                      className={styles.payInput}
+                    <DatePicker
                       value={pay.dueDate}
-                      onChange={e => updatePayment(idx, 'dueDate', e.target.value)}
+                      onChange={v => updatePayment(idx, 'dueDate', v)}
                     />
                   </td>
 
