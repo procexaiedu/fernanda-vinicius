@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calcularTotalDaVenda } from '@/lib/vendas/total'
 import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { produtoDeConserto } from '@/lib/conserto'
-import { entregarPelaVenda } from '@/app/(sistema)/consertos/actions'
+import { entregarPelaVenda, registrarConsertoJaEntregue } from '@/app/(sistema)/consertos/actions'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -41,6 +41,8 @@ export interface SaleItem {
    * continuar funcionando, senão ela trava no balcão.
    */
   consertoId?: string | null
+  /** O que foi consertado, quando ela digita em vez de escolher uma peça registrada. */
+  consertoDescricao?: string | null
 }
 
 export interface SalePaymentRow {
@@ -234,14 +236,33 @@ async function resolverConsertos(
 async function fecharConsertosDaVenda(
   items: SaleItem[],
   criados: { id: string }[] | null,
+  contexto: { storeId: string; customerId: string | null; userId: string },
 ): Promise<void> {
   if (!criados?.length) return
 
   for (let i = 0; i < items.length; i++) {
-    const consertoId = items[i]?.consertoId
-    if (!consertoId || !criados[i]) continue
+    const item = items[i]
+    if (!item?.isConserto || !criados[i]) continue
+
     try {
-      await entregarPelaVenda(consertoId, criados[i].id)
+      if (item.consertoId) {
+        // Peça que já estava registrada: a venda a entrega.
+        await entregarPelaVenda(item.consertoId, criados[i].id)
+      } else {
+        /*
+         * Cobrança direta, sem peça registrada antes. O PDV cria o registro
+         * já entregue — senão o conserto existiria só como dinheiro, e a tela
+         * de Consertos ficaria cega para ele. Foi o que o dono encontrou na
+         * primeira vez que usou: cobrou dois e não apareceu nada lá.
+         */
+        await registrarConsertoJaEntregue({
+          storeId:    contexto.storeId,
+          customerId: contexto.customerId,
+          descricao:  item.consertoDescricao ?? null,
+          saleItemId: criados[i].id,
+          userId:     contexto.userId,
+        })
+      }
     } catch { /* ver a nota acima: a venda vale mais que o vínculo */ }
   }
 }
@@ -349,7 +370,9 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
   const { data: itensCriados, error: itemsErr } = await admin.from('sale_items').insert(saleItems).select('id')
   if (itemsErr) return { success: false, error: `Erro ao criar itens: ${itemsErr.message}` }
 
-  await fecharConsertosDaVenda(data.items, itensCriados)
+  await fecharConsertosDaVenda(data.items, itensCriados, {
+    storeId: finalStoreId, customerId: data.customerId, userId,
+  })
 
   for (const item of data.items) {
     const { data: prod } = await admin.from('products').select('quantity_in_stock, is_service').eq('id', item.productId).single()
@@ -931,7 +954,9 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
   const { data: itensCriados, error: itemsErr } = await admin.from('sale_items').insert(saleItems).select('id')
   if (itemsErr) return { success: false, error: `Erro ao criar itens: ${itemsErr.message}` }
 
-  await fecharConsertosDaVenda(data.items, itensCriados)
+  await fecharConsertosDaVenda(data.items, itensCriados, {
+    storeId: finalStoreId, customerId: data.customerId, userId,
+  })
 
   for (const item of data.items) {
     const { data: prod } = await admin.from('products').select('quantity_in_stock, is_service').eq('id', item.productId).single()

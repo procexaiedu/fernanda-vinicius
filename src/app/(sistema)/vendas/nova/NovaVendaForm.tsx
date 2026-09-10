@@ -81,6 +81,8 @@ interface SaleRow {
   isConserto: boolean
   /** O conserto registrado que esta linha cobra, quando houver. */
   consertoId: string | null
+  /** O que foi consertado, quando ela digita em vez de escolher uma peça. */
+  consertoDescricao: string
 }
 
 interface PaymentRow {
@@ -141,7 +143,7 @@ function isBirthdayMonth(birthday: string | null): boolean {
 }
 
 function emptyRow(): SaleRow {
-  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false, isConserto: false, consertoId: null }
+  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false, isConserto: false, consertoId: null, consertoDescricao: '' }
 }
 
 /**
@@ -162,6 +164,7 @@ function rowDoProduto(p: ProductOption): SaleRow {
     isTroca: false,
     isConserto: false,
     consertoId: null,
+    consertoDescricao: '',
   }
 }
 
@@ -655,7 +658,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Itens da venda ────────────────────────────────────────────────────────
   const [rows, setRows] = useState<SaleRow[]>(
-    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r, isTroca: false, isConserto: false, consertoId: null }))
+    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r, isTroca: false, isConserto: false, consertoId: null, consertoDescricao: '' }))
       : produtoBipado ? [rowDoProduto(produtoBipado)]
       : [emptyRow()]
   )
@@ -1080,6 +1083,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       unitCost:    r.isConserto ? 0 : r.unitCost,
       isConserto:  r.isConserto || undefined,
       consertoId:  r.isConserto ? r.consertoId : null,
+      consertoDescricao: r.isConserto ? (r.consertoDescricao || null) : null,
     }))
 
     const devolvidos: ExchangeItemSelected[] = rows.filter(r => r.isTroca).map(r => ({
@@ -1293,9 +1297,24 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                             searchable={false}
                           />
                         ) : (
-                          <span className={styles.consertoRotulo}>
-                            <Wrench size={12} /> Conserto
-                          </span>
+                          /*
+                            Sem peça registrada, ela DIZ o que foi consertado —
+                            e o registro nasce da própria venda. Antes aqui só
+                            havia um rótulo fixo, e o conserto cobrado no balcão
+                            não aparecia em lugar nenhum além do dinheiro.
+
+                            É também o que a ata de 09/09 pedia: "preencher qual
+                            vai ser o conserto e o valor dele".
+                          */
+                          <div className={styles.consertoCampo}>
+                            <Wrench size={12} className={styles.consertoIcone} />
+                            <input
+                              className={styles.cell}
+                              placeholder="O que foi consertado?"
+                              value={row.consertoDescricao}
+                              onChange={e => updateRow(i, { consertoDescricao: e.target.value })}
+                            />
+                          </div>
                         )
                       ) : (
                       <ProductCombobox

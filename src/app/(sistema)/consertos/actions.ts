@@ -125,6 +125,45 @@ export async function entregarPelaVenda(consertoId: string, saleItemId: string):
   }).eq('id', consertoId)
 }
 
+/**
+ * Registra um conserto que nasceu JÁ COBRADO, direto no PDV.
+ *
+ * Existe porque o desenho anterior deixava um buraco que o dono encontrou na
+ * primeira vez que usou: ele cobrou dois consertos no PDV e não apareceu nada
+ * na tela de Consertos. A linha da venda só sabia LIGAR a uma peça já
+ * registrada — se ninguém tivesse registrado antes, o conserto não existia em
+ * lugar nenhum além do dinheiro.
+ *
+ * Agora o PDV sempre alimenta a tela. Nasce como ENTREGUE porque foi isso que
+ * aconteceu: a cliente pagou e levou na mesma hora. Aparece no histórico, com
+ * valor, e a soma do mês passa a bater com o que a tela mostra.
+ *
+ * Quem quer acompanhar a peça enquanto ela está na loja continua registrando
+ * antes, pela tela — aí o fluxo inteiro vale.
+ */
+export async function registrarConsertoJaEntregue(dados: {
+  storeId: string
+  customerId: string | null
+  descricao: string | null
+  saleItemId: string
+  userId: string
+}): Promise<void> {
+  const admin = createAdminClient()
+  const hoje = new Date().toISOString().slice(0, 10)
+
+  await admin.from('consertos').insert({
+    store_id:     dados.storeId,
+    customer_id:  dados.customerId,
+    // Sem descrição digitada sobra o genérico — melhor que perder o registro.
+    peca:         dados.descricao?.trim() || 'Conserto',
+    recebido_em:  hoje,
+    status:       'entregue',
+    entregue_em:  hoje,
+    sale_item_id: dados.saleItemId,
+    user_id:      dados.userId,
+  })
+}
+
 export async function registrarConserto(dados: {
   customerId: string
   peca: string

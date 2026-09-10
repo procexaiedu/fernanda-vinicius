@@ -58,3 +58,11 @@ COMMENT ON COLUMN fv.consertos.sale_item_id IS
 
 -- Schema novo nasce sem GRANT: sem isto, 42501 na cara da usuária.
 GRANT SELECT, INSERT, UPDATE, DELETE ON fv.consertos TO authenticated, service_role;
+
+
+-- Conserto cobrado direto no balcão pode não ter cliente identificada.
+-- Registrado pela tela, o cliente segue obrigatório — a própria tela exige.
+ALTER TABLE fv.consertos ALTER COLUMN customer_id DROP NOT NULL;
+
+COMMENT ON COLUMN fv.consertos.customer_id IS
+  'De quem é a peça. Nulo só quando o conserto nasceu de uma cobrança avulsa no PDV, sem cliente selecionada.';
