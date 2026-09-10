@@ -31,6 +31,15 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export const CATEGORIA_CONSERTO = 'conserto'
 
 /**
+ * Categoria da despesa com o Ourives — o outro lado do conserto.
+ *
+ * Mora aqui, e não no arquivo de ações do financeiro, porque arquivo
+ * `'use server'` só exporta função assíncrona. E faz sentido: as duas pontas
+ * da mesma conta ficam no mesmo lugar.
+ */
+export const CATEGORIA_OURIVES = 'ourives'
+
+/**
  * O id do serviço de conserto da loja, criando-o se ainda não existir.
  *
  * Cria em vez de falhar de propósito: sem isso, uma loja nova (o CNPJ de
