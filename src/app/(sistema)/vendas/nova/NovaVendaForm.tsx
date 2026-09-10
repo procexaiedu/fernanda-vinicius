@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { consertosAbertosDaCliente } from '@/app/(sistema)/consertos/actions'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 import {
   Plus, Trash2, AlertTriangle, ChevronDown, Cake, X, CreditCard,
   Banknote, Smartphone, ArrowLeftRight, RefreshCw, User, CheckCircle2, Wrench,
@@ -504,15 +505,24 @@ function CreateCustomerModal({ storeId, nomeInicial, onClose, onCreated }: {
     if (erroTel) { setError(erroTel); return }
     setSaving(true)
     setError('')
-    const result = await createCustomer({
-      // Grava na forma canônica (+5519995672222), como /clientes. Sem isso, o
-      // cliente criado na venda não é achado depois pela busca por telefone.
-      name, phone: normalizarTelefone(phone), cpf, email, birthday,
-      address: '', city: '', state: '', zip_code: '',
-      origin_store_id: storeId,
-      notes: '',
-    })
-    setSaving(false)
+    /* Mesmo motivo do salvamento da venda: sem o finally, uma falha aqui trava
+     * o cadastro da cliente no meio do atendimento. */
+    let result: Awaited<ReturnType<typeof createCustomer>>
+    try {
+      result = await createCustomer({
+        // Grava na forma canônica (+5519995672222), como /clientes. Sem isso, o
+        // cliente criado na venda não é achado depois pela busca por telefone.
+        name, phone: normalizarTelefone(phone), cpf, email, birthday,
+        address: '', city: '', state: '', zip_code: '',
+        origin_store_id: storeId,
+        notes: '',
+      })
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setSaving(false)
+    }
     if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
     // result.id vem do banco — nunca vazio
     onCreated({ id: result.id!, name: name.trim(), phone: normalizarTelefone(phone), cpf: cpf.replace(/\D/g, '') || null, birthday: birthday || null })
@@ -1116,8 +1126,30 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     }
 
     setSaving(true)
-    const result = isEditing ? await editarVenda(editSale!.id, formData) : await salvarVenda(formData)
-    setSaving(false)
+
+    /*
+     * O try/finally é o que impede o balcão de travar.
+     *
+     * Sem ele, qualquer coisa que quebre a promessa — rede, tempo esgotado, ou
+     * um deploy no meio da venda — deixava o botão girando PARA SEMPRE, sem
+     * mensagem. Aconteceu duas vezes na tela de compras; aqui seria pior, com a
+     * cliente esperando na frente.
+     *
+     * E o risco não é o giro: é ela clicar de novo achando que não pegou, e a
+     * venda entrar duas vezes. Enquanto `saving` está ligado o botão bloqueia,
+     * então o `finally` só o libera depois que a resposta chegou — ou falhou.
+     */
+    let result: Awaited<ReturnType<typeof salvarVenda>>
+    try {
+      result = isEditing ? await editarVenda(editSale!.id, formData) : await salvarVenda(formData)
+    } catch (e) {
+      /* A venda NÃO tem rascunho: o que está na tela é tudo o que existe. A
+       * mensagem avisa para não recarregar — ver src/lib/erroDeSalvar.ts. */
+      setError(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setSaving(false)
+    }
 
     if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
     if (onSaved) { onSaved(result.saleId ?? ''); return }   // PDV: fica na tela (o pai reseta o form)

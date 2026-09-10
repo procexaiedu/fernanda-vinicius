@@ -951,7 +951,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
     } catch (e) {
       // Rascunho INTACTO de propósito: o `clearDraft()` só roda no sucesso, lá
       // embaixo. Falhou, ela recarrega a página e recupera tudo que digitou.
-      setError(mensagemDeErroAoSalvar(e))
+      setError(mensagemDeErroAoSalvar(e, { temRascunho: true }))
       return
     } finally {
       setSaving(false)
