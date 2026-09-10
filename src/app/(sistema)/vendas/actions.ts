@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { calcularTotalDaVenda } from '@/lib/vendas/total'
 import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { produtoDeConserto } from '@/lib/conserto'
-import { entregarPelaVenda, registrarConsertoJaEntregue } from '@/app/(sistema)/consertos/actions'
+import { registrarPagamentoDoConserto, registrarConsertoDaVenda } from '@/app/(sistema)/consertos/actions'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -43,6 +43,13 @@ export interface SaleItem {
   consertoId?: string | null
   /** O que foi consertado, quando ela digita em vez de escolher uma peça registrada. */
   consertoDescricao?: string | null
+  /**
+   * A peça FICOU na loja? Só faz sentido quando o conserto nasce desta venda.
+   *
+   * Distingue os dois jeitos: pagou e levou na hora, ou pagou adiantado e a
+   * peça continua aqui esperando o ourives.
+   */
+  consertoFicouNaLoja?: boolean
 }
 
 export interface SalePaymentRow {
@@ -246,21 +253,28 @@ async function fecharConsertosDaVenda(
 
     try {
       if (item.consertoId) {
-        // Peça que já estava registrada: a venda a entrega.
-        await entregarPelaVenda(item.consertoId, criados[i].id)
+        /*
+         * Peça já registrada: a venda diz que foi PAGA, não que saiu.
+         *
+         * Pagar e entregar são coisas diferentes — "ela diz se a cliente paga o
+         * conserto depois ou antes". Pagando adiantado, a peça continua na loja,
+         * e marcá-la como entregue aqui a apagaria da tela justamente enquanto
+         * ainda está aqui. Quem entrega é quem clica em "Cliente levou".
+         */
+        await registrarPagamentoDoConserto(item.consertoId, criados[i].id)
       } else {
         /*
-         * Cobrança direta, sem peça registrada antes. O PDV cria o registro
-         * já entregue — senão o conserto existiria só como dinheiro, e a tela
-         * de Consertos ficaria cega para ele. Foi o que o dono encontrou na
-         * primeira vez que usou: cobrou dois e não apareceu nada lá.
+         * Cobrança direta, sem peça registrada antes. O PDV cria o registro —
+         * senão o conserto existiria só como dinheiro, e a tela de Consertos
+         * ficaria cega para ele.
          */
-        await registrarConsertoJaEntregue({
-          storeId:    contexto.storeId,
-          customerId: contexto.customerId,
-          descricao:  item.consertoDescricao ?? null,
-          saleItemId: criados[i].id,
-          userId:     contexto.userId,
+        await registrarConsertoDaVenda({
+          storeId:     contexto.storeId,
+          customerId:  contexto.customerId,
+          descricao:   item.consertoDescricao ?? null,
+          saleItemId:  criados[i].id,
+          userId:      contexto.userId,
+          ficouNaLoja: !!item.consertoFicouNaLoja,
         })
       }
     } catch { /* ver a nota acima: a venda vale mais que o vínculo */ }

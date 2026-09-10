@@ -83,6 +83,8 @@ interface SaleRow {
   consertoId: string | null
   /** O que foi consertado, quando ela digita em vez de escolher uma peça. */
   consertoDescricao: string
+  /** A peça ficou na loja (pagou adiantado) ou a cliente levou agora? */
+  consertoFicouNaLoja: boolean
 }
 
 interface PaymentRow {
@@ -143,7 +145,7 @@ function isBirthdayMonth(birthday: string | null): boolean {
 }
 
 function emptyRow(): SaleRow {
-  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false, isConserto: false, consertoId: null, consertoDescricao: '' }
+  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false, isConserto: false, consertoId: null, consertoDescricao: '', consertoFicouNaLoja: false }
 }
 
 /**
@@ -165,6 +167,7 @@ function rowDoProduto(p: ProductOption): SaleRow {
     isConserto: false,
     consertoId: null,
     consertoDescricao: '',
+    consertoFicouNaLoja: false,
   }
 }
 
@@ -658,7 +661,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Itens da venda ────────────────────────────────────────────────────────
   const [rows, setRows] = useState<SaleRow[]>(
-    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r, isTroca: false, isConserto: false, consertoId: null, consertoDescricao: '' }))
+    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r, isTroca: false, isConserto: false, consertoId: null, consertoDescricao: '', consertoFicouNaLoja: false }))
       : produtoBipado ? [rowDoProduto(produtoBipado)]
       : [emptyRow()]
   )
@@ -1084,6 +1087,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       isConserto:  r.isConserto || undefined,
       consertoId:  r.isConserto ? r.consertoId : null,
       consertoDescricao: r.isConserto ? (r.consertoDescricao || null) : null,
+      consertoFicouNaLoja: r.isConserto ? r.consertoFicouNaLoja : undefined,
     }))
 
     const devolvidos: ExchangeItemSelected[] = rows.filter(r => r.isTroca).map(r => ({
@@ -1306,14 +1310,31 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                             É também o que a ata de 09/09 pedia: "preencher qual
                             vai ser o conserto e o valor dele".
                           */
-                          <div className={styles.consertoCampo}>
-                            <Wrench size={12} className={styles.consertoIcone} />
-                            <input
-                              className={styles.cell}
-                              placeholder="O que foi consertado?"
-                              value={row.consertoDescricao}
-                              onChange={e => updateRow(i, { consertoDescricao: e.target.value })}
-                            />
+                          <div className={styles.consertoBloco}>
+                            <div className={styles.consertoCampo}>
+                              <Wrench size={12} className={styles.consertoIcone} />
+                              <input
+                                className={styles.cell}
+                                placeholder="O que foi consertado?"
+                                value={row.consertoDescricao}
+                                onChange={e => updateRow(i, { consertoDescricao: e.target.value })}
+                              />
+                            </div>
+                            {/*
+                              "Ela diz se a cliente paga o conserto depois ou
+                              antes." Pagando adiantado, a peça FICA — e precisa
+                              continuar aparecendo na tela de Consertos até
+                              alguém entregar. Sem esta marca, ela sumiria do
+                              acompanhamento no instante em que foi paga.
+                            */}
+                            <label className={styles.consertoFicou}>
+                              <input
+                                type="checkbox"
+                                checked={row.consertoFicouNaLoja}
+                                onChange={e => updateRow(i, { consertoFicouNaLoja: e.target.checked })}
+                              />
+                              A peça ficou na loja (pagou adiantado)
+                            </label>
                           </div>
                         )
                       ) : (

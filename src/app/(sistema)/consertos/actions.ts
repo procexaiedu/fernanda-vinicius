@@ -127,43 +127,45 @@ export async function consertosAbertosDaCliente(customerId: string): Promise<Con
 }
 
 /**
- * Fecha o conserto porque a cliente pagou e levou.
+ * PAGAR NÃO É ENTREGAR, e confundir os dois foi o meu erro.
  *
- * Chamado pelo salvamento da venda, não pela tela: é a venda que prova que a
- * peça saiu daqui.
+ * O dono corrigiu em 10/09: "ela diz se a cliente paga o conserto depois ou
+ * antes". Quando paga adiantado, a peça CONTINUA NA LOJA — esperando o
+ * ourives, ou esperando ela voltar. Marcar como entregue na hora do pagamento
+ * apagaria da tela justamente a peça que ainda está aqui.
+ *
+ * Então a venda registra só o PAGAMENTO. Quem diz que a peça saiu é quem a
+ * entregou, no botão "Cliente levou".
  */
-export async function entregarPelaVenda(consertoId: string, saleItemId: string): Promise<void> {
+export async function registrarPagamentoDoConserto(consertoId: string, saleItemId: string): Promise<void> {
   const admin = createAdminClient()
   await admin.from('consertos').update({
-    status:       'entregue',
-    entregue_em:  new Date().toISOString().slice(0, 10),
     sale_item_id: saleItemId,
     updated_at:   new Date().toISOString(),
   }).eq('id', consertoId)
 }
 
 /**
- * Registra um conserto que nasceu JÁ COBRADO, direto no PDV.
+ * Registra um conserto que nasceu da própria cobrança no PDV.
  *
  * Existe porque o desenho anterior deixava um buraco que o dono encontrou na
  * primeira vez que usou: ele cobrou dois consertos no PDV e não apareceu nada
  * na tela de Consertos. A linha da venda só sabia LIGAR a uma peça já
- * registrada — se ninguém tivesse registrado antes, o conserto não existia em
- * lugar nenhum além do dinheiro.
+ * registrada — sem registro anterior, o conserto existia só como dinheiro.
  *
- * Agora o PDV sempre alimenta a tela. Nasce como ENTREGUE porque foi isso que
- * aconteceu: a cliente pagou e levou na mesma hora. Aparece no histórico, com
- * valor, e a soma do mês passa a bater com o que a tela mostra.
+ * `ficouNaLoja` decide em que estado ele nasce, e é a diferença entre os dois
+ * jeitos de a loja trabalhar:
  *
- * Quem quer acompanhar a peça enquanto ela está na loja continua registrando
- * antes, pela tela — aí o fluxo inteiro vale.
+ *   pagou e levou na hora  → nasce ENTREGUE, vira histórico
+ *   pagou adiantado        → nasce NA LOJA, e segue o fluxo até ela buscar
  */
-export async function registrarConsertoJaEntregue(dados: {
+export async function registrarConsertoDaVenda(dados: {
   storeId: string
   customerId: string | null
   descricao: string | null
   saleItemId: string
   userId: string
+  ficouNaLoja: boolean
 }): Promise<void> {
   const admin = createAdminClient()
   const hoje = new Date().toISOString().slice(0, 10)
@@ -174,8 +176,8 @@ export async function registrarConsertoJaEntregue(dados: {
     // Sem descrição digitada sobra o genérico — melhor que perder o registro.
     peca:         dados.descricao?.trim() || 'Conserto',
     recebido_em:  hoje,
-    status:       'entregue',
-    entregue_em:  hoje,
+    status:       dados.ficouNaLoja ? 'recebido' : 'entregue',
+    entregue_em:  dados.ficouNaLoja ? null : hoje,
     sale_item_id: dados.saleItemId,
     user_id:      dados.userId,
   })

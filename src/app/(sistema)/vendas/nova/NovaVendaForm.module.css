@@ -1177,3 +1177,19 @@
 .consertoIcone { color: var(--warning); flex: 0 0 auto; }
 
 .consertoCampo .cell { background: transparent; border: none; }
+
+.consertoBloco { display: flex; flex-direction: column; gap: 5px; }
+
+/* A marca de "ficou na loja" é discreta: na maioria das vezes a cliente leva
+   na hora, e o caso comum não deve pesar na tela. */
+.consertoFicou {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.consertoFicou input { accent-color: var(--warning); cursor: pointer; }
