@@ -1228,6 +1228,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               <tr>
                 <th className={styles.thNum}>#</th>
                 <th className={`${styles.thProd} col-esq`}>Produto</th>
+                <th className={styles.thTroca}>Conserto</th>
                 <th className={styles.thTroca}>Troca</th>
                 <th className={`${styles.thQty} col-num`}>Qtd</th>
                 <th className={`${styles.thPrice} col-num`}>Preço Unit.</th>
@@ -1277,31 +1278,12 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                     </td>
 
                     {/*
-                      O marcador que a Fernanda desenhou no treinamento de
-                      31/08: um clique na linha da peça diz se ela está saindo
-                      ou voltando. Sem tela separada, sem buscar a venda antiga.
+                      CONSERTO em coluna própria, à esquerda da troca.
+                      Empilhado embaixo do botão de troca, na mesma célula, os
+                      dois pareciam a mesma coisa — e são opostos: um é peça
+                      voltando, o outro é serviço que nem peça tem.
                     */}
                     <td className={styles.tdTroca}>
-                      <button
-                        type="button"
-                        className={`${styles.trocaBtn} ${row.isTroca ? styles.trocaBtnAtivo : ''}`}
-                        onClick={() => updateRow(i, { isTroca: !row.isTroca })}
-                        disabled={!row.productId}
-                        title={row.isTroca
-                          ? 'Está voltando para o estoque. Clique para desfazer.'
-                          : 'Marcar como peça devolvida pela cliente'}
-                      >
-                        <ArrowLeftRight size={13} />
-                      </button>
-
-                      {/*
-                        CONSERTO, ao lado da troca e pelo mesmo gesto.
-                        Pedido da dona em 09/09: "onde teve troca, tem um
-                        botãozinho escrito conserto, aí aparece um conserto, eu
-                        só digito o valor". Não precisa de produto: a peça é da
-                        cliente, quem consertou foi o Ourives, e a loja só
-                        cobra e repassa.
-                      */}
                       <button
                         type="button"
                         className={`${styles.trocaBtn} ${row.isConserto ? styles.consertoBtnAtivo : ''}`}
@@ -1318,6 +1300,25 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                           : 'Marcar como conserto — só o valor cobrado'}
                       >
                         <Wrench size={13} />
+                      </button>
+                    </td>
+
+                    {/*
+                      O marcador que a Fernanda desenhou no treinamento de
+                      31/08: um clique na linha da peça diz se ela está saindo
+                      ou voltando. Sem tela separada, sem buscar a venda antiga.
+                    */}
+                    <td className={styles.tdTroca}>
+                      <button
+                        type="button"
+                        className={`${styles.trocaBtn} ${row.isTroca ? styles.trocaBtnAtivo : ''}`}
+                        onClick={() => updateRow(i, { isTroca: !row.isTroca })}
+                        disabled={!row.productId}
+                        title={row.isTroca
+                          ? 'Está voltando para o estoque. Clique para desfazer.'
+                          : 'Marcar como peça devolvida pela cliente'}
+                      >
+                        <ArrowLeftRight size={13} />
                       </button>
                     </td>
 
