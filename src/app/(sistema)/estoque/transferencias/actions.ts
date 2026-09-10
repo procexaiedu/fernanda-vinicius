@@ -13,10 +13,22 @@ import { lojaDoEscopo, requireProfile } from '@/lib/auth'
  * transação e de `FOR UPDATE`; feito em TypeScript, dois envios simultâneos da
  * mesma peça leem o mesmo saldo e mandam a peça duas vezes.
  *
- * QUEM PODE O QUÊ
+ * QUEM PODE O QUÊ — e são DOIS eixos, não um.
+ *
+ * PAPEL (o que a função permite):
  * - Enviar e cancelar: só admin. Tira peça de uma loja e é decisão de gestão.
  * - Conferir o recebimento: quem está na loja de destino, admin ou não. É ela
  *   que abre a caixa; exigir admin faria a caixa esperar dias para virar estoque.
+ *
+ * ESCOPO (de qual loja):
+ * - Envia só da própria loja, confere só o que chega nela, cancela só o que ela
+ *   mandou. O DESTINO continua livre — é, por definição, a outra loja.
+ *
+ * Confundir os dois foi o furo que sobrou da separação de 04/09: a lista já
+ * filtrava por escopo, mas aqui só se olhava o papel, e a Eleandra — admin de
+ * Brasília — podia tirar peça de Campinas, conferir caixa que estava lá e
+ * cancelar romaneio alheio. Esconder o botão não resolve: server action é
+ * chamável direto.
  */
 
 export interface ActionResult {
@@ -54,6 +66,12 @@ export async function enviarTransferencia(dados: {
   if (!dados.itens.length) return { success: false, error: 'Bipe ao menos uma peça.' }
   if (dados.from_store_id === dados.to_store_id) {
     return { success: false, error: 'Origem e destino não podem ser a mesma loja.' }
+  }
+
+  // A origem vem do escopo, não da tela — mesma regra do bipe logo abaixo.
+  const escopo = lojaDoEscopo(perfil)
+  if (escopo && dados.from_store_id !== escopo) {
+    return { success: false, error: 'Você só pode enviar peças da sua própria loja.' }
   }
 
   const { data, error } = await createAdminClient().rpc('enviar_transferencia', {
@@ -100,7 +118,7 @@ export async function receberTransferencia(
   if (erroBusca) return { success: false, error: erroBusca.message }
   if (!transf)   return { success: false, error: 'Transferência não encontrada.' }
 
-  if (perfil.role !== 'admin' && perfil.store_id !== transf.to_store_id) {
+  if (lojaDoEscopo(perfil) && lojaDoEscopo(perfil) !== transf.to_store_id) {
     return { success: false, error: 'Só a loja de destino confere esta transferência.' }
   }
 
@@ -129,6 +147,22 @@ export async function cancelarTransferencia(
   if (!perfil) return { success: false, error: erro! }
 
   if (!motivo.trim()) return { success: false, error: 'Diga o motivo do cancelamento.' }
+
+  /*
+   * Cancelar devolve o saldo para a ORIGEM, então quem cancela é quem mandou.
+   * Sem esta busca não havia como saber de que loja era o romaneio — e por isso
+   * qualquer admin cancelava qualquer um.
+   */
+  const escopo = lojaDoEscopo(perfil)
+  if (escopo) {
+    const { data: transf } = await createAdminClient()
+      .from('transfers').select('from_store_id').eq('id', transferId).maybeSingle()
+
+    if (!transf) return { success: false, error: 'Transferência não encontrada.' }
+    if (transf.from_store_id !== escopo) {
+      return { success: false, error: 'Só a loja que enviou pode cancelar esta transferência.' }
+    }
+  }
 
   const { data, error } = await createAdminClient().rpc('cancelar_transferencia', {
     p_transfer_id: transferId,

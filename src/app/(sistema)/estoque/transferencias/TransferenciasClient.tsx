@@ -75,7 +75,15 @@ export default function TransferenciasClient({
    * em Brasília é transformar conferência em digitação.
    */
   const podeConferir = (r: RomaneioT) =>
-    r.status === 'enviada' && (isAdmin || r.to_store_id === minhaLoja)
+    r.status === 'enviada' && (minhaLoja ? r.to_store_id === minhaLoja : isAdmin)
+
+  /*
+   * Cancelar devolve o saldo para a origem — então é da loja que MANDOU, e não
+   * de qualquer admin. Era `isAdmin` sozinho, e a admin de Brasília podia
+   * cancelar um romaneio de Campinas.
+   */
+  const podeCancelar = (r: RomaneioT) =>
+    isAdmin && r.status === 'enviada' && (!minhaLoja || r.from_store_id === minhaLoja)
 
   async function confirmarCancelamento() {
     if (!cancelando) return
@@ -186,7 +194,7 @@ export default function TransferenciasClient({
                           <ClipboardCheck size={14} />
                         </button>
                       )}
-                      {isAdmin && r.status === 'enviada' && (
+                      {podeCancelar(r) && (
                         <button className={styles.acao} onClick={() => { setCancelando(r); setMotivo(''); setErroCancel(null) }}
                           title="Cancelar e devolver à origem">
                           <XCircle size={14} />

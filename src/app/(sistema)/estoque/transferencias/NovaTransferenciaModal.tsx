@@ -28,6 +28,14 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
 }) {
   const router = useRouter()
 
+  /*
+   * Quem tem loja não escolhe a origem: ela É a loja dela. O campo continua
+   * visível — some, e ninguém entende de onde a peça está saindo —, mas não
+   * abre. O servidor recusa de todo jeito (ver actions.ts); isto é só para não
+   * oferecer o que vai ser negado.
+   */
+  const origemTravada = !!lojaPadrao
+
   const [origem, setOrigem]   = useState(lojaPadrao ?? lojas[0]?.id ?? '')
   const [destino, setDestino] = useState(
     lojas.find(l => l.id !== (lojaPadrao ?? lojas[0]?.id))?.id ?? '',
@@ -151,7 +159,7 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
               placeholder="Loja de origem"
               searchable={false}
               permitirLimpar={false}
-              disabled={enviando}
+              disabled={enviando || origemTravada}
             />
           </div>
           <span className={styles.seta}>→</span>

@@ -132,7 +132,9 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
         perPage={PAGE_SIZE}
         lojas={lojas}
         isAdmin={isAdmin}
-        minhaLoja={profile.store_id}
+        /* O escopo, não o `store_id`: a admin global que escolheu Campinas no
+         * login opera como Campinas enquanto estiver nela. */
+        minhaLoja={escopo}
         filtroStatus={params.status ?? ''}
       />
     </div>
