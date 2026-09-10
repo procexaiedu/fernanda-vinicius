@@ -100,7 +100,9 @@ const NAV_GROUPS: NavGroup[] = [
     titulo: 'Gestão',
     itens: [
       { label: 'Financeiro',    href: '/financeiro',    icon: <BarChart2 size={18} />, adminOnly: true },
-      { label: 'Configurações', href: '/configuracoes', icon: <Settings size={18} />, adminOnly: true, redeOnly: true },
+      /* Sem `redeOnly` desde 10/09: o admin de loja entra para gerenciar a
+         própria equipe. As abas de rede somem para ele lá dentro. */
+      { label: 'Configurações', href: '/configuracoes', icon: <Settings size={18} />, adminOnly: true },
     ],
   },
 ]

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireProfile, podeConfigurarRede } from '@/lib/auth'
+import { requireProfile, escopoDeUsuarios } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getProgressByUser } from '@/lib/metas/server'
 import { currentMonthKey } from '@/lib/metas/compute'
@@ -26,26 +26,48 @@ export interface UserWithMetrics {
 export default async function UsuariosPage() {
   const profile = await requireProfile()
   /*
-   * Configuração é da REDE, não da loja: lojas, usuários, metas e regras do
-   * negócio valem para as duas. `role !== 'admin'` deixava o admin de loja
-   * entrar — de onde ele criava usuário e mudava a regra de desconto da outra
-   * loja. Ver podeConfigurarRede() em src/lib/auth.ts.
+   * CADA ADMIN MANDA NA PRÓPRIA LOJA.
+   *
+   * Decisão do dono em 10/09: *"a Eleandra é admin de Brasília, então ela pode
+   * criar, editar, apagar usuárias de Brasília, mas não pode fazer nada global
+   * e nem ver nada de Campinas."*
+   *
+   * De 01/09 até aqui a tela era só do admin global — o que deixava a Leandra
+   * sem conseguir nem repor uma operadora na própria loja, e isso ficou
+   * concreto quando a Rayane pediu demissão em 09/09.
+   *
+   * O corte de verdade está nas ações (`actions.ts`); esta tela só não mostra
+   * o que a pessoa não pode alcançar.
    */
-  if (!podeConfigurarRede(profile)) redirect('/')
+  const { pode, loja: lojaDoAdmin } = escopoDeUsuarios(profile)
+  if (!pode) redirect('/')
 
   const adminClient = createAdminClient()
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
   const [usersRes, emailsRes, salesMonthRes, storesRes] = await Promise.all([
-    adminClient.from('users').select('*, stores(id, name)'),
+    /* Admin de loja vê só a gente dele. Admin global (store_id NULL) não casa
+       com loja nenhuma, então some da lista dela — e é isso que impede a
+       Leandra de mexer na conta da dona. */
+    (() => {
+      let q = adminClient.from('users').select('*, stores(id, name)')
+      if (lojaDoAdmin) q = q.eq('store_id', lojaDoAdmin)
+      return q
+    })(),
     adminClient.rpc('get_user_emails'),
     adminClient
       .from('sales')
       .select('seller_id, total')
       .gte('sale_date', monthStart)
       .neq('status', 'cancelled'),
-    adminClient.from('stores').select('id, name').order('name'),
+    /* As lojas que o formulário pode oferecer: uma só para admin de loja,
+       senão o seletor viraria a porta de criar gente na outra. */
+    (() => {
+      let q = adminClient.from('stores').select('id, name')
+      if (lojaDoAdmin) q = q.eq('id', lojaDoAdmin)
+      return q.order('name')
+    })(),
   ])
 
   // Map de email por user id (via função SQL com JOIN em auth.users)

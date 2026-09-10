@@ -184,6 +184,32 @@ export function lojaDoEscopo(p: UserProfile, filtroDaUrl?: string | null): strin
 }
 
 /**
+ * Quem esta pessoa pode gerenciar em Usuários, e dentro de qual loja.
+ *
+ * Decisão do dono em 10/09: *"a Eleandra é admin de Brasília, então ela pode
+ * criar, editar, apagar usuárias de Brasília, mas não pode fazer nada global e
+ * nem ver nada de Campinas."*
+ *
+ *   ADMIN GLOBAL    `loja: null`   → todos, das duas lojas e os globais
+ *   ADMIN DE LOJA   `loja: <id>`   → só quem pertence à loja dele
+ *   OPERADORA       `pode: false`  → não gerencia ninguém
+ *
+ * Repare que usa `store_id` e NÃO `lojaDoEscopo`. É de propósito: a loja que o
+ * admin global escolheu ao entrar organiza a OPERAÇÃO — venda, estoque,
+ * financeiro. Conta de acesso é outra coisa: se a escolha valesse aqui, ela
+ * ficaria sem enxergar os próprios admins globais (que não têm loja) e não
+ * conseguiria administrar ninguém da rede.
+ *
+ * Admin global fica de fora do escopo do admin de loja pelo mesmo mecanismo:
+ * `store_id` deles é NULL, então nunca casa com `loja`. É isso que impede a
+ * Eleandra de resetar a senha da dona.
+ */
+export function escopoDeUsuarios(p: UserProfile): { pode: boolean; loja: string | null } {
+  if (!ehAdmin(p)) return { pode: false, loja: null }
+  return { pode: true, loja: p.store_id }
+}
+
+/**
  * Ainda faz sentido oferecer um seletor de loja DENTRO da tela?
  *
  * Desde 09/09, não. O admin global escolhe a loja ao entrar e fica nela até

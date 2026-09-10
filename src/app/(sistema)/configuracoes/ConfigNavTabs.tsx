@@ -5,15 +5,17 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import styles from './ConfigNavTabs.module.css'
 
+/** `daRede` marca o que só o admin global alcança. */
 const tabs = [
-  { label: 'Lojas',     href: '/configuracoes/lojas' },
-  { label: 'Usuários',  href: '/configuracoes/usuarios' },
-  { label: 'Metas',     href: '/configuracoes/metas' },
-  { label: 'Negócio',   href: '/configuracoes/negocio' },
-  { label: 'Impressão', href: '/configuracoes/impressao' },
+  { label: 'Lojas',     href: '/configuracoes/lojas',     daRede: true },
+  { label: 'Usuários',  href: '/configuracoes/usuarios',  daRede: false },
+  { label: 'Metas',     href: '/configuracoes/metas',     daRede: true },
+  { label: 'Negócio',   href: '/configuracoes/negocio',   daRede: true },
+  { label: 'Impressão', href: '/configuracoes/impressao', daRede: false },
 ]
 
-export default function ConfigNavTabs() {
+export default function ConfigNavTabs({ daRede = false }: { daRede?: boolean }) {
+  const visiveis = tabs.filter(t => daRede || !t.daRede)
   const pathname = usePathname()
   const navRef = useRef<HTMLElement>(null)
   /* 'nenhum' | 'inicio' | 'fim' | 'ambos' — qual borda esmaece. */
@@ -68,7 +70,7 @@ export default function ConfigNavTabs() {
   return (
     <div className={styles.wrap}>
       <nav ref={navRef} className={styles.nav} data-esmaece={esmaece} onScroll={medir}>
-        {tabs.map(tab => {
+        {visiveis.map(tab => {
           const ativa = pathname.startsWith(tab.href)
           return (
             <Link
