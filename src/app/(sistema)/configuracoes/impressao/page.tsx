@@ -1,4 +1,4 @@
-import { requireProfile } from '@/lib/auth'
+import { podeConfigurarRede, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ImpressaoClient from './ImpressaoClient'
 import CategoryMappingPanel from './CategoryMappingPanel'
@@ -10,7 +10,13 @@ export default async function ImpressaoConfigPage() {
   const profile = await requireProfile()
 
 
-  const isAdmin = profile.role === 'admin'
+  /*
+   * O painel de categoria x etiqueta é da REDE — `category_label_mapping` não
+   * tem coluna de loja. Era `role === 'admin'`, e a admin de Brasília mudaria a
+   * etiqueta que sai em Campinas. O agente de impressão local (acima) segue
+   * disponível para qualquer admin: aquele é o computador dela.
+   */
+  const isAdmin = podeConfigurarRede(profile)
 
   let mappings: CategoryMapping[] = []
   if (isAdmin) {

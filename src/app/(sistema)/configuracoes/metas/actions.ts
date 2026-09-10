@@ -7,19 +7,31 @@ import {
   isValidMonthKey, monthKeyToFirstDay, monthBounds, monthLabel, computeProgress,
 } from '@/lib/metas/compute'
 import { resolveGoal } from '@/lib/metas/server'
+import { getProfile, podeConfigurarRede } from '@/lib/auth'
 
 export interface MetaActionResult {
   success: boolean
   error?: string
 }
 
+/*
+ * SÓ O ADMIN GLOBAL.
+ *
+ * Conferia `role === 'admin'`, e admin de loja TAMBÉM é admin — a Eleandra, de
+ * Brasília, passava. Meta e comissão de vendedora atravessam as duas lojas —
+ * a tabela não separa por loja, e a admin de uma mexeria na meta da outra.
+ *
+ * A tela já redirecionava quem não é global, mas redirecionar não é trava:
+ * server action é chamável direto, e estas leem com service_role. Pedido do
+ * dono em 10/09 — "pense como 2 sistemas totalmente distintos".
+ */
 async function verifyAdmin(): Promise<{ userId: string | null; error: string | null }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { userId: null, error: 'Não autenticado.' }
-  const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return { userId: null, error: 'Acesso negado.' }
-  return { userId: user.id, error: null }
+  const perfil = await getProfile()
+  if (!perfil) return { userId: null, error: 'Não autenticado.' }
+  if (!podeConfigurarRede(perfil)) {
+    return { userId: null, error: 'Só a administradora geral muda esta configuração.' }
+  }
+  return { userId: perfil.id, error: null }
 }
 
 function lastDayOfMonth(monthKey: string): string {

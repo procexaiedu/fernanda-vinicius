@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getProfile, podeConfigurarRede } from '@/lib/auth'
 
 export interface StoreFormData {
   name: string
@@ -26,18 +27,24 @@ export interface ActionResult {
   error?: string
 }
 
+/*
+ * SÓ O ADMIN GLOBAL.
+ *
+ * Conferia `role === 'admin'`, e admin de loja TAMBÉM é admin — a Eleandra, de
+ * Brasília, passava. Cadastrar e editar LOJA é o topo da configuração da rede:
+ * quem mexe aqui define as duas.
+ *
+ * A tela já redirecionava quem não é global, mas redirecionar não é trava:
+ * server action é chamável direto, e estas leem com service_role. Pedido do
+ * dono em 10/09 — "pense como 2 sistemas totalmente distintos".
+ */
 async function verifyAdmin() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { supabase: null, error: 'Não autenticado.' }
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'admin') return { supabase: null, error: 'Acesso negado.' }
+  const perfil = await getProfile()
+  if (!perfil) return { supabase: null, error: 'Não autenticado.' }
+  if (!podeConfigurarRede(perfil)) {
+    return { supabase: null, error: 'Só a administradora geral muda esta configuração.' }
+  }
   return { supabase, error: null }
 }
 

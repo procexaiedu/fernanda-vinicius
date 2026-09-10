@@ -245,8 +245,18 @@ export async function mesclarFornecedores(
 
   const admin = createAdminClient()
 
-  const { data: perfil } = await admin.from('users').select('role').eq('id', user.id).single()
-  if (perfil?.role !== 'admin') return { success: false, error: 'Apenas administrador pode mesclar fornecedores.' }
+  /*
+   * MESCLAR FORNECEDOR É DA REDE, como a busca de duplicados já era desde
+   * 04/09 — os dois lados da mesma operação precisam da mesma trava.
+   *
+   * `suppliers` não tem loja: as duas compram dos mesmos de São Paulo. Mesclar
+   * dois cadastros reescreve peças e compras das DUAS lojas de uma vez, então
+   * a admin de Brasília estaria mexendo no histórico de Campinas.
+   */
+  const perfil = await getProfile()
+  if (!perfil || !podeConfigurarRede(perfil)) {
+    return { success: false, error: 'Só a administradora geral mescla fornecedores.' }
+  }
 
   const absorvidos = idsAbsorvidos.filter(id => id && id !== idPrincipal)
   if (!absorvidos.length) return { success: false, error: 'Nenhum cadastro para mesclar.' }
