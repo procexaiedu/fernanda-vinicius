@@ -18,7 +18,7 @@ import {
   Monitor,
   LogOut,
   Sun,
-  Moon,
+  Moon, Wrench,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './Sidebar.module.css'
@@ -79,6 +79,9 @@ const NAV_GROUPS: NavGroup[] = [
     itens: [
       { label: 'Vendas',   href: '/vendas',   icon: <ShoppingCart size={18} />, operadoraVe: true },
       { label: 'Clientes', href: '/clientes', icon: <Users size={18} /> },
+      /* Sem `adminOnly`: quem recebe a peça no balcão é a operadora, e é
+         ela que a cliente procura ao voltar para buscar. */
+      { label: 'Consertos', href: '/consertos', icon: <Wrench size={18} /> },
       { label: 'Disparos', href: '/disparos', icon: <Send size={18} />, adminOnly: true },
     ],
   },

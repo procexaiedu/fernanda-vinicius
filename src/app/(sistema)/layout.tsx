@@ -19,6 +19,7 @@ import SistemaLayoutClient from './layout-client'
 const OPERADORA_PODE = [
   '/pdv',        // atender e fechar a venda
   '/vendas',     // as vendas do dia — a query já limita a hoje
+  '/consertos',  // recebe a peça da cliente no balcão e devolve quando volta
 ]
 
 function operadoraPodeVer(pathname: string): boolean {

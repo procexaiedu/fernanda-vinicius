@@ -1,0 +1,223 @@
+/* Tela de consertos. Mesmos tokens do resto do sistema. */
+
+.tela { padding-top: 4px; }
+
+.topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.resumo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.resumo strong { color: var(--text-primary); font-size: 15px; }
+
+.atrasoAviso {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--danger-subtle);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.acoesTopo { display: flex; align-items: center; gap: 14px; }
+
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.link:hover { text-decoration: underline; }
+
+.erro {
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  background: var(--danger-subtle);
+  color: var(--danger);
+  font-size: 12.5px;
+}
+
+/* ── Formulário ──────────────────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+
+.formLinha {
+  display: grid;
+  grid-template-columns: 1.4fr 1.2fr 1.2fr 150px;
+  gap: 10px;
+}
+
+.campo { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+
+.rotulo {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.input {
+  height: 34px;
+  padding: 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  width: 100%;
+}
+
+.input:focus { outline: none; border-color: var(--accent); }
+
+/* O ícone nativo do seletor de data vem preto no tema escuro. */
+.input::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.formAcoes { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ── Lista ───────────────────────────────────────────────────────────────── */
+
+.vazio {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabela th {
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.tabela td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+/* col-num e col-date alinham th E td — a lição registrada no globals.css. */
+.tabela th.col-num,  .tabela td.col-num  { text-align: right; }
+.tabela th.col-date, .tabela td.col-date { text-align: left; white-space: nowrap; }
+
+.forte { font-weight: 600; }
+.suave { color: var(--text-secondary); }
+
+/* A linha atrasada é discreta: destaque é o prazo e o selo, não a linha
+   inteira em vermelho — que numa lista de dez vira ruído. */
+.linhaAtrasada td { background: var(--danger-subtle); }
+
+.atrasado {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* ── Selo de onde está ───────────────────────────────────────────────────── */
+
+.selo {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.selo_recebido   { background: var(--warning-subtle); color: var(--warning); }
+.selo_no_ourives { background: var(--info-subtle, rgba(96,165,250,0.12)); color: var(--info, #60A5FA); }
+.selo_pronto     { background: var(--success-subtle); color: var(--success); }
+.selo_entregue   { background: var(--border); color: var(--text-secondary); }
+
+/* ── Ações da linha ──────────────────────────────────────────────────────── */
+
+.acoes {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/*
+ * UM botão por linha: o próximo passo. Um seletor com quatro estados obrigaria
+ * a pensar qual escolher; "Mandei pro ourives" não obriga.
+ */
+.avancar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.avancar:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.avancar:disabled { opacity: 0.5; cursor: default; }
+
+.remover {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  opacity: 0.5;
+}
+
+.remover:hover { color: var(--danger); background: var(--danger-subtle); opacity: 1; }
+
+@media (max-width: 900px) {
+  .formLinha { grid-template-columns: 1fr; }
+}
