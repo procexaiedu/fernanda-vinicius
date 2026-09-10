@@ -1,0 +1,123 @@
+/*
+ * Porta de entrada do admin global. Segue a régua do sistema — mesmos tokens de
+ * cor, raio e tipografia — mas sem barra lateral: aqui só existe uma decisão.
+ */
+
+.tela {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.caixa {
+  width: 100%;
+  max-width: 460px;
+}
+
+.titulo {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.subtitulo {
+  margin: 6px 0 24px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.erro {
+  margin-bottom: 14px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  background: var(--danger-subtle);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.lojas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/*
+ * Cartão do tamanho de um botão de verdade: é a primeira tela do dia e ela usa
+ * o sistema cansada, no fim do expediente. Alvo grande erra menos.
+ */
+.loja {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 18px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.loja:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-hover, var(--bg-elevated));
+}
+
+.loja:active:not(:disabled) { transform: scale(0.995); }
+
+.loja:disabled { opacity: 0.55; cursor: default; }
+
+.icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.textos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.lojaNome { font-size: 16px; font-weight: 600; }
+
+.lojaCidade {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.seta {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.vazio {
+  padding: 20px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.rodape {
+  margin: 22px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}

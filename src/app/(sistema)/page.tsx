@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireProfile, lojaDoEscopo, ehAdminGlobal } from '@/lib/auth'
+import { ehAdminGlobal, lojaDoEscopo, podeFiltrarPorLoja, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import DashboardClient from './DashboardClient'
 import {
@@ -83,7 +83,7 @@ export default async function DashboardPage() {
   return (
     <DashboardClient
       isAdmin={isAdmin}
-      podeTrocarLoja={ehAdminGlobal(profile)}
+      podeTrocarLoja={podeFiltrarPorLoja(profile)}
       initialStoreId={storeId}
       lojas={lojas}
       settings={settings}

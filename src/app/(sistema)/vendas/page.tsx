@@ -1,4 +1,4 @@
-import { requireProfile, ehAdminGlobal } from '@/lib/auth'
+import { ehAdminGlobal, podeFiltrarPorLoja, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import VendasClient from './VendasClient'
 import MinhaMetaCard from './MinhaMetaCard'
@@ -236,7 +236,7 @@ export default async function VendasPage() {
   return (
     <div>
       {minhaMeta && <MinhaMetaCard progress={minhaMeta} monthLabel={monthLabel(monthKey)} />}
-      <VendasClient sales={sales} stores={stores} sellers={sellers} closings={closings} userRole={profile.role} podeTrocarLoja={ehAdminGlobal(profile)} />
+      <VendasClient sales={sales} stores={stores} sellers={sellers} closings={closings} userRole={profile.role} podeTrocarLoja={podeFiltrarPorLoja(profile)} />
     </div>
   )
 }

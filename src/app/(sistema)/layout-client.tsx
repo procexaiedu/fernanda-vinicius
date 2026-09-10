@@ -42,6 +42,8 @@ interface SistemaLayoutClientProps {
   userRole: 'admin' | 'operator'
   podeConfigurarRede: boolean
   storeName?: string
+  /** Admin global que já escolheu: pode voltar e trocar. */
+  podeTrocarDeLoja?: boolean
   children: React.ReactNode
 }
 
@@ -50,6 +52,7 @@ export default function SistemaLayoutClient({
   userRole,
   podeConfigurarRede,
   storeName,
+  podeTrocarDeLoja = false,
   children,
 }: SistemaLayoutClientProps) {
   const [collapsed, setCollapsed] = useState(false)
@@ -152,6 +155,7 @@ export default function SistemaLayoutClient({
         podeConfigurarRede={podeConfigurarRede}
         userName={userName}
         storeName={storeName}
+        podeTrocarDeLoja={podeTrocarDeLoja}
         theme={theme}
         onToggleTheme={toggleTheme}
         collapsed={collapsed}

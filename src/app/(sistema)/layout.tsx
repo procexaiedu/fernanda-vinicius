@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { requireProfile, ehOperadora, podeConfigurarRede } from '@/lib/auth'
+import { requireProfile, ehOperadora, podeConfigurarRede, precisaEscolherLoja } from '@/lib/auth'
 import { CABECALHO_CAMINHO } from '@/lib/auth-header'
 import SistemaLayoutClient from './layout-client'
 
@@ -30,6 +30,25 @@ export default async function SistemaLayout({ children }: { children: React.Reac
   // fica memoizado para todas as páginas desta mesma requisição.
   const profile = await requireProfile()
 
+  /*
+   * ADMIN GLOBAL ESCOLHE A LOJA ANTES DE QUALQUER TELA.
+   *
+   * Enquanto não escolhe, nenhuma página do sistema abre — senão ele veria a
+   * rede inteira por um instante, que é justamente a mistura que a dona pediu
+   * para acabar em 09/09.
+   *
+   * `/escolher-loja` vive FORA deste layout, de propósito: dentro dele a tela
+   * apareceria com a barra lateral inteira, e clicar em qualquer menu cairia
+   * neste mesmo redirect — um beco que parece o sistema travado. Fora, ela é o
+   * que é: uma pergunta antes de entrar.
+   *
+   * Quem tem loja fixa nunca passa por aqui — `precisaEscolherLoja` só é
+   * verdade para admin global.
+   */
+  if (precisaEscolherLoja(profile)) redirect('/escolher-loja')
+
+  const caminhoAtual = (await headers()).get(CABECALHO_CAMINHO) ?? ''
+
   if (ehOperadora(profile)) {
     /*
      * O proxy põe o caminho num cabeçalho interno que ele mesmo apaga antes de
@@ -41,8 +60,7 @@ export default async function SistemaLayout({ children }: { children: React.Reac
      * Por isso cada tela fechada também tem a sua própria trava; esta aqui é a
      * rede que pega as que vierem depois, não a única.
      */
-    const caminho = (await headers()).get(CABECALHO_CAMINHO) ?? ''
-    if (caminho && !operadoraPodeVer(caminho)) redirect('/pdv')
+    if (caminhoAtual && !operadoraPodeVer(caminhoAtual)) redirect('/pdv')
   }
 
   return (
@@ -50,7 +68,10 @@ export default async function SistemaLayout({ children }: { children: React.Reac
       userName={profile.full_name}
       userRole={profile.role}
       podeConfigurarRede={podeConfigurarRede(profile)}
-      storeName={profile.store_name}
+      /* A loja que aparece na barra lateral é a do escopo: a fixa de quem tem
+         uma, ou a escolhida na entrada pelo admin global. */
+      storeName={profile.store_name ?? profile.lojaSelecionadaNome}
+      podeTrocarDeLoja={!!profile.lojaSelecionada}
     >
       {children}
     </SistemaLayoutClient>

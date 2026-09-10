@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './Sidebar.module.css'
+import { trocarDeLoja } from '@/app/escolher-loja/actions'
 
 interface NavItem {
   label: string
@@ -110,6 +111,8 @@ interface SidebarProps {
   podeConfigurarRede?: boolean
   userName?: string
   storeName?: string
+  /** Admin global que já escolheu a loja: pode voltar e trocar. */
+  podeTrocarDeLoja?: boolean
   theme?: 'dark' | 'light'
   onToggleTheme?: () => void
   /** Estado controlado pelo layout (fonte única — habilita auto-collapse). */
@@ -122,6 +125,7 @@ interface SidebarProps {
 
 export default function Sidebar({
   userRole = 'operator', podeConfigurarRede = false, userName, storeName,
+  podeTrocarDeLoja = false,
   theme = 'dark', onToggleTheme,
   collapsed, onToggle,
   aberta = false, onFechar,
@@ -192,6 +196,33 @@ export default function Sidebar({
           {recolhida ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
       </div>
+
+      {/*
+        A LOJA ATUAL, SEMPRE À VISTA.
+        Pedido da dona em 09/09: ela quer saber, sem pensar, em qual loja está —
+        o medo que ela verbalizou foi lançar venda com a vendedora errada por
+        estar na loja errada. Recolhida, o nome não cabe: fica só a inicial, e o
+        título completo no hover.
+      */}
+      {storeName && (
+        <div className={recolhida ? styles.lojaAtualRecolhida : styles.lojaAtual} title={storeName}>
+          {recolhida ? (
+            <span className={styles.lojaInicial}>{storeName.charAt(0)}</span>
+          ) : (
+            <>
+              <span className={styles.lojaTextos}>
+                <span className={styles.lojaRotulo}>Loja</span>
+                <span className={styles.lojaNome}>{storeName}</span>
+              </span>
+              {podeTrocarDeLoja && (
+                <form action={trocarDeLoja}>
+                  <button type="submit" className={styles.lojaTrocar}>Trocar</button>
+                </form>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Navegação em coleções */}
       <nav className={styles.nav}>

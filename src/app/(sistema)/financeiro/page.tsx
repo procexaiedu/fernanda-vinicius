@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireProfile, ehAdminGlobal, lojaDoEscopo } from '@/lib/auth'
+import { ehAdminGlobal, lojaDoEscopo, podeFiltrarPorLoja, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import FinanceiroClient from './FinanceiroClient'
 import { buscarTransacoes } from './actions'
@@ -60,7 +60,7 @@ export default async function FinanceiroPage() {
       />
 
       <FinanceiroClient
-        podeTrocarLoja={ehAdminGlobal(profile)}
+        podeTrocarLoja={podeFiltrarPorLoja(profile)}
         stores={stores}
         users={users}
         categories={categories}

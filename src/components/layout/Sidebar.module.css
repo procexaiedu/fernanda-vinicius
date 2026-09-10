@@ -332,3 +332,74 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
+/*
+ * A loja atual, logo abaixo da marca.
+ *
+ * Existe desde 09/09, quando a dona pediu para as duas lojas funcionarem como
+ * sistemas separados. Saber em qual delas se está deixou de ser detalhe: é a
+ * diferença entre lançar a venda na loja certa e na errada.
+ */
+.lojaAtual {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 12px 12px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+
+.lojaTextos { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.lojaRotulo {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.lojaNome {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lojaTrocar {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.lojaTrocar:hover { text-decoration: underline; }
+
+/* Recolhida não cabe nome: fica a inicial, com o nome inteiro no title. */
+.lojaAtualRecolhida {
+  display: flex;
+  justify-content: center;
+  margin: 0 8px 12px;
+}
+
+.lojaInicial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}

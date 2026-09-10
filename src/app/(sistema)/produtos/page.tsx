@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { requireProfile, lojaDoEscopo, ehAdminGlobal, ehOperadora } from '@/lib/auth'
+import { ehAdminGlobal, ehOperadora, lojaDoEscopo, podeFiltrarPorLoja, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ProdutosClient from './ProdutosClient'
 import PageHeader from '@/components/ui/PageHeader'
@@ -62,7 +62,7 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
 
   const isAdmin = profile.role === 'admin'
   /* O seletor de loja só faz sentido para quem pode trocar de loja. */
-  const podeTrocarLoja = ehAdminGlobal(profile)
+  const podeTrocarLoja = podeFiltrarPorLoja(profile)
   /*
    * Quem tem loja está PRESO a ela — admin de loja inclusive.
    *
