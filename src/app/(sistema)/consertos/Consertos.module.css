@@ -221,3 +221,8 @@
 @media (max-width: 900px) {
   .formLinha { grid-template-columns: 1fr; }
 }
+
+/* Pagamento: o que ela precisa ver de relance é se a cliente já passou pelo
+   caixa. "A cobrar" é aviso, não erro — por isso âmbar, não vermelho. */
+.selo_pago    { background: var(--success-subtle); color: var(--success); }
+.selo_aCobrar { background: var(--warning-subtle); color: var(--warning); }

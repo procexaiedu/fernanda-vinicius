@@ -10,6 +10,7 @@ import {
 } from '@/app/(sistema)/compras/acertos'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import styles from './BlocoAcertos.module.css'
+import DatePicker from '@/components/ui/DatePicker'
 
 /**
  * Os acertos do lote consignado, dentro do detalhe da compra.
@@ -176,7 +177,7 @@ export default function BlocoAcertos({ id, onMudou }: {
           <div className={styles.formLinha}>
             <label className={styles.campo}>
               <span className={styles.rotulo}>Data</span>
-              <input type="date" className={styles.input} value={data} onChange={e => setData(e.target.value)} />
+              <DatePicker value={data} onChange={setData} />
             </label>
             <label className={styles.campo}>
               <span className={styles.rotulo}>Valor</span>

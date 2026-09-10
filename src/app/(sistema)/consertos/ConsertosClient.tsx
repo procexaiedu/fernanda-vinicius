@@ -10,6 +10,7 @@ import {
 } from './actions'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import styles from './Consertos.module.css'
+import DatePicker from '@/components/ui/DatePicker'
 
 interface Cliente { id: string; name: string; phone: string | null }
 
@@ -193,7 +194,9 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
             </label>
             <label className={styles.campo}>
               <span className={styles.rotulo}>Prometido para</span>
-              <input type="date" className={styles.input} value={prazo} onChange={e => setPrazo(e.target.value)} />
+              {/* O mesmo seletor das outras telas: o nativo abre em inglês no
+                  Windows e não segue o tema escuro. */}
+              <DatePicker value={prazo} onChange={setPrazo} />
             </label>
           </div>
           <label className={styles.campo}>
@@ -235,7 +238,7 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
               <th className="col-date">Recebida</th>
               <th className="col-date">Prometida</th>
               <th>Onde está</th>
-              <th className="col-num">Cobrado</th>
+              <th>Pagamento</th>
               <th></th>
             </tr>
           </thead>
@@ -261,10 +264,17 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
                       {FLUXO.find(f => f.valor === c.status)?.rotulo}
                     </span>
                   </td>
-                  <td className="col-num">
-                    {c.valorCobrado != null
-                      ? <span className={styles.forte}>{formatarDinheiro(c.valorCobrado)}</span>
-                      : <span className={styles.suave}>—</span>}
+                  {/*
+                    Pago ou não é o que ela precisa ver de relance: se a cliente
+                    já passou pelo caixa ou se ainda vai passar. O valor vem
+                    junto quando existe, porque é a prova de que passou.
+                  */}
+                  <td>
+                    {c.pago
+                      ? <span className={`${styles.selo} ${styles.selo_pago}`}>
+                          Pago{c.valorCobrado != null ? ` · ${formatarDinheiro(c.valorCobrado)}` : ''}
+                        </span>
+                      : <span className={`${styles.selo} ${styles.selo_aCobrar}`}>A cobrar</span>}
                   </td>
                   <td className={styles.acoes}>
                     {passo && (

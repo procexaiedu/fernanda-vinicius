@@ -32,6 +32,8 @@ export interface Conserto {
   notes: string | null
   /** Quanto foi cobrado, quando já houve venda. Vem da linha da venda. */
   valorCobrado: number | null
+  /** Já passou pelo caixa? É o que decide se ela pode cobrar agora. */
+  pago: boolean
 }
 
 export interface ResultadoConserto {
@@ -69,7 +71,7 @@ export async function listarConsertos(): Promise<Conserto[]> {
   const admin = createAdminClient()
   let q = admin
     .from('consertos')
-    .select('id, peca, servico, recebido_em, prometido_para, status, entregue_em, notes, customers(name, phone), sale_items(subtotal)')
+    .select('id, peca, servico, recebido_em, prometido_para, status, entregue_em, notes, sale_item_id, customers(name, phone), sale_items(subtotal)')
     .gte('recebido_em', corte.toISOString().slice(0, 10))
 
   if (ctx.loja) q = q.eq('store_id', ctx.loja)
@@ -88,6 +90,7 @@ export async function listarConsertos(): Promise<Conserto[]> {
     entregueEm: c.entregue_em ? String(c.entregue_em).slice(0, 10) : null,
     notes: c.notes,
     valorCobrado: c.sale_items?.subtotal != null ? Number(c.sale_items.subtotal) : null,
+    pago: !!c.sale_item_id,
   }))
 }
 

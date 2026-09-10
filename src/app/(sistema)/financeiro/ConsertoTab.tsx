@@ -10,6 +10,7 @@ import {
 import DetalheListaModal from '@/components/dashboard/DetalheListaModal'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import styles from './ConsertoTab.module.css'
+import DatePicker from '@/components/ui/DatePicker'
 
 /**
  * O balanço do conserto, mês a mês.
@@ -192,7 +193,7 @@ export default function ConsertoTab() {
               <div className={styles.formLinha}>
                 <label className={styles.campo}>
                   <span className={styles.campoRotulo}>Data do pagamento</span>
-                  <input type="date" className={styles.input} value={data} onChange={e => setData(e.target.value)} />
+                  <DatePicker value={data} onChange={setData} />
                 </label>
                 <label className={styles.campo}>
                   <span className={styles.campoRotulo}>Valor pago</span>
