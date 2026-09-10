@@ -9,6 +9,7 @@ import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { identificarEtiqueta, receberTransferencia } from './actions'
 import type { Romaneio } from './page'
 import styles from './ConferenciaModal.module.css'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 const MS_LEITURA_DUPLA = 1500
 
@@ -129,16 +130,25 @@ export default function ConferenciaModal({ romaneio, onClose }: {
      * mexe em saldo nenhum. Etiqueta não cadastrada (`id` nulo) fica de fora —
      * não há produto para referenciar; ela vive na observação.
      */
-    const r = await receberTransferencia(
+    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
+     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
+    let r: Awaited<ReturnType<typeof receberTransferencia>>
+    try {
+      r = await receberTransferencia(
       romaneio.id,
       [
         ...[...bipados.entries()].map(([product_id, quantity]) => ({ product_id, quantity })),
         ...sobras.filter(s => s.id).map(s => ({ product_id: s.id!, quantity: 1 })),
       ],
-      obs,
-    )
+        obs,
+      )
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setSalvando(false)
+    }
 
-    setSalvando(false)
     if (!r.success) { setErro(r.error ?? 'Erro ao confirmar.'); return }
 
     router.refresh()

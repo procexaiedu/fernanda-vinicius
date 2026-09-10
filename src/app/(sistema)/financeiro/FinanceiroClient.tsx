@@ -28,6 +28,7 @@ import {
 import { formatarDinheiro, formatarDinheiroComSinal } from '@/lib/dinheiro'
 import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
 import ConsertoTab from './ConsertoTab'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -887,16 +888,22 @@ function DespesaModal({
       payment_method: method || undefined,
     }
 
-    let result
-    if (tx) {
-      result = await editarDespesaManual(tx.id, data)
-    } else {
-      result = await criarDespesaManual(data)
+    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
+     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
+    let result: Awaited<ReturnType<typeof criarDespesaManual>>
+    try {
+      result = tx
+        ? await editarDespesaManual(tx.id, data)
+        : await criarDespesaManual(data)
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setSaving(false)
     }
 
     if (!result.success) {
       setError(result.error ?? 'Erro ao salvar.')
-      setSaving(false)
       return
     }
 
@@ -1442,16 +1449,22 @@ function RecorrenteModal({
       is_active: isActive,
     }
 
-    let result
-    if (item) {
-      result = await editarRecorrente(item.id, data)
-    } else {
-      result = await criarRecorrente(data)
+    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
+     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
+    let result: Awaited<ReturnType<typeof criarRecorrente>>
+    try {
+      result = item
+        ? await editarRecorrente(item.id, data)
+        : await criarRecorrente(data)
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setSaving(false)
     }
 
     if (!result.success) {
       setError(result.error ?? 'Erro ao salvar.')
-      setSaving(false)
       return
     }
 

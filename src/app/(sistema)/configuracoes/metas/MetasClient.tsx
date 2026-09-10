@@ -7,6 +7,7 @@ import { monthLabel, currentMonthKey } from '@/lib/metas/compute'
 import { upsertMetaPadrao, upsertMetaMes, removeMetaMes, gerarComissoesDoMes } from './actions'
 import styles from './MetasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 export interface MetaRow {
   userId: string
@@ -153,18 +154,38 @@ function MetaRowEditor({ row, isDefault, monthKey, onSaved }: {
     setSaving(true)
     const t = Number(target || 0)
     const p = Number(pct || 0)
-    const res = isDefault
-      ? await upsertMetaPadrao(row.userId, t, p)
-      : await upsertMetaMes(row.userId, monthKey, t, p)
-    setSaving(false)
+    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
+     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
+    let res: Awaited<ReturnType<typeof upsertMetaPadrao>>
+    try {
+      res = isDefault
+        ? await upsertMetaPadrao(row.userId, t, p)
+        : await upsertMetaMes(row.userId, monthKey, t, p)
+    } catch (e) {
+      alert(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setSaving(false)
+    }
+
     if (res.success) onSaved()
     else alert(res.error)
   }
 
   async function usarPadrao() {
     setSaving(true)
-    const res = await removeMetaMes(row.userId, monthKey)
-    setSaving(false)
+    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
+     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
+    let res: Awaited<ReturnType<typeof removeMetaMes>>
+    try {
+      res = await removeMetaMes(row.userId, monthKey)
+    } catch (e) {
+      alert(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setSaving(false)
+    }
+
     if (res.success) onSaved()
     else alert(res.error)
   }

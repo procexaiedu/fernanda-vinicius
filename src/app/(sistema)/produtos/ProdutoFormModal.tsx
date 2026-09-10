@@ -12,6 +12,7 @@ import { generateCode as buildCode } from '@/lib/productCode'
 import { matchText } from '@/lib/normalize'
 import { computeSalePrice, salePriceIsAuto } from '@/lib/pricing'
 import styles from './ProdutoFormModal.module.css'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 function generateCode(initials: string, month: number, costPrice: number): string {
   if (!initials || !month || !costPrice) return ''
@@ -161,8 +162,17 @@ export default function ProdutoFormModal({ product, suppliers, stores, categorie
     }
 
     setSaving(true)
-    const result = isEditing ? await updateProduct(product.id, data) : await createProduct(data)
-    setSaving(false)
+    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
+     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
+    let result: Awaited<ReturnType<typeof createProduct>>
+    try {
+      result = isEditing ? await updateProduct(product.id, data) : await createProduct(data)
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setSaving(false)
+    }
 
     if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
     router.refresh()
@@ -172,8 +182,15 @@ export default function ProdutoFormModal({ product, suppliers, stores, categorie
   async function handleDelete() {
     if (!product) return
     setDeleting(true)
-    const result = await deleteProduct(product.id)
-    setDeleting(false)
+    let result: Awaited<ReturnType<typeof deleteProduct>>
+    try {
+      result = await deleteProduct(product.id)
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e)); setConfirmDelete(false)
+      return
+    } finally {
+      setDeleting(false)
+    }
     if (!result.success) { setError(result.error ?? 'Erro ao deletar.'); setConfirmDelete(false); return }
     router.refresh()
     onClose()

@@ -10,6 +10,7 @@ import { mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/tel
 import { mascararCep } from '@/lib/cep'
 import { useCep } from '@/hooks/useCep'
 import styles from './ClienteFormModal.module.css'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -181,11 +182,22 @@ export default function ClienteFormModal({
     // jeito que exibia, e o banco acumulou três formatos diferentes.
     const dados = { ...form, phone: normalizarTelefone(form.phone) }
 
-    const result = customer
-      ? await updateCustomer(customer.id, dados)
-      : await createCustomer(dados)
+    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
+     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
+    let result: Awaited<ReturnType<typeof createCustomer>>
+    try {
+      result = customer
+        ? await updateCustomer(customer.id, dados)
+        : await createCustomer(dados)
+    } catch (e) {
+      setServerErr(mensagemDeErroAoSalvar(e))
+      setSaving(false)
+      return
+    }
 
     if (result.success) {
+      /* `saving` fica ligado de propósito no sucesso: a página recarrega em
+         seguida, e reabilitar o botão só daria chance de clicar duas vezes. */
       onClose()
       window.location.reload()
     } else {

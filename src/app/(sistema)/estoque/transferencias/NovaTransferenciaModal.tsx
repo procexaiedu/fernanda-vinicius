@@ -11,6 +11,7 @@ import { buscarPecaPorCodigo, enviarTransferencia, type PecaBipada } from './act
 import type { LojaOption } from './page'
 import styles from './NovaTransferenciaModal.module.css'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 interface Linha extends PecaBipada {
   quantidade: number
@@ -114,14 +115,23 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
     setEnviando(true)
     setErro(null)
 
-    const r = await enviarTransferencia({
-      from_store_id: origem,
-      to_store_id:   destino,
-      itens: linhas.map(l => ({ product_id: l.id, quantity: l.quantidade })),
-      notes: obs,
-    })
+    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
+     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
+    let r: Awaited<ReturnType<typeof enviarTransferencia>>
+    try {
+      r = await enviarTransferencia({
+        from_store_id: origem,
+        to_store_id:   destino,
+        itens: linhas.map(l => ({ product_id: l.id, quantity: l.quantidade })),
+        notes: obs,
+      })
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setEnviando(false)
+    }
 
-    setEnviando(false)
     if (!r.success) { setErro(r.error ?? 'Erro ao enviar.'); return }
 
     router.refresh()

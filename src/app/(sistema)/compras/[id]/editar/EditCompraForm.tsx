@@ -13,6 +13,7 @@ import {
 import styles from './EditCompraForm.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import DatePicker from '@/components/ui/DatePicker'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 interface Props {
   compra: CompraParaEdicao
@@ -232,15 +233,25 @@ export default function EditCompraForm({ compra }: Props) {
   async function handleSave() {
     setSaving(true)
     setError(null)
-    const result = await editarCompra({
-      purchaseId:   compra.id,
-      purchaseDate,
-      notes,
-      nfNumber,
-      items: items.map(it => ({ ...it, quantity: Number(it.quantity) || 1 })),
-      payments,
-    })
-    setSaving(false)
+    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
+     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
+    let result: Awaited<ReturnType<typeof editarCompra>>
+    try {
+      result = await editarCompra({
+        purchaseId:   compra.id,
+        purchaseDate,
+        notes,
+        nfNumber,
+        items: items.map(it => ({ ...it, quantity: Number(it.quantity) || 1 })),
+        payments,
+      })
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setSaving(false)
+    }
+
     if (result.success) {
       router.push('/compras')
       router.refresh()

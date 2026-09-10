@@ -10,6 +10,7 @@ import {
   criarCategoriaRapida,
   criarMaterialRapido,
 } from '../catalog-actions'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 export type QuickCreateType = 'supplier' | 'category' | 'material'
 
@@ -70,25 +71,30 @@ export default function QuickCreateCatalogModal({
     setSaving(true)
     setError(null)
 
-    if (type === 'supplier') {
-      if (!initials.trim()) { setError('Informe as iniciais.'); setSaving(false); return }
-      const res = await criarFornecedorRapido(name, initials)
+    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
+     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
+    try {
+      if (type === 'supplier') {
+        if (!initials.trim()) { setError('Informe as iniciais.'); return }
+        const res = await criarFornecedorRapido(name, initials)
+        if (!res.success || !res.supplier) { setError(res.error ?? 'Erro ao criar.'); return }
+        onCreatedSupplier(res.supplier)
+        onClose()
+      } else if (type === 'category') {
+        const res = await criarCategoriaRapida(name, labelFormat)
+        if (!res.success || !res.category) { setError(res.error ?? 'Erro ao criar.'); return }
+        onCreatedCategory(res.category.name, res.category.labelFormat)
+        onClose()
+      } else {
+        const res = await criarMaterialRapido(name)
+        if (!res.success || !res.material) { setError(res.error ?? 'Erro ao criar.'); return }
+        onCreatedMaterial(res.material)
+        onClose()
+      }
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e))
+    } finally {
       setSaving(false)
-      if (!res.success || !res.supplier) { setError(res.error ?? 'Erro ao criar.'); return }
-      onCreatedSupplier(res.supplier)
-      onClose()
-    } else if (type === 'category') {
-      const res = await criarCategoriaRapida(name, labelFormat)
-      setSaving(false)
-      if (!res.success || !res.category) { setError(res.error ?? 'Erro ao criar.'); return }
-      onCreatedCategory(res.category.name, res.category.labelFormat)
-      onClose()
-    } else {
-      const res = await criarMaterialRapido(name)
-      setSaving(false)
-      if (!res.success || !res.material) { setError(res.error ?? 'Erro ao criar.'); return }
-      onCreatedMaterial(res.material)
-      onClose()
     }
   }
 
