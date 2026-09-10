@@ -72,8 +72,8 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
   const [obs, setObs] = useState('')
   const [salvando, setSalvando] = useState(false)
 
-  async function recarregar(entregues = verEntregues) {
-    setLista(await listarConsertos(entregues))
+  async function recarregar() {
+    setLista(await listarConsertos())
   }
 
   async function salvar() {
@@ -119,20 +119,24 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
     await recarregar()
   }
 
-  async function alternarEntregues() {
-    const novo = !verEntregues
-    setVerEntregues(novo)
-    await recarregar(novo)
-  }
+  /*
+   * A tela separa; o servidor traz tudo. Assim ela pode dizer quantos entregues
+   * existem em vez de sumir com eles em silêncio — que foi como um conserto
+   * cobrado no PDV parecia ter se perdido: nasce entregue e desaparecia no
+   * mesmo instante em que era criado.
+   */
+  const abertos   = lista.filter(c => c.status !== 'entregue')
+  const entregues = lista.filter(c => c.status === 'entregue')
+  const visiveis  = verEntregues ? lista : abertos
 
-  const atrasados = lista.filter(c => c.prometidoPara && c.prometidoPara < hoje() && c.status !== 'entregue').length
+  const atrasados = abertos.filter(c => c.prometidoPara && c.prometidoPara < hoje()).length
 
   return (
     <div className={styles.tela}>
 
       <div className={styles.topo}>
         <div className={styles.resumo}>
-          <strong>{lista.filter(c => c.status !== 'entregue').length}</strong> na loja ou com o ourives
+          <strong>{abertos.length}</strong> na loja ou com o ourives
           {atrasados > 0 && (
             <span className={styles.atrasoAviso}>
               <AlertTriangle size={12} /> {atrasados} passou do prazo
@@ -141,9 +145,11 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
         </div>
 
         <div className={styles.acoesTopo}>
-          <button className={styles.link} onClick={alternarEntregues}>
-            {verEntregues ? 'Esconder entregues' : 'Ver entregues'}
-          </button>
+          {entregues.length > 0 && (
+            <button className={styles.link} onClick={() => setVerEntregues(v => !v)}>
+              {verEntregues ? 'Esconder entregues' : `Ver ${entregues.length} entregue${entregues.length > 1 ? 's' : ''}`}
+            </button>
+          )}
           {!aberto && (
             <Button size="sm" onClick={() => setAberto(true)}>
               <Plus size={13} /> Receber peça
@@ -206,9 +212,18 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
         </div>
       )}
 
-      {lista.length === 0 ? (
+      {visiveis.length === 0 ? (
         <div className={styles.vazio}>
-          {verEntregues ? 'Nenhum conserto registrado.' : 'Nenhuma peça em conserto no momento.'}
+          {/*
+            A mensagem não pode mentir. Havendo entregues escondidos, dizer
+            "nenhuma peça em conserto" faz parecer que o registro se perdeu —
+            e é exatamente o que acontecia com o conserto cobrado no PDV.
+          */}
+          {entregues.length > 0
+            ? <>Nenhuma peça aguardando. <button className={styles.link} onClick={() => setVerEntregues(true)}>
+                Ver {entregues.length} já entregue{entregues.length > 1 ? 's' : ''}
+              </button></>
+            : 'Nenhuma peça em conserto. Use "Receber peça" quando a cliente trouxer uma.'}
         </div>
       ) : (
         <table className={styles.tabela}>
@@ -225,7 +240,7 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
             </tr>
           </thead>
           <tbody>
-            {lista.map(c => {
+            {visiveis.map(c => {
               const passo = proximo(c.status)
               const atrasado = !!c.prometidoPara && c.prometidoPara < hoje() && c.status !== 'entregue'
               return (

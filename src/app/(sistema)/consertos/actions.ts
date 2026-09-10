@@ -45,17 +45,34 @@ async function escopo(): Promise<{ loja: string | null; userId: string } | null>
   return { loja: lojaDoEscopo(perfil), userId: perfil.id }
 }
 
-export async function listarConsertos(incluirEntregues = false): Promise<Conserto[]> {
+/**
+ * Traz TUDO — abertos e entregues recentes — e quem separa é a tela.
+ *
+ * Buscava só os abertos, e isso criou uma armadilha que o dono encontrou na
+ * primeira vez: conserto cobrado no PDV nasce ENTREGUE (a cliente pagou e
+ * levou na hora), então ele sumia da lista no mesmo instante em que era
+ * criado. A tela dizia "nenhuma peça em conserto" logo depois de registrar um.
+ *
+ * Com tudo em mãos, a tela mostra os abertos por padrão mas SABE quantos
+ * entregues existem — e diz isso em vez de fingir que não há nada.
+ *
+ * O corte de 120 dias evita que a lista cresça para sempre; peça entregue há
+ * quatro meses não é mais assunto de ninguém no balcão.
+ */
+export async function listarConsertos(): Promise<Conserto[]> {
   const ctx = await escopo()
   if (!ctx) return []
+
+  const corte = new Date()
+  corte.setDate(corte.getDate() - 120)
 
   const admin = createAdminClient()
   let q = admin
     .from('consertos')
     .select('id, peca, servico, recebido_em, prometido_para, status, entregue_em, notes, customers(name, phone), sale_items(subtotal)')
+    .gte('recebido_em', corte.toISOString().slice(0, 10))
 
   if (ctx.loja) q = q.eq('store_id', ctx.loja)
-  if (!incluirEntregues) q = q.neq('status', 'entregue')
 
   const { data } = await q.order('recebido_em', { ascending: false })
 
