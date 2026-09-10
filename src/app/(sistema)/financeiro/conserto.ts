@@ -51,6 +51,14 @@ export interface BalancoConserto {
   lancamentos: LancamentoOurives[]
 }
 
+export interface ConsertoCobrado {
+  id: string
+  data: string
+  cliente: string
+  vendedora: string
+  valor: number
+}
+
 export interface ResultadoOurives {
   success: boolean
   error?: string
@@ -151,6 +159,55 @@ export async function buscarBalancoConserto(mes: string): Promise<BalancoConsert
     },
     lancamentos: pagoNoMes.linhas,
   }
+}
+
+/**
+ * Cada conserto cobrado no mês, para a dona ver de onde vem o número.
+ *
+ * O saldo sozinho não responde a pergunta que ela faz olhando para ele: "cobrei
+ * isso tudo de conserto mesmo?". Com a lista, ela confere atendimento por
+ * atendimento — e é assim que uma cobrança esquecida ou digitada errada
+ * aparece.
+ */
+export async function buscarConsertosDoMes(mes: string): Promise<ConsertoCobrado[]> {
+  const perfil = await getProfile()
+  if (!perfil) return []
+
+  const loja = lojaDoEscopo(perfil)
+  const admin = createAdminClient()
+  const { de, ate } = limites(mes)
+
+  let q = admin
+    .from('sale_items')
+    .select('id, subtotal, sales!inner(sale_date, store_id, status, seller_id, customers(name)), products!inner(is_service)')
+    .eq('products.is_service', true)
+    .neq('sales.status', 'cancelled')
+    .gte('sales.sale_date', de)
+    .lte('sales.sale_date', ate)
+
+  if (loja) q = q.eq('sales.store_id', loja)
+
+  const { data } = await q
+  const linhas = (data ?? []) as any[]
+  if (!linhas.length) return []
+
+  // Nome da vendedora numa consulta só — o join aninhado do PostgREST não
+  // alcança `users` a partir daqui.
+  const ids = [...new Set(linhas.map(l => l.sales?.seller_id).filter(Boolean))] as string[]
+  const { data: pessoas } = ids.length
+    ? await admin.from('users').select('id, full_name').in('id', ids)
+    : { data: [] as { id: string; full_name: string }[] }
+  const nome = new Map((pessoas ?? []).map(p => [p.id, p.full_name]))
+
+  return linhas
+    .map(l => ({
+      id: l.id as string,
+      data: String(l.sales?.sale_date ?? '').slice(0, 10),
+      cliente: l.sales?.customers?.name ?? 'Sem cliente',
+      vendedora: nome.get(l.sales?.seller_id) ?? '—',
+      valor: Number(l.subtotal),
+    }))
+    .sort((a, b) => b.data.localeCompare(a.data))
 }
 
 /**

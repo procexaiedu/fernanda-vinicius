@@ -223,3 +223,16 @@
 @media (max-width: 860px) {
   .placar, .formLinha { grid-template-columns: 1fr; }
 }
+
+/*
+ * Cartão que abre o detalhe. Vira botão de verdade — texto à esquerda e a
+ * mesma anatomia do cartão estático ao lado, para a fileira não desalinhar.
+ */
+.itemClicavel {
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 140ms ease;
+}
+
+.itemClicavel:hover { border-color: var(--accent); }

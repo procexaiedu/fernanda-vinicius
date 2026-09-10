@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { Plus, Trash2, ChevronLeft, ChevronRight, Wrench } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import {
-  buscarBalancoConserto, declararGastoOurives, removerGastoOurives,
-  type BalancoConserto,
+  buscarBalancoConserto, buscarConsertosDoMes, declararGastoOurives, removerGastoOurives,
+  type BalancoConserto, type ConsertoCobrado,
 } from './conserto'
+import DetalheListaModal from '@/components/dashboard/DetalheListaModal'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import styles from './ConsertoTab.module.css'
 
@@ -51,6 +52,20 @@ export default function ConsertoTab() {
   const [valor, setValor] = useState('')
   const [obs, setObs] = useState('')
   const [salvando, setSalvando] = useState(false)
+
+  /* O detalhe do que foi cobrado. Existe porque o saldo sozinho não responde à
+   * pergunta que ela faz olhando para ele: "cobrei isso tudo de conserto
+   * mesmo?" — e é conferindo atendimento por atendimento que uma cobrança
+   * esquecida ou digitada errada aparece. */
+  const [detalhe, setDetalhe] = useState<ConsertoCobrado[] | null>(null)
+  const [carregandoDetalhe, setCarregandoDetalhe] = useState(false)
+
+  async function abrirDetalhe() {
+    setCarregandoDetalhe(true)
+    setDetalhe([])
+    setDetalhe(await buscarConsertosDoMes(mes))
+    setCarregandoDetalhe(false)
+  }
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -122,15 +137,15 @@ export default function ConsertoTab() {
       {!carregando && dados && (
         <>
           <div className={styles.placar}>
-            <div className={styles.item}>
+            <button type="button" className={`${styles.item} ${styles.itemClicavel}`} onClick={abrirDetalhe}>
               <span className={styles.rotulo}>Cobrado das clientes</span>
               <strong className={`${styles.valor} ${styles.pos}`}>{formatarDinheiro(dados.receita)}</strong>
               <span className={styles.nota}>
                 {dados.quantidade === 0
                   ? 'nenhum conserto no mês'
-                  : `${dados.quantidade} ${dados.quantidade === 1 ? 'conserto' : 'consertos'}`}
+                  : `${dados.quantidade} ${dados.quantidade === 1 ? 'conserto' : 'consertos'} · ver detalhe`}
               </span>
-            </div>
+            </button>
 
             <div className={styles.item}>
               <span className={styles.rotulo}>Pago ao Ourives</span>
@@ -142,15 +157,15 @@ export default function ConsertoTab() {
               </span>
             </div>
 
-            <div className={styles.item}>
+            <button type="button" className={`${styles.item} ${styles.itemClicavel}`} onClick={abrirDetalhe}>
               <span className={styles.rotulo}>Saldo do mês</span>
               <strong className={`${styles.valor} ${dados.saldo < 0 ? styles.neg : styles.pos}`}>
                 {formatarDinheiro(dados.saldo)}
               </strong>
               <span className={styles.nota}>
-                {dados.saldo < 0 ? 'pagou mais do que cobrou' : 'sobrou do conserto'}
+                {dados.saldo < 0 ? 'pagou mais do que cobrou' : 'sobrou do conserto'} · ver detalhe
               </span>
-            </div>
+            </button>
           </div>
 
           {/*
@@ -246,6 +261,36 @@ export default function ConsertoTab() {
             </table>
           )}
         </>
+      )}
+      {detalhe !== null && dados && (
+        <DetalheListaModal<ConsertoCobrado>
+          titulo="Conserto — de onde vem a diferença"
+          subtitulo={`${MESES[mNum - 1]} ${ano} · cada conserto cobrado no mês`}
+          linhas={detalhe}
+          chave={c => c.id}
+          carregando={carregandoDetalhe}
+          rotuloItem="conserto"
+          rotuloItemPlural="consertos"
+          vazio="Nenhum conserto cobrado neste mês."
+          /* A conta decomposta: é ela que responde "por que o saldo é esse". */
+          resumo={[
+            { rotulo: 'Cobrado das clientes', valor: formatarDinheiro(dados.receita), tom: 'pos' },
+            { rotulo: 'Pago ao Ourives', valor: formatarDinheiro(dados.pagoAoOurives), tom: 'neg' },
+            {
+              rotulo: dados.saldo < 0 ? 'Saldo — pagou mais do que cobrou' : 'Saldo do mês',
+              valor: formatarDinheiro(dados.saldo),
+              total: true,
+              tom: dados.saldo < 0 ? 'neg' : 'pos',
+            },
+          ]}
+          colunas={[
+            { chave: 'data', rotulo: 'Data', valor: c => fmtData(c.data), busca: c => fmtData(c.data) },
+            { chave: 'cliente', rotulo: 'Cliente', forte: true, valor: c => c.cliente, busca: c => c.cliente },
+            { chave: 'vend', rotulo: 'Vendedora', secundaria: true, valor: c => c.vendedora, busca: c => c.vendedora },
+            { chave: 'valor', rotulo: 'Cobrado', alinhamento: 'dir', forte: true, valor: c => formatarDinheiro(c.valor) },
+          ]}
+          onClose={() => setDetalhe(null)}
+        />
       )}
     </div>
   )
