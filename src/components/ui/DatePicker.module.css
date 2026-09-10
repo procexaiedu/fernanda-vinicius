@@ -51,6 +51,13 @@
   user-select: none;
 }
 
+/*
+ * O lado que o calendário escolhe quando não cabe. Quem decide é o componente,
+ * medindo a janela — aqui só existem as duas ancoragens possíveis.
+ */
+.calendar.aDireita { left: auto; right: 0; }
+.calendar.acima    { top: auto;  bottom: calc(100% + 4px); }
+
 /* Nav */
 
 .nav {

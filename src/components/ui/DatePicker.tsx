@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import styles from './DatePicker.module.css'
 
@@ -18,7 +18,55 @@ interface Props {
 
 export default function DatePicker({ value, onChange, className }: Props) {
   const btnRef   = useRef<HTMLButtonElement>(null)
+  const calRef   = useRef<HTMLDivElement>(null)
   const [open, setOpen]   = useState(false)
+
+  /*
+   * De que lado o calendário abre.
+   *
+   * Ele nascia sempre colado à esquerda do campo, com largura fixa. No último
+   * campo da linha — "Prometido para", em Consertos — isso jogava metade do
+   * calendário para fora da janela: a coluna de sábado e os dias 4, 11, 18 e
+   * 25 ficavam inalcançáveis.
+   *
+   * A medida é feita DEPOIS de renderizar, com o tamanho real do calendário, e
+   * não com a largura escrita no CSS: as duas divergem (padding, borda, fonte
+   * do sistema) e foi assim que a estimativa "itens × altura" já errou antes
+   * nos dropdowns. `useLayoutEffect` corre antes da pintura, então ninguém vê
+   * o calendário pular de lado.
+   */
+  const [lado, setLado] = useState<{ direita: boolean; acima: boolean }>({
+    direita: false, acima: false,
+  })
+
+  useLayoutEffect(() => {
+    if (!open) return
+    const campo = btnRef.current?.getBoundingClientRect()
+    const cal   = calRef.current
+    if (!campo || !cal) return
+
+    const MARGEM = 8   // respiro para a borda da janela
+    const larg = cal.offsetWidth
+    const alt  = cal.offsetHeight
+
+    // Só vira para a direita se, virando, ele passa a caber. Numa janela
+    // estreita demais os dois lados vazam — aí é melhor manter o de sempre.
+    const vazaNaDireita = campo.left + larg + MARGEM > window.innerWidth
+    const cabeVirado    = campo.right - larg >= MARGEM
+
+    // Mesma regra dos outros menus: sobe só quando embaixo não cabe e em cima
+    // cabe. Subir por pouco desorienta — o calendário aparece onde o olho não
+    // está.
+    const vazaEmbaixo = campo.bottom + alt + MARGEM > window.innerHeight
+    const cabeAcima   = campo.top - alt - MARGEM >= 0
+
+    const novo = {
+      direita: vazaNaDireita && cabeVirado,
+      acima:   vazaEmbaixo && cabeAcima,
+    }
+    setLado(atual =>
+      atual.direita === novo.direita && atual.acima === novo.acima ? atual : novo)
+  }, [open])
 
   // Cursor mês/ano do calendário — inicia no mês do value ou hoje
   const parsed   = value ? new Date(value + 'T00:00:00') : new Date()
@@ -94,7 +142,12 @@ export default function DatePicker({ value, onChange, className }: Props) {
 
       {open && (
         <div
-          className={styles.calendar}
+          ref={calRef}
+          className={[
+            styles.calendar,
+            lado.direita ? styles.aDireita : '',
+            lado.acima   ? styles.acima    : '',
+          ].join(' ')}
           onMouseDown={e => e.preventDefault()}
         >
           {/* Nav mês */}
