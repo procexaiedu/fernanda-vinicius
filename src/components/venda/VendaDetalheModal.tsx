@@ -183,6 +183,7 @@ export default function VendaDetalheModal({ saleId, onClose, onDeleted, canDelet
                 telefone={venda.customer_phone}
                 loja={venda.store_name}
                 podeEmitir={canDelete}
+                lojaEmite={venda.emiteNota}
                 onMudou={() => buscarDetalheVenda(saleId).then(r => r.data && setVenda(r.data))}
               />
 
@@ -277,7 +278,7 @@ const ROTULO_STATUS: Record<string, string> = {
  * a mesma clareza que mostra o sucesso — quem está no balcão precisa saber o
  * que fazer, não que "deu erro".
  */
-function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, onMudou }: {
+function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, lojaEmite, onMudou }: {
   saleId: string
   nfce: VendaDetail['nfce']
   cpf: string | null
@@ -285,6 +286,8 @@ function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, o
   telefone: string | null
   loja: string | null
   podeEmitir: boolean
+  /** A loja tem emitente ligado. Sem isto o botão de emitir só renderia um erro. */
+  lojaEmite: boolean
   onMudou: () => void
 }) {
   /*
@@ -333,7 +336,12 @@ function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, o
 
       {!status && (
         <div className={styles.fiscalVazio}>
-          Esta venda não tem nota.
+          {/* Dizer POR QUE não há botão vale mais que esconder tudo em
+              silêncio: sem esta linha, a tela some com o assunto e parece
+              defeito. */}
+          {lojaEmite
+            ? <>Esta venda não tem nota.</>
+            : <>Esta loja ainda não emite nota fiscal.</>}
           {cpf && <> A cliente pediu no CPF <strong>{cpf}</strong>.</>}
         </div>
       )}
@@ -366,7 +374,7 @@ function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, o
 
       {podeEmitir && (
         <div className={styles.fiscalAcoes}>
-          {!autorizada && status !== 'cancelada' && (
+          {!autorizada && status !== 'cancelada' && lojaEmite && (
             <Button size="sm" variant="outline" onClick={() => rodar('emitir')} loading={ocupado === 'emitir'}>
               <FileText size={13} /> {status ? 'Tentar de novo' : 'Emitir nota'}
             </Button>

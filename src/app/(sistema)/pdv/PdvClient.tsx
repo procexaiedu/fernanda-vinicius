@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ShoppingCart, Receipt, CheckCircle2, FileText, X, MessageCircle,
 } from 'lucide-react'
 import NovaVendaForm from '../vendas/nova/NovaVendaForm'
@@ -8,7 +8,7 @@ import CaixaDoDia from './CaixaDoDia'
 import PageHeader from '@/components/ui/PageHeader'
 import { buscarCaixaDoDia, type CaixaDoDia as CaixaData } from './actions'
 import styles from './pdv.module.css'
-import { emitirNotaDaVenda } from '@/app/(sistema)/vendas/fiscal'
+import { emitirNotaDaVenda, vendaEmiteNota } from '@/app/(sistema)/vendas/fiscal'
 import { linkDaNotaNoWhatsApp } from '@/lib/fiscal/enviarDanfe'
 
 type FormProps = React.ComponentProps<typeof NovaVendaForm>
@@ -116,11 +116,28 @@ export default function PdvClient({
  */
 function PainelNota({ saleId, onFechar }: { saleId: string; onFechar: () => void }) {
   const [estado, setEstado] = useState<'pronta' | 'emitindo' | 'ok' | 'erro'>('pronta')
+  /*
+   * A loja desta venda emite nota?
+   *
+   * `null` enquanto a resposta não chega — e nesse tempo o botão NÃO aparece.
+   * O contrário (mostrar e depois sumir) pisca um botão na cara de quem está
+   * com a cliente na frente, e pior: alguém consegue clicar no piscar.
+   *
+   * Campinas não tem emitente cadastrado, então até 10/09 o botão aparecia em
+   * toda venda para devolver "Esta loja não tem emitente fiscal configurado".
+   */
+  const [emiteNota, setEmiteNota] = useState<boolean | null>(null)
   const [mensagem, setMensagem] = useState<string | null>(null)
   const [danfe, setDanfe] = useState<string | null>(null)
   /* Link pronto ANTES do clique: abrir o WhatsApp depois de um `await` é o que
    * o navegador barra como pop-up. */
   const [linkWhats, setLinkWhats] = useState<string | null>(null)
+
+  useEffect(() => {
+    let vivo = true
+    vendaEmiteNota(saleId).then(r => { if (vivo) setEmiteNota(r) }).catch(() => { if (vivo) setEmiteNota(false) })
+    return () => { vivo = false }
+  }, [saleId])
 
   async function emitir() {
     setEstado('emitindo'); setMensagem(null)
@@ -147,7 +164,7 @@ function PainelNota({ saleId, onFechar }: { saleId: string; onFechar: () => void
         <CheckCircle2 size={18} />
         <strong>Venda registrada</strong>
 
-        {estado === 'pronta' && (
+        {estado === 'pronta' && emiteNota === true && (
           <button className={styles.btnNota} onClick={emitir}>
             <FileText size={14} /> Emitir nota
           </button>

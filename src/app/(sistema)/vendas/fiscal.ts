@@ -5,6 +5,7 @@ import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { emitirNfce, consultarNfce, cancelarNfce, type AmbienteFiscal } from '@/lib/fiscal/focus'
+import { lojaEmiteNota } from '@/lib/fiscal/emitente'
 import {
   montarNfce, validarVenda, ratearDesconto, refDaVenda,
   type ItemVenda, type MetodoPagamento, type VendaParaNota,
@@ -90,6 +91,22 @@ async function daMinhaLoja(storeIdDaVenda: string | null): Promise<boolean> {
   if (!perfil) return false
   const escopo = lojaDoEscopo(perfil)
   return !escopo || escopo === storeIdDaVenda
+}
+
+/**
+ * A loja desta venda emite nota?
+ *
+ * O PDV pergunta antes de mostrar o botão. Vem por venda, e não por loja fixa,
+ * porque a admin global pode estar operando qualquer uma das duas.
+ */
+export async function vendaEmiteNota(saleId: string): Promise<boolean> {
+  const { error } = await verificarUsuario()
+  if (error) return false
+
+  const admin = createAdminClient()
+  const { data } = await admin.from('sales').select('store_id').eq('id', saleId).maybeSingle()
+
+  return lojaEmiteNota(admin, data?.store_id ?? null)
 }
 
 // ─── Emitir ───────────────────────────────────────────────────────────────────

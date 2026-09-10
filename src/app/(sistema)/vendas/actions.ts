@@ -7,6 +7,7 @@ import { calcularTotalDaVenda } from '@/lib/vendas/total'
 import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { produtoDeConserto } from '@/lib/conserto'
 import { registrarPagamentoDoConserto, registrarConsertoDaVenda } from '@/app/(sistema)/consertos/actions'
+import { lojaEmiteNota } from '@/lib/fiscal/emitente'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -143,6 +144,8 @@ export interface VendaDetail {
     emitida_em: string | null
   }
   destinatario_cpf: string | null
+  /** A loja desta venda tem emitente ligado. Decide se o botão de emitir existe. */
+  emiteNota: boolean
 }
 
 export interface VendaParaTroca {
@@ -519,7 +522,7 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
   const [saleRes, itemsRes, paymentsRes, exchangesRes] = await Promise.all([
     admin
       .from('sales')
-      .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, seller_id, destinatario_cpf, nfce_status, nfce_chave, nfce_numero, nfce_serie, nfce_danfe_url, nfce_motivo_rejeicao, nfce_emitida_em, customers(name, phone), stores(name)')
+      .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, seller_id, store_id, destinatario_cpf, nfce_status, nfce_chave, nfce_numero, nfce_serie, nfce_danfe_url, nfce_motivo_rejeicao, nfce_emitida_em, customers(name, phone), stores(name)')
       .eq('id', saleId)
       .single(),
     admin
@@ -549,13 +552,15 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
   const sellerIdVal = (sale as any).seller_id
   const exchId = exchanges && exchanges.length > 0 ? exchanges[0].id : null
 
-  const [sellerRes, exchItemsRes] = await Promise.all([
+  const [sellerRes, exchItemsRes, emiteNota] = await Promise.all([
     sellerIdVal
       ? admin.from('users').select('full_name').eq('id', sellerIdVal).single()
       : Promise.resolve({ data: null }),
     exchId
       ? admin.from('exchange_items').select('direction, quantity, unit_price, products(name, code)').eq('exchange_id', exchId)
       : Promise.resolve({ data: null }),
+    // No mesmo lote: é uma ida a mais ao banco, mas em paralelo não custa nada.
+    lojaEmiteNota(admin, (sale as any).store_id ?? null),
   ])
 
   const sellerName: string | null = (sellerRes as any).data?.full_name ?? null
@@ -633,6 +638,7 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
         emitida_em:      sale.nfce_emitida_em ?? null,
       },
       destinatario_cpf: sale.destinatario_cpf ?? null,
+      emiteNota,
     }
   }
 }
