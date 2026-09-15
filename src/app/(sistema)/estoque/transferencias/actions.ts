@@ -186,6 +186,23 @@ export interface PecaBipada {
   barcode_number: string
   quantity_in_stock: number
   cost_price: number
+  /**
+   * Preço de venda EFETIVO — promoção já aplicada, mesma regra do PDV e da
+   * etiqueta (só vale se estiver ativa e maior que zero).
+   *
+   * Existe porque a dona precisa ver, enquanto monta o romaneio, quanto está
+   * mandando a preço de venda: "eu vou vendo o valor total, eu vejo se tá bom
+   * ou se eu mando mais" (15/09). Custo sozinho não responde essa pergunta.
+   */
+  sale_price: number
+}
+
+/** Preço que a cliente paga. Promoção só conta se ativa e maior que zero. */
+function precoEfetivo(p: { sale_price: unknown; promotional_price: unknown; promotional_active: unknown }): number {
+  const emPromo = !!p.promotional_active
+    && p.promotional_price !== null
+    && Number(p.promotional_price) > 0
+  return Number(emPromo ? p.promotional_price : p.sale_price) || 0
 }
 
 /**
@@ -205,7 +222,7 @@ export async function buscarPecaPorCodigo(
 
   const { data, error } = await createAdminClient()
     .from('products')
-    .select('id, code, name, barcode_number, quantity_in_stock, cost_price, store_id, is_active')
+    .select('id, code, name, barcode_number, quantity_in_stock, cost_price, store_id, is_active, sale_price, promotional_price, promotional_active')
     .eq('barcode_number', barcode.trim())
     .maybeSingle()
 
@@ -228,7 +245,56 @@ export async function buscarPecaPorCodigo(
       barcode_number:    data.barcode_number as string,
       quantity_in_stock: data.quantity_in_stock as number,
       cost_price:        Number(data.cost_price ?? 0),
+      sale_price:        precoEfetivo(data),
     },
+  }
+}
+
+/**
+ * Reconfere um romaneio em montagem que foi retomado do rascunho.
+ *
+ * O rascunho sobrevive a fechar a tela (ver NovaTransferenciaModal), e entre
+ * bipar e enviar pode ter passado um dia: a peça pode ter sido vendida,
+ * transferida por outra pessoa ou desativada. Devolver a lista velha como se
+ * nada tivesse mudado é o mesmo erro de `(res.data ?? [])` — dado morto
+ * entregue como dado vivo.
+ *
+ * Em UMA consulta, não uma por peça. O `.in()` aqui é seguro: um romaneio é
+ * dezenas de peças, não as centenas que estouram a URL do PostgREST.
+ */
+export async function revalidarRascunho(
+  productIds: string[],
+  storeId: string,
+): Promise<{ success: true; pecas: PecaBipada[] } | { success: false; error: string }> {
+  const perfil = await requireProfile()
+  storeId = lojaDoEscopo(perfil, storeId) ?? storeId
+
+  if (!productIds.length) return { success: true, pecas: [] }
+
+  const { data, error } = await createAdminClient()
+    .from('products')
+    .select('id, code, name, barcode_number, quantity_in_stock, cost_price, sale_price, promotional_price, promotional_active')
+    .in('id', productIds.slice(0, 200))
+    .eq('store_id', storeId)
+    .eq('is_active', true)
+    .gt('quantity_in_stock', 0)
+
+  // Erro é erro. Devolver lista vazia aqui apagaria o romaneio inteiro da tela
+  // e ela acharia que perdeu o trabalho de novo — exatamente o que isto veio
+  // resolver.
+  if (error) return { success: false, error: error.message }
+
+  return {
+    success: true,
+    pecas: (data ?? []).map(p => ({
+      id:                p.id as string,
+      code:              p.code as string,
+      name:              p.name as string,
+      barcode_number:    p.barcode_number as string,
+      quantity_in_stock: p.quantity_in_stock as number,
+      cost_price:        Number(p.cost_price ?? 0),
+      sale_price:        precoEfetivo(p),
+    })),
   }
 }
 

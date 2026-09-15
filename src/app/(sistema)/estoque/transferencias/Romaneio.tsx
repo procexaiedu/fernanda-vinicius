@@ -22,6 +22,9 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
   const enviados = r.itens.filter(i => i.quantity_sent > 0)
   const pecas = r.totals?.pecas ?? enviados.reduce((s, i) => s + i.quantity_sent, 0)
   const custo = r.totals?.custo_total ?? enviados.reduce((s, i) => s + i.unit_cost * i.quantity_sent, 0)
+  /* Sem fallback de propósito: o preço de venda daquele dia não foi guardado
+     nos romaneios antigos e não dá para reconstruir. Ver page.tsx. */
+  const venda = r.totals?.venda_total
   const reetiquetar = enviados.filter(i => i.reetiquetar)
 
   return (
@@ -53,10 +56,16 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
           </div>
         </header>
 
+        {/* Peça, custo e venda — o trio que ela pediu em 15/09. "Itens" saiu:
+            ela perguntou o que diferenciava de "peças" e não havia resposta que
+            mudasse alguma decisão dela. */}
         <div className={styles.resumo}>
           <div><span>Peças</span><strong>{pecas}</strong></div>
-          <div><span>Itens</span><strong>{enviados.length}</strong></div>
           <div><span>Custo total</span><strong>{formatarDinheiro(custo)}</strong></div>
+          <div>
+            <span>Venda total</span>
+            <strong>{venda === undefined ? '—' : formatarDinheiro(venda)}</strong>
+          </div>
         </div>
 
         {reetiquetar.length > 0 && (

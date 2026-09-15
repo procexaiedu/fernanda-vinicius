@@ -29,7 +29,14 @@ export interface Romaneio {
   received_at: string | null
   notes: string | null
   receipt_notes: string | null
-  totals: { pecas?: number; itens?: number; custo_total?: number } | null
+  /*
+   * `venda_total` só existe nos romaneios enviados a partir de 15/09/2026 (ver
+   * a migration 20260915_transferencia_valor_de_venda). É jsonb, então ler o
+   * campo novo não exige que a coluna exista — nos antigos ele vem `undefined`,
+   * e a tela mostra "—". Nunca R$ 0,00: zero é um número que ela usaria para
+   * decidir quanto mandar, e seria mentira.
+   */
+  totals: { pecas?: number; itens?: number; custo_total?: number; venda_total?: number } | null
   de: string
   para: string
   enviou: string

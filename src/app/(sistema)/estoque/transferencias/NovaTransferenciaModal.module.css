@@ -84,6 +84,7 @@
 
 .erro,
 .ultimo,
+.avisoRetomado,
 .avisoParcial {
   display: flex;
   align-items: flex-start;
@@ -112,6 +113,36 @@
 }
 
 .avisoParcial svg { flex-shrink: 0; margin-top: 1px; }
+
+/* Romaneio que voltou do rascunho. Informa, não alarma — por isso não usa a
+   cor de aviso: nada deu errado, o trabalho dela foi preservado. */
+.avisoRetomado {
+  align-items: center;
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+}
+
+.avisoRetomado svg { flex-shrink: 0; }
+.avisoRetomado span { flex: 1; }
+
+.descartar {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.descartar:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.descartar:disabled { opacity: .5; cursor: not-allowed; }
 
 .vazio {
   padding: 28px;
