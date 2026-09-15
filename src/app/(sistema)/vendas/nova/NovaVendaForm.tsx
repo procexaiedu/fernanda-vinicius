@@ -16,9 +16,10 @@ import {
   salvarVenda, editarVenda, type VendaFormData,
   type SaleItem, type SalePaymentRow, type ExchangeItemSelected, type EditSaleData,
 } from '../actions'
-import { clientesComMesmoTelefone, createCustomer, searchCustomers, type ClienteComMesmoTelefone, type CustomerFormData } from '../../clientes/actions'
+import { clientesComMesmoTelefone, completarCadastroNaVenda, createCustomer, searchCustomers, type ClienteComMesmoTelefone, type CustomerFormData } from '../../clientes/actions'
 import { matchText } from '@/lib/normalize'
-import { todaySP } from '@/lib/date'
+import { maskDate, toDisplayDate, toISODate, todaySP } from '@/lib/date'
+import { mascararCpf, validarCpf } from '@/lib/cpf'
 import styles from './NovaVendaForm.module.css'
 import { formatarTelefone, mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/telefone'
 import { formatarDinheiro } from '@/lib/dinheiro'
@@ -464,12 +465,104 @@ function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGrid
  * Ver src/lib/telefone.ts. */
 const maskPhone = mascararTelefone
 
-function maskCpf(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 11)
-  if (d.length <= 3)  return d
-  if (d.length <= 6)  return `${d.slice(0,3)}.${d.slice(3)}`
-  if (d.length <= 9)  return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}`
-  return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`
+/* Terceira cópia da mesma máscara, agora em src/lib/cpf.ts junto da validação
+   dos dígitos — que é o que faltava aqui e entrou com a edição na venda. */
+const maskCpf = mascararCpf
+
+// ─── Modal completar cadastro (sem sair da venda) ─────────────────────────────
+
+/**
+ * O buraco que ela descreveu em 15/09, com a cliente no balcão:
+ *
+ *   "Eu estou fazendo a venda e eu vejo que o cadastro dela está incompleto.
+ *    Não tem data de nascimento e CPF. Não dá para eu ter um botãozinho e eu
+ *    clicar e já editar isso?"
+ *
+ * Dois campos, de propósito. Não é a ficha inteira: é o que falta para a nota
+ * sair e para o desconto de aniversário existir. Ficha completa continua em
+ * /clientes, onde há espaço para endereço e observação.
+ *
+ * Campo deixado em branco não apaga o que já existe — ver
+ * `completarCadastroNaVenda`.
+ */
+function CompletarCadastroModal({ cliente, onClose, onSalvo }: {
+  cliente: CustomerOption
+  onClose: () => void
+  onSalvo: (dados: { cpf: string | null; birthday: string | null }) => void
+}) {
+  const [cpf, setCpf] = useState(cliente.cpf ? maskCpf(cliente.cpf) : '')
+  const [birthday, setBirthday] = useState(cliente.birthday ?? '')
+  const [birthdayDisplay, setBirthdayDisplay] = useState(toDisplayDate(cliente.birthday ?? ''))
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState('')
+
+  async function salvar() {
+    // CPF errado na nota fiscal volta como rejeição da SEFAZ depois da venda
+    // fechada — barrar aqui custa um segundo.
+    if (cpf.trim() && !validarCpf(cpf)) { setError('CPF inválido.'); return }
+    // Data pela metade vira '' no `birthday`; avisar é melhor que salvar nada
+    // calado, que foi exatamente o defeito de 15/09.
+    if (birthdayDisplay.trim() && !birthday) {
+      setError('Data de nascimento incompleta. Use DD/MM/AAAA.')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    let r: Awaited<ReturnType<typeof completarCadastroNaVenda>>
+    try {
+      r = await completarCadastroNaVenda(cliente.id, { cpf, birthday })
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setSaving(false)
+    }
+
+    if (!r.success) { setError(r.error ?? 'Erro ao salvar.'); return }
+    onSalvo({ cpf: cpf.replace(/\D/g, '') || cliente.cpf, birthday: birthday || cliente.birthday })
+  }
+
+  return (
+    <Modal isOpen title={cliente.name} onClose={onClose}>
+      <div className={styles.createCustomerForm}>
+        <div className={styles.createRow}>
+          <div className={styles.createField}>
+            <label>CPF</label>
+            <input
+              className={styles.createInput}
+              value={cpf}
+              onChange={e => setCpf(maskCpf(e.target.value))}
+              placeholder="000.000.000-00"
+              inputMode="numeric"
+              autoFocus
+            />
+          </div>
+          <div className={styles.createField}>
+            <label>Data de nascimento</label>
+            <input
+              className={styles.createInput}
+              type="text"
+              inputMode="numeric"
+              placeholder="DD/MM/AAAA"
+              value={birthdayDisplay}
+              onChange={e => {
+                const masked = maskDate(e.target.value)
+                setBirthdayDisplay(masked)
+                setBirthday(toISODate(masked))
+              }}
+              maxLength={10}
+            />
+          </div>
+        </div>
+        {error && <div className={styles.createError}><AlertTriangle size={13} /> {error}</div>}
+        <div className={styles.createActions}>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>Cancelar</Button>
+          <Button loading={saving} onClick={salvar}>Salvar</Button>
+        </div>
+      </div>
+    </Modal>
+  )
 }
 
 // ─── Modal criar cliente ──────────────────────────────────────────────────────
@@ -492,6 +585,9 @@ function CreateCustomerModal({ storeId, nomeInicial, onClose, onCreated }: {
   const [phone, setPhone]       = useState('')
   const [cpf, setCpf]           = useState('')
   const [birthday, setBirthday] = useState('')
+  /* O que ela vê (DD/MM/AAAA) anda separado do que vai para o banco
+     (YYYY-MM-DD): enquanto a data está pela metade, o segundo fica vazio. */
+  const [birthdayDisplay, setBirthdayDisplay] = useState('')
   const [email, setEmail]       = useState('')
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState('')
@@ -586,7 +682,26 @@ function CreateCustomerModal({ storeId, nomeInicial, onClose, onCreated }: {
         <div className={styles.createRow}>
           <div className={styles.createField}>
             <label>Aniversário</label>
-            <DatePicker value={birthday} onChange={setBirthday} className={styles.createInput} />
+            {/*
+              Digitado, não calendário. Data de nascimento fica décadas atrás e
+              o calendário obrigava a voltar mês a mês — "imagina, eu vou tendo
+              que ir mês por mês até chegar no ano de 75" (15/09). As outras
+              datas desta tela continuam no DatePicker, porque miram perto de
+              hoje. Aceita "23/09/75".
+            */}
+            <input
+              className={styles.createInput}
+              type="text"
+              inputMode="numeric"
+              placeholder="DD/MM/AAAA"
+              value={birthdayDisplay}
+              onChange={e => {
+                const masked = maskDate(e.target.value)
+                setBirthdayDisplay(masked)
+                setBirthday(toISODate(masked))
+              }}
+              maxLength={10}
+            />
           </div>
           <div className={styles.createField}>
             <label>E-mail</label>
@@ -666,6 +781,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   const [customerSearch, setCustomerSearch] = useState(editSale?.customer?.name ?? '')
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(editSale?.customer ?? null)
+  const [editandoCliente, setEditandoCliente] = useState(false)
   const [showCreateCustomer, setShowCreateCustomer] = useState(false)
   const [nomeNovoCliente, setNomeNovoCliente] = useState('')
 
@@ -1203,7 +1319,17 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             {selectedCustomer ? (
               <div className={styles.selectedCustomer}>
                 <User size={13} />
-                <span className={styles.selectedCustomerName}>{selectedCustomer.name}</span>
+                {/* O nome é o botão. Ela pediu "um botãozinho" para completar o
+                    cadastro sem largar a venda, e o alvo natural do clique é a
+                    própria cliente — não mais um ícone na fileira. */}
+                <button
+                  type="button"
+                  className={styles.selectedCustomerName}
+                  onClick={() => setEditandoCliente(true)}
+                  title="Completar cadastro (CPF e nascimento)"
+                >
+                  {selectedCustomer.name}
+                </button>
                 {selectedCustomer.phone && <span className={styles.selectedCustomerMeta}>{formatarTelefone(selectedCustomer.phone)}</span>}
                 <button
                   type="button"
@@ -1774,6 +1900,21 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       </div>
 
       {/* ── Modal criar cliente ───────────────────────────────────────────── */}
+      {editandoCliente && selectedCustomer && (
+        <CompletarCadastroModal
+          cliente={selectedCustomer}
+          onClose={() => setEditandoCliente(false)}
+          onSalvo={dados => {
+            /* Atualiza a cliente aqui mesmo: o CPF recém-digitado já vale para
+               a nota desta venda, e o aniversário reacende o desconto sem ela
+               ter de sair e voltar. */
+            setSelectedCustomer(c => (c ? { ...c, ...dados } : c))
+            if (dados.cpf) setDestinatarioCpf(maskCpf(dados.cpf))
+            setEditandoCliente(false)
+          }}
+        />
+      )}
+
       {showCreateCustomer && (
         <CreateCustomerModal
           storeId={effectiveStoreId}

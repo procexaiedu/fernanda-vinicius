@@ -8,63 +8,29 @@ import { clientesComMesmoTelefone, createCustomer, updateCustomer, type ClienteC
 import type { CustomerWithStats, StoreOption } from './page'
 import { mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/telefone'
 import { mascararCep } from '@/lib/cep'
+import { maskDate, toDisplayDate, toISODate } from '@/lib/date'
+import { mascararCpf, validarCpf } from '@/lib/cpf'
 import { useCep } from '@/hooks/useCep'
 import styles from './ClienteFormModal.module.css'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function validateCPF(cpf: string): boolean {
-  const d = cpf.replace(/\D/g, '')
-  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false
-  let sum = 0
-  for (let i = 0; i < 9; i++) sum += parseInt(d[i]) * (10 - i)
-  let r = (sum * 10) % 11
-  if (r === 10 || r === 11) r = 0
-  if (r !== parseInt(d[9])) return false
-  sum = 0
-  for (let i = 0; i < 10; i++) sum += parseInt(d[i]) * (11 - i)
-  r = (sum * 10) % 11
-  if (r === 10 || r === 11) r = 0
-  return r === parseInt(d[10])
-}
-
 /* Máscara compartilhada: mostra +55 e não corrompe número já salvo com código de
  * país. Ver src/lib/telefone.ts. */
 const maskPhone = mascararTelefone
 
-function maskCPF(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 11)
-  if (d.length <= 3)  return d
-  if (d.length <= 6)  return `${d.slice(0, 3)}.${d.slice(3)}`
-  if (d.length <= 9)  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`
-  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`
-}
+/* Validação e máscara de CPF subiram para src/lib/cpf.ts em 15/09 — o mesmo
+ * CPF passou a ser preenchível de dentro da venda. */
+const validateCPF = validarCpf
+const maskCPF = mascararCpf
 
 /* Máscara de CEP compartilhada com Fornecedores. Ver src/lib/cep.ts. */
 const maskZip = mascararCep
 
-// Converte "YYYY-MM-DD" → "DD/MM/YYYY" para exibição
-function toDisplayDate(v: string): string {
-  if (!v) return ''
-  const [y, m, d] = v.split('-')
-  return `${d}/${m}/${y}`
-}
-
-// Mascara o input enquanto o usuário digita: auto-insere as barras
-function maskDate(raw: string): string {
-  const digits = raw.replace(/\D/g, '').slice(0, 8)
-  if (digits.length <= 2) return digits
-  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
-}
-
-// Converte "DD/MM/YYYY" → "YYYY-MM-DD" para o form state
-function toISODate(display: string): string {
-  const digits = display.replace(/\D/g, '')
-  if (digits.length < 8) return ''
-  return `${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`
-}
+/* As três funções de data viviam aqui e subiram para src/lib/date.ts em 15/09,
+   quando o mesmo campo passou a existir também dentro da venda. Foi lá que o
+   ano de 2 dígitos ("23/09/75") deixou de virar data vazia calada. */
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 

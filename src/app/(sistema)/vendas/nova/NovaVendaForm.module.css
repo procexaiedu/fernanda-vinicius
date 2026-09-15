@@ -191,8 +191,29 @@
   font-size: 13px;
 }
 
+/* Virou <button> em 15/09 (completar cadastro sem sair da venda). Continua
+   parecendo texto: sublinha pontilhada só no hover, para não competir com os
+   botões de verdade da barra nem gritar que é clicável o tempo todo. */
 .selectedCustomerName {
   font-weight: 600;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted transparent;
+  text-underline-offset: 3px;
+}
+
+.selectedCustomerName:hover {
+  text-decoration-color: var(--accent);
+}
+
+.selectedCustomerName:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 .selectedCustomerMeta {

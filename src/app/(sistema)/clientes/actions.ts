@@ -132,6 +132,61 @@ export async function updateCustomer(id: string, data: CustomerFormData): Promis
   return { success: true }
 }
 
+/**
+ * Completa o cadastro da cliente SEM sair da venda.
+ *
+ * Nasceu do pedido dela em 15/09: "eu estou fazendo a venda e eu vejo que o
+ * cadastro dela está incompleto, não tem data de nascimento e CPF. Não dá para
+ * eu ter um botãozinho e eu clicar e já editar isso?"
+ *
+ * NÃO é `updateCustomer` com menos campos. `updateCustomer` recebe o formulário
+ * inteiro e sobrescreve tudo — usá-lo aqui, com só dois campos preenchidos,
+ * apagaria endereço, e-mail, observação e loja de origem de quem já os tinha.
+ * Uma escrita estreita não tem como causar esse estrago.
+ *
+ * Campo vazio NÃO apaga o que existe: no balcão ela preenche o que falta, e
+ * deixar em branco significa "não sei", não "apague".
+ */
+export async function completarCadastroNaVenda(
+  id: string,
+  dados: { cpf: string; birthday: string },
+): Promise<ActionResult> {
+  const perfil = await requireProfile()
+
+  const admin = createAdminClient()
+
+  /*
+   * Mesma regra de escopo da edição em /clientes: a venda não pode ser a porta
+   * dos fundos para mexer na cliente da outra loja. Quem tem escopo só alcança
+   * quem nasceu na loja dele.
+   */
+  const escopo = lojaDoEscopo(perfil)
+  const { data: cliente } = await admin
+    .from('customers')
+    .select('id, origin_store_id')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (!cliente) return { success: false, error: 'Cliente não encontrada.' }
+  if (escopo && cliente.origin_store_id !== escopo) {
+    return { success: false, error: 'Esta cliente não é desta loja.' }
+  }
+
+  const patch: Record<string, string> = { updated_at: new Date().toISOString() }
+  if (dados.cpf.trim())      patch.cpf      = dados.cpf.trim()
+  if (dados.birthday.trim()) patch.birthday = dados.birthday.trim()
+
+  // Só CPF e aniversário vazios: não há o que gravar, e um UPDATE que só mexe
+  // em `updated_at` mentiria dizendo que algo mudou.
+  if (Object.keys(patch).length === 1) return { success: true }
+
+  const { error } = await admin.from('customers').update(patch).eq('id', id)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/clientes')
+  return { success: true }
+}
+
 export async function deleteCustomer(id: string): Promise<ActionResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
