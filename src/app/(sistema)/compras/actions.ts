@@ -199,49 +199,123 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
     }
   }
 
-  // ── 3. Criar / reusar / duplicar produtos ─────────────────────────────────
-  const resolvedProductIds: string[] = []
+  /*
+   * `.in('id', [...])` vai na URL, e URL tem teto: o PostgREST devolve 414 a
+   * partir de ~500 ids, e o CLAUDE.md manda paginar acima de ~200. Uma mala de
+   * São Paulo tem 300 peças — exatamente a faixa que quebra. 150 por bloco
+   * deixa folga para o resto da querystring.
+   */
+  const BLOCO_IN = 150
+  const emBlocos = <T,>(xs: T[]): T[][] => {
+    const out: T[][] = []
+    for (let i = 0; i < xs.length; i += BLOCO_IN) out.push(xs.slice(i, i + BLOCO_IN))
+    return out
+  }
+
+  /* ── 3. Criar / reusar / duplicar produtos ─────────────────────────────────
+   *
+   * EM LOTE, NÃO UMA PEÇA POR VEZ.
+   *
+   * Antes era um `for` com `await` dentro: cada peça nova custava um INSERT e
+   * cada peça reusada um SELECT mais um UPDATE, em fila. Uma mala de São Paulo
+   * traz 300 linhas — são 300 a 600 idas ao banco em série, mais 300 depois
+   * para gravar o `purchase_id`. Com ~40ms de ida e volta cada, passa de meio
+   * minuto de tela travada, e a dona relatou a compra grande "travando no
+   * salvar".
+   *
+   * Agora é um INSERT só para as peças novas.
+   *
+   * A ORDEM DO RETORNO IMPORTA: `purchase_items` liga `data.rows[i]` a
+   * `resolvedProductIds[i]`, então trocar duas peças de lugar penduraria o
+   * subtotal de uma na outra. O Postgres devolve as linhas de um
+   * `INSERT ... VALUES ... RETURNING` na ordem em que foram inseridas — e a
+   * conferência de quantidade logo abaixo é o que impede de seguir com a
+   * suposição quebrada.
+   */
   const ownership = data.isConsignment ? 'consignment' : 'own'
 
-  for (const row of data.rows) {
-    const supId    = resolveSupplier(row)
-    const initials = initialsCache.get(supId) ?? 'FV'
-    const code     = generateCode(initials, purchaseMonth, row.costPrice)
+  const reusar = data.rows
+    .map((row, i) => ({ row, i }))
+    .filter(({ row }) => row.productId && !row.productExistingCostDiffers)
 
-    if (row.productId && !row.productExistingCostDiffers) {
-      // Reusar produto — só incrementa estoque
-      const { data: existing } = await admin
-        .from('products').select('quantity_in_stock').eq('id', row.productId).single()
-      const newQty = (existing?.quantity_in_stock ?? 0) + row.quantity
-      await admin.from('products')
-        .update({ quantity_in_stock: newQty, updated_at: new Date().toISOString() })
-        .eq('id', row.productId)
-      resolvedProductIds.push(row.productId)
-    } else {
-      // Criar produto novo (ou duplicata com novo custo)
-      const { data: newProd, error } = await admin
-        .from('products')
-        .insert({
-          code,
-          name:              row.productName.trim(),
-          category:          row.category.trim().toLowerCase(),
-          material:          row.material.trim().toLowerCase(),
-          supplier_id:       supId,
-          store_id:          row.storeId,
-          cost_price:        row.costPrice,
-          sale_price:        row.salePrice,
-          promotional_price: row.promoPrice ?? null,
-          quantity_in_stock: row.quantity,
-          ownership_type:    ownership,
-          purchase_month:    purchaseMonth,
-          purchase_year:     purchaseYear,
-          is_active:         true,
-        })
-        .select('id')
-        .single()
+  const novas = data.rows
+    .map((row, i) => ({ row, i }))
+    .filter(({ row }) => !row.productId || row.productExistingCostDiffers)
 
-      if (error || !newProd) return { success: false, error: `Erro ao criar produto "${row.productName}": ${error?.message}` }
-      resolvedProductIds.push(newProd.id)
+  const resolvedProductIds: string[] = new Array(data.rows.length)
+
+  // ── Peças novas: um INSERT para todas ──
+  if (novas.length) {
+    const linhas = novas.map(({ row }) => {
+      const supId    = resolveSupplier(row)
+      const initials = initialsCache.get(supId) ?? 'FV'
+      return {
+        code:              generateCode(initials, purchaseMonth, row.costPrice),
+        name:              row.productName.trim(),
+        category:          row.category.trim().toLowerCase(),
+        material:          row.material.trim().toLowerCase(),
+        supplier_id:       supId,
+        store_id:          row.storeId,
+        cost_price:        row.costPrice,
+        sale_price:        row.salePrice,
+        promotional_price: row.promoPrice ?? null,
+        quantity_in_stock: row.quantity,
+        ownership_type:    ownership,
+        purchase_month:    purchaseMonth,
+        purchase_year:     purchaseYear,
+        is_active:         true,
+      }
+    })
+
+    const { data: criadas, error } = await admin.from('products').insert(linhas).select('id')
+
+    if (error || !criadas) {
+      return { success: false, error: `Erro ao criar as peças: ${error?.message}` }
+    }
+    if (criadas.length !== novas.length) {
+      // Voltou quantidade diferente: a correspondência por posição não vale
+      // mais, e seguir aqui ligaria peça à linha errada da compra.
+      return {
+        success: false,
+        error: `O banco criou ${criadas.length} peças de ${novas.length}. A compra não foi salva.`,
+      }
+    }
+
+    novas.forEach(({ i }, n) => { resolvedProductIds[i] = criadas[n].id as string })
+  }
+
+  // ── Peças reusadas: um SELECT para todas, depois os UPDATEs em paralelo ──
+  if (reusar.length) {
+    const ids = reusar.map(({ row }) => row.productId as string)
+    const saldo = new Map<string, number>()
+
+    for (const bloco of emBlocos(ids)) {
+      const { data: atuais, error } = await admin
+        .from('products').select('id, quantity_in_stock').in('id', bloco)
+
+      if (error) return { success: false, error: `Erro ao ler o estoque atual: ${error.message}` }
+
+      for (const p of (atuais ?? []) as Array<{ id: string; quantity_in_stock: number }>) {
+        saldo.set(p.id, Number(p.quantity_in_stock ?? 0))
+      }
+    }
+
+    /* Cada peça soma um valor diferente, então não há UPDATE único — mas elas
+     * não dependem umas das outras e podem ir juntas. Em blocos de 20 para não
+     * abrir 300 conexões de uma vez contra o PostgREST. */
+    const agora = new Date().toISOString()
+    for (let de = 0; de < reusar.length; de += 20) {
+      const bloco = reusar.slice(de, de + 20)
+      const erros = await Promise.all(bloco.map(({ row, i }) => {
+        const id = row.productId as string
+        resolvedProductIds[i] = id
+        return admin.from('products')
+          .update({ quantity_in_stock: (saldo.get(id) ?? 0) + row.quantity, updated_at: agora })
+          .eq('id', id)
+          .then(r => r.error)
+      }))
+      const falhou = erros.find(Boolean)
+      if (falhou) return { success: false, error: `Erro ao somar o estoque: ${falhou.message}` }
     }
   }
 
@@ -273,10 +347,15 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
 
     consignmentId = consignment.id
 
-    for (const productId of resolvedProductIds) {
-      await admin.from('products')
+    // Um UPDATE por bloco: todas as peças recebem o mesmo valor.
+    for (const bloco of emBlocos(resolvedProductIds)) {
+      const { error: ligaErr } = await admin.from('products')
         .update({ consignment_id: consignment.id })
-        .eq('id', productId)
+        .in('id', bloco)
+
+      if (ligaErr) {
+        return { success: false, error: `Erro ao ligar as peças ao lote: ${ligaErr.message}` }
+      }
     }
 
     /*
@@ -365,14 +444,17 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   const { error: itemsErr } = await admin.from('purchase_items').insert(purchaseItems)
   if (itemsErr) return { success: false, error: `Erro ao criar itens: ${itemsErr.message}` }
 
-  // Linkar purchase_id nos produtos novos
-  for (let i = 0; i < resolvedProductIds.length; i++) {
-    const row = data.rows[i]
-    if (!row.productId || row.productExistingCostDiffers) {
-      await admin.from('products')
-        .update({ purchase_id: purchase.id })
-        .eq('id', resolvedProductIds[i])
-    }
+  /* Linkar purchase_id nas peças novas — um UPDATE, não um por peça.
+   *
+   * Só as novas: peça reusada já pertence à compra em que entrou primeiro, e
+   * reescrever isso apagaria de onde ela veio. */
+  const idsNovas = novas.map(({ i }) => resolvedProductIds[i]).filter(Boolean)
+  for (const bloco of emBlocos(idsNovas)) {
+    const { error: linkErr } = await admin.from('products')
+      .update({ purchase_id: purchase.id })
+      .in('id', bloco)
+
+    if (linkErr) return { success: false, error: `Erro ao ligar as peças à compra: ${linkErr.message}` }
   }
 
   // ── 7. Criar purchase_payments + transactions ─────────────────────────────
