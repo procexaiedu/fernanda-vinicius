@@ -4,6 +4,7 @@ import { Printer } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import type { Romaneio as RomaneioT } from './page'
+import ParaImprimir from '@/components/ui/ParaImprimir'
 import styles from './Romaneio.module.css'
 
 /**
@@ -38,7 +39,8 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
         </Button>
       </div>
 
-      <div className={styles.folha} id="romaneio-impressao">
+      <ParaImprimir>
+      <div className={styles.folha}>
         <header className={styles.cabecalho}>
           <div>
             <h2 className={styles.titulo}>Romaneio de Transferência</h2>
@@ -115,6 +117,7 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
           <div><span className={styles.linha} />Conferente na chegada — {r.para}</div>
         </div>
       </div>
+      </ParaImprimir>
     </div>
   )
 }

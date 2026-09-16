@@ -4,6 +4,7 @@ import { Printer } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import type { PurchaseDetail } from '@/app/(sistema)/compras/actions'
+import ParaImprimir from '@/components/ui/ParaImprimir'
 import styles from './RelatorioCompra.module.css'
 
 /**
@@ -43,6 +44,7 @@ export default function RelatorioCompra({ detail, consignacao, onFechar }: {
         </Button>
       </div>
 
+      <ParaImprimir>
       <div className={styles.folha}>
         <header className={styles.cabecalho}>
           <div>
@@ -161,6 +163,7 @@ export default function RelatorioCompra({ detail, consignacao, onFechar }: {
           <div><span className={styles.linha} />Fornecedor</div>
         </div>
       </div>
+      </ParaImprimir>
     </div>
   )
 }

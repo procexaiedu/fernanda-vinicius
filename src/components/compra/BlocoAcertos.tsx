@@ -65,8 +65,16 @@ export default function BlocoAcertos({ id, onMudou }: {
 
   const carregar = useCallback(async () => {
     setCarregando(true)
-    setLote(await buscarConsignacao(id))
-    setCarregando(false)
+    /* try/finally: `buscarConsignacao` lança quando não consegue ler os números
+       (em vez de mostrar zero). Sem isto, a tela ficaria em "Carregando…" para
+       sempre. */
+    try {
+      setLote(await buscarConsignacao(id))
+    } catch (e) {
+      setErro((e as Error).message)
+    } finally {
+      setCarregando(false)
+    }
   }, [id])
 
   useEffect(() => { carregar() }, [carregar])
@@ -104,7 +112,7 @@ export default function BlocoAcertos({ id, onMudou }: {
   }
 
   if (carregando) return <div className={styles.vazio}>Carregando acertos…</div>
-  if (!lote) return null
+  if (!lote) return erro ? <div className={styles.erro}>{erro}</div> : null
 
   const quitado = lote.falta <= 0.01
   const atrasado = !!lote.return_deadline && lote.return_deadline < hoje() && lote.status === 'active'

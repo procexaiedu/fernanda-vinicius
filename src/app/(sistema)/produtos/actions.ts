@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth'
 import { generateCode } from '@/lib/productCode'
 import type { MotivoBaixa } from '@/lib/estoque/baixa'
-import { comprasDaPeca, recalcularTotaisDaCompra } from '@/app/(sistema)/compras/actions'
+import { comprasDaPeca, recalcularTotaisDaCompra } from '@/lib/compras/totais'
 
 export interface ActionResult {
   success: boolean
@@ -218,7 +218,14 @@ export async function deleteProduct(id: string): Promise<ActionResult> {
    * como resposta um "não" silencioso: a peça saía do estoque e a compra
    * continuava valendo o mesmo.
    */
-  const compras = await comprasDaPeca(id)
+  // Não achar a compra NÃO pode deixar o delete seguir: apagaria a peça e o total
+  // voltaria a mentir, que é o bug que isto existe para fechar.
+  let compras: string[]
+  try {
+    compras = await comprasDaPeca(id)
+  } catch (e) {
+    return { success: false, error: `${(e as Error).message}. A peça não foi excluída.` }
+  }
 
   // Deleta o produto — o banco em cascata remove sale_items, purchase_items e stock_transfers
   // se houver FK ON DELETE CASCADE; caso contrário, deleta manualmente na ordem certa
@@ -227,7 +234,16 @@ export async function deleteProduct(id: string): Promise<ActionResult> {
   if (error) return { success: false, error: error.message }
 
   // Depois do delete, e não antes: o total é o que SOBROU.
-  await recalcularTotaisDaCompra(compras)
+  try {
+    await recalcularTotaisDaCompra(compras)
+  } catch (e) {
+    revalidatePath('/produtos')
+    return {
+      success: false,
+      error: `A peça foi excluída, mas o total da compra não foi atualizado: ${(e as Error).message}. `
+           + 'Abra a compra e salve de novo para corrigir.',
+    }
+  }
 
   revalidatePath('/produtos')
   revalidatePath('/estoque')

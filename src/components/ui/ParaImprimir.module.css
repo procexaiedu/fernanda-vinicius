@@ -1,0 +1,22 @@
+/* Ver ParaImprimir.tsx. */
+
+.copia { display: none; }
+
+@media print {
+  /*
+   * Só quando existe uma cópia montada (`:has`). Sem essa condição, apertar
+   * Ctrl+P em qualquer tela que importou este componente imprimiria uma folha
+   * em branco.
+   */
+  :global(body:has(> [data-impressao]) > *:not([data-impressao])) {
+    display: none !important;
+  }
+
+  /* O Modal põe `overflow: hidden` inline no body enquanto está aberto, e isso
+     também corta a impressão na primeira página. */
+  :global(body:has(> [data-impressao])) {
+    overflow: visible !important;
+  }
+
+  .copia { display: block; }
+}

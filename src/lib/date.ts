@@ -69,10 +69,14 @@ export function toISODate(display: string): string {
     ano = String(seculo + dois > atual ? seculo - 100 + dois : seculo + dois)
   }
 
-  // Data impossível não vira dado. "32/13/2000" fica vazio em vez de virar
-  // uma data que o Postgres recusa depois, no meio do salvamento da venda.
+  // Data impossível não vira dado. "32/13/2000" e "31/02/1980" ficam vazios em
+  // vez de virar uma data que o Postgres recusa depois, no meio do salvamento.
+  // A conferência pelo Date é o que pega o dia que não existe NAQUELE mês —
+  // a primeira versão só olhava 1..31 e deixava 31/02 passar (revisão 16/09).
   const d = Number(dia), m = Number(mes), a = Number(ano)
-  if (d < 1 || d > 31 || m < 1 || m > 12 || a < 1900) return ''
+  if (m < 1 || m > 12 || a < 1900) return ''
+  const real = new Date(Date.UTC(a, m - 1, d))
+  if (real.getUTCFullYear() !== a || real.getUTCMonth() !== m - 1 || real.getUTCDate() !== d) return ''
 
   return `${ano}-${mes}-${dia}`
 }

@@ -259,8 +259,12 @@ export async function buscarPecaPorCodigo(
  * nada tivesse mudado é o mesmo erro de `(res.data ?? [])` — dado morto
  * entregue como dado vivo.
  *
- * Em UMA consulta, não uma por peça. O `.in()` aqui é seguro: um romaneio é
- * dezenas de peças, não as centenas que estouram a URL do PostgREST.
+ * Em blocos de 150, não uma consulta por peça. Antes era uma consulta só com
+ * `.slice(0, 200)` — e a revisão de 16/09 pegou o furo: romaneio com mais de
+ * 200 peças diferentes voltava com o excedente marcado como "sem saldo", e
+ * sumia da lista. A dona manda "muita peça" de uma vez; 200 não é teto seguro.
+ * O bloco existe porque `.in()` vai na URL e o PostgREST devolve 414 perto de
+ * ~500 ids.
  */
 export async function revalidarRascunho(
   productIds: string[],
@@ -271,22 +275,27 @@ export async function revalidarRascunho(
 
   if (!productIds.length) return { success: true, pecas: [] }
 
-  const { data, error } = await createAdminClient()
-    .from('products')
-    .select('id, code, name, barcode_number, quantity_in_stock, cost_price, sale_price, promotional_price, promotional_active')
-    .in('id', productIds.slice(0, 200))
-    .eq('store_id', storeId)
-    .eq('is_active', true)
-    .gt('quantity_in_stock', 0)
+  const db = createAdminClient()
+  const data = []
+  for (let de = 0; de < productIds.length; de += 150) {
+    const { data: bloco, error } = await db
+      .from('products')
+      .select('id, code, name, barcode_number, quantity_in_stock, cost_price, sale_price, promotional_price, promotional_active')
+      .in('id', productIds.slice(de, de + 150))
+      .eq('store_id', storeId)
+      .eq('is_active', true)
+      .gt('quantity_in_stock', 0)
 
-  // Erro é erro. Devolver lista vazia aqui apagaria o romaneio inteiro da tela
-  // e ela acharia que perdeu o trabalho de novo — exatamente o que isto veio
-  // resolver.
-  if (error) return { success: false, error: error.message }
+    // Erro é erro. Devolver lista vazia aqui apagaria o romaneio inteiro da
+    // tela e ela acharia que perdeu o trabalho de novo — exatamente o que isto
+    // veio resolver.
+    if (error) return { success: false, error: error.message }
+    data.push(...(bloco ?? []))
+  }
 
   return {
     success: true,
-    pecas: (data ?? []).map(p => ({
+    pecas: data.map(p => ({
       id:                p.id as string,
       code:              p.code as string,
       name:              p.name as string,

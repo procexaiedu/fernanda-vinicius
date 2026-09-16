@@ -185,21 +185,21 @@
  * por visibilidade e reexibir só a folha, reposicionada no topo da página.
  */
 @media print {
-  .acoes { display: none !important; }
-
-  :global(body) { visibility: hidden; }
-
-  .folha, .folha * { visibility: visible; }
-
+  /*
+   * Quem esconde o resto da página e tira a folha de dentro do modal é o
+   * ParaImprimir. Antes era `body { visibility: hidden }` + `position:
+   * absolute` aqui — e o romaneio grande saía só com a primeira página, porque
+   * visibilidade não desfaz o corte do modal com rolagem (revisão 16/09).
+   */
   .folha {
-    position: absolute;
-    inset: 0 auto auto 0;
     width: 100%;
     padding: 0;
     border-radius: 0;
     font-size: 11px;
   }
 
-  /* Linha de peça não pode ser partida entre duas folhas. */
+  /* Linha de peça não pode ser partida entre duas folhas, e o cabeçalho da
+     tabela se repete em cada uma. */
   .tabela tr { break-inside: avoid; }
+  .tabela thead { display: table-header-group; }
 }

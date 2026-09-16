@@ -186,17 +186,9 @@
 }
 
 @media print {
-  .acoes { display: none !important; }
-
-  /* O modal inteiro sai de cena; só a folha vai ao papel. Mesmo mecanismo do
-     romaneio — esconde tudo e revela só a árvore da folha. */
-  :global(body) { visibility: hidden; }
-
-  .folha, .folha * { visibility: visible; }
-
+  /* Quem esconde a página e tira a folha de dentro do modal é o ParaImprimir
+     — ver o comentário em Romaneio.module.css. */
   .folha {
-    position: absolute;
-    inset: 0 auto auto 0;
     width: 100%;
     padding: 0;
     border-radius: 0;

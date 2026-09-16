@@ -73,28 +73,45 @@ async function calcularDevolucoes(
   admin: ReturnType<typeof createAdminClient>,
   consignmentId: string,
 ): Promise<{ devolvido: number; devolucoes: PecaDevolvida[] }> {
-  const { data: pecas } = await admin
+  /*
+   * FALHA LANÇA, NUNCA VIRA "NADA DEVOLVIDO".
+   *
+   * A primeira versão lia `(pecas ?? [])` e `(movs ?? [])`. Com a leitura
+   * falhando, o lote parecia sem devolução: o teto do acerto subia para o lote
+   * inteiro (ela conseguiria pagar por peça que já voltou) e `fecharSeQuitou`
+   * podia reabrir um lote fechado. Revisão de 16/09.
+   */
+  const { data: pecas, error: erroPecas } = await admin
     .from('products')
     .select('id, name, code, barcode_number, cost_price')
     .eq('consignment_id', consignmentId)
+
+  if (erroPecas) throw new Error(`Não foi possível ler as peças do lote: ${erroPecas.message}`)
 
   const lista = (pecas ?? []) as Array<{
     id: string; name: string; code: string; barcode_number: string | null; cost_price: number
   }>
   if (!lista.length) return { devolvido: 0, devolucoes: [] }
 
-  const { data: movs } = await admin
-    .from('stock_movements')
-    .select('product_id, delta, created_at')
-    .eq('reason', 'devolucao_fornecedor')
-    .in('product_id', lista.map(p => p.id))
-    .order('created_at', { ascending: false })
+  // Em blocos: lote consignado de mala passa de 150 peças, e `.in()` vai na URL.
+  const movs: Array<{ product_id: string; delta: number; created_at: string }> = []
+  for (let de = 0; de < lista.length; de += 150) {
+    const { data: bloco, error } = await admin
+      .from('stock_movements')
+      .select('product_id, delta, created_at')
+      .eq('reason', 'devolucao_fornecedor')
+      .in('product_id', lista.slice(de, de + 150).map(p => p.id))
+
+    if (error) throw new Error(`Não foi possível ler as devoluções do lote: ${error.message}`)
+    movs.push(...((bloco ?? []) as typeof movs))
+  }
+  movs.sort((a, b) => b.created_at.localeCompare(a.created_at))
 
   const porPeca = new Map(lista.map(p => [p.id, p]))
   const devolucoes: PecaDevolvida[] = []
   let devolvido = 0
 
-  for (const m of (movs ?? []) as Array<{ product_id: string; delta: number; created_at: string }>) {
+  for (const m of movs) {
     const p = porPeca.get(m.product_id)
     if (!p) continue
     // `delta` é negativo na baixa; o que voltou é o módulo dele.
@@ -143,11 +160,15 @@ export async function buscarConsignacao(id: string): Promise<ConsignacaoDetalhe 
 
   if (!lote || !(await podeMexer((lote as any).store_id))) return null
 
-  const { data: acertos } = await admin
+  const { data: acertos, error: erroAcertos } = await admin
     .from('consignment_acertos')
     .select('id, acerto_date, amount, payment_method, notes, users(full_name)')
     .eq('consignment_id', id)
     .order('acerto_date', { ascending: false })
+
+  // Mostrar "já acertado R$ 0" por falha de leitura é o número errado na
+  // conversa com a fornecedora. A tela mostra o erro em vez disso.
+  if (erroAcertos) throw new Error(`Não foi possível ler os acertos: ${erroAcertos.message}`)
 
   const linhas = (acertos ?? []) as any[]
   const acertado = linhas.reduce((s, a) => s + Number(a.amount), 0)
@@ -227,13 +248,21 @@ export async function registrarAcerto(dados: {
   if (!dados.data) return { success: false, error: 'Informe a data do acerto.' }
 
   // Quanto já foi pago — recalculado no servidor, nunca vindo da tela.
-  const { data: jaFeitos } = await admin
+  const { data: jaFeitos, error: erroJaFeitos } = await admin
     .from('consignment_acertos').select('amount').eq('consignment_id', dados.consignmentId)
+  // Falha lida como "nada pago ainda" deixaria pagar o lote duas vezes.
+  if (erroJaFeitos) return { success: false, error: `Não foi possível conferir os acertos: ${erroJaFeitos.message}` }
   const acertado = (jaFeitos ?? []).reduce((s: number, a: any) => s + Number(a.amount), 0)
   const total = Number((lote as any).total_cost_value)
   /* Peça devolvida não se paga. Sem descontar aqui, o teto do acerto continuaria
      sendo o lote inteiro e ela conseguiria pagar por peça que já voltou. */
-  const { devolvido } = await calcularDevolucoes(admin, dados.consignmentId)
+  let devolvido: number
+  try {
+    devolvido = (await calcularDevolucoes(admin, dados.consignmentId)).devolvido
+  } catch (e) {
+    // Sem saber o que voltou, não há teto confiável: melhor não aceitar o acerto.
+    return { success: false, error: (e as Error).message }
+  }
   const falta = Math.max(0, total - devolvido - acertado)
 
   /*
@@ -346,12 +375,26 @@ async function fecharSeQuitou(consignmentId: string): Promise<void> {
     .from('consignments').select('total_cost_value, status').eq('id', consignmentId).single()
   if (!lote) return
 
-  const { data: acertos } = await admin
+  const { data: acertos, error: erroAcertos } = await admin
     .from('consignment_acertos').select('amount').eq('consignment_id', consignmentId)
+
+  /*
+   * Leitura falhou: NÃO mexe no status. Um status desatualizado se corrige no
+   * próximo acerto ou devolução; um status errado gravado a partir de números
+   * zerados (lote quitado reaberto, ou aberto marcado como devolvido) fica.
+   * Esta função roda DEPOIS do dinheiro já gravado, então lançar aqui também
+   * seria errado — a tela diria que o acerto falhou quando ele entrou.
+   */
+  if (erroAcertos) return
+  let devolvido: number
+  try {
+    devolvido = (await calcularDevolucoes(admin, consignmentId)).devolvido
+  } catch {
+    return
+  }
 
   const soma = (acertos ?? []).reduce((s: number, a: any) => s + Number(a.amount), 0)
   const total = Number((lote as any).total_cost_value)
-  const { devolvido } = await calcularDevolucoes(admin, consignmentId)
 
   const devido = total - devolvido
   const voltouTudo = emCentavos(devido) <= 1 && emCentavos(total) > 1

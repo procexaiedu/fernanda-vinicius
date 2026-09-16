@@ -56,9 +56,13 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
     const id = detail?.consignment_id
     if (!id) return
     let vivo = true
-    buscarConsignacao(id).then(c => {
-      if (vivo && c) setLote({ acertado: c.acertado, falta: c.falta, status: c.status })
-    })
+    buscarConsignacao(id)
+      .then(c => {
+        if (vivo && c) setLote({ acertado: c.acertado, falta: c.falta, status: c.status })
+      })
+      // Sem os números a folha sai sem o bloco do acerto — melhor que sair com
+      // "já acertado R$ 0". O erro em si aparece no bloco de acertos do modal.
+      .catch(() => {})
     return () => { vivo = false }
   }, [detail?.consignment_id])
 

@@ -102,6 +102,8 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
    * antes de ele ser lido — o bug seria idêntico ao que isto veio corrigir.
    */
   const [restaurando, setRestaurando] = useState(true)
+  /* Ligado quando a reconferência falha: protege o rascunho de ser apagado. */
+  const rascunhoTravado = useRef(false)
   const [retomado, setRetomado] = useState<{ quando: string; perdidas: number } | null>(null)
 
   const campoRef  = useRef<HTMLInputElement>(null)
@@ -176,6 +178,11 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
       if (!res.success) {
         // Falhou a reconferência: não apaga o rascunho nem mostra lista velha.
         // Ela tenta de novo abrindo a tela; o trabalho continua guardado.
+        //
+        // A trava é necessária: sem ela, o efeito que GRAVA veria a lista vazia
+        // logo em seguida e apagaria o rascunho — o comentário acima prometia
+        // uma coisa e o código fazia a outra (achado na revisão de 16/09).
+        rascunhoTravado.current = true
         setErro('Não consegui reconferir o romaneio guardado. Feche e abra a tela de novo.')
         setRestaurando(false)
         return
@@ -207,12 +214,17 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
   /* Toda mudança na lista é gravada. Lista vazia não deixa rastro. */
   useEffect(() => {
     if (restaurando) return
+    // Reconferência falhou: o rascunho guardado é o único trabalho que existe.
+    // Nem apagar nem sobrescrever — bipar uma peça agora trocaria a caixa inteira
+    // guardada por essa peça só. Destrava ao reabrir a tela ou ao Descartar.
+    if (rascunhoTravado.current) return
     if (!linhas.length) { apagarRascunho(); return }
     gravarRascunho({ origem, destino, obs, linhas, salvoEm: new Date().toISOString() })
   }, [linhas, origem, destino, obs, restaurando])
 
   /* Sair da tela NÃO descarta. Só este botão descarta. */
   function descartarRascunho() {
+    rascunhoTravado.current = false
     apagarRascunho()
     setLinhas([])
     setRetomado(null)
