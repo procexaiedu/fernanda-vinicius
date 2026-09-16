@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from '@/lib/auth'
 import { generateCode } from '@/lib/productCode'
 import type { MotivoBaixa } from '@/lib/estoque/baixa'
+import { comprasDaPeca, recalcularTotaisDaCompra } from '@/app/(sistema)/compras/actions'
 
 export interface ActionResult {
   success: boolean
@@ -207,14 +208,31 @@ export async function deleteProduct(id: string): Promise<ActionResult> {
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
+
+  /*
+   * A compra precisa saber ANTES que a peça vai sumir.
+   *
+   * O cascade leva o `purchase_item` junto, então depois do delete não há mais
+   * como descobrir de qual compra a peça era. A pergunta da dona em 09/09 —
+   * "quando eu excluo uma peça, ele exclui também da entrada da peça?" — tinha
+   * como resposta um "não" silencioso: a peça saía do estoque e a compra
+   * continuava valendo o mesmo.
+   */
+  const compras = await comprasDaPeca(id)
+
   // Deleta o produto — o banco em cascata remove sale_items, purchase_items e stock_transfers
   // se houver FK ON DELETE CASCADE; caso contrário, deleta manualmente na ordem certa
   const { error } = await admin.from('products').delete().eq('id', id)
 
   if (error) return { success: false, error: error.message }
 
+  // Depois do delete, e não antes: o total é o que SOBROU.
+  await recalcularTotaisDaCompra(compras)
+
   revalidatePath('/produtos')
   revalidatePath('/estoque')
+  revalidatePath('/compras')
+  revalidatePath('/financeiro')
   return { success: true }
 }
 

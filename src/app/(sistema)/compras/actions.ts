@@ -947,24 +947,86 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
     })
   }
 
-  // Recalcular totais da compra
-  const newTotalCost  = payload.items.reduce((s, i) => s + i.costPrice * i.quantity, 0)
-  const newTotalItems = payload.items.reduce((s, i) => s + i.quantity, 0)
-
   await admin.from('purchases').update({
     purchase_date: payload.purchaseDate,
     notes:         payload.notes || null,
     nf_number:     payload.nfNumber || null,
-    total_cost:    newTotalCost,
-    total_items:   newTotalItems,
     updated_at:    new Date().toISOString(),
   }).eq('id', payload.purchaseId)
+
+  /*
+   * Os totais saem dos ITENS GRAVADOS, não do payload da tela.
+   *
+   * Antes eram somados a partir de `payload.items`, o que dá o mesmo número
+   * enquanto tudo dá certo — e um número errado quando não dá: se a gravação de
+   * um item falhar, o total ainda contaria com ele. Lendo do banco, o total é
+   * sempre o que realmente está lá.
+   */
+  await recalcularTotaisDaCompra([payload.purchaseId])
 
   revalidatePath('/compras')
   revalidatePath('/produtos')
   revalidatePath('/estoque')
   revalidatePath('/financeiro')
   return { success: true }
+}
+
+/**
+ * Refaz `total_cost` e `total_items` da compra a partir dos itens que sobraram.
+ *
+ * O buraco que isto fecha, perguntado pela dona em 09/09 com estas palavras:
+ *
+ *   "Quando eu excluo uma peça do sistema, ele exclui também da entrada da
+ *    peça? Eu declarei lá que de Emília Fernandes eu gastei 5 mil... aí eu vou
+ *    e tiro um colar de 100 reais e excluo do sistema."
+ *
+ * A resposta era não. `products.delete()` levava o `purchase_item` junto pelo
+ * cascade, mas `purchases.total_cost` é coluna GRAVADA e ninguém a recalculava:
+ * a peça sumia do estoque e a compra continuava valendo os mesmos R$ 5.000.
+ * Como `total_cost` alimenta etiqueta, margem e CMV, o erro se espalhava calado.
+ *
+ * Fica aqui, e não num trigger, porque não há acesso a DDL neste ambiente — mas
+ * também porque o recálculo já existia à mão dentro de `atualizarCompra`.
+ * Agora é uma função só, e quem apagar peça de outro lugar tem onde chamar.
+ *
+ * Idempotente: roda quantas vezes quiser, o resultado é o mesmo.
+ */
+export async function recalcularTotaisDaCompra(purchaseIds: string[]): Promise<void> {
+  if (!purchaseIds.length) return
+  const admin = createAdminClient()
+
+  const { data: itens } = await admin
+    .from('purchase_items')
+    .select('purchase_id, quantity, subtotal')
+    .in('purchase_id', [...new Set(purchaseIds)])
+
+  const soma = new Map<string, { custo: number; pecas: number }>()
+  for (const i of (itens ?? []) as Array<{ purchase_id: string; quantity: number; subtotal: number }>) {
+    const a = soma.get(i.purchase_id) ?? { custo: 0, pecas: 0 }
+    a.custo += Number(i.subtotal ?? 0)
+    a.pecas += Number(i.quantity ?? 0)
+    soma.set(i.purchase_id, a)
+  }
+
+  for (const id of new Set(purchaseIds)) {
+    // Compra que ficou sem item nenhum vale zero — não fica com o total velho.
+    const a = soma.get(id) ?? { custo: 0, pecas: 0 }
+    await admin.from('purchases').update({
+      total_cost:  parseFloat(a.custo.toFixed(2)),
+      total_items: a.pecas,
+      updated_at:  new Date().toISOString(),
+    }).eq('id', id)
+  }
+}
+
+/** As compras em que uma peça aparece — para recalcular depois de apagá-la. */
+export async function comprasDaPeca(productId: string): Promise<string[]> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('purchase_items')
+    .select('purchase_id')
+    .eq('product_id', productId)
+  return [...new Set(((data ?? []) as Array<{ purchase_id: string }>).map(r => r.purchase_id))]
 }
 
 // ─── Buscar itens de uma compra para impressão de etiquetas ──────────────────
