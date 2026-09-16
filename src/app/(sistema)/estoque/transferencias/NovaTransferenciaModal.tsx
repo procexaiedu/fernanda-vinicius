@@ -264,7 +264,6 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
      "Itens" saiu do rodapé — ela perguntou "peça e item não é a mesma coisa?"
      e não havia resposta que servisse para alguma decisão dela. */
   const venda = linhas.reduce((s, l) => s + l.sale_price * l.quantidade, 0)
-  const parciais = linhas.filter(l => l.quantidade < l.quantity_in_stock)
 
   async function enviar() {
     setEnviando(true)
@@ -426,17 +425,16 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
           </div>
         )}
 
-        {parciais.length > 0 && (
-          <div className={styles.avisoParcial}>
-            <AlertTriangle size={14} />
-            <span>
-              <strong>{parciais.length} peça{parciais.length > 1 ? 's' : ''} vai parcial.</strong> No
-              destino ela ganha código de barras próprio — o código de barras é único no sistema
-              inteiro e não pode existir nas duas lojas. Reimprima a etiqueta na chegada, senão o
-              leitor não acha a peça lá.
-            </span>
-          </div>
-        )}
+        {/*
+          O aviso "X peças vai parcial — reimprima a etiqueta na chegada" saiu em
+          16/09. Desde a etiqueta única POR LOJA, a peça chega com a mesma
+          etiqueta que está colada nela. A resposta da dona quando viu o aviso
+          foi "não, jamais" a reetiquetar.
+
+          O único caso que ainda pede etiqueta nova (etiqueta repetida em outro
+          cadastro no destino) só se sabe na chegada, e aparece no romaneio e
+          na conferência — não dá para prever aqui.
+        */}
 
         <label className={styles.campoObs}>
           <span>Observação (opcional)</span>

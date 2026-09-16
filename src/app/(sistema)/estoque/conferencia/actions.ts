@@ -84,18 +84,37 @@ export async function registrarBipe(sessionId: string, barcode: string): Promise
 
   const { data: sessao } = await admin
     .from('inventory_sessions')
-    .select('id, status')
+    .select('id, status, store_id')
     .eq('id', sessionId)
     .maybeSingle()
 
   if (!sessao) return { success: false, error: 'Conferência não encontrada.' }
   if (sessao.status !== 'contando') return { success: false, error: 'Esta conferência já foi fechada.' }
 
-  const { data: produto } = await admin
+  /*
+   * Procura a peça NA LOJA DA CONFERÊNCIA. Desde 16/09 a etiqueta é única por
+   * loja: a peça transferida tem a mesma etiqueta em Campinas e em Brasília, e
+   * buscar só pela etiqueta traria as duas linhas — `.maybeSingle()` falharia e
+   * o bipe viraria "peça sem cadastro", sujando a contagem.
+   */
+  const colunas = 'id, name, code, category, photo_url, sale_price, promotional_price, promotional_active'
+
+  const { data: daLoja } = await admin
     .from('products')
-    .select('id, name, code, category, photo_url, sale_price, promotional_price, promotional_active')
+    .select(colunas)
+    .eq('store_id', sessao.store_id)
     .eq('barcode_number', barcode)
     .maybeSingle()
+
+  // Não é desta loja: identifica mesmo assim, como antes de 16/09. Peça de
+  // outra loja bipada aqui continua aparecendo com nome, em vez de "sem
+  // cadastro" — é o que avisa que ela está no lugar errado.
+  const produto = daLoja ?? (await admin
+    .from('products')
+    .select(colunas)
+    .eq('barcode_number', barcode)
+    .limit(1)
+    .maybeSingle()).data
 
   /*
    * Preço efetivo — a mesma regra do PDV e da impressão de etiqueta: a promoção

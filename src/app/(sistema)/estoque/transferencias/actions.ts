@@ -220,17 +220,33 @@ export async function buscarPecaPorCodigo(
   // Quem tem loja só bipa peça dela — o id que vem da tela é sugestão.
   storeId = lojaDoEscopo(perfil, storeId) ?? storeId
 
-  const { data, error } = await createAdminClient()
+  /*
+   * PROCURA DENTRO DA LOJA. Desde 16/09 a etiqueta é única por loja, não na
+   * rede: a mesma peça transferida existe com a mesma etiqueta em Campinas e
+   * em Brasília. Buscar só pela etiqueta traria as duas e `.maybeSingle()`
+   * estouraria.
+   */
+  const db = createAdminClient()
+  const cod = barcode.trim()
+
+  const { data, error } = await db
     .from('products')
     .select('id, code, name, barcode_number, quantity_in_stock, cost_price, store_id, is_active, sale_price, promotional_price, promotional_active')
-    .eq('barcode_number', barcode.trim())
+    .eq('store_id', storeId)
+    .eq('barcode_number', cod)
     .maybeSingle()
 
-  if (error)  return { success: false, error: error.message }
-  if (!data)  return { success: false, error: `Código ${barcode} não está cadastrado.` }
+  if (error) return { success: false, error: error.message }
 
-  if (data.store_id !== storeId) {
-    return { success: false, error: `${data.name} não é desta loja.` }
+  if (!data) {
+    // Não está nesta loja. Existe em outra? Muda a mensagem, que é o que diz à
+    // pessoa se ela pegou a caixa errada ou se a etiqueta não existe.
+    const { data: outra } = await db
+      .from('products').select('name').eq('barcode_number', cod).limit(1).maybeSingle()
+    return {
+      success: false,
+      error: outra ? `${outra.name} não é desta loja.` : `Código ${barcode} não está cadastrado.`,
+    }
   }
   if (!data.is_active || data.quantity_in_stock <= 0) {
     return { success: false, error: `${data.name} está sem saldo nesta loja.` }
@@ -315,18 +331,26 @@ export async function revalidarRascunho(
  * Só se quer saber quem ela é para registrar a sobra com um `product_id` de
  * verdade — sobra sem produto identificado não tem onde ser gravada, e viraria
  * um número solto na observação.
+ *
+ * Desde 16/09 a mesma etiqueta pode existir nas duas lojas (é a mesma peça,
+ * transferida). Prefere a linha da loja que está conferindo; se não houver,
+ * aceita qualquer uma — basta para dizer o nome da peça.
  */
 export async function identificarEtiqueta(
   barcode: string,
+  lojaPreferida?: string | null,
 ): Promise<{ id: string; name: string; code: string } | null> {
   await requireProfile()
 
-  const { data } = await createAdminClient()
+  const { data: linhas } = await createAdminClient()
     .from('products')
-    .select('id, name, code')
+    .select('id, name, code, store_id')
     .eq('barcode_number', barcode.trim())
-    .maybeSingle()
+    .limit(10)
+
+  const lista = (linhas ?? []) as Array<{ id: string; name: string; code: string; store_id: string | null }>
+  const data = lista.find(p => p.store_id === lojaPreferida) ?? lista[0]
 
   if (!data) return null
-  return { id: data.id as string, name: data.name as string, code: data.code as string }
+  return { id: data.id, name: data.name, code: data.code }
 }

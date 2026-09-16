@@ -73,9 +73,9 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
         {reetiquetar.length > 0 && (
           <p className={styles.avisoEtiqueta}>
             <strong>{reetiquetar.length} peça{reetiquetar.length > 1 ? 's' : ''} precisa
-            {reetiquetar.length > 1 ? 'm' : ''} de etiqueta nova na chegada.</strong> São envios
-            parciais: no destino elas ganham um código de barras próprio, e sem reimprimir a
-            etiqueta o leitor não acha a peça em {r.para}.
+            {reetiquetar.length > 1 ? 'm' : ''} de etiqueta nova na chegada.</strong> No
+            destino elas ganharam um código de barras próprio, e sem reimprimir a etiqueta o
+            leitor não acha a peça em {r.para}.
           </p>
         )}
 

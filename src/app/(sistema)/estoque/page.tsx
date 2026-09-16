@@ -89,6 +89,7 @@ export default async function EstoquePage({ searchParams }: PageProps) {
         categories={categories}
         materials={materials}
         staleDays={staleDays}
+        lojaDoBipe={effectiveStoreId}
         filters={{
           q: params.q ?? '',
           store_id: params.store_id ?? '',

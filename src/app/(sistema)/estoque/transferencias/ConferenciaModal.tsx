@@ -80,7 +80,7 @@ export default function ConferenciaModal({ romaneio, onClose }: {
        * estoque: ninguém sabe de onde a peça veio, e criar saldo a partir de um
        * palpite é como se inventa peça no sistema. Alguém decide depois.
        */
-      const achada = await identificarEtiqueta(cod)
+      const achada = await identificarEtiqueta(cod, romaneio.to_store_id)
       setSobras(s => (s.some(x => x.barcode === cod)
         ? s
         : [...s, { barcode: cod, id: achada?.id ?? null, nome: achada?.name ?? 'não cadastrada' }]))
@@ -103,7 +103,7 @@ export default function ConferenciaModal({ romaneio, onClose }: {
       return novo
     })
     setUltimo(`${item.product_name} · ${cod}`)
-  }, [porEtiqueta])
+  }, [porEtiqueta, romaneio.to_store_id])
 
   useBarcodeScanner({ onScan: registrar, ativo: !salvando })
 

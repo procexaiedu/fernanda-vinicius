@@ -54,10 +54,16 @@ interface Props {
   /** `stale_product_days` das Configurações — define o corte de parado/encalhado. */
   staleDays: number
   filters: Filters
+  /**
+   * A loja em que o bipe procura a peça. Desde 16/09 a mesma etiqueta existe
+   * nas duas lojas (peça transferida); sem loja, a consulta de balcão traria
+   * duas linhas e diria "nenhuma peça".
+   */
+  lojaDoBipe: string | null
 }
 
 export default function EstoqueClient({
-  products, total, page, perPage, isAdmin, stores, categories, materials, staleDays, filters,
+  products, total, page, perPage, isAdmin, stores, categories, materials, staleDays, filters, lojaDoBipe,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -97,12 +103,21 @@ export default function EstoqueClient({
     setBipErro(null)
     setBipando(true)
     const supabase = createBrowserClient()
-    // Sem filtro de loja: o RLS já limita a operadora à loja dela.
-    const { data, error } = await supabase
+    /*
+     * Com filtro de loja explícito. O comentário antigo dizia "sem filtro: o
+     * RLS já limita a operadora" — e limitava, mas não a Fernanda, que é admin
+     * global e vê as duas lojas. Desde 16/09 a peça transferida tem a mesma
+     * etiqueta nas duas, então sem o filtro o bipe dela traria duas linhas e
+     * `.maybeSingle()` falharia.
+     */
+    let q = supabase
       .from('products')
       .select('*, suppliers(id, name, initials), stores(id, name)')
       .eq('barcode_number', codigo)
-      .maybeSingle()
+    // Sem loja definida (admin global ainda sem escolher): pega uma, em vez de
+    // falhar — a ficha mostra de qual loja ela é.
+    q = lojaDoBipe ? q.eq('store_id', lojaDoBipe) : q.limit(1)
+    const { data, error } = await q.maybeSingle()
     setBipando(false)
 
     if (error || !data) {
@@ -111,7 +126,7 @@ export default function EstoqueClient({
     }
     setModoBalcao(!modoBaixa)
     setDetalhe(data as ProductWithRelations)
-  }, [modoBaixa])
+  }, [modoBaixa, lojaDoBipe])
 
   useBarcodeScanner({ onScan: aoBipar })
 

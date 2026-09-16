@@ -438,15 +438,24 @@ export async function buscarPecaDoLote(consignmentId: string, codigo: string): P
   const termo = codigo.trim()
   if (!termo) return { success: false, error: 'Bipe ou digite o código.' }
 
+  /* Procura DENTRO DO LOTE. Desde 16/09 a mesma etiqueta pode existir nas duas
+     lojas; só pela etiqueta, `.maybeSingle()` falharia com duas linhas. */
   const { data: peca } = await admin
     .from('products')
     .select('id, name, code, barcode_number, quantity_in_stock, cost_price, consignment_id')
+    .eq('consignment_id', consignmentId)
     .eq('barcode_number', termo)
+    .limit(1)
     .maybeSingle()
 
-  if (!peca) return { success: false, error: `Etiqueta ${termo} não está cadastrada.` }
-  if ((peca as any).consignment_id !== consignmentId) {
-    return { success: false, error: `${(peca as any).name} não é deste lote.` }
+  if (!peca) {
+    // Diz se a etiqueta existe (e não é deste lote) ou se não existe.
+    const { data: fora } = await admin
+      .from('products').select('name').eq('barcode_number', termo).limit(1).maybeSingle()
+    return {
+      success: false,
+      error: fora ? `${fora.name} não é deste lote.` : `Etiqueta ${termo} não está cadastrada.`,
+    }
   }
   if (Number((peca as any).quantity_in_stock) <= 0) {
     return { success: false, error: `${(peca as any).name} já está sem saldo — vendida ou devolvida.` }
