@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Check, ScanLine } from 'lucide-react'
+import { AlertTriangle, Check, RotateCcw, ScanLine } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
@@ -12,6 +12,52 @@ import styles from './ConferenciaModal.module.css'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 const MS_LEITURA_DUPLA = 1500
+
+/*
+ * ─── Rascunho da conferência ─────────────────────────────────────────────────
+ *
+ * Pedido em 16/09, na véspera da primeira conferência real: 164 peças de
+ * Campinas chegando em Brasília. A tela de ENVIO já guardava rascunho desde
+ * 15/09 (a dona perdeu um romaneio inteiro ao sair da tela); a de CHEGADA
+ * guardava os bipes só na memória. Fechar, recarregar ou a internet cair na
+ * peça 150 obrigava a bipar a caixa inteira de novo.
+ *
+ * Diferente do envio, aqui NÃO há reconferência no servidor ao retomar: o
+ * romaneio enviado não muda enquanto está em trânsito. Se outra pessoa já o
+ * recebeu, o banco recusa a confirmação (a função é idempotente) e o rascunho
+ * é descartado.
+ *
+ * Uma chave POR ROMANEIO — pode haver mais de um em trânsito, e bipes de uma
+ * caixa não podem aparecer na conferência de outra.
+ */
+interface RascunhoConferencia {
+  bipados: [string, number][]
+  sobras: { barcode: string; id: string | null; nome: string }[]
+  obs: string
+  salvoEm: string
+}
+
+const chaveRascunho = (transferId: string) => `fv:conferencia:rascunho:v1:${transferId}`
+
+function lerRascunho(transferId: string): RascunhoConferencia | null {
+  try {
+    const cru = localStorage.getItem(chaveRascunho(transferId))
+    if (!cru) return null
+    const r = JSON.parse(cru) as RascunhoConferencia
+    return Array.isArray(r?.bipados) ? r : null
+  } catch {
+    // Aba anônima, storage bloqueado ou JSON corrompido: segue sem rascunho.
+    return null
+  }
+}
+
+function gravarRascunho(transferId: string, r: RascunhoConferencia) {
+  try { localStorage.setItem(chaveRascunho(transferId), JSON.stringify(r)) } catch { /* idem */ }
+}
+
+function apagarRascunho(transferId: string) {
+  try { localStorage.removeItem(chaveRascunho(transferId)) } catch { /* idem */ }
+}
 
 /**
  * Conferência da caixa que chegou.
@@ -37,8 +83,31 @@ export default function ConferenciaModal({ romaneio, onClose }: {
     [romaneio.itens],
   )
 
+  /*
+   * O rascunho é lido UMA vez, no primeiro render — inicializador preguiçoso do
+   * useState, e não efeito. Assim os bipes já nascem na tela, sem piscar vazio,
+   * e sem setState dentro de efeito. Esta tela só existe no navegador (abre por
+   * clique, dentro do Modal), então `localStorage` está disponível.
+   */
+  const [inicial] = useState(() => {
+    const r = lerRascunho(romaneio.id)
+    if (!r) return null
+
+    // Só o que é deste romaneio, e nunca acima do que foi enviado.
+    const enviado = new Map(esperados.map(i => [i.product_id, i.quantity_sent]))
+    const bipados = new Map<string, number>()
+    for (const [id, qtd] of r.bipados) {
+      const teto = enviado.get(id)
+      if (teto && qtd > 0) bipados.set(id, Math.min(qtd, teto))
+    }
+    const sobras = Array.isArray(r.sobras) ? r.sobras : []
+    if (!bipados.size && !sobras.length && !r.obs) return null
+
+    return { bipados, sobras, obs: r.obs ?? '', salvoEm: r.salvoEm }
+  })
+
   // product_id -> quantas unidades foram bipadas
-  const [bipados, setBipados] = useState<Map<string, number>>(new Map())
+  const [bipados, setBipados] = useState<Map<string, number>>(() => inicial?.bipados ?? new Map())
   /*
    * Sobra precisa de `product_id` para virar registro na transferência: a
    * função do banco grava um item de sobra referenciando o produto. Guardar só
@@ -46,8 +115,9 @@ export default function ConferenciaModal({ romaneio, onClose }: {
    * Etiqueta que não existe em `products` fica com `id: null` — essa não dá
    * para registrar, só descrever na observação.
    */
-  const [sobras, setSobras] = useState<{ barcode: string; id: string | null; nome: string }[]>([])
-  const [obs, setObs]         = useState('')
+  const [sobras, setSobras] = useState<{ barcode: string; id: string | null; nome: string }[]>(() => inicial?.sobras ?? [])
+  const [obs, setObs]         = useState(() => inicial?.obs ?? '')
+  const [retomadoEm, setRetomadoEm] = useState<string | null>(() => inicial?.salvoEm ?? null)
   const [erro, setErro]       = useState<string | null>(null)
   const [ultimo, setUltimo]   = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -57,6 +127,33 @@ export default function ConferenciaModal({ romaneio, onClose }: {
   const ultimaLeitura = useRef<Map<string, number>>(new Map())
 
   useEffect(() => { campoRef.current?.focus() }, [])
+
+  /* Todo bipe, sobra ou observação é gravado na hora. Nada bipado, nada guardado. */
+  useEffect(() => {
+    if (!bipados.size && !sobras.length && !obs.trim()) {
+      apagarRascunho(romaneio.id)
+      return
+    }
+    gravarRascunho(romaneio.id, {
+      bipados: [...bipados.entries()],
+      sobras,
+      obs,
+      salvoEm: new Date().toISOString(),
+    })
+  }, [bipados, sobras, obs, romaneio.id])
+
+  /* Fechar a tela NÃO descarta. Só este botão. */
+  function descartar() {
+    apagarRascunho(romaneio.id)
+    setBipados(new Map())
+    setSobras([])
+    setObs('')
+    setRetomadoEm(null)
+    setErro(null)
+    setUltimo(null)
+    ultimaLeitura.current.clear()
+    campoRef.current?.focus()
+  }
 
   const porEtiqueta = useMemo(() => {
     const m = new Map<string, typeof esperados[number]>()
@@ -149,8 +246,17 @@ export default function ConferenciaModal({ romaneio, onClose }: {
       setSalvando(false)
     }
 
-    if (!r.success) { setErro(r.error ?? 'Erro ao confirmar.'); return }
+    if (!r.success) {
+      /* Já recebido por outra pessoa (a função recusa com "já está como ..."):
+         o rascunho não serve mais para nada. Qualquer outro erro mantém os
+         bipes guardados para tentar de novo. */
+      if (/já está como/i.test(r.error ?? '')) apagarRascunho(romaneio.id)
+      setErro(r.error ?? 'Erro ao confirmar.')
+      return
+    }
 
+    // Só aqui o rascunho morre: a chegada está gravada no banco.
+    apagarRascunho(romaneio.id)
     router.refresh()
     onClose()
   }
@@ -185,6 +291,22 @@ export default function ConferenciaModal({ romaneio, onClose }: {
             disabled={salvando}
           />
         </div>
+
+        {retomadoEm && (
+          <div className={styles.avisoRetomado}>
+            <RotateCcw size={14} />
+            <span>
+              <strong>Conferência retomada.</strong> Os bipes feitos em{' '}
+              {new Date(retomadoEm).toLocaleString('pt-BR', {
+                day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+              })}{' '}
+              foram guardados — continue de onde parou.
+            </span>
+            <button type="button" className={styles.descartar} onClick={descartar} disabled={salvando}>
+              Recomeçar
+            </button>
+          </div>
+        )}
 
         {erro && <div className={styles.erro}><AlertTriangle size={14} />{erro}</div>}
         {!erro && ultimo && <div className={styles.ultimo}><Check size={13} /> {ultimo}</div>}
@@ -262,7 +384,8 @@ export default function ConferenciaModal({ romaneio, onClose }: {
         </label>
 
         <div className={styles.rodape}>
-          <Button variant="ghost" onClick={onClose} disabled={salvando}>Fechar sem confirmar</Button>
+          {/* "Sem confirmar", não "sem salvar": os bipes ficam guardados. */}
+          <Button variant="ghost" onClick={onClose} disabled={salvando}>Fechar e continuar depois</Button>
           <Button onClick={confirmar} loading={salvando}
             variant={temDivergencia ? 'danger' : 'primary'}>
             {temDivergencia ? 'Confirmar com divergência' : 'Confirmar recebimento'}

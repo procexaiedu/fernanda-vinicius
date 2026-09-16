@@ -355,3 +355,40 @@
   font-style: normal;
   color: var(--warning);
 }
+
+/* ── Conferência retomada do rascunho (16/09) ──
+   Informa, não alarma: nada deu errado, o trabalho foi preservado. Mesmo
+   desenho do aviso da tela de envio. */
+.avisoRetomado {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 11px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.45;
+  background: var(--accent-subtle);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+}
+
+.avisoRetomado svg { flex-shrink: 0; }
+.avisoRetomado span { flex: 1; }
+
+.descartar {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.descartar:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.descartar:disabled { opacity: .5; cursor: not-allowed; }
