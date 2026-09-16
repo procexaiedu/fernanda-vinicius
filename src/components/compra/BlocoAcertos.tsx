@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Trash2, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, CheckCircle, AlertTriangle, Undo2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import {
@@ -11,6 +11,7 @@ import {
 import { formatarDinheiro } from '@/lib/dinheiro'
 import styles from './BlocoAcertos.module.css'
 import DatePicker from '@/components/ui/DatePicker'
+import DevolucaoModal from './DevolucaoModal'
 
 /**
  * Os acertos do lote consignado, dentro do detalhe da compra.
@@ -55,6 +56,7 @@ export default function BlocoAcertos({ id, onMudou }: {
   const [erro, setErro] = useState<string | null>(null)
 
   const [aberto, setAberto] = useState(false)
+  const [devolvendo, setDevolvendo] = useState(false)
   const [data, setData] = useState(hoje())
   const [valor, setValor] = useState('')
   const [forma, setForma] = useState('pix')
@@ -112,11 +114,21 @@ export default function BlocoAcertos({ id, onMudou }: {
 
       <div className={styles.secaoTopo}>
         <h3 className={styles.secaoTitulo}>Acerto com o fornecedor</h3>
-        {!quitado && !aberto && (
-          <Button size="sm" onClick={() => setAberto(true)}>
-            <Plus size={13} /> Registrar acerto
-          </Button>
-        )}
+        <div className={styles.secaoAcoes}>
+          {/* Devolver continua disponível mesmo com o lote quitado: ela pode ter
+              pago tudo e só depois separar o que volta. O abatimento aparece no
+              saldo e reabre o lote se for o caso. */}
+          {lote.status !== 'returned' && !aberto && (
+            <Button size="sm" variant="ghost" onClick={() => setDevolvendo(true)}>
+              <Undo2 size={13} /> Devolver peças
+            </Button>
+          )}
+          {!quitado && !aberto && (
+            <Button size="sm" onClick={() => setAberto(true)}>
+              <Plus size={13} /> Registrar acerto
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Os três números da conversa com o fornecedor. */}
@@ -135,6 +147,17 @@ export default function BlocoAcertos({ id, onMudou }: {
               : `${lote.acertos.length} ${lote.acertos.length === 1 ? 'pagamento' : 'pagamentos'}`}
           </span>
         </div>
+        {/* Só aparece quando houve devolução: coluna zerada num lote que nunca
+            teve peça voltando é ruído na conversa com a fornecedora. */}
+        {lote.devolvido > 0 && (
+          <div className={styles.placarItem}>
+            <span className={styles.placarRotulo}>Devolvido</span>
+            <strong className={`${styles.placarValor} ${styles.pos}`}>{formatarDinheiro(lote.devolvido)}</strong>
+            <span className={styles.placarNota}>
+              {lote.devolucoes.reduce((s, d) => s + d.quantidade, 0)} peça(s) de volta
+            </span>
+          </div>
+        )}
         <div className={styles.placarItem}>
           <span className={styles.placarRotulo}>Falta</span>
           <strong className={`${styles.placarValor} ${quitado ? styles.pos : styles.neg}`}>
@@ -257,6 +280,46 @@ export default function BlocoAcertos({ id, onMudou }: {
             ))}
           </tbody>
         </table>
+      )}
+
+      {/* O extrato das devoluções fica junto do dos acertos: os dois explicam
+          por que o saldo é o que é, e ela confere os dois na mesma conversa. */}
+      {lote.devolucoes.length > 0 && (
+        <>
+          <h4 className={styles.subTitulo}>Peças devolvidas</h4>
+          <table className={styles.tabela}>
+            <thead>
+              <tr>
+                <th className="col-date">Data</th>
+                <th>Peça</th>
+                <th className="col-num">Qtd.</th>
+                <th className="col-num">Abateu</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lote.devolucoes.map((d, i) => (
+                <tr key={`${d.product_id}-${i}`}>
+                  <td className="col-date">{fmtData(d.quando.slice(0, 10))}</td>
+                  <td>
+                    {d.nome}
+                    {d.barcode_number && <span className={styles.obs}> · {d.barcode_number}</span>}
+                  </td>
+                  <td className="col-num">{d.quantidade}</td>
+                  <td className={`col-num ${styles.valor}`}>{formatarDinheiro(d.valor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {devolvendo && (
+        <DevolucaoModal
+          consignmentId={id}
+          falta={lote.falta}
+          onFechar={() => setDevolvendo(false)}
+          onDevolvido={() => { carregar(); onMudou?.() }}
+        />
       )}
     </div>
   )

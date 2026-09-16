@@ -36,6 +36,23 @@
   color: var(--text-secondary);
 }
 
+/* Dois botões no topo desde a devolução por peça: acertar e devolver são as
+   duas metades do ciclo do lote. */
+.secaoAcoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subTitulo {
+  margin: 18px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
 /* ── Os três números ─────────────────────────────────────────────────────── */
 
 .placar {
