@@ -301,20 +301,35 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
       }
     }
 
-    /* Cada peça soma um valor diferente, então não há UPDATE único — mas elas
-     * não dependem umas das outras e podem ir juntas. Em blocos de 20 para não
+    /*
+     * SOMA POR PEÇA ANTES DE GRAVAR.
+     *
+     * A mesma peça pode aparecer em duas linhas da grade. Gravando linha a
+     * linha a partir do saldo lido UMA vez, as duas escreveriam "saldo + a
+     * sua quantidade" e a segunda apagaria a primeira: 3 + 2 e 3 + 1 viravam
+     * 4, não 6. O loop antigo, em série, relia o saldo entre uma e outra e não
+     * tinha o problema — o lote introduziu, a revisão de 16/09 pegou.
+     */
+    const somaPorPeca = new Map<string, number>()
+    for (const { row, i } of reusar) {
+      const id = row.productId as string
+      resolvedProductIds[i] = id
+      somaPorPeca.set(id, (somaPorPeca.get(id) ?? 0) + row.quantity)
+    }
+
+    /* Cada peça soma um valor diferente, então não há UPDATE único — mas agora
+     * cada id aparece uma vez só, e podem ir juntas. Em blocos de 20 para não
      * abrir 300 conexões de uma vez contra o PostgREST. */
     const agora = new Date().toISOString()
-    for (let de = 0; de < reusar.length; de += 20) {
-      const bloco = reusar.slice(de, de + 20)
-      const erros = await Promise.all(bloco.map(({ row, i }) => {
-        const id = row.productId as string
-        resolvedProductIds[i] = id
-        return admin.from('products')
-          .update({ quantity_in_stock: (saldo.get(id) ?? 0) + row.quantity, updated_at: agora })
+    const pecas = [...somaPorPeca.entries()]
+    for (let de = 0; de < pecas.length; de += 20) {
+      const bloco = pecas.slice(de, de + 20)
+      const erros = await Promise.all(bloco.map(([id, qtd]) =>
+        admin.from('products')
+          .update({ quantity_in_stock: (saldo.get(id) ?? 0) + qtd, updated_at: agora })
           .eq('id', id)
           .then(r => r.error)
-      }))
+      ))
       const falhou = erros.find(Boolean)
       if (falhou) return { success: false, error: `Erro ao somar o estoque: ${falhou.message}` }
     }
