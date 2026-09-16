@@ -1,0 +1,211 @@
+/*
+ * As cores aqui são CRAVADAS de propósito — este é o documento impresso.
+ *
+ * Mesma decisão do romaneio de transferência (Romaneio.module.css): token de
+ * tema resolveria para a paleta escura do sistema e sairia branco sobre preto
+ * na folha. "Tem que ser branco, senão coitado da minha impressora" — a dona,
+ * em 15/09.
+ *
+ * Se aparecer numa varredura de "cores fora do design system", é falso
+ * positivo: está certo assim.
+ */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.folha {
+  background: #fff;
+  color: #111;
+  padding: 28px 32px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #111;
+}
+
+.titulo {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 2px;
+  letter-spacing: -0.01em;
+}
+
+.fornecedor {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.identificacao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-size: 11px;
+  text-align: right;
+}
+
+.numero { font-weight: 700; }
+.data, .nf { color: #555; }
+
+.resumo {
+  display: flex;
+  gap: 28px;
+  padding: 12px 0;
+  border-bottom: 1px solid #ddd;
+}
+
+.resumo div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.resumo span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #666;
+}
+
+.resumo strong { font-size: 14px; }
+
+.acerto {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  padding: 10px 12px;
+  margin-top: 12px;
+  border: 1px solid #111;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.statusLote {
+  margin-left: auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #555;
+}
+
+.subtitulo {
+  margin: 18px 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #555;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-size: 11px;
+}
+
+.tabela th {
+  text-align: left;
+  padding: 6px 6px;
+  border-bottom: 1px solid #111;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: #555;
+}
+
+.tabela td {
+  padding: 5px 6px;
+  border-bottom: 1px solid #eee;
+}
+
+.tabela tfoot td {
+  border-top: 1px solid #111;
+  border-bottom: none;
+  font-weight: 700;
+  padding-top: 7px;
+}
+
+.num { text-align: right; }
+.ordem { color: #888; }
+.codigo { font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+.conferido { width: 62px; text-align: center; }
+
+.quadrado {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 1px solid #777;
+  border-radius: 2px;
+}
+
+.observacao {
+  margin-top: 16px;
+  padding: 9px 11px;
+  background: #f6f6f6;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.assinaturas {
+  display: flex;
+  gap: 40px;
+  margin-top: 40px;
+  font-size: 10px;
+  color: #555;
+}
+
+.assinaturas div {
+  flex: 1;
+  text-align: center;
+}
+
+.linha {
+  display: block;
+  border-top: 1px solid #111;
+  margin-bottom: 5px;
+}
+
+@media print {
+  .acoes { display: none !important; }
+
+  /* O modal inteiro sai de cena; só a folha vai ao papel. Mesmo mecanismo do
+     romaneio — esconde tudo e revela só a árvore da folha. */
+  :global(body) { visibility: hidden; }
+
+  .folha, .folha * { visibility: visible; }
+
+  .folha {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    padding: 0;
+    border-radius: 0;
+    font-size: 10px;
+  }
+
+  /* Compra de mala de São Paulo passa de 300 peças: a linha não pode ser
+     partida entre duas folhas, e o cabeçalho se repete em cada uma. */
+  .tabela tr { break-inside: avoid; }
+  .tabela thead { display: table-header-group; }
+  .assinaturas { break-inside: avoid; }
+}

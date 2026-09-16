@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ExternalLink, AlertTriangle, CheckCircle, Clock, Trash2, X, Package, CreditCard, Pencil } from 'lucide-react'
+import { ExternalLink, AlertTriangle, CheckCircle, Clock, Trash2, X, Package, CreditCard, Pencil, Printer } from 'lucide-react'
 import { buscarDetalheCompra, deletarCompra, type PurchaseDetail } from '@/app/(sistema)/compras/actions'
+import { buscarConsignacao } from '@/app/(sistema)/compras/acertos'
 import styles from '@/app/(sistema)/compras/ComprasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import BlocoAcertos from './BlocoAcertos'
+import RelatorioCompra from './RelatorioCompra'
 
 /* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
 const fmt = formatarDinheiro
@@ -33,12 +35,32 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
   const [deleting, setDeleting]           = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  /*
+   * A folha de conferência. Ela pediu em 15/09 e o sistema só tinha o botão de
+   * ETIQUETA, que é outra impressora e outro documento: "eu não quero imprimir
+   * na etiqueta, eu quero imprimir a tela".
+   */
+  const [imprimindo, setImprimindo] = useState(false)
+  const [lote, setLote] = useState<{ acertado: number; falta: number; status: string } | null>(null)
+
   useEffect(() => {
     buscarDetalheCompra(purchaseId).then(({ data }) => {
       setDetail(data)
       setLoading(false)
     })
   }, [purchaseId])
+
+  /* O acerto do lote consignado entra na folha — é o número que ela confere
+     com a fornecedora. Só busca quando é consignado; compra normal não tem. */
+  useEffect(() => {
+    const id = detail?.consignment_id
+    if (!id) return
+    let vivo = true
+    buscarConsignacao(id).then(c => {
+      if (vivo && c) setLote({ acertado: c.acertado, falta: c.falta, status: c.status })
+    })
+    return () => { vivo = false }
+  }, [detail?.consignment_id])
 
   async function handleDelete() {
     setDeleting(true)
@@ -65,10 +87,29 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
               </p>
             )}
           </div>
-          <button className={styles.closeBtn} onClick={onClose}><X size={18} /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {detail && !imprimindo && (
+              <button
+                className={styles.closeBtn}
+                onClick={() => setImprimindo(true)}
+                title="Imprimir a folha de conferência (papel A4, não é a etiqueta)"
+              >
+                <Printer size={16} />
+              </button>
+            )}
+            <button className={styles.closeBtn} onClick={onClose}><X size={18} /></button>
+          </div>
         </div>
 
-        {loading ? (
+        {/* `lote` só vale para compra consignada — a guarda mora no JSX, e não
+            num setState dentro do efeito, que dispara render em cascata. */}
+        {imprimindo && detail ? (
+          <RelatorioCompra
+            detail={detail}
+            consignacao={detail.consignment_id ? lote : null}
+            onFechar={() => setImprimindo(false)}
+          />
+        ) : loading ? (
           <div className={styles.modalLoading}>Carregando...</div>
         ) : !detail ? (
           <div className={styles.modalLoading}>Erro ao carregar.</div>
