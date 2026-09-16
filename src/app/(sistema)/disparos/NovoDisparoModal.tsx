@@ -251,8 +251,21 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
               placeholder="Ex.: Convite arraiá — julho" maxLength={120} />
           </Field>
 
-          <Field label="Loja (define o número que envia) *"
-            hint={isEdit ? 'A loja não muda na edição. Pra trocar, duplique ou crie um novo.' : undefined}>
+          {/*
+            A loja faz DUAS coisas, e o rótulo antigo só contava uma.
+
+            Ela decide quem RECEBE — `listarClientes(sid)`, no efeito acima, que
+            recarrega a lista inteira e refaz a seleção — e de qual número SAI
+            (`stores.whatsapp_phone`, em lib/disparo/enviarLote).
+
+            Quem lia "define o número que envia" não imaginava que trocar a loja
+            trocava os destinatários. Pior: a troca acontece sem aviso, e quem
+            já tinha marcado nomes à mão perde a marcação.
+          */}
+          <Field label="Loja (define os clientes e o número que envia) *"
+            hint={isEdit
+              ? 'A loja não muda na edição. Pra trocar, duplique ou crie um novo.'
+              : 'Trocar a loja recarrega a lista de clientes e refaz a seleção.'}>
             {isAdmin && !isEdit ? (
               <StoreSelect stores={stores} value={form.store_id} onChange={v => set('store_id', v)} />
             ) : (
