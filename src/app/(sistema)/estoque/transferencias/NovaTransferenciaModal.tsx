@@ -91,9 +91,6 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
     lojas.find(l => l.id !== (lojaPadrao ?? lojas[0]?.id))?.id ?? '',
   )
   const [linhas, setLinhas]   = useState<Linha[]>([])
-  // Envio (ida): entra direto no destino, sem bipe. Devolução (volta): fica
-  // enviada e a chegada é conferida por bipe. Pedido da Fernanda (21/09).
-  const [tipo, setTipo]       = useState<'envio' | 'devolucao'>('envio')
   const [obs, setObs]         = useState('')
   const [erro, setErro]       = useState<string | null>(null)
   const [ultimo, setUltimo]   = useState<string | null>(null)
@@ -281,8 +278,9 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
         to_store_id:   destino,
         itens: linhas.map(l => ({ product_id: l.id, quantity: l.quantidade })),
         notes: obs,
-        // Envio (ida) entra direto; devolução (volta) espera a bipagem na chegada.
-        autoReceber: tipo === 'envio',
+        // Toda transferência (ida e devolução) entra direto no destino: ela bipa
+        // pra montar, envia, e já cai no estoque de destino. Sem bipar na chegada.
+        autoReceber: true,
       })
     } catch (e) {
       setErro(mensagemDeErroAoSalvar(e))
@@ -330,32 +328,9 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
           </div>
         </div>
 
-        <div className={styles.tipoSel} role="radiogroup" aria-label="Tipo de transferência">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={tipo === 'envio'}
-            className={`${styles.tipoOpt} ${tipo === 'envio' ? styles.tipoAtivo : ''}`}
-            onClick={() => setTipo('envio')}
-            disabled={enviando}
-          >
-            Envio — entra direto no destino
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={tipo === 'devolucao'}
-            className={`${styles.tipoOpt} ${tipo === 'devolucao' ? styles.tipoAtivo : ''}`}
-            onClick={() => setTipo('devolucao')}
-            disabled={enviando}
-          >
-            Devolução — confere por bipe na chegada
-          </button>
-        </div>
         <p className={styles.tipoDica}>
-          {tipo === 'envio'
-            ? 'As peças já entram no estoque da loja de destino ao enviar. Sem conferência.'
-            : 'As peças ficam em trânsito; ao bipar cada uma na chegada, ela dá entrada no destino.'}
+          Bipe as peças para montar a transferência. Ao enviar, elas já entram no
+          estoque da loja de destino — não precisa bipar de novo na chegada.
         </p>
 
         <div className={styles.bipeArea}>
@@ -484,7 +459,7 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
           <div className={styles.acoes}>
             <Button variant="ghost" onClick={onClose} disabled={enviando}>Cancelar</Button>
             <Button onClick={enviar} loading={enviando} disabled={linhas.length === 0 || !destino}>
-              {tipo === 'envio' ? 'Enviar e dar entrada' : 'Enviar devolução (bipar na chegada)'}
+              Enviar e dar entrada
             </Button>
           </div>
         </div>
