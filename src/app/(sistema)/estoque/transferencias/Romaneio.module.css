@@ -203,3 +203,19 @@
   .tabela tr { break-inside: avoid; }
   .tabela thead { display: table-header-group; }
 }
+
+/* Desfecho impresso: o que voltou (recebido) e o que ficou (faltou). Aparece só
+   quando a transferência já foi conferida. Pedido da Fernanda (21/09). */
+.desfecho {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.desfecho strong { font-weight: 700; }
+
+@media print {
+  .desfecho { border-color: #000; }
+}

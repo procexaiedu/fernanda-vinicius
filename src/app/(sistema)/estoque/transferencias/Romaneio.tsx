@@ -28,6 +28,12 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
   const venda = r.totals?.venda_total
   const reetiquetar = enviados.filter(i => i.reetiquetar)
 
+  // Desfecho: depois de conferida (recebida/divergente), o papel mostra o que
+  // VOLTOU (recebido) e o que FICOU (faltou) por peça — não um quadrado em branco.
+  const conferido = r.status === 'recebida' || r.status === 'divergente'
+  const totalRecebido = enviados.reduce((s, i) => s + (i.quantity_received ?? 0), 0)
+  const totalFaltou = pecas - totalRecebido
+
   return (
     <div className={styles.wrapper}>
       {/* Some na impressão: é controle de tela, não parte do documento. */}
@@ -55,6 +61,11 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
               {new Date(r.sent_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
             </span>
             <span className={styles.responsavel}>Enviado por {r.enviou}</span>
+            {conferido && r.received_at && (
+              <span className={styles.responsavel}>
+                Recebido {new Date(r.received_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} por {r.recebeu ?? '—'}
+              </span>
+            )}
           </div>
         </header>
 
@@ -88,7 +99,14 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
               <th>Código</th>
               <th className={`${styles.num} col-num`}>Qtd.</th>
               <th className={`${styles.num} col-num`}>Custo un.</th>
-              <th className={styles.conferido}>Conferido</th>
+              {conferido ? (
+                <>
+                  <th className={`${styles.num} col-num`}>Recebido</th>
+                  <th className={`${styles.num} col-num`}>Faltou</th>
+                </>
+              ) : (
+                <th className={styles.conferido}>Conferido</th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -103,12 +121,26 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
                 <td className={styles.codigo}>{i.product_code}</td>
                 <td className={`${styles.num} col-num`}>{i.quantity_sent}</td>
                 <td className={`${styles.num} col-num`}>{formatarDinheiro(i.unit_cost)}</td>
-                {/* Quadradinho para a conferência no papel, quando o leitor não está à mão. */}
-                <td className={styles.conferido}><span className={styles.quadrado} /></td>
+                {conferido ? (
+                  <>
+                    <td className={`${styles.num} col-num`}>{i.quantity_received ?? 0}</td>
+                    <td className={`${styles.num} col-num`}>{i.quantity_sent - (i.quantity_received ?? 0)}</td>
+                  </>
+                ) : (
+                  /* Quadradinho para a conferência no papel, quando o leitor não está à mão. */
+                  <td className={styles.conferido}><span className={styles.quadrado} /></td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
+
+        {conferido && (
+          <p className={styles.desfecho}>
+            Enviado <strong>{pecas}</strong> · Recebido (voltou) <strong>{totalRecebido}</strong>
+            {' · '}Faltou (ficou) <strong>{totalFaltou}</strong>
+          </p>
+        )}
 
         {r.notes && <p className={styles.observacao}><strong>Observação:</strong> {r.notes}</p>}
 

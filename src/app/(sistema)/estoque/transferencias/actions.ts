@@ -59,7 +59,9 @@ export async function enviarTransferencia(dados: {
   to_store_id: string
   itens: ItemEnvio[]
   notes?: string
-}): Promise<ActionResult & { transfer_id?: string }> {
+  /** IDA (envio): entra direto no destino, sem conferência. false = devolução (confere por bipe). */
+  autoReceber?: boolean
+}): Promise<ActionResult & { transfer_id?: string; autoRecebida?: boolean }> {
   const { perfil, erro } = await admin()
   if (!perfil) return { success: false, error: erro! }
 
@@ -80,6 +82,7 @@ export async function enviarTransferencia(dados: {
     p_itens:         dados.itens,
     p_user_id:       perfil.id,
     p_notes:         dados.notes?.trim() || null,
+    p_auto_receber:  dados.autoReceber ?? false,
   })
 
   // Erro do banco é erro na tela. Uma peça que falhou derruba o romaneio
@@ -87,11 +90,11 @@ export async function enviarTransferencia(dados: {
   // pessoa achando que mandou o que não mandou.
   if (error) return { success: false, error: error.message }
 
-  const r = data as { success: boolean; error?: string; transfer_id?: string }
+  const r = data as { success: boolean; error?: string; transfer_id?: string; auto_recebida?: boolean }
   if (!r.success) return { success: false, error: r.error ?? 'Erro ao enviar.' }
 
   revalidarTudo()
-  return { success: true, transfer_id: r.transfer_id }
+  return { success: true, transfer_id: r.transfer_id, autoRecebida: r.auto_recebida }
 }
 
 /**

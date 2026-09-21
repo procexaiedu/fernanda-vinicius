@@ -298,3 +298,41 @@
   display: flex;
   gap: 8px;
 }
+
+/* ── Envio × Devolução ─────────────────────────────────────────────────────
+   Ida (Envio) entra direto no destino; volta (Devolução) fica em trânsito e é
+   conferida por bipe na chegada. Segmentado porque são dois caminhos exclusivos
+   e é assim que a Fernanda pensa (pedido 21/09). */
+.tipoSel {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 4px;
+}
+.tipoOpt {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.tipoOpt:hover:not(:disabled) { color: var(--text-primary); }
+.tipoOpt:disabled { cursor: default; opacity: .6; }
+.tipoAtivo {
+  color: var(--text-primary);
+  background: var(--accent-subtle);
+  border-color: var(--accent);
+}
+.tipoDica {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
