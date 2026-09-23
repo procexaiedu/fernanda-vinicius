@@ -9,6 +9,8 @@ import ProdutoFormModal from './ProdutoFormModal'
 import ProdutoDetalheModal from '@/components/produto/ProdutoDetalheModal'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { toggleProductStatus } from './actions'
+import { createClient as createBrowserClient } from '@/lib/supabase/client'
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { exportarProdutos } from './exportar'
 import BotaoExportar from '@/components/ui/BotaoExportar'
 import SearchableSelect from '@/components/ui/SearchableSelect'
@@ -79,6 +81,8 @@ export default function ProdutosClient({
    */
   const [selectedProducts, setSelectedProducts] = useState<Map<string, ProductWithRelations>>(new Map())
   const [printerOpen, setPrinterOpen] = useState(false)
+  // Feedback do bipe (reetiqueta): a última peça bipada ou o erro de não encontrada.
+  const [bipInfo, setBipInfo] = useState<{ ok: boolean; msg: string } | null>(null)
 
   /*
    * 10 por tela, encadeada sobre os lotes de 50 do servidor: as 5 primeiras
@@ -139,6 +143,39 @@ export default function ProdutosClient({
       return next
     })
   }, [pag.fatia])
+
+  /*
+   * Bipar no módulo de produtos SELECIONA a peça para reimpressão de etiqueta, em
+   * vez de abrir uma venda. Pedido da mãe da Fernanda: ela chega com uma pilha de
+   * peças pra reetiquetar e digitar a referência de cada uma é inviável. O bipe
+   * global (layout) fica suprimido em /produtos — ver TELAS_QUE_JA_TRATAM_O_BIPE.
+   *
+   * Busca a peça por etiqueta no banco (pode não estar no lote em tela). Etiqueta é
+   * única por (loja, barcode) — a mesma peça transferida tem cadastro idêntico nas
+   * duas, então `limit(1)` basta: o que a etiqueta imprime é igual.
+   */
+  const aoBiparParaReetiqueta = useCallback(async (codigo: string) => {
+    const supabase = createBrowserClient()
+    const { data, error } = await supabase
+      .from('products')
+      .select('*, suppliers(id, name, initials), stores(id, name)')
+      .eq('barcode_number', codigo)
+      .limit(1)
+      .maybeSingle()
+    if (error || !data) {
+      setBipInfo({ ok: false, msg: `Nenhuma peça com a etiqueta ${codigo}.` })
+      return
+    }
+    const prod = data as ProductWithRelations
+    setSelectedProducts(prev => new Map(prev).set(prod.id, prod))
+    setBipInfo({ ok: true, msg: `${prod.name} · etiqueta ${prod.barcode_number} — selecionada` })
+  }, [])
+
+  // Só captura o bipe quando nenhum modal está aberto (senão atrapalha cadastro/impressão).
+  useBarcodeScanner({
+    onScan: aoBiparParaReetiqueta,
+    ativo: !formOpen && !detalhe && !printerOpen && !confirmDeactivateId,
+  })
 
   const printerItems = useMemo<EtiquetasPrinterItem[]>(
     () => [...selectedProducts.values()]
@@ -276,6 +313,9 @@ export default function ProdutosClient({
           <span className="list-count">{total} produto{total !== 1 ? 's' : ''}</span>
         </div>
         <div className={styles.toolbarRight}>
+          {bipInfo && (
+            <span className={bipInfo.ok ? styles.bipOk : styles.bipErro}>{bipInfo.msg}</span>
+          )}
           {selectedProducts.size > 0 && (
             <>
               <Button size="sm" variant="ghost" onClick={() => setPrinterOpen(true)}>

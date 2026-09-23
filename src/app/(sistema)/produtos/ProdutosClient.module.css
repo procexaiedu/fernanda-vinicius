@@ -383,3 +383,20 @@
  * a coluna inteira colorida e ninguém enxerga mais o que está encalhado. */
 .giroParado  { color: var(--warning); }
 .giroCritico { color: var(--danger); font-weight: 600; }
+
+/* Feedback do bipe para reetiqueta (bipar seleciona a peça). Pedido 22/09. */
+.bipOk, .bipErro {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+.bipOk {
+  color: var(--accent);
+  background: var(--accent-subtle);
+}
+.bipErro {
+  color: var(--danger);
+  background: var(--danger-subtle);
+}

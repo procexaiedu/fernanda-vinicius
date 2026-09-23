@@ -26,6 +26,7 @@ const TELAS_QUE_JA_TRATAM_O_BIPE = [
   '/vendas/nova',
   '/vendas/',
   '/pdv',
+  '/produtos',                // bipar aqui SELECIONA a peça p/ reetiqueta, não abre venda
   '/estoque',                 // consulta de balcão
   '/estoque/conferencia',     // escolha do escopo — bipe aqui não é venda
   '/estoque/conferencia/',    // a contagem, que captura por conta própria
