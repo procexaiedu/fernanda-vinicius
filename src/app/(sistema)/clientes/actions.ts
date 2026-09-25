@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { formatarNomeProprio } from '@/lib/nomeProprio'
 import { requireProfile, getProfile, lojaDoEscopo } from '@/lib/auth'
 import { normalizarTelefone } from '@/lib/telefone'
+import type { CustomerWithStats } from './page'
 
 export interface ActionResult {
   success: boolean
@@ -130,6 +131,47 @@ export async function updateCustomer(id: string, data: CustomerFormData): Promis
   if (error) return { success: false, error: error.message }
   revalidatePath('/clientes')
   return { success: true }
+}
+
+/**
+ * Busca uma cliente com TODOS os campos editáveis, para abrir o formulário
+ * completo na hora da venda (o combobox da venda só carrega id/nome/tel/CPF/
+ * aniversário). Os campos de estatística vêm zerados — o formulário não os usa.
+ */
+export async function buscarClienteCompleto(id: string): Promise<CustomerWithStats | null> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('customers')
+    .select('id, name, phone, cpf, email, birthday, address, city, state, zip_code, origin_store_id, notes, created_at, updated_at, stores:origin_store_id(name)')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error || !data) return null
+  const d = data as Record<string, unknown> & { stores?: { name?: string } | null }
+  return {
+    id:                d.id as string,
+    name:              d.name as string,
+    phone:             (d.phone as string) ?? '',
+    cpf:               (d.cpf as string | null) ?? null,
+    email:             (d.email as string | null) ?? null,
+    birthday:          (d.birthday as string | null) ?? null,
+    address:           (d.address as string | null) ?? null,
+    city:              (d.city as string | null) ?? null,
+    state:             (d.state as string | null) ?? null,
+    zip_code:          (d.zip_code as string | null) ?? null,
+    origin_store_id:   d.origin_store_id as string,
+    origin_store_name: d.stores?.name ?? '',
+    notes:             (d.notes as string | null) ?? null,
+    created_at:        d.created_at as string,
+    updated_at:        d.updated_at as string,
+    total_sales:       0,
+    last_sale_date:    null,
+    total_spent:       0,
+  }
 }
 
 /**
