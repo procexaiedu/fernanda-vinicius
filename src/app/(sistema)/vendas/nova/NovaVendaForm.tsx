@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { consertosAbertosDaCliente } from '@/app/(sistema)/consertos/actions'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
+import { novoIdDeRequisicao } from '@/lib/idempotencia'
 import {
   Plus, Trash2, AlertTriangle, ChevronDown, Cake, X, CreditCard,
-  Banknote, Smartphone, ArrowLeftRight, RefreshCw, User, CheckCircle2, Wrench,
+  Banknote, Smartphone, ArrowLeftRight, RefreshCw, User, CheckCircle2, Wrench, RotateCcw,
 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
@@ -19,7 +20,7 @@ import {
 import { clientesComMesmoTelefone, buscarClienteCompleto, createCustomer, searchCustomers, type ClienteComMesmoTelefone, type CustomerFormData } from '../../clientes/actions'
 import ClienteFormModal from '../../clientes/ClienteFormModal'
 import type { CustomerWithStats } from '../../clientes/page'
-import { matchText } from '@/lib/normalize'
+import { matchText, normalize } from '@/lib/normalize'
 import { maskDate, toISODate, todaySP } from '@/lib/date'
 import { mascararCpf } from '@/lib/cpf'
 import styles from './NovaVendaForm.module.css'
@@ -89,6 +90,26 @@ interface SaleRow {
   consertoDescricao: string
   /** A peça ficou na loja (pagou adiantado) ou a cliente levou agora? */
   consertoFicouNaLoja: boolean
+  /**
+   * A peça que estava na linha antes de o texto do nome mudar.
+   *
+   * O leitor de código de barras é um teclado: bipar com o cursor no nome de
+   * uma linha escreve os dígitos ali, um a um, e cada tecla desvincula a peça
+   * ANTES de o useBarcodeScanner restaurar o texto. Com nome repetido no
+   * catálogo, `produtoExato` não sabe qual religar — e o preço ajustado à mão
+   * voltava ao de etiqueta. Guardando o vínculo, o texto que volta a ser o nome
+   * dela religa a MESMA peça, com o MESMO preço.
+   */
+  vinculoAnterior: VinculoAnterior | null
+}
+
+interface VinculoAnterior {
+  productId: string
+  nome: string
+  unitPrice: number
+  unitCost: number
+  stockAvailable: number
+  isService: boolean
 }
 
 interface PaymentRow {
@@ -119,8 +140,14 @@ interface Props {
    * Presente (PDV) = após salvar, fica na tela e reseta em vez de navegar.
    * Recebe o id da venda para o PDV poder oferecer a emissão da nota — que só
    * faz sentido ali, com a cliente ainda no balcão e dentro dos 5 minutos.
+   *
+   * `aviso` = a venda gravou mas um passo depois falhou (estoque, pagamento).
+   * O PDV remonta o form ao salvar, então a mensagem que estava aqui sumiria:
+   * ela segue para o painel da venda, que fica na tela.
+   *
+   * Também é o que marca o MODO PDV para o rascunho (ver o efeito de carga).
    */
-  onSaved?: (saleId: string) => void
+  onSaved?: (saleId: string, aviso?: string) => void
   /**
    * `barcode_number` lido em outra tela do sistema. A venda abre já com essa peça
    * na primeira linha, preenchida com tudo que dá para deduzir do produto.
@@ -149,7 +176,24 @@ function isBirthdayMonth(birthday: string | null): boolean {
 }
 
 function emptyRow(): SaleRow {
-  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false, isConserto: false, consertoId: null, consertoDescricao: '', consertoFicouNaLoja: false }
+  return { productId: null, productName: '', quantity: 1, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false, isConserto: false, consertoId: null, consertoDescricao: '', consertoFicouNaLoja: false, vinculoAnterior: null }
+}
+
+/**
+ * Linha que a operadora não começou: sem peça, sem nome, sem conserto.
+ *
+ * O Enter na última coluna cria uma linha nova em branco, e o "Adicionar
+ * produto" também. A validação percorria TODAS as linhas e travava a venda em
+ * "Linha 3: selecione um produto" por causa de uma linha que ela nem viu —
+ * e o payload levava a linha vazia junto. Linha vazia não é erro: é ignorada.
+ */
+function linhaVazia(r: SaleRow): boolean {
+  return !r.productId && !r.productName.trim() && !r.isConserto
+}
+
+/** O preço de etiqueta: promoção ativa vence. Mesma regra do PDV inteiro. */
+function precoDeCatalogo(p: ProductOption): number {
+  return p.promotional_active && p.promotional_price ? p.promotional_price : p.sale_price
 }
 
 /**
@@ -163,7 +207,7 @@ function rowDoProduto(p: ProductOption): SaleRow {
     productId: p.id,
     productName: p.name,
     quantity: 1,
-    unitPrice: p.promotional_active && p.promotional_price ? p.promotional_price : p.sale_price,
+    unitPrice: precoDeCatalogo(p),
     unitCost: p.cost_price,
     stockAvailable: p.quantity_in_stock,
     isService: p.is_service,
@@ -172,7 +216,124 @@ function rowDoProduto(p: ProductOption): SaleRow {
     consertoId: null,
     consertoDescricao: '',
     consertoFicouNaLoja: false,
+    vinculoAnterior: null,
   }
+}
+
+/**
+ * O produto que o texto digitado nomeia SEM ambiguidade — nome, código de
+ * barras ou código iguais (ignorando acento e caixa) a um único produto.
+ *
+ * Existe porque escolher na lista era a única forma de vincular a linha: se ela
+ * mexesse no nome depois (um Backspace, o leitor bipando com o cursor ali), a
+ * linha continuava com nome e preço na tela mas sem produto, e a venda só
+ * travava ao salvar — "Linha 2: selecione um produto do catálogo" (30/09).
+ * Nome repetido no catálogo não vincula: escolher um deles seria chute.
+ */
+function produtoExato(products: ProductOption[], texto: string): ProductOption | null {
+  const q = normalize(texto)
+  if (!q) return null
+  for (const campo of ['name', 'barcode_number', 'code'] as const) {
+    const achados = products.filter(p => normalize(p[campo]) === q)
+    if (achados.length === 1) return achados[0]
+    if (achados.length > 1) return null
+  }
+  return null
+}
+
+// ─── Rascunho automático (localStorage) ───────────────────────────────────────
+/*
+ * O mesmo desenho da Nova Compra (NovaCompraForm): salva sozinho no navegador
+ * enquanto ela digita, oferece de volta ao reabrir, e só se apaga quando a
+ * venda grava de verdade — ou quando ela descarta.
+ *
+ * Até aqui a venda NÃO tinha rascunho: uma queda de rede, um F5 por reflexo
+ * ou um deploy no meio do atendimento apagavam as peças já bipadas, com a
+ * cliente esperando no balcão. Só na edição continua sem rascunho — ali a
+ * venda já existe no banco, e reabrir a tela a traz de volta.
+ *
+ * A chave leva usuária E loja: o notebook do balcão é compartilhado, e o
+ * rascunho da Alba não pode aparecer para a Rayane, nem o de Campinas numa
+ * venda de Brasília (as peças são de outra loja).
+ */
+const RASCUNHO_PREFIXO = 'fv:nova-venda:draft:v1'
+/* Rascunho de ontem é venda que não aconteceu ou já foi lançada de outro
+ * jeito. Oferecer de volta depois de um dia é mais confusão que ajuda. */
+const RASCUNHO_VALIDADE_MS = 24 * 60 * 60 * 1000
+
+function chaveDoRascunho(userId: string, storeId: string) {
+  return `${RASCUNHO_PREFIXO}:${userId}:${storeId}`
+}
+
+type LinhaDoRascunho = SaleRow & {
+  /** Preço de etiqueta quando o rascunho foi salvo — para saber se mudou. */
+  precoCatalogo: number | null
+}
+
+interface VendaDraft {
+  v: 1
+  savedAt: number
+  storeId: string
+  rows: LinhaDoRascunho[]
+  selectedCustomer: CustomerOption | null
+  customerSearch: string
+  payments: PaymentRow[]
+  hasPix: boolean
+  hasBirthday: boolean
+  aniversarioTocado: boolean
+  manualModo: 'valor' | 'pct'
+  manualValor: number
+  manualPct: number
+  notes: string
+  sellerId: string
+  aceitouFiado: boolean
+  previsaoPagamento: string
+  destinatarioCpf: string
+  /**
+   * O id desta venda para o servidor reconhecer um reenvio — ver
+   * `clientRequestId` em vendas/actions.ts. Opcional: rascunho gravado antes
+   * de 30/09 não tem, e a venda recuperada ganha um novo.
+   */
+  clientRequestId?: string
+}
+
+/** Lê e confere o rascunho; vencido ou corrompido é apagado e vira `null`. */
+function lerRascunho(chave: string): VendaDraft | null {
+  try {
+    const raw = localStorage.getItem(chave)
+    if (!raw) return null
+    const d = JSON.parse(raw) as VendaDraft
+    if (d && d.v === 1 && Array.isArray(d.rows) && Date.now() - (d.savedAt || 0) < RASCUNHO_VALIDADE_MS) return d
+    localStorage.removeItem(chave)
+  } catch { /* corrompido, ou storage bloqueado — segue sem rascunho */ }
+  return null
+}
+
+/**
+ * Confere cada linha do rascunho contra o catálogo de AGORA.
+ *
+ * Entre salvar e recuperar a peça pode ter sido vendida em outra venda,
+ * inativada, ou mudado de preço. Peça que sumiu fica na linha SEM vínculo (a
+ * venda não salva até ela escolher de novo — mesma regra de quem mexe no
+ * nome). Preço que mudou NÃO é trocado sozinho: o combinado com a cliente foi
+ * o do rascunho. Mas também não é silenciado — o banner conta quantas.
+ */
+function revalidarRascunho(d: VendaDraft, products: ProductOption[]) {
+  let sumiram = 0
+  let mudaramPreco = 0
+  const rows: SaleRow[] = d.rows.map(r => {
+    const { precoCatalogo, ...linha } = r
+    const base: SaleRow = { ...emptyRow(), ...linha, vinculoAnterior: null }
+    if (base.isConserto || !base.productId) return base
+    const p = products.find(x => x.id === base.productId && x.store_id === d.storeId)
+    if (!p) {
+      sumiram++
+      return { ...base, productId: null, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false }
+    }
+    if (precoCatalogo != null && Math.abs(precoDeCatalogo(p) - precoCatalogo) > 0.009) mudaramPreco++
+    return { ...base, productName: p.name, unitCost: p.cost_price, stockAvailable: p.quantity_in_stock, isService: p.is_service }
+  })
+  return { rows: rows.length ? rows : [emptyRow()], sumiram, mudaramPreco }
 }
 
 // Navegação por teclado no grid de itens (mesmo padrão da Nova Compra).
@@ -520,6 +681,9 @@ function CreateCustomerModal({ storeId, nomeInicial, onClose, onCreated }: {
         notes: '',
       })
     } catch (e) {
+      /* Sem `temRascunho` de propósito: o rascunho guarda a VENDA, não este
+       * cadastro. Mandar recarregar "com o rascunho salvo" perderia o que ela
+       * digitou aqui no modal. */
       setError(mensagemDeErroAoSalvar(e))
       return
     } finally {
@@ -663,19 +827,6 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    */
   const vendedorasDaLoja = users.filter(u => !u.store_id || u.store_id === storeId)
 
-  /*
-   * Trocou a loja e a vendedora escolhida não é de lá? Limpa o campo.
-   *
-   * Sem isto o seletor some com o nome da lista mas o `sellerId` continua no
-   * estado, e a venda vai para o banco com uma vendedora da outra loja — o
-   * corte de cima viraria enfeite. `storeId` sozinho na dependência de
-   * propósito: é a troca de loja que invalida a escolha.
-   */
-  useEffect(() => {
-    if (sellerId && !users.some(u => u.id === sellerId && (!u.store_id || u.store_id === storeId))) {
-      setSellerId('')
-    }
-  }, [storeId])  // eslint-disable-line react-hooks/exhaustive-deps
   const [notes, setNotes]         = useState(editSale?.notes ?? '')
 
   // ── Cliente ───────────────────────────────────────────────────────────────
@@ -717,7 +868,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── Itens da venda ────────────────────────────────────────────────────────
   const [rows, setRows] = useState<SaleRow[]>(
-    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r, isTroca: false, isConserto: false, consertoId: null, consertoDescricao: '', consertoFicouNaLoja: false }))
+    editSale && editSale.rows.length ? editSale.rows.map(r => ({ ...r, isTroca: false, isConserto: false, consertoId: null, consertoDescricao: '', consertoFicouNaLoja: false, vinculoAnterior: null }))
       : produtoBipado ? [rowDoProduto(produtoBipado)]
       : [emptyRow()]
   )
@@ -753,11 +904,17 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * Vem preenchido com o CPF do cadastro quando existe, porque é o caso comum,
    * e a operadora apaga se for outro.
    */
-  const [destinatarioCpf, setDestinatarioCpf] = useState(editSale?.destinatarioCpf ?? '')
+  /*
+   * Na edição, CPF, fiado e data prometida vêm da venda gravada. Antes a
+   * edição abria os três em branco e `editarVenda` gravava por cima: salvar
+   * uma correção de preço apagava o CPF da nota e a data que a cliente
+   * prometeu pagar — e a venda fiada nem salvava, por "faltar" pagamento.
+   */
+  const [destinatarioCpf, setDestinatarioCpf] = useState(editSale?.destinatarioCpf ? maskCpf(editSale.destinatarioCpf) : '')
   const [cpfAberto, setCpfAberto] = useState(false)
 
-  const [aceitouFiado, setAceitouFiado] = useState(false)
-  const [previsaoPagamento, setPrevisaoPagamento] = useState('')
+  const [aceitouFiado, setAceitouFiado] = useState(editSale?.fiado ?? false)
+  const [previsaoPagamento, setPrevisaoPagamento] = useState(editSale?.previsaoPagamento ?? '')
 
   const [manualModo, setManualModo]     = useState<'valor' | 'pct'>('valor')
   const [manualValor, setManualValor]   = useState(editSale?.manualDiscount ?? 0)
@@ -855,7 +1012,12 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     setTimeout(() => setScanFeedback(null), 2500)
   }, [])
 
-  useBarcodeScanner({ onScan: aoBipar })
+  /*
+   * Com um cadastro de cliente aberto (novo ou edição), o bipe NÃO entra na
+   * venda. Antes entrava: ela bipava achando que ia para o campo do modal e a
+   * peça era somada por trás, na grade que ela não estava vendo.
+   */
+  useBarcodeScanner({ onScan: aoBipar, ativo: !showCreateCustomer && !editandoCliente })
 
   // No modo edição, os descontos vêm da venda salva — não deixar os efeitos
   // auto-derivarem (e sobrescreverem) no primeiro render. Liberados após montar.
@@ -913,6 +1075,212 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   // Libera os efeitos acima após o primeiro render (deve rodar DEPOIS deles).
   useEffect(() => { editInit.current = false }, [])
 
+  // ── Rascunho automático (só na venda nova) ────────────────────────────────
+  /*
+   * O rascunho achado ao abrir. `pendente` = oferecido e ainda não aceito: a
+   * página abriu por BIP, com a peça bipada já na grade, e restaurar sozinho
+   * jogaria fora o que ela acabou de fazer. Nesse caso o banner OFERECE.
+   */
+  const [rascunho, setRascunho] = useState<{
+    sumiram: number; mudaramPreco: number; pendente: VendaDraft | null
+  } | null>(null)
+  const [rascunhoCarregado, setRascunhoCarregado] = useState(false)
+  /* O que está na tela já está no localStorage? Decide o aviso ao sair. */
+  const rascunhoGravado = useRef(true)
+  const chaveGravada    = useRef<string | null>(null)
+  /* Venda salva: nada mais grava rascunho nem pede confirmação ao sair. */
+  const vendaGravada    = useRef(false)
+  /*
+   * O id DESTA venda, o mesmo em todo reenvio.
+   *
+   * Se a resposta do "Salvar" se perde (rede, timeout, deploy), ela clica de
+   * novo — ou recarrega e o rascunho volta — e antes a venda entrava duas
+   * vezes: estoque baixado em dobro, pagamento duplicado no caixa. Com o id no
+   * rascunho o servidor reconhece a venda que já gravou e devolve a mesma.
+   * Nasce na primeira vez que é pedido; troca só quando a venda grava ou o
+   * rascunho é descartado (aí é outra venda). Na edição não é usado.
+   */
+  const idDaVenda = useRef<string | null>(null)
+  function idDaVendaAtual(): string {
+    if (!idDaVenda.current) idDaVenda.current = novoIdDeRequisicao()
+    return idDaVenda.current
+  }
+
+  function apagarRascunho() {
+    try {
+      if (chaveGravada.current) localStorage.removeItem(chaveGravada.current)
+      localStorage.removeItem(chaveDoRascunho(userProfile.userId, storeId))
+    } catch { /* storage bloqueado — nada a apagar */ }
+    chaveGravada.current = null
+  }
+
+  function aplicarRascunho(d: VendaDraft, comBip: boolean) {
+    const { rows: linhas, sumiram, mudaramPreco } = revalidarRascunho(d, products)
+    /* Abriu por bip e ela aceitou o rascunho: a peça bipada entra junto,
+     * no fim — é a que ela tem na mão agora. */
+    const finais = comBip && produtoBipado && !linhas.some(r => r.productId === produtoBipado.id)
+      ? [...linhas.filter(r => !linhaVazia(r)), rowDoProduto(produtoBipado)]
+      : linhas
+    // Só quem escolhe loja (admin sem loja fixa) tem a loja restaurada.
+    if (!userProfile.storeId && d.storeId) setStoreId(d.storeId)
+    setRows(finais)
+    setSelectedCustomer(d.selectedCustomer ?? null)
+    setCustomerSearch(d.customerSearch ?? d.selectedCustomer?.name ?? '')
+    setPayments(Array.isArray(d.payments) ? d.payments : [])
+    aniversarioTocado.current = !!d.aniversarioTocado
+    setHasPix(!!d.hasPix)
+    setHasBirthday(!!d.hasBirthday)
+    setManualModo(d.manualModo === 'pct' ? 'pct' : 'valor')
+    setManualValor(Number(d.manualValor) || 0)
+    setManualPct(Number(d.manualPct) || 0)
+    setNotes(d.notes ?? '')
+    if (d.sellerId) setSellerId(d.sellerId)
+    setAceitouFiado(!!d.aceitouFiado)
+    setPrevisaoPagamento(d.previsaoPagamento ?? '')
+    setDestinatarioCpf(d.destinatarioCpf ?? '')
+    /* Continua com o id do rascunho: é o caso "salvou, a resposta se perdeu,
+     * ela recarregou" — com o mesmo id o servidor devolve a venda que já
+     * existe em vez de lançar outra. */
+    if (typeof d.clientRequestId === 'string' && d.clientRequestId) idDaVenda.current = d.clientRequestId
+    setRascunho({ sumiram, mudaramPreco, pendente: null })
+  }
+
+  function descartarRascunho() {
+    apagarRascunho()
+    const eraPendente = !!rascunho?.pendente
+    setRascunho(null)
+    /* Oferecido e recusado: a tela continua com o que ela já tinha (a peça
+     * bipada). Restaurado e descartado: volta ao formulário em branco. */
+    if (eraPendente) return
+    idDaVenda.current = null   // formulário em branco é outra venda
+    setRows([emptyRow()])
+    setSelectedCustomer(null)
+    setCustomerSearch('')
+    setPayments([])
+    aniversarioTocado.current = false
+    setHasPix(false)
+    setHasBirthday(false)
+    setManualModo('valor')
+    setManualValor(0)
+    setManualPct(0)
+    setNotes('')
+    setSellerId(userProfile.userId)
+    setAceitouFiado(false)
+    setPrevisaoPagamento('')
+    setDestinatarioCpf('')
+  }
+
+  // Carrega o rascunho ao montar — pós-hidratação: o servidor não tem
+  // localStorage, e ler no useState quebraria a hidratação.
+  useEffect(() => {
+    if (isEditing) return
+    /* Admin sem loja fixa pode ter deixado o rascunho em qualquer das lojas:
+     * vale o mais recente. Aberto por bip, só a loja da peça bipada. */
+    const lojas = bipInicial || userProfile.storeId
+      ? [storeId]
+      : [storeId, ...stores.map(s => s.id).filter(id => id !== storeId)]
+    let achado: VendaDraft | null = null
+    for (const loja of lojas) {
+      const d = lerRascunho(chaveDoRascunho(userProfile.userId, loja))
+      if (d && d.storeId === loja && (!achado || d.savedAt > achado.savedAt)) achado = d
+    }
+    /*
+     * Rascunho sem nenhuma peça/conserto não é venda: é o cliente, o CPF ou o
+     * "fica devendo" de um atendimento que não aconteceu. Restaurar isso fazia
+     * a PRÓXIMA venda do balcão sair no nome (e no fiado) da pessoa anterior.
+     * Sai em silêncio.
+     */
+    if (achado && !achado.rows.some(r => !linhaVazia({ ...emptyRow(), ...r }))) {
+      try { localStorage.removeItem(chaveDoRascunho(userProfile.userId, achado.storeId)) } catch { /* storage bloqueado */ }
+      achado = null
+    }
+    if (achado) {
+      chaveGravada.current = chaveDoRascunho(userProfile.userId, achado.storeId)
+      /* No PDV (`onSaved`) o notebook é do balcão e quem abre agora pode estar
+       * atendendo outra cliente: o rascunho é OFERECIDO (Continuar/Descartar),
+       * como na abertura por bip. Em /vendas/nova continua voltando direto. */
+      if (bipInicial || onSaved) setRascunho({ sumiram: 0, mudaramPreco: 0, pendente: achado })  // eslint-disable-line react-hooks/set-state-in-effect -- leitura de sistema externo (localStorage), uma vez
+      else aplicarRascunho(achado, false)
+    }
+    setRascunhoCarregado(true)
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps -- só ao montar, como na compra
+
+  // Salva sozinho (debounce), como a compra. Nunca com o formulário vazio.
+  useEffect(() => {
+    /* Com um rascunho OFERECIDO e não respondido, gravar agora sobrescreveria
+     * o rascunho antigo com a venda do bip. Espera ela decidir. */
+    if (isEditing || !rascunhoCarregado || rascunho?.pendente || vendaGravada.current) return
+    const chave = chaveDoRascunho(userProfile.userId, storeId)
+    const temAlgo = rows.some(r => !linhaVazia(r)) || !!selectedCustomer || payments.length > 0 || notes.trim() !== ''
+    if (!temAlgo) {
+      apagarRascunho()
+      rascunhoGravado.current = true
+      /* Tela esvaziada é outra venda. Sem trocar o id, a próxima venda saía com
+       * o id de uma já gravada (ou abandonada) e o servidor a tomava por
+       * reenvio — ver `respostaDaVendaJaGravada`. */
+      idDaVenda.current = null
+      return
+    }
+    rascunhoGravado.current = false
+    const t = setTimeout(() => {
+      if (vendaGravada.current) return
+      const draft: VendaDraft = {
+        v: 1,
+        savedAt: Date.now(),
+        storeId,
+        rows: rows.map(r => {
+          const p = r.productId ? products.find(x => x.id === r.productId) : undefined
+          return { ...r, precoCatalogo: p ? precoDeCatalogo(p) : null }
+        }),
+        selectedCustomer, customerSearch, payments,
+        hasPix, hasBirthday, aniversarioTocado: aniversarioTocado.current,
+        manualModo, manualValor, manualPct,
+        notes, sellerId, aceitouFiado, previsaoPagamento, destinatarioCpf,
+        clientRequestId: idDaVendaAtual(),
+      }
+      try {
+        localStorage.setItem(chave, JSON.stringify(draft))
+        // Trocou de loja: o rascunho muda de chave, o da loja anterior sai.
+        if (chaveGravada.current && chaveGravada.current !== chave) localStorage.removeItem(chaveGravada.current)
+        chaveGravada.current = chave
+        rascunhoGravado.current = true
+      } catch { /* cheio ou modo privado — segue sem rascunho; o aviso ao sair cobre */ }
+    }, 600)
+    return () => clearTimeout(t)
+  /* `products`/`userProfile` não mudam durante a venda, e `apagarRascunho` é
+   * recriada a cada render — entrar na lista regravaria sem motivo. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, rascunhoCarregado, rascunho, storeId, rows, selectedCustomer, customerSearch, payments,
+      hasPix, hasBirthday, manualModo, manualValor, manualPct, notes, sellerId, aceitouFiado,
+      previsaoPagamento, destinatarioCpf])
+
+  /*
+   * Aviso do navegador ao fechar/recarregar com venda em andamento.
+   *
+   * Na venda nova, com o rascunho gravado, sair não perde nada — o aviso só
+   * aparece na janela em que o rascunho ainda não foi escrito (os 600ms do
+   * debounce) ou quando o navegador não deixa gravar (modo privado, cheio).
+   * Pedir confirmação toda vez que ela recarrega, com tudo salvo, ensinaria
+   * a clicar "Sair" sem ler. Na EDIÇÃO não há rascunho, então avisa sempre
+   * que há o que perder.
+   *
+   * O botão Cancelar continua como era (a interface não muda): com o
+   * rascunho, voltar não apaga a venda — ela reaparece ao abrir de novo.
+   */
+  const temConteudo = rows.some(r => !linhaVazia(r)) || payments.length > 0 || !!selectedCustomer
+  const temConteudoRef = useRef(false)
+  useEffect(() => { temConteudoRef.current = temConteudo }, [temConteudo])
+  useEffect(() => {
+    function aoSair(e: BeforeUnloadEvent) {
+      if (vendaGravada.current || !temConteudoRef.current) return
+      if (!isEditing && rascunhoGravado.current) return
+      e.preventDefault()
+      e.returnValue = ''   // Chrome antigo só mostra o aviso com isto
+    }
+    window.addEventListener('beforeunload', aoSair)
+    return () => window.removeEventListener('beforeunload', aoSair)
+  }, [isEditing])
+
   // ── Totais ────────────────────────────────────────────────────────────────
   /*
    * A peça devolvida NÃO abate do subtotal: ela é uma forma de PAGAMENTO.
@@ -967,16 +1335,92 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   function removeRow(i: number) { setRows(prev => prev.filter((_, idx) => idx !== i)) }
 
   function handleProductSelect(i: number, name: string, p: ProductOption | null) {
-    if (!p) { updateRow(i, { productId: null, productName: name, isService: false }); return }
-    const price = p.promotional_active && p.promotional_price ? p.promotional_price : p.sale_price
-    updateRow(i, {
-      productId: p.id,
-      productName: p.name,
-      unitPrice: price,
-      unitCost: p.cost_price,
-      stockAvailable: p.quantity_in_stock,
-      isService: p.is_service,
+    const vincular = (prod: ProductOption): Partial<SaleRow> => ({
+      productId: prod.id,
+      productName: prod.name,
+      unitPrice: precoDeCatalogo(prod),
+      unitCost: prod.cost_price,
+      stockAvailable: prod.quantity_in_stock,
+      isService: prod.is_service,
+      vinculoAnterior: null,
     })
+    setRows(prev => prev.map((r, idx) => {
+      if (idx !== i) return r
+      if (p) return { ...r, ...vincular(p) }
+      /* O texto voltou a ser o nome da peça que já estava na linha (o leitor
+         restaura o campo depois de bipar; ela apaga e redigita igual): a peça
+         continua a mesma, e o preço que ela ajustou também. */
+      const atual = r.productId ? products.find(x => x.id === r.productId) : undefined
+      if (atual && normalize(atual.name) === normalize(name)) return { ...r, productName: name }
+      /* Já desvinculada, mas o texto voltou ao nome da peça que ESTAVA aqui:
+         religa ela — não "uma peça com esse nome" — e devolve o preço que a
+         linha tinha, ajustado à mão ou não. É o caso do leitor, que
+         desvincula tecla a tecla antes de restaurar o campo. A loja confere
+         porque a vendedora pode ter trocado de loja no meio. */
+      const ant = r.vinculoAnterior
+      if (ant && normalize(ant.nome) === normalize(name)
+        && products.some(x => x.id === ant.productId && x.store_id === storeId)) {
+        return {
+          ...r, productId: ant.productId, productName: name, unitPrice: ant.unitPrice,
+          unitCost: ant.unitCost, stockAvailable: ant.stockAvailable, isService: ant.isService,
+          vinculoAnterior: null,
+        }
+      }
+      const exato = produtoExato(products.filter(x => x.store_id === storeId), name)
+      if (exato) return { ...r, ...vincular(exato) }
+      /* Sem produto, sem preço: a linha não pode PARECER pronta. O vínculo que
+         havia fica guardado (só o PRIMEIRO: a cada tecla a linha já está
+         desvinculada, e o que interessa é a peça de antes da primeira). */
+      return {
+        ...r, productId: null, productName: name, isService: false, unitPrice: 0, unitCost: 0, stockAvailable: 0,
+        vinculoAnterior: r.productId
+          ? { productId: r.productId, nome: r.productName, unitPrice: r.unitPrice, unitCost: r.unitCost, stockAvailable: r.stockAvailable, isService: r.isService }
+          : r.vinculoAnterior,
+      }
+    }))
+  }
+
+  /**
+   * O admin troca a loja da venda.
+   *
+   * Antes só o `storeId` mudava: as peças da loja anterior continuavam na
+   * grade e a venda gravava em Campinas baixando estoque de Brasília. E a
+   * vendedora era zerada por um efeito, calada — a venda saía no nome de quem
+   * digitou, sem ninguém ter escolhido.
+   *
+   * Agora: peça de outra loja sai da grade (consertos ficam: o serviço é
+   * resolvido pela loja no servidor), e o aviso diz o que saiu e que a
+   * vendedora precisa ser escolhida de novo. O servidor também recusa peça de
+   * outra loja — ver `conferirPecasDaLoja` em vendas/actions.ts.
+   */
+  function trocarLoja(novaLoja: string) {
+    if (novaLoja === storeId) return
+    const lojaDe = new Map(products.map(p => [p.id, p.store_id]))
+    const saem = rows.filter(r => !r.isConserto && r.productId && lojaDe.get(r.productId) !== novaLoja)
+    setStoreId(novaLoja)
+    setRows(prev => {
+      const ficam = prev
+        .filter(r => r.isConserto || !r.productId || lojaDe.get(r.productId) === novaLoja)
+        /* O vínculo guardado é de uma peça da loja anterior — não pode religar. */
+        .map(r => (r.vinculoAnterior ? { ...r, vinculoAnterior: null } : r))
+      return ficam.length ? ficam : [emptyRow()]
+    })
+
+    /* A vendedora escolhida não é de lá? Limpa — e AVISA. Sem limpar, a venda
+     * iria com uma vendedora da outra loja; limpando calada, ia no nome de
+     * quem está digitando. */
+    const vendedoraSai = !!sellerId && !users.some(u => u.id === sellerId && (!u.store_id || u.store_id === novaLoja))
+    if (vendedoraSai) setSellerId('')
+
+    const partes: string[] = []
+    if (saem.length) {
+      partes.push(`${saem.length === 1 ? 'Saiu da venda 1 peça' : `Saíram da venda ${saem.length} peças`} da outra loja (${saem.map(r => r.productName).join(', ')})`)
+    }
+    if (vendedoraSai) partes.push('escolha a vendedora de novo')
+    if (partes.length) {
+      setScanFeedback({ text: `Loja trocada. ${partes.join(' — ')}.`, ok: false })
+      setTimeout(() => setScanFeedback(null), 8000)
+    }
   }
 
   // ── Navegação por teclado no grid (←/→ entre campos, Enter avança/cria linha) ──
@@ -1011,7 +1455,23 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   }
 
   // ── Customer helpers ──────────────────────────────────────────────────────
+  /*
+   * Trocou a cliente, solta o conserto escolhido nas linhas.
+   *
+   * A lista de consertos é da cliente selecionada; o `consertoId` escolhido
+   * antes ficava na linha depois da troca, e a venda da Maria marcava como
+   * pago o conserto da Ana. A linha continua sendo conserto (o valor cobrado
+   * fica), só volta a pedir "qual peça?". O servidor confere de novo — ver
+   * `conferirConsertosDaCliente` em vendas/actions.ts.
+   */
+  function soltarConsertosEscolhidos() {
+    setRows(prev => prev.some(r => r.consertoId)
+      ? prev.map(r => (r.consertoId ? { ...r, consertoId: null } : r))
+      : prev)
+  }
+
   function selectCustomer(c: CustomerOption | null, text: string) {
+    if ((c?.id ?? null) !== (selectedCustomer?.id ?? null)) soltarConsertosEscolhidos()
     setSelectedCustomer(c)
     setCustomerSearch(text)
     /* Sugestão, não regra: se a cliente pedir a nota, o CPF dela já está ali. */
@@ -1019,6 +1479,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   }
 
   function handleCustomerCreated(c: CustomerOption) {
+    soltarConsertosEscolhidos()
     // Re-fetch or optimistic: add to local list then select
     setCustomers(prev => [...prev, c])
     setSelectedCustomer(c)
@@ -1050,15 +1511,25 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   // ── Submit ────────────────────────────────────────────────────────────────
   async function handleSubmit() {
     setError('')
+    /* Duplo clique: o segundo chega antes de o React desenhar o botão travado. */
+    if (saving) return
 
-    const activeRows = rows.filter(r => r.productId || r.productName.trim() || r.isConserto)
+    /* Linhas em branco (Enter no fim da grade, "Adicionar produto" sem usar)
+     * não contam — nem na conferência, nem no que vai para o servidor. */
+    const activeRows = rows.filter(r => !linhaVazia(r))
     if (!activeRows.length) { setError('Adicione ao menos um produto.'); return }
     for (let i = 0; i < rows.length; i++) {
+      // O número da linha continua o da TELA, por isso o laço é em `rows`.
+      if (linhaVazia(rows[i])) continue
       /* Conserto não sai do catálogo: a peça é da cliente e quem consertou foi
        * o Ourives. O que a linha precisa é do valor cobrado, conferido logo
        * abaixo como em qualquer outra. */
       if (!rows[i].isConserto && !rows[i].productId) {
-        setError(`Linha ${i + 1}: selecione um produto do catálogo.`); return
+        const nome = rows[i].productName.trim()
+        setError(nome
+          ? `Linha ${i + 1} (${nome}): o produto não foi escolhido na lista. Clique no nome e escolha a peça na lista que abre.`
+          : `Linha ${i + 1}: selecione um produto do catálogo.`)
+        return
       }
       if (rows[i].unitPrice <= 0) {
         setError(rows[i].isConserto
@@ -1071,15 +1542,50 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     if (!storeId) { setError('Selecione a loja.'); return }
 
     /*
+     * Quem vê o seletor de vendedora (admin) tem de escolher. Trocar a loja
+     * limpa a vendedora que não é de lá, e antes a venda ia assim mesmo — no
+     * nome de quem estava digitando, sem ninguém ter escolhido.
+     */
+    if (userProfile.role === 'admin' && !sellerId) {
+      setError('Escolha a vendedora da venda.')
+      return
+    }
+
+    /*
+     * Nome digitado na busca de cliente, mas nenhuma escolhida na lista.
+     *
+     * A venda ia como AVULSA, e o nome digitado sumia: ela achava que tinha
+     * lançado para a cliente, e a compra não aparecia no histórico dela nem
+     * contava para o aniversário. Ou é a cliente da lista, ou é avulsa de
+     * propósito — com o campo vazio.
+     */
+    if (!selectedCustomer && customerSearch.trim()) {
+      setError(`Escolha a cliente na lista ou apague o nome ("${customerSearch.trim()}") para venda avulsa.`)
+      return
+    }
+
+    /*
+     * Pagamento de R$0 não é pagamento: é a linha que ela adicionou e não
+     * preencheu. É ignorado (não vira transação de R$0 no financeiro). Valor
+     * NEGATIVO é erro de digitação e trava — somado, ele esconderia falta.
+     */
+    const iNegativo = payments.findIndex(p => !(p.amount >= 0))
+    if (iNegativo >= 0) {
+      setError(`Pagamento ${iNegativo + 1}: valor inválido. Corrija ou remova a linha.`)
+      return
+    }
+    const pagamentosValidos = payments.filter(p => p.amount > 0)
+
+    /*
      * Troca exige cliente: `fv.exchanges.customer_id` é NOT NULL. Sem esta
      * checagem o erro só apareceria no banco, depois de a venda já ter sido
      * criada — deixando venda gravada e troca não.
      */
-    if (rows.some(r => r.isTroca) && !selectedCustomer) {
+    if (activeRows.some(r => r.isTroca) && !selectedCustomer) {
       setError('Troca precisa de cliente identificado. Selecione a cliente acima.')
       return
     }
-    if (rows.some(r => r.isTroca) && rows.every(r => r.isTroca)) {
+    if (activeRows.some(r => r.isTroca) && activeRows.every(r => r.isTroca)) {
       setError('Só há peças devolvidas. Adicione a peça que a cliente está levando.')
       return
     }
@@ -1114,7 +1620,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
      * Sobra e falta são coisas diferentes e passam a ser tratadas assim:
      * cobrar a mais é sempre erro; cobrar a menos é fiado, e precisa ser dito.
      */
-    if (payments.length === 0 && creditoTroca <= 0 && total > 0.009) {
+    if (pagamentosValidos.length === 0 && creditoTroca <= 0 && total > 0.009) {
       setError('Adicione ao menos uma forma de pagamento.')
       return
     }
@@ -1132,7 +1638,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
      * marca é peça saindo (item de venda), linha marcada é peça voltando
      * (item de troca, que dá entrada no estoque).
      */
-    const items: SaleItem[] = rows.filter(r => !r.isTroca).map(r => ({
+    const items: SaleItem[] = activeRows.filter(r => !r.isTroca).map(r => ({
       productId:   r.productId!,
       productName: r.productName,
       quantity:    (r.quantity as number) || 1,
@@ -1146,7 +1652,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       consertoFicouNaLoja: r.isConserto ? r.consertoFicouNaLoja : undefined,
     }))
 
-    const devolvidos: ExchangeItemSelected[] = rows.filter(r => r.isTroca).map(r => ({
+    const devolvidos: ExchangeItemSelected[] = activeRows.filter(r => r.isTroca).map(r => ({
       originalSaleId: null,
       productId:      r.productId!,
       productName:    r.productName,
@@ -1166,38 +1672,81 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       manualDiscount,
       previsaoPagamento: aceitouFiado && previsaoPagamento ? previsaoPagamento : null,
       destinatarioCpf: destinatarioCpf.replace(/\D/g, '') || null,
-      payments,
+      payments: pagamentosValidos,
       exchangeItems: devolvidos,
       notes,
+      /* Só na venda nova: `editarVenda` refaz uma venda que já existe. */
+      clientRequestId: isEditing ? null : idDaVendaAtual(),
     }
 
     setSaving(true)
 
     /*
-     * O try/finally é o que impede o balcão de travar.
+     * O botão só volta a funcionar se a venda NÃO gravou.
      *
-     * Sem ele, qualquer coisa que quebre a promessa — rede, tempo esgotado, ou
-     * um deploy no meio da venda — deixava o botão girando PARA SEMPRE, sem
-     * mensagem. Aconteceu duas vezes na tela de compras; aqui seria pior, com a
-     * cliente esperando na frente.
+     * Sem o catch, qualquer coisa que quebre a promessa — rede, tempo
+     * esgotado, ou um deploy no meio da venda — deixava o botão girando PARA
+     * SEMPRE, sem mensagem. Aconteceu duas vezes na tela de compras.
      *
-     * E o risco não é o giro: é ela clicar de novo achando que não pegou, e a
-     * venda entrar duas vezes. Enquanto `saving` está ligado o botão bloqueia,
-     * então o `finally` só o libera depois que a resposta chegou — ou falhou.
+     * Mas liberar no SUCESSO também era erro: era um `finally`, e entre a
+     * resposta chegar e a navegação para /vendas terminar havia uma janela com
+     * o botão de volta ativo — o segundo clique lançava a venda de novo. Agora
+     * em sucesso ele fica travado até a tela sair (ou o PDV remontar o form).
      */
     let result: Awaited<ReturnType<typeof salvarVenda>>
     try {
       result = isEditing ? await editarVenda(editSale!.id, formData) : await salvarVenda(formData)
     } catch (e) {
-      /* A venda NÃO tem rascunho: o que está na tela é tudo o que existe. A
-       * mensagem avisa para não recarregar — ver src/lib/erroDeSalvar.ts. */
-      setError(mensagemDeErroAoSalvar(e))
-      return
-    } finally {
+      /* Na venda nova o rascunho está guardado, e a mensagem pode mandar
+       * recarregar. Na edição não há rascunho: a mensagem avisa para NÃO
+       * recarregar — ver src/lib/erroDeSalvar.ts. */
+      setError(mensagemDeErroAoSalvar(e, { temRascunho: !isEditing }))
       setSaving(false)
+      return
     }
 
-    if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
+    if (!result.success) {
+      /*
+       * Veio `saleId` junto com o erro: a venda FOI gravada e um passo depois
+       * falhou (estoque, pagamento, troca). Liberar o botão aqui é convidar o
+       * segundo clique — que duplicaria a venda inteira. Fica travado, o
+       * rascunho sai (a venda existe) e a mensagem diz o que conferir.
+       */
+      if (result.saleId) {
+        vendaGravada.current = true
+        idDaVenda.current = null
+        if (!isEditing && !rascunho?.pendente) apagarRascunho()
+        const aviso = result.error ?? 'A venda foi gravada com pendências. Confira em Vendas.'
+        /* No PDV o botão travado deixava o balcão PARADO: sem próxima venda,
+         * sem caixa do dia atualizado, sem a nota. A venda existe — segue como
+         * sucesso, e o aviso vai para o painel da venda, que fica na tela
+         * (aqui ele sumiria com a remontagem do form). */
+        if (onSaved) { onSaved(result.saleId, aviso); return }
+        setError(aviso)
+        return
+      }
+      /* O id já era de OUTRA venda e nada foi gravado: troca por um novo — na
+       * tela e no rascunho — para o próximo clique (ou o F5 que a mensagem
+       * pede) lançar esta venda. A tela fica como está. */
+      if (result.idReusado && !isEditing) {
+        idDaVenda.current = novoIdDeRequisicao()
+        try {
+          /* Com um rascunho OFERECIDO na tela, a chave gravada é a DELE (outra venda). */
+          const chave = rascunho?.pendente ? null : chaveGravada.current
+          const raw = chave ? localStorage.getItem(chave) : null
+          if (chave && raw) localStorage.setItem(chave, JSON.stringify({ ...JSON.parse(raw), clientRequestId: idDaVenda.current }))
+        } catch { /* sem rascunho legível — o id novo da tela já basta */ }
+      }
+      setError(result.error ?? 'Erro ao salvar.')
+      setSaving(false)
+      return
+    }
+
+    /* Gravou: o rascunho não serve mais. Se havia um rascunho OFERECIDO e
+     * não aceito (abriu por bip), ele é de outra venda — continua guardado. */
+    vendaGravada.current = true
+    idDaVenda.current = null   // a próxima venda é outra (o PDV remonta o form de qualquer jeito)
+    if (!isEditing && !rascunho?.pendente) apagarRascunho()
     if (onSaved) { onSaved(result.saleId ?? ''); return }   // PDV: fica na tela (o pai reseta o form)
     router.push('/vendas')
     router.refresh()
@@ -1217,6 +1766,40 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   return (
     <div className={styles.wrapper}>
 
+      {/* ── Aviso de rascunho ─────────────────────────────────────────────
+          Mesmo banner e mesmo texto da Nova Compra, que ela já conhece.
+          Aberta por bip, o rascunho é OFERECIDO (a peça bipada já está na
+          grade); fora isso, ele já voltou e o banner só avisa. */}
+      {rascunho?.pendente ? (
+        <div className={styles.draftBanner}>
+          <RotateCcw size={15} />
+          <span>Há um rascunho de venda que não foi salvo. Quer continuar de onde parou?{produtoBipado ? ' A peça bipada entra junto.' : ''}</span>
+          <button type="button" className={styles.draftDiscardBtn}
+            onClick={() => { const d = rascunho.pendente!; aplicarRascunho(d, true) }}>
+            <RotateCcw size={13} /> Continuar rascunho
+          </button>
+          <button type="button" className={styles.draftDiscardBtn} onClick={descartarRascunho}>
+            <X size={13} /> Descartar
+          </button>
+        </div>
+      ) : rascunho && (
+        <div className={styles.draftBanner}>
+          <RotateCcw size={15} />
+          <span>
+            Recuperamos um rascunho desta venda que não foi salvo. Continue de onde parou.
+            {rascunho.mudaramPreco > 0 && (
+              ` ${rascunho.mudaramPreco === 1 ? '1 peça mudou' : `${rascunho.mudaramPreco} peças mudaram`} de preço no catálogo desde então — o preço da linha foi mantido, confira.`
+            )}
+            {rascunho.sumiram > 0 && (
+              ` ${rascunho.sumiram === 1 ? '1 peça não está mais' : `${rascunho.sumiram} peças não estão mais`} no catálogo — escolha de novo na lista.`
+            )}
+          </span>
+          <button type="button" className={styles.draftDiscardBtn} onClick={descartarRascunho}>
+            <X size={13} /> Descartar e começar do zero
+          </button>
+        </div>
+      )}
+
       {/* ── Seção 1: Informações Gerais ────────────────────────────────── */}
       <div className={styles.section}>
         <div className={styles.sectionTitle}>Informações Gerais</div>
@@ -1228,7 +1811,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             {userProfile.role === 'operator' ? (
               <div className={styles.headerInputLocked}>{userProfile.storeName ?? '—'}</div>
             ) : (
-              <StoreSelect value={storeId} onChange={setStoreId} stores={stores} />
+              <StoreSelect value={storeId} onChange={trocarLoja} stores={stores} />
             )}
           </div>
 

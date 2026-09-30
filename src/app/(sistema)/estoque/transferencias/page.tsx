@@ -142,6 +142,8 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
         /* O escopo, não o `store_id`: a admin global que escolheu Campinas no
          * login opera como Campinas enquanto estiver nela. */
         minhaLoja={escopo}
+        /* Só para separar o rascunho do romaneio por pessoa (localStorage). */
+        usuarioId={profile.id}
         filtroStatus={params.status ?? ''}
       />
     </div>

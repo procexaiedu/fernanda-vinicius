@@ -361,19 +361,27 @@ export async function buscarDetalheComissao(transactionId: string): Promise<{ da
   const lastDay  = new Date(parseInt(month.slice(0, 4)), parseInt(month.slice(5, 7)), 0).getDate()
   const dateTo   = `${month}-${String(lastDay).padStart(2, '0')}`
 
-  const { data: salesRaw } = await admin
+  /* Era `client_id, clients(name)`: a tabela é `customers`. O PostgREST
+     recusava a consulta e, sem checar o erro, o detalhe da comissão abria
+     sempre sem nenhuma venda. */
+  const { data: salesRaw, error: salesErr } = await admin
     .from('sales')
-    .select('id, sale_date, total, total_cost, client_id, store_id, clients(name), stores(name), status')
+    .select('id, sale_date, total, total_cost, customer_id, store_id, customers(name), stores(name), status')
     .eq('user_id', (tx as any).user_id)
     .gte('sale_date', dateFrom)
     .lte('sale_date', dateTo)
     .eq('status', 'completed')
     .order('sale_date', { ascending: true })
 
+  if (salesErr) {
+    console.error('[comissão] falha ao ler as vendas do mês:', salesErr.message)
+    return { data: null, error: 'Não foi possível carregar as vendas desta comissão. Tente de novo.' }
+  }
+
   const sales: ComissaoSale[] = (salesRaw ?? []).map((s: any) => ({
     id: s.id,
     sale_date: s.sale_date,
-    client_name: s.clients?.name ?? null,
+    client_name: s.customers?.name ?? null,
     total: s.total,
     total_cost: s.total_cost ?? 0,
     profit: (s.total ?? 0) - (s.total_cost ?? 0),

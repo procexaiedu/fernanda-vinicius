@@ -11,6 +11,8 @@ import { comprasDaPeca, recalcularTotaisDaCompra } from '@/lib/compras/totais'
 export interface ActionResult {
   success: boolean
   error?: string
+  /** O saldo mudou desde que o modal abriu — a tela precisa recarregar a lista. */
+  estoqueMudou?: boolean
 }
 
 export interface ProductFormData {
@@ -22,7 +24,14 @@ export interface ProductFormData {
   cost_price: number
   sale_price: number
   promotional_price: number | null
-  quantity_in_stock: number
+  /*
+   * Na EDIÇÃO, só vem quando a dona mexeu no campo — e junto vem o saldo que a
+   * tela mostrava ao abrir (`quantity_in_stock_original`). Sem isso, salvar o
+   * nome da peça regravava o estoque de quando o modal abriu, desfazendo uma
+   * venda ou transferência feita nesse meio-tempo.
+   */
+  quantity_in_stock?: number
+  quantity_in_stock_original?: number
   ownership_type: 'own' | 'consignment'
   purchase_month: number
   purchase_year: number
@@ -48,6 +57,12 @@ export async function createProduct(data: ProductFormData): Promise<ActionResult
   const { error: authErr } = await verifyAdmin()
   if (authErr) return { success: false, error: authErr }
 
+  // Peça nova precisa de quantidade explícita; 0 é válido (cadastro antes de chegar).
+  const qtd = data.quantity_in_stock
+  if (qtd === undefined || !Number.isInteger(qtd) || qtd < 0) {
+    return { success: false, error: 'Quantidade em estoque inválida.' }
+  }
+
   const admin = createAdminClient()
 
   const { data: supplier, error: supplierErr } = await admin
@@ -70,7 +85,7 @@ export async function createProduct(data: ProductFormData): Promise<ActionResult
     cost_price:        data.cost_price,
     sale_price:        data.sale_price,
     promotional_price: data.promotional_price,
-    quantity_in_stock: data.quantity_in_stock,
+    quantity_in_stock: qtd,
     ownership_type:    data.ownership_type,
     purchase_month:    data.purchase_month,
     purchase_year:     data.purchase_year,
@@ -86,10 +101,44 @@ export async function createProduct(data: ProductFormData): Promise<ActionResult
 }
 
 export async function updateProduct(id: string, data: ProductFormData): Promise<ActionResult> {
-  const { error: authErr } = await verifyAdmin()
-  if (authErr) return { success: false, error: authErr }
+  const { userId, error: authErr } = await verifyAdmin()
+  if (authErr || !userId) return { success: false, error: authErr ?? 'Não autenticado.' }
+
+  const mexeuNoEstoque = data.quantity_in_stock !== undefined
+  const qtdNova     = data.quantity_in_stock
+  const qtdOriginal = data.quantity_in_stock_original
+  if (mexeuNoEstoque) {
+    if (!Number.isInteger(qtdNova) || (qtdNova as number) < 0) {
+      return { success: false, error: 'Quantidade em estoque inválida.' }
+    }
+    // Sem o saldo de quando o modal abriu não há como saber se alguém vendeu no meio.
+    if (qtdOriginal === undefined || !Number.isInteger(qtdOriginal)) {
+      return { success: false, error: 'Quantidade original ausente — reabra a peça e tente de novo.' }
+    }
+  }
 
   const admin = createAdminClient()
+
+  /*
+   * O estoque é o único campo desta tela que OUTRA pessoa mexe enquanto ela
+   * edita: o PDV vende, a transferência tira. Se o saldo do banco já não é o
+   * que ela viu ao abrir, gravar o número dela desfaria essa venda — e ninguém
+   * perceberia até a conferência. Melhor recusar e mandar reabrir.
+   */
+  const MSG_ESTOQUE_MUDOU = 'O estoque mudou enquanto você editava (vendido/transferido) — reabra a peça.'
+  if (mexeuNoEstoque) {
+    const { data: atual, error: lerErr } = await admin
+      .from('products')
+      .select('quantity_in_stock')
+      .eq('id', id)
+      .single()
+    if (lerErr || !atual) {
+      return { success: false, error: `Não foi possível conferir o estoque atual: ${lerErr?.message ?? 'peça não encontrada'}.` }
+    }
+    if (Number(atual.quantity_in_stock) !== qtdOriginal) {
+      return { success: false, error: MSG_ESTOQUE_MUDOU, estoqueMudou: true }
+    }
+  }
 
   const { data: supplier, error: supplierErr } = await admin
     .from('suppliers')
@@ -112,7 +161,6 @@ export async function updateProduct(id: string, data: ProductFormData): Promise<
     cost_price:        data.cost_price,
     sale_price:        data.sale_price,
     promotional_price: hasPromo ? data.promotional_price : null,
-    quantity_in_stock: data.quantity_in_stock,
     ownership_type:    data.ownership_type,
     purchase_month:    data.purchase_month,
     purchase_year:     data.purchase_year,
@@ -121,10 +169,52 @@ export async function updateProduct(id: string, data: ProductFormData): Promise<
   }
   // Sem promo válida, garante que a promoção não fique ativa com preço vazio.
   if (!hasPromo) updatePayload.promotional_active = false
+  // Só entra no update se ela mexeu — senão o saldo do banco fica como está.
+  if (mexeuNoEstoque) updatePayload.quantity_in_stock = qtdNova
 
-  const { error } = await admin.from('products').update(updatePayload).eq('id', id)
+  /*
+   * A leitura acima deixa uma janela: uma venda entre ela e este update ainda
+   * seria desfeita. O `.eq` no saldo original fecha a janela no próprio UPDATE —
+   * se alguém mexeu, nenhuma linha casa e nada é gravado.
+   */
+  let query = admin.from('products').update(updatePayload).eq('id', id)
+  if (mexeuNoEstoque) query = query.eq('quantity_in_stock', qtdOriginal as number)
+  const { data: gravadas, error } = await query.select('id')
 
   if (error) return { success: false, error: error.message }
+  if (!gravadas?.length) {
+    return mexeuNoEstoque
+      ? { success: false, error: MSG_ESTOQUE_MUDOU, estoqueMudou: true }
+      : { success: false, error: 'Produto não encontrado.' }
+  }
+
+  /*
+   * Ajuste manual de saldo deixa rastro em `fv.stock_movements`, como a baixa e
+   * a conferência. Aqui não é atômico com o update (seria preciso uma RPC); se
+   * o registro falhar, o saldo já foi gravado e a dona precisa saber disso —
+   * não pode achar que nada aconteceu e salvar de novo.
+   */
+  if (mexeuNoEstoque && qtdNova !== qtdOriginal) {
+    const { error: movErr } = await admin.from('stock_movements').insert({
+      product_id:      id,
+      quantity_before: qtdOriginal,
+      delta:           (qtdNova as number) - (qtdOriginal as number),
+      quantity_after:  qtdNova,
+      reason:          'erro_de_cadastro',
+      ref_type:        'manual',
+      user_id:         userId,
+      notes:           'Quantidade alterada na edição do cadastro da peça.',
+    })
+    if (movErr) {
+      revalidatePath('/produtos')
+      revalidatePath('/estoque')
+      return {
+        success: false,
+        error: `A peça foi salva com o estoque novo, mas o histórico do ajuste não foi registrado: ${movErr.message}. `
+             + 'Não salve de novo; avise o suporte.',
+      }
+    }
+  }
 
   revalidatePath('/produtos')
   revalidatePath('/estoque')
@@ -282,24 +372,30 @@ export interface SaleHistoryItem {
 export async function buscarHistoricoVendas(productId: string): Promise<SaleHistoryItem[]> {
   const admin = createAdminClient()
 
+  /*
+   * Erros LANÇAM: histórico vazio quer dizer "nunca vendeu", e dizer isso
+   * porque a leitura falhou é mentir sobre a peça. Quem chama já tem `.catch`.
+   */
   // Passo 1: sale_items do produto — sem nenhum join PostgREST
-  const { data: items } = await admin
+  const { data: items, error: itemsErr } = await admin
     .from('sale_items')
     .select('id, quantity, unit_price, sale_id')
     .eq('product_id', productId)
     .order('created_at', { ascending: false })
     .limit(30)
 
+  if (itemsErr) throw new Error(`Não foi possível ler o histórico de vendas: ${itemsErr.message}`)
   if (!items?.length) return []
 
   const saleIds = items.map((i: any) => i.sale_id).filter(Boolean)
   if (!saleIds.length) return []
 
   // Passo 2: busca os dados das vendas (sem joins)
-  const { data: sales } = await admin
+  const { data: sales, error: salesErr } = await admin
     .from('sales')
     .select('id, sale_date, store_id, customer_id, seller_id, user_id')
     .in('id', saleIds)
+  if (salesErr) throw new Error(`Não foi possível ler as vendas da peça: ${salesErr.message}`)
 
   const salesMap = new Map((sales ?? []).map((s: any) => [s.id, s]))
 
@@ -316,6 +412,7 @@ export async function buscarHistoricoVendas(productId: string): Promise<SaleHist
     sellerIds.length   ? admin.from('users').select('id, full_name').in('id', sellerIds)  : { data: [] },
   ])
 
+  // Nomes são enfeite da linha ('—' se faltar); a venda em si já foi lida acima.
   const storeMap    = new Map((storesRes.data ?? []).map((s: any) => [s.id, s.name]))
   const customerMap = new Map((customersRes.data ?? []).map((c: any) => [c.id, c.name]))
   const userMap     = new Map((usersRes.data ?? []).map((u: any) => [u.id, u.full_name]))

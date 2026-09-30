@@ -10,6 +10,7 @@ import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
 import { createClient } from '@/lib/supabase/client'
 import { deletarFornecedor } from './actions'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 import type { SupplierWithCount } from './page'
 import styles from './FornecedorDetalheModal.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
@@ -112,8 +113,16 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDe
   async function handleDelete() {
     setDeleting(true)
     setDeleteError(null)
-    const r = await deletarFornecedor(supplier.id)
-    setDeleting(false)
+    // Sem try/finally, rede caída deixava o "Excluindo…" preso e sem mensagem.
+    let r: Awaited<ReturnType<typeof deletarFornecedor>>
+    try {
+      r = await deletarFornecedor(supplier.id)
+    } catch (err) {
+      setDeleteError(mensagemDeErroAoSalvar(err)); setConfirmDelete(false)
+      return
+    } finally {
+      setDeleting(false)
+    }
     if (r.success) { onDeleted?.(); onClose() }
     else { setDeleteError(r.error ?? 'Erro ao excluir.'); setConfirmDelete(false) }
   }

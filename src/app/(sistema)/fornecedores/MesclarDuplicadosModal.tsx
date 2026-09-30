@@ -6,6 +6,7 @@ import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { buscarFornecedoresDuplicados, mesclarFornecedores, type FornecedorDuplicado } from './actions'
 import styles from './MesclarDuplicadosModal.module.css'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 /**
  * Mesclagem de fornecedores cadastrados em duplicidade.
@@ -41,7 +42,14 @@ export default function MesclarDuplicadosModal({ onClose, onMesclado }: Props) {
 
   async function carregar() {
     setCarregando(true)
-    const dados = await buscarFornecedoresDuplicados()
+    let dados: Awaited<ReturnType<typeof buscarFornecedoresDuplicados>>
+    try {
+      dados = await buscarFornecedoresDuplicados()
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e))
+      setCarregando(false)
+      return
+    }
     setGrupos(dados)
     // Sugere ficar com o cadastro que já tem mais produtos e compras: é o que
     // menos referência precisa mover, e normalmente é o "de verdade".
@@ -62,8 +70,15 @@ export default function MesclarDuplicadosModal({ onClose, onMesclado }: Props) {
 
     setErro(null)
     setMesclando(g.nomeNormalizado)
-    const r = await mesclarFornecedores(principal, absorvidos)
-    setMesclando(null)
+    let r: Awaited<ReturnType<typeof mesclarFornecedores>>
+    try {
+      r = await mesclarFornecedores(principal, absorvidos)
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setMesclando(null)
+    }
 
     if (!r.success) { setErro(r.error ?? 'Falha ao mesclar.'); return }
     setProntos(p => new Set(p).add(g.nomeNormalizado))
@@ -76,6 +91,12 @@ export default function MesclarDuplicadosModal({ onClose, onMesclado }: Props) {
     <Modal isOpen onClose={onClose} title="Fornecedores cadastrados em duplicidade" size="lg">
       {carregando ? (
         <div className={styles.centro}><Loader2 size={20} className={styles.girando} /> Procurando…</div>
+      ) : grupos.length === 0 && erro ? (
+        /* Busca que falhou não pode cair no "nenhum duplicado": seria afirmar o
+           que não se sabe. Usa o mesmo aviso de erro da lista. */
+        <div className={styles.erro}>
+          <AlertTriangle size={14} /> {erro}
+        </div>
       ) : grupos.length === 0 ? (
         <div className={styles.centro}>
           <Check size={20} className={styles.ok} />

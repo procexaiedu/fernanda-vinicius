@@ -7,7 +7,7 @@ import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import {
-  registrarBipe, desfazerUltimoBipe, carregarReconciliacao,
+  registrarBipe, desfazerBipe, carregarReconciliacao,
   fecharConferencia, cancelarConferencia, reabrirConferencia,
   type Reconciliacao, type LinhaReconciliacao, type AjusteConferencia,
 } from '../actions'
@@ -16,6 +16,8 @@ import type { BipeRegistrado } from './page'
 import { formatarDinheiro as fmt } from '@/lib/dinheiro'
 import styles from './SessaoClient.module.css'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import { mensagemDeErroAoSalvar, MSG_SESSAO_EXPIRADA, MSG_AUTH_INSTAVEL } from '@/lib/erroDeSalvar'
+import { novoIdDeRequisicao } from '@/lib/idempotencia'
 
 interface SessaoInfo {
   id: string
@@ -36,8 +38,31 @@ interface Props {
   totalBipesInicial: number
 }
 
+/**
+ * O bipe com certeza NÃO chegou a rodar no servidor?
+ *
+ * Só quando quem respondeu foi o proxy (src/proxy.ts): sessão vencida ou login
+ * instável são recusados ANTES da action começar, então nada foi gravado e
+ * bipar de novo é o certo. Qualquer outra falha — timeout, "failed to fetch" —
+ * pode ter acontecido DEPOIS do insert, com a resposta perdida no caminho.
+ */
+function bipeCertamenteNaoEntrou(e: unknown): boolean {
+  const bruto = e instanceof Error ? e.message : String(e ?? '')
+  return bruto.includes(MSG_SESSAO_EXPIRADA) || bruto.includes(MSG_AUTH_INSTAVEL)
+}
+
+/**
+ * Espera antes da ÚNICA nova tentativa automática de um bipe ambíguo. Curta o
+ * bastante para ela nem perceber; longa o bastante para uma oscilação de rede
+ * passar.
+ */
+const MS_NOVA_TENTATIVA = 1000
+
 /** Leitura dupla do Elgin chega em milissegundos; peça de verdade, não. */
 const MS_LEITURA_DUPLA = 1500
+
+/** Janela do segundo clique no "Desfazer" depois de um F5 — ver `desfazerArmado`. */
+const MS_CONFIRMA_DESFAZER = 5000
 
 const MOTIVOS: { valor: string; rotulo: string }[] = [
   /* Primeira contagem de uma base que nunca foi conferida: a divergência não é
@@ -83,6 +108,20 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
   const [agora, setAgora] = useState(() => Date.now())
 
   const ultimoCodigo = useRef<{ codigo: string; ts: number } | null>(null)
+  /*
+   * Ids dos bipes que ESTA tela gravou, do mais antigo ao mais novo. O
+   * "desfazer" apaga o último daqui — nunca "o último da sessão", que com duas
+   * pessoas contando podia ser a peça da colega.
+   */
+  const meusBipes = useRef<string[]>([])
+  /*
+   * Desfazer depois de um F5: `meusBipes` volta vazio e antes não havia como
+   * tirar o bipe errado que ficou para trás — justamente o caso em que a tela
+   * mandava apertar F5. Aí o alvo é o mais recente da lista que veio do
+   * servidor, que PODE ser da colega; por isso pede um segundo clique em até
+   * 5s, mostrando qual peça sai. Guarda o alvo e a hora do primeiro clique.
+   */
+  const desfazerArmado = useRef<{ id: string; ts: number } | null>(null)
 
   // Relógio da sessão. É o único número que a tela mostra além da contagem crua.
   useEffect(() => {
@@ -101,10 +140,64 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
 
     setErro(null)
     setOcupado(true)
-    const res = await registrarBipe(sessao.id, codigo)
-    setOcupado(false)
+    /*
+     * Sem o try, uma falha de rede ou sessão vencida no meio da contagem
+     * rejeitava a promise dentro do leitor: nenhum aviso, `ocupado` preso e a
+     * peça NÃO contada — com ela achando que contou. Numa conferência, bipe
+     * perdido em silêncio vira "falta" que não existe.
+     */
+    /*
+     * Um id por bipe, gerado AQUI. Vira o id da linha no banco — e é o que
+     * deixa tentar de novo sem medo: se o primeiro envio entrou e só a
+     * resposta se perdeu, o reenvio com o mesmo id é reconhecido e o bipe
+     * conta uma vez só (ver `registrarBipe`).
+     */
+    const bipeId = novoIdDeRequisicao()
+    let res: Awaited<ReturnType<typeof registrarBipe>>
+    try {
+      try {
+        res = await registrarBipe(sessao.id, codigo, bipeId)
+      } catch (e) {
+        if (bipeCertamenteNaoEntrou(e)) {
+          ultimoCodigo.current = null   // o mesmo código precisa poder ser bipado de novo
+          setErro(`ESTE BIPE NÃO FOI CONTADO (${codigo}) — BIPE A PEÇA DE NOVO. ${mensagemDeErroAoSalvar(e, { temRascunho: true })}`)
+          return
+        }
+        /*
+         * Timeout ou rede: o insert pode ter entrado e só a resposta se
+         * perdido. Antes a única saída era F5 e conferir a lista — no meio de
+         * uma contagem de centenas de peças, a cada soluço da rede. Agora
+         * tenta UMA vez sozinho, com o MESMO id: se já tinha entrado, o
+         * servidor reconhece e não conta duas vezes.
+         */
+        await new Promise(r => setTimeout(r, MS_NOVA_TENTATIVA))
+        try {
+          res = await registrarBipe(sessao.id, codigo, bipeId)
+        } catch {
+          /* Falhou de novo: aí sim não sabemos. Bipar de novo, aqui, com id
+             novo, fabricaria sobra falsa se o primeiro tiver entrado. */
+          setErro(`NÃO SABEMOS SE ESTE BIPE ENTROU (${codigo}) — APERTE F5 (A CONTAGEM FICA SALVA NO SERVIDOR) `
+            + 'E CONFIRA NA LISTA ANTES DE BIPAR DE NOVO.')
+          return
+        }
+        /* A segunda tentativa chegou mas foi recusada (ex.: conferência
+         * fechada, falha ao identificar a peça). A primeira continua sem
+         * resposta — não dá para mandar bipar de novo com segurança. */
+        if (!res.success) {
+          setErro(`NÃO SABEMOS SE ESTE BIPE ENTROU (${codigo}) — APERTE F5 (A CONTAGEM FICA SALVA NO SERVIDOR) `
+            + `E CONFIRA NA LISTA ANTES DE BIPAR DE NOVO. (${res.error ?? 'o servidor recusou a nova tentativa'})`)
+          return
+        }
+      }
+    } finally {
+      setOcupado(false)
+    }
 
-    if (!res.success) { setErro(res.error ?? 'Não deu para registrar o bipe.'); return }
+    if (!res.success) {
+      ultimoCodigo.current = null
+      setErro(res.error ?? 'Não deu para registrar o bipe.')
+      return
+    }
 
     setUltimo({
       nome:     res.produto?.name ?? 'Não cadastrado',
@@ -114,9 +207,10 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
       preco:    res.produto?.preco ?? 0,
       promo:    !!res.produto?.promo,
     })
+    if (res.bipe_id) meusBipes.current.push(res.bipe_id)
     setTotal(t => t + 1)
     setBipes(b => [{
-      id:             `tmp-${Date.now()}`,
+      id:             res.bipe_id ?? `tmp-${Date.now()}`,
       barcode_number: codigo,
       product_id:     res.produto?.id ?? null,
       scanned_at:     new Date().toISOString(),
@@ -127,12 +221,41 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
   useBarcodeScanner({ onScan: aoBipar, ativo: fase === 'contando' })
 
   async function desfazer() {
+    const meu = meusBipes.current[meusBipes.current.length - 1]
+    let alvo = meu
+    if (!alvo) {
+      /* Id `tmp-` é bipe sem id do servidor: não há o que apagar por ele. */
+      const doServidor = bipes[0] && !bipes[0].id.startsWith('tmp-') ? bipes[0] : null
+      if (!doServidor) { setErro('Nada para desfazer.'); return }
+      const armado = desfazerArmado.current
+      if (!armado || armado.id !== doServidor.id || Date.now() - armado.ts > MS_CONFIRMA_DESFAZER) {
+        desfazerArmado.current = { id: doServidor.id, ts: Date.now() }
+        const peca = doServidor.produto
+          ? `${doServidor.produto.name} (${doServidor.produto.code})`
+          : doServidor.barcode_number
+        setErro(`Clique de novo em Desfazer para apagar o último bipe da contagem: ${peca}`)
+        return
+      }
+      alvo = doServidor.id
+    }
+    desfazerArmado.current = null
+    setErro(null)
     setOcupado(true)
-    const res = await desfazerUltimoBipe(sessao.id)
-    setOcupado(false)
+    let res: Awaited<ReturnType<typeof desfazerBipe>>
+    try {
+      res = await desfazerBipe(sessao.id, alvo)
+    } catch (e) {
+      /* Pode ter apagado ou não. Desfazer de novo apagaria o bipe ANTERIOR
+         (uma peça contada de verdade) — então F5 e conferir, igual ao bipe. */
+      setErro(`NÃO SABEMOS SE O DESFAZER ENTROU — APERTE F5 E CONFIRA NA LISTA. ${mensagemDeErroAoSalvar(e, { temRascunho: true })}`)
+      return
+    } finally {
+      setOcupado(false)
+    }
     if (!res.success) { setErro(res.error ?? 'Nada para desfazer.'); return }
+    if (meu) meusBipes.current.pop()
     setTotal(t => Math.max(0, t - 1))
-    setBipes(b => b.slice(1))
+    setBipes(b => b.filter(x => x.id !== alvo))
     setUltimo(null)
     ultimoCodigo.current = null
   }
@@ -169,8 +292,15 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
   async function encerrarEConferir() {
     setErro(null)
     setCarregandoRec(true)
-    const res = await carregarReconciliacao(sessao.id)
-    setCarregandoRec(false)
+    let res: Awaited<ReturnType<typeof carregarReconciliacao>>
+    try {
+      res = await carregarReconciliacao(sessao.id)
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e, { temRascunho: true }))
+      return
+    } finally {
+      setCarregandoRec(false)
+    }
     if (!res.success || !res.dados) { setErro(res.error ?? 'Erro ao montar a conferência.'); return }
 
     setExcecoes(new Set())
@@ -202,14 +332,21 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
       ...paraAplicar.falta.map(l => ({ product_id: l.product_id, new_quantity: l.contado, reason: motivoFalta })),
       ...paraAplicar.sobra.map(l => ({ product_id: l.product_id, new_quantity: l.contado, reason: motivoSobra })),
     ]
-    const res = await fecharConferencia(sessao.id, lista, {
-      bate:            rec.bate.length,
-      falta:           rec.falta.length,
-      sobra:           rec.sobra.length,
-      nao_cadastrado:  rec.naoCadastrado.length,
-      bipes:           total,
-    })
-    setFechando(false)
+    let res: Awaited<ReturnType<typeof fecharConferencia>>
+    try {
+      res = await fecharConferencia(sessao.id, lista, {
+        bate:            rec.bate.length,
+        falta:           rec.falta.length,
+        sobra:           rec.sobra.length,
+        nao_cadastrado:  rec.naoCadastrado.length,
+        bipes:           total,
+      })
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e, { temRascunho: true }))
+      return
+    } finally {
+      setFechando(false)
+    }
     if (!res.success) { setErro(res.error ?? 'Erro ao fechar.'); return }
     router.push('/estoque/conferencia')
     router.refresh()
@@ -218,8 +355,15 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
   async function reabrir() {
     setErro(null)
     setFechando(true)
-    const res = await reabrirConferencia(sessao.id)
-    setFechando(false)
+    let res: Awaited<ReturnType<typeof reabrirConferencia>>
+    try {
+      res = await reabrirConferencia(sessao.id)
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e, { temRascunho: true }))
+      return
+    } finally {
+      setFechando(false)
+    }
     if (!res.success) { setErro(res.error ?? 'Não foi possível reabrir.'); return }
     /* Muda a fase na mão. `router.refresh()` traz os dados novos do servidor,
        mas NÃO remonta este componente — e `fase` nasce de um useState com valor
@@ -231,9 +375,20 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
   }
 
   async function cancelar() {
+    setErro(null)
     setFechando(true)
-    await cancelarConferencia(sessao.id)
-    setFechando(false)
+    let res: Awaited<ReturnType<typeof cancelarConferencia>>
+    try {
+      res = await cancelarConferencia(sessao.id)
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e, { temRascunho: true }))
+      return
+    } finally {
+      setFechando(false)
+    }
+    // Antes o resultado era ignorado: a tela saía como se tivesse cancelado e
+    // a sessão continuava aberta (ou era de outra loja, ou já estava fechada).
+    if (!res.success) { setErro(res.error ?? 'Não foi possível cancelar.'); return }
     router.push('/estoque/conferencia')
     router.refresh()
   }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Trash2, CheckCircle, AlertTriangle, Undo2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import SearchableSelect from '@/components/ui/SearchableSelect'
@@ -63,6 +63,14 @@ export default function BlocoAcertos({ id, onMudou }: {
   const [obs, setObs] = useState('')
   const [salvando, setSalvando] = useState(false)
 
+  /*
+   * Trava síncrona contra duplo clique. O `loading` do botão só desabilita
+   * depois do próximo render; dois cliques rápidos chegam antes disso e
+   * registravam o mesmo acerto duas vezes — dinheiro pago em dobro no
+   * financeiro. O ref muda na hora, sem esperar render.
+   */
+  const ocupado = useRef(false)
+
   const carregar = useCallback(async () => {
     setCarregando(true)
     /* try/finally: `buscarConsignacao` lança quando não consegue ler os números
@@ -80,6 +88,8 @@ export default function BlocoAcertos({ id, onMudou }: {
   useEffect(() => { carregar() }, [carregar])
 
   async function salvar() {
+    if (ocupado.current) return
+    ocupado.current = true
     setErro(null)
     setSalvando(true)
     /* try/finally pelo mesmo motivo do salvar da compra: sem ele, um erro
@@ -99,16 +109,26 @@ export default function BlocoAcertos({ id, onMudou }: {
     } catch (e) {
       setErro(e instanceof Error && e.message ? e.message : 'Não foi possível registrar o acerto.')
     } finally {
+      ocupado.current = false
       setSalvando(false)
     }
   }
 
   async function remover(acertoId: string) {
+    // Mesma trava do salvar; e try/catch para uma falha de rede não sumir calada.
+    if (ocupado.current) return
+    ocupado.current = true
     setErro(null)
-    const r = await removerAcerto(acertoId)
-    if (!r.success) { setErro(r.error ?? 'Não foi possível remover.'); return }
-    await carregar()
-    onMudou?.()
+    try {
+      const r = await removerAcerto(acertoId)
+      if (!r.success) { setErro(r.error ?? 'Não foi possível remover.'); return }
+      await carregar()
+      onMudou?.()
+    } catch (e) {
+      setErro(e instanceof Error && e.message ? e.message : 'Não foi possível remover o acerto.')
+    } finally {
+      ocupado.current = false
+    }
   }
 
   if (carregando) return <div className={styles.vazio}>Carregando acertos…</div>

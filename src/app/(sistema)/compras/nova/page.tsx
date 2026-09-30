@@ -65,6 +65,7 @@ export default async function NovaCompraPage() {
         categories={categories}
         materials={materials}
         defaultMarkupPct={defaultMarkupPct}
+        userId={profile.id}
       />
     </div>
   )

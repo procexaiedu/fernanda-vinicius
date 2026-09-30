@@ -7,6 +7,7 @@ import { buscarDetalheCompra, deletarCompra, type PurchaseDetail } from '@/app/(
 import { buscarConsignacao } from '@/app/(sistema)/compras/acertos'
 import styles from '@/app/(sistema)/compras/ComprasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 import BlocoAcertos from './BlocoAcertos'
 import RelatorioCompra from './RelatorioCompra'
 
@@ -34,6 +35,8 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
   const [loading, setLoading]             = useState(true)
   const [deleting, setDeleting]           = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [erroCarregar, setErroCarregar]   = useState<string | null>(null)
+  const [erroExcluir, setErroExcluir]     = useState<string | null>(null)
 
   /*
    * A folha de conferência. Ela pediu em 15/09 e o sistema só tinha o botão de
@@ -44,10 +47,15 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
   const [lote, setLote] = useState<{ acertado: number; falta: number; status: string } | null>(null)
 
   useEffect(() => {
-    buscarDetalheCompra(purchaseId).then(({ data }) => {
-      setDetail(data)
-      setLoading(false)
-    })
+    /* `.catch`: sem ele, uma falha de rede deixava o modal em "Carregando..."
+       para sempre. E o erro do servidor aparece no lugar do genérico. */
+    buscarDetalheCompra(purchaseId)
+      .then(({ data, error }) => {
+        setDetail(data)
+        setErroCarregar(error ?? null)
+      })
+      .catch(e => setErroCarregar(e instanceof Error ? e.message : null))
+      .finally(() => setLoading(false))
   }, [purchaseId])
 
   /* O acerto do lote consignado entra na folha — é o número que ela confere
@@ -66,11 +74,27 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
     return () => { vivo = false }
   }, [detail?.consignment_id])
 
+  /*
+   * Antes, uma exclusão recusada (ex.: peça já vendida) ou que falhou no meio
+   * simplesmente não fazia nada: o botão voltava e ela não sabia se tinha
+   * excluído. Agora o motivo aparece no próprio aviso de confirmação.
+   */
   async function handleDelete() {
+    if (deleting) return
     setDeleting(true)
-    const r = await deletarCompra(purchaseId)
-    setDeleting(false)
-    if (r.success) { onDeleted?.(); onClose() }
+    setErroExcluir(null)
+    try {
+      const r = await deletarCompra(purchaseId)
+      if (r.success) { onDeleted?.(); onClose(); return }
+      setErroExcluir(r.error ?? 'Não foi possível excluir a compra.')
+      // A exclusão pode ter ido até o meio (ver deletarCompra): a lista atrás
+      // precisa refletir o que ficou.
+      router.refresh()
+    } catch (e) {
+      setErroExcluir(mensagemDeErroAoSalvar(e))
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -116,7 +140,7 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
         ) : loading ? (
           <div className={styles.modalLoading}>Carregando...</div>
         ) : !detail ? (
-          <div className={styles.modalLoading}>Erro ao carregar.</div>
+          <div className={styles.modalLoading}>{erroCarregar ?? 'Erro ao carregar.'}</div>
         ) : (
           <>
             {detail.notes && (
@@ -230,11 +254,11 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
                   ) : (
                     <div className={styles.confirmDelete}>
                       <AlertTriangle size={13} />
-                      <span>Excluir também reverte o estoque. Confirma?</span>
+                      <span>{erroExcluir ?? 'Excluir também reverte o estoque. Confirma?'}</span>
                       <button className={styles.deleteBtnConfirm} onClick={handleDelete} disabled={deleting}>
                         {deleting ? 'Excluindo...' : 'Sim, excluir'}
                       </button>
-                      <button className={styles.cancelBtn} onClick={() => setConfirmDelete(false)}>Cancelar</button>
+                      <button className={styles.cancelBtn} onClick={() => { setConfirmDelete(false); setErroExcluir(null) }}>Cancelar</button>
                     </div>
                   )}
                 </>

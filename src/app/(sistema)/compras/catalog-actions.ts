@@ -38,6 +38,27 @@ async function verifyAdmin(): Promise<{ error: string | null }> {
   return { error: null }
 }
 
+/**
+ * Acha o material pelo nome, sem diferenciar maiúsculas — e SEM curinga.
+ *
+ * Era `.ilike('name', nome)` com o nome cru. Em LIKE, `%` e `_` são curingas
+ * (e o PostgREST ainda troca `*` por `%`): excluir um material chamado "ouro_18"
+ * casava "ouro 18", "ouroX18"…, e o soft-delete desativava todos de uma vez.
+ * A tabela é pequena (dezenas de linhas), então a comparação vem para cá, com
+ * igualdade de verdade.
+ */
+async function buscarMaterialPorNome(
+  admin: ReturnType<typeof createAdminClient>,
+  nome: string,
+): Promise<{ data: { id: string; name: string } | null; error: string | null }> {
+  const { data, error } = await admin.from('materials').select('id, name')
+  if (error || !data) return { data: null, error: `Não foi possível conferir os materiais: ${error?.message ?? 'sem resposta'}` }
+  const alvo = nome.trim().toLowerCase()
+  const achado = (data as Array<{ id: string; name: string }>)
+    .find(m => (m.name ?? '').trim().toLowerCase() === alvo)
+  return { data: achado ?? null, error: null }
+}
+
 // ─── Fornecedor ────────────────────────────────────────────────────────────────
 
 export async function criarFornecedorRapido(
@@ -105,14 +126,12 @@ export async function criarMaterialRapido(name: string): Promise<QuickMaterialRe
 
   // Evita duplicar (índice é case-insensitive). Se já existe, reativa (caso tenha
   // sido excluído por soft-delete) e retorna o nome existente.
-  const { data: existing } = await admin
-    .from('materials')
-    .select('id, name')
-    .ilike('name', cleanName)
-    .maybeSingle()
+  const { data: existing, error: lerErr } = await buscarMaterialPorNome(admin, cleanName)
+  if (lerErr) return { success: false, error: lerErr }
 
   if (existing) {
-    await admin.from('materials').update({ is_active: true }).eq('id', existing.id)
+    const { error: reativarErr } = await admin.from('materials').update({ is_active: true }).eq('id', existing.id)
+    if (reativarErr) return { success: false, error: reativarErr.message }
     revalidatePath('/produtos')
     revalidatePath('/compras/nova')
     return { success: true, material: existing.name }
@@ -175,10 +194,14 @@ export async function excluirMaterialRapido(name: string): Promise<DeleteResult>
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
+  const { data: alvo, error: lerErr } = await buscarMaterialPorNome(admin, name)
+  if (lerErr) return { success: false, error: lerErr }
+  if (!alvo) return { success: false, error: 'Material não encontrado.' }
+
   const { error } = await admin
     .from('materials')
     .update({ is_active: false })
-    .ilike('name', name)
+    .eq('id', alvo.id)
 
   if (error) return { success: false, error: error.message }
 

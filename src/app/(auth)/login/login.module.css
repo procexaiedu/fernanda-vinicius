@@ -107,6 +107,29 @@
 
 .input:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* Senha com olho para mostrar/esconder */
+.senhaWrap { position: relative; }
+.inputSenha { padding-right: 42px; }
+.olhoBtn {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+.olhoBtn:hover { color: var(--text-primary); background: var(--bg-hover, rgba(255,255,255,0.06)); }
+.olhoBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 /* Erro */
 .errorBox {
   padding: 10px 14px;

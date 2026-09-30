@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getProfile, lojaDoEscopo } from '@/lib/auth'
+import { getProfile, lojaDoEscopo, ehOperadora } from '@/lib/auth'
 
 /**
  * A peça da cliente em conserto.
@@ -41,10 +41,10 @@ export interface ResultadoConserto {
   error?: string
 }
 
-async function escopo(): Promise<{ loja: string | null; userId: string } | null> {
+async function escopo(): Promise<{ loja: string | null; userId: string; operadora: boolean } | null> {
   const perfil = await getProfile()
   if (!perfil) return null
-  return { loja: lojaDoEscopo(perfil), userId: perfil.id }
+  return { loja: lojaDoEscopo(perfil), userId: perfil.id, operadora: ehOperadora(perfil) }
 }
 
 /**
@@ -76,7 +76,11 @@ export async function listarConsertos(): Promise<Conserto[]> {
 
   if (ctx.loja) q = q.eq('store_id', ctx.loja)
 
-  const { data } = await q.order('recebido_em', { ascending: false })
+  const { data, error } = await q.order('recebido_em', { ascending: false })
+
+  /* Falha NÃO é "nenhuma peça em conserto". Lista vazia aqui é a loja dizendo
+     à cliente que a peça dela não está — com a peça na gaveta. */
+  if (error) throw new Error(`Não foi possível carregar os consertos: ${error.message}`)
 
   return ((data ?? []) as any[]).map(c => ({
     id: c.id,
@@ -129,62 +133,11 @@ export async function consertosAbertosDaCliente(customerId: string): Promise<Con
   }))
 }
 
-/**
- * PAGAR NÃO É ENTREGAR, e confundir os dois foi o meu erro.
- *
- * O dono corrigiu em 10/09: "ela diz se a cliente paga o conserto depois ou
- * antes". Quando paga adiantado, a peça CONTINUA NA LOJA — esperando o
- * ourives, ou esperando ela voltar. Marcar como entregue na hora do pagamento
- * apagaria da tela justamente a peça que ainda está aqui.
- *
- * Então a venda registra só o PAGAMENTO. Quem diz que a peça saiu é quem a
- * entregou, no botão "Cliente levou".
+/*
+ * `registrarPagamentoDoConserto` e `registrarConsertoDaVenda` moravam aqui.
+ * Foram para `./interno.ts`: este arquivo é `'use server'`, e tudo que ele
+ * exporta vira endpoint público — elas não checam login nem loja.
  */
-export async function registrarPagamentoDoConserto(consertoId: string, saleItemId: string): Promise<void> {
-  const admin = createAdminClient()
-  await admin.from('consertos').update({
-    sale_item_id: saleItemId,
-    updated_at:   new Date().toISOString(),
-  }).eq('id', consertoId)
-}
-
-/**
- * Registra um conserto que nasceu da própria cobrança no PDV.
- *
- * Existe porque o desenho anterior deixava um buraco que o dono encontrou na
- * primeira vez que usou: ele cobrou dois consertos no PDV e não apareceu nada
- * na tela de Consertos. A linha da venda só sabia LIGAR a uma peça já
- * registrada — sem registro anterior, o conserto existia só como dinheiro.
- *
- * `ficouNaLoja` decide em que estado ele nasce, e é a diferença entre os dois
- * jeitos de a loja trabalhar:
- *
- *   pagou e levou na hora  → nasce ENTREGUE, vira histórico
- *   pagou adiantado        → nasce NA LOJA, e segue o fluxo até ela buscar
- */
-export async function registrarConsertoDaVenda(dados: {
-  storeId: string
-  customerId: string | null
-  descricao: string | null
-  saleItemId: string
-  userId: string
-  ficouNaLoja: boolean
-}): Promise<void> {
-  const admin = createAdminClient()
-  const hoje = new Date().toISOString().slice(0, 10)
-
-  await admin.from('consertos').insert({
-    store_id:     dados.storeId,
-    customer_id:  dados.customerId,
-    // Sem descrição digitada sobra o genérico — melhor que perder o registro.
-    peca:         dados.descricao?.trim() || 'Conserto',
-    recebido_em:  hoje,
-    status:       dados.ficouNaLoja ? 'recebido' : 'entregue',
-    entregue_em:  dados.ficouNaLoja ? null : hoje,
-    sale_item_id: dados.saleItemId,
-    user_id:      dados.userId,
-  })
-}
 
 export async function registrarConserto(dados: {
   customerId: string
@@ -258,14 +211,25 @@ export async function removerConserto(id: string): Promise<ResultadoConserto> {
   const ctx = await escopo()
   if (!ctx) return { success: false, error: 'Não autenticado.' }
 
+  /*
+   * Mesma regra do `podeApagar` da tela (operadora não apaga). A tela só
+   * esconde o botão; sem esta linha, a ação continuava aberta para quem a
+   * chamasse direto — e apagar é o único gesto daqui que não deixa rastro.
+   */
+  if (ctx.operadora) return { success: false, error: 'Só administradores podem apagar um conserto.' }
+
   const admin = createAdminClient()
-  const { data: alvo } = await admin
+  const { data: alvo, error: erroAlvo } = await admin
     .from('consertos').select('id, store_id').eq('id', id).maybeSingle()
 
+  if (erroAlvo) return { success: false, error: `Não foi possível carregar o conserto: ${erroAlvo.message}` }
   if (!alvo) return { success: false, error: 'Conserto não encontrado.' }
   if (ctx.loja && alvo.store_id !== ctx.loja) return { success: false, error: 'Este conserto é de outra loja.' }
 
-  await admin.from('consertos').delete().eq('id', id)
+  // O erro era ignorado: a tela recarregava, a peça continuava lá e ninguém
+  // sabia por quê.
+  const { error } = await admin.from('consertos').delete().eq('id', id)
+  if (error) return { success: false, error: `Erro ao apagar: ${error.message}` }
 
   revalidatePath('/consertos')
   return { success: true }

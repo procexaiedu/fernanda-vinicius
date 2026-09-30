@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { formatarNomeProprio } from '@/lib/nomeProprio'
-import { requireProfile, getProfile, lojaDoEscopo } from '@/lib/auth'
+import { requireProfile, getProfile, lojaDoEscopo, ehAdmin, ehOperadora } from '@/lib/auth'
 import { normalizarTelefone } from '@/lib/telefone'
 import type { CustomerWithStats } from './page'
 
@@ -105,14 +105,38 @@ export async function updateCustomer(id: string, data: CustomerFormData): Promis
   const perfil = await getProfile()
   if (!perfil) return { success: false, error: 'Não autenticado.' }
 
+  const admin = createAdminClient()
+
   /*
    * Editar não pode ser a porta dos fundos: sem isto, quem é de Campinas
-   * abriria uma cliente e a MUDARIA para Brasília — ou trouxesse uma de lá
-   * para si. A regra é a mesma da criação.
+   * abriria uma cliente de Brasília pelo id e a editaria. Mesma checagem de
+   * `completarCadastroNaVenda`: quem tem escopo só alcança quem nasceu na
+   * loja dele.
    */
-  const origem = lojaDoEscopo(perfil, data.origin_store_id)
+  const escopo = lojaDoEscopo(perfil)
+  const { data: cliente, error: lerErr } = await admin
+    .from('customers')
+    .select('id, origin_store_id')
+    .eq('id', id)
+    .maybeSingle()
 
-  const admin = createAdminClient()
+  if (lerErr) return { success: false, error: `Não foi possível ler a cliente: ${lerErr.message}` }
+  if (!cliente) return { success: false, error: 'Cliente não encontrada.' }
+  if (escopo && cliente.origin_store_id !== escopo) {
+    return { success: false, error: 'Esta cliente não é desta loja.' }
+  }
+
+  /*
+   * A loja de origem é a história da cliente, não um campo da funcionária.
+   * Antes vinha de `lojaDoEscopo(perfil, ...)`, que para a operadora é a loja
+   * DELA — então editar o telefone de uma cliente MUDAVA a cliente de loja.
+   * Operadora mantém a origem gravada; admin continua escolhendo pelo
+   * formulário, dentro do próprio escopo.
+   */
+  const origem = ehOperadora(perfil)
+    ? cliente.origin_store_id
+    : lojaDoEscopo(perfil, data.origin_store_id)
+
   const { error } = await admin.from('customers').update({
     name:            formatarNomeProprio(data.name),
     phone:           data.phone.trim(),
@@ -230,11 +254,34 @@ export async function completarCadastroNaVenda(
 }
 
 export async function deleteCustomer(id: string): Promise<ActionResult> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, error: 'Não autenticado.' }
+  const perfil = await getProfile()
+  if (!perfil) return { success: false, error: 'Não autenticado.' }
+  /*
+   * Excluir cliente apaga histórico de relacionamento — decisão de gestão.
+   * Antes bastava estar logada: a operadora chamava a action direto, mesmo
+   * sem o botão na tela.
+   */
+  if (!ehAdmin(perfil)) {
+    return { success: false, error: 'Apenas administradores podem excluir clientes.' }
+  }
 
   const admin = createAdminClient()
+
+  // Admin de loja só alcança as clientes da loja dele — a mesma régua da edição.
+  const escopo = lojaDoEscopo(perfil)
+  if (escopo) {
+    const { data: cliente, error: lerErr } = await admin
+      .from('customers')
+      .select('origin_store_id')
+      .eq('id', id)
+      .maybeSingle()
+    if (lerErr) return { success: false, error: `Não foi possível ler a cliente: ${lerErr.message}` }
+    if (!cliente) return { success: false, error: 'Cliente não encontrada.' }
+    if (cliente.origin_store_id !== escopo) {
+      return { success: false, error: 'Esta cliente não é desta loja.' }
+    }
+  }
+
   const { error } = await admin.from('customers').delete().eq('id', id)
   if (error) return { success: false, error: error.message }
   revalidatePath('/clientes')
@@ -279,10 +326,20 @@ export async function clientesComMesmoTelefone(
   if (canonico.replace(/\D/g, '').length < 12) return []
 
   const admin = createAdminClient()
-  const { data } = await admin
+  /*
+   * Erro não LANÇA de propósito: é só um aviso, e a tela de venda chama isto
+   * sem `.catch` — lançar viraria promise rejeitada solta no meio do PDV. Mas
+   * também não passa calado: lista vazia aqui quer dizer "não deu para
+   * conferir", e o log do servidor é quem registra isso.
+   */
+  const { data, error } = await admin
     .from('customers')
     .select('id, name')
     .eq('phone', canonico)
+  if (error) {
+    console.error('clientesComMesmoTelefone: falha ao ler clientes:', error.message)
+    return []
+  }
 
   const achados = (data ?? []).filter(c => c.id !== ignorarId)
   if (achados.length === 0) return []
@@ -291,10 +348,13 @@ export async function clientesComMesmoTelefone(
    * A contagem de vendas é o que ajuda a decidir: entre dois cadastros do
    * mesmo telefone, o que tem histórico é o que deve sobreviver.
    */
-  const { data: vendas } = await admin
+  const { data: vendas, error: vendasErr } = await admin
     .from('sales')
     .select('customer_id')
     .in('customer_id', achados.map(c => c.id))
+  // Sem a contagem o aviso ainda vale (o telefone repetido é o que importa);
+  // só não dá para dizer quantas vendas cada um tem.
+  if (vendasErr) console.error('clientesComMesmoTelefone: falha ao contar vendas:', vendasErr.message)
 
   const porCliente = new Map<string, number>()
   for (const v of vendas ?? []) {

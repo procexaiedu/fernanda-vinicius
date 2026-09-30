@@ -13,6 +13,6 @@ export function normalizarNomeFornecedor(nome: string): string {
     .normalize('NFD').replace(/[̀-ͯ]/g, '')  // tira acento
     .toUpperCase()
     .replace(/[^A-Z0-9 ]/g, ' ')                        // pontuação vira espaço
-    .replace(/s+/g, ' ')
+    .replace(/\s+/g, ' ')                               // era /s+/: não juntava espaços repetidos
     .trim()
 }

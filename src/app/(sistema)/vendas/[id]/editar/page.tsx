@@ -1,10 +1,14 @@
 import { notFound } from 'next/navigation'
+import { AlertTriangle } from 'lucide-react'
 import PageHeader from '@/components/ui/PageHeader'
 import { requireProfile, lojaDoEscopo } from '@/lib/auth'
 import { listasDoEscopo } from '@/lib/listas-do-escopo'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import NovaVendaForm from '../../nova/NovaVendaForm'
+/* O mesmo banner de erro do formulário — a tela de bloqueio fala a mesma
+   língua visual do "não foi possível salvar". */
+import styles from '../../nova/NovaVendaForm.module.css'
 import { buscarVendaParaEdicao } from '../../actions'
 
 export default async function EditarVendaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -35,7 +39,40 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
     listas.usuarios(),
   ])
 
+  /*
+   * Leitura que falhou não é "venda não existe". Antes as duas coisas davam
+   * 404; agora só a venda que não existe dá 404, e a falha diz o que houve.
+   */
+  if (!saleRes.data && saleRes.error && saleRes.error !== 'Venda não encontrada.') {
+    return (
+      <div>
+        <PageHeader title="Editar Venda" backHref="/vendas" backLabel="Voltar para Vendas" />
+        <div className={styles.errorBanner}>
+          <AlertTriangle size={14} /> {saleRes.error}
+        </div>
+      </div>
+    )
+  }
   if (!saleRes.data) notFound()
+
+  /*
+   * Venda com troca ou conserto vinculado NÃO abre o formulário.
+   *
+   * Editar refaz a venda do zero, e esses dois vínculos não sobrevivem — a
+   * troca sumia com o crédito da cliente, o conserto voltava a parecer não
+   * pago. Mostrar o formulário e recusar só no "Salvar" faria ela redigitar
+   * tudo para descobrir no fim que não podia. Ver `motivoParaNaoEditar`.
+   */
+  if (saleRes.data.bloqueio) {
+    return (
+      <div>
+        <PageHeader title="Editar Venda" backHref="/vendas" backLabel="Voltar para Vendas" />
+        <div className={styles.errorBanner}>
+          <AlertTriangle size={14} /> {saleRes.data.bloqueio}
+        </div>
+      </div>
+    )
+  }
 
   const stores    = storesRes.data ?? []
   const products  = productsRes

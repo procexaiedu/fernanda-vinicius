@@ -15,6 +15,7 @@ import { cancelarTransferencia } from './actions'
 import type { LojaOption, Romaneio as RomaneioT } from './page'
 import styles from './TransferenciasClient.module.css'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 const ROTULO: Record<RomaneioT['status'], string> = {
   enviada:    'Em trânsito',
@@ -43,10 +44,11 @@ interface Props {
   isAdmin: boolean
   minhaLoja: string | null
   filtroStatus: string
+  usuarioId: string
 }
 
 export default function TransferenciasClient({
-  romaneios, total, page, perPage, lojas, isAdmin, minhaLoja, filtroStatus,
+  romaneios, total, page, perPage, lojas, isAdmin, minhaLoja, filtroStatus, usuarioId,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -89,8 +91,17 @@ export default function TransferenciasClient({
     if (!cancelando) return
     setSalvandoCancel(true)
     setErroCancel(null)
-    const r = await cancelarTransferencia(cancelando.id, motivo)
-    setSalvandoCancel(false)
+    /* Sem o try, falha de rede ou sessão vencida deixava `salvandoCancel`
+       preso em true: botão girando para sempre, sem mensagem. */
+    let r: Awaited<ReturnType<typeof cancelarTransferencia>>
+    try {
+      r = await cancelarTransferencia(cancelando.id, motivo)
+    } catch (e) {
+      setErroCancel(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setSalvandoCancel(false)
+    }
     if (!r.success) { setErroCancel(r.error ?? 'Erro ao cancelar.'); return }
     setCancelando(null)
     setMotivo('')
@@ -223,6 +234,7 @@ export default function TransferenciasClient({
         <NovaTransferenciaModal
           lojas={lojas}
           lojaPadrao={minhaLoja}
+          usuarioId={usuarioId}
           onClose={() => setNovaAberta(false)}
           onEnviado={() => { setNovaAberta(false); router.refresh() }}
         />

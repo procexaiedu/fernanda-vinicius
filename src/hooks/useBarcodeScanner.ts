@@ -17,6 +17,20 @@ import { useEffect, useRef } from 'react'
  *    busca de cliente adicionava a peça E deixava "10100" digitado lá. O hook
  *    guarda o valor do campo antes da leitura e restaura ao reconhecer o leitor.
  * 2. O Enter final podia submeter o formulário. Agora é cancelado.
+ *
+ * E um terceiro, de 30/09: cancelar o Enter com `preventDefault` não bastava.
+ * O listener ficava no document em fase de BOLHA, ou seja, DEPOIS do React —
+ * o Enter do leitor chegava antes ao `onKeyDown` da busca de cliente/produto
+ * com a lista aberta e escolhia a opção destacada. Bipar com o cursor na busca
+ * de cliente trocava a cliente da venda. Agora o listener é de CAPTURA (roda
+ * antes de qualquer handler do React, que escuta na raiz da aplicação, abaixo
+ * do document) e o Enter reconhecido como leitor para ali: `stopPropagation`.
+ *
+ * Quem tinha campo próprio de bipe com `onKeyDown` de Enter (transferência,
+ * conferência de romaneio, devolução) registrava a leitura DUAS vezes — pelo
+ * campo e pelo hook — e só não duplicava por causa do `MS_LEITURA_DUPLA`.
+ * Agora a leitura do leitor entra só pelo hook; digitar à mão e teclar Enter
+ * continua indo pelo campo, porque aí a cadência não é de leitor.
  */
 
 interface Opcoes {
@@ -69,8 +83,11 @@ export function useBarcodeScanner({
         if (!ativoRef.current) return
         if (n < minimoCaracteres || (n > 1 && decorrido / n > msPorCaractere)) return
 
-        // Foi o leitor: cancela o Enter e desfaz o que ele digitou no campo.
+        // Foi o leitor: cancela o Enter — e não deixa ele chegar ao React, onde
+        // escolheria a opção destacada de uma lista aberta — e desfaz o que ele
+        // digitou no campo.
         e.preventDefault()
+        e.stopPropagation()
         if (alvo && alvo.value !== antes) {
           const proto = alvo instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement
           const setter = Object.getOwnPropertyDescriptor(proto.prototype, 'value')?.set
@@ -100,7 +117,8 @@ export function useBarcodeScanner({
       }
     }
 
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
+    // `true` = captura: tem de rodar antes do React. Ver o item 3 no topo.
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
   }, [minimoCaracteres, msPorCaractere])
 }

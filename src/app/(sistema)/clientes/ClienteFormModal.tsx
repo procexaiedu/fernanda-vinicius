@@ -202,7 +202,11 @@ export default function ClienteFormModal({
                 set('phone', v)
                 /* Consulta ao sair do campo seria tarde: ela já digitou o nome
                    inteiro. Aqui responde enquanto ainda dá para desistir. */
-                clientesComMesmoTelefone(v, customer?.id).then(setDuplicatas)
+                clientesComMesmoTelefone(v, customer?.id)
+                  .then(setDuplicatas)
+                  // Aviso, não trava: se a conferência falhar, não mostra aviso
+                  // velho de outro número nem deixa a promise rejeitar solta.
+                  .catch(() => setDuplicatas([]))
               }}
               placeholder="+55 (19) 99999-9999"
             />

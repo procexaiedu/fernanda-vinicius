@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import PageHeader from '@/components/ui/PageHeader'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import { requireProfile, ehOperadora, lojaDoEscopo } from '@/lib/auth'
 import { listarConsertos } from './actions'
 import ConsertosClient from './ConsertosClient'
@@ -18,14 +19,22 @@ export default async function ConsertosPage() {
   const escopoLoja = lojaDoEscopo(profile)
 
   const admin = createAdminClient()
-  const [consertos, clientesRes] = await Promise.all([
+  /*
+   * Todas as clientes da loja, paginado. Era `.limit(400)` com o erro
+   * engolido: a partir da 401ª em ordem alfabética a cliente simplesmente não
+   * aparecia no seletor — não dava para receber a peça da Zuleide — e uma
+   * falha de leitura virava seletor vazio. `fetchAll` lê até o fim e LANÇA
+   * se o banco falhar.
+   */
+  const [consertos, clientes] = await Promise.all([
     listarConsertos(),
-    (() => {
+    fetchAll<{ id: string; name: string; phone: string | null }>((de, ate) => {
       // Só as clientes da loja — mesmo corte de 04/09.
       let q = admin.from('customers').select('id, name, phone')
       if (escopoLoja) q = q.eq('origin_store_id', escopoLoja)
-      return q.order('name').limit(400)
-    })(),
+      // `id` desempata nomes iguais: sem ordem total, a paginação pula/repete.
+      return q.order('name').order('id').range(de, ate)
+    }),
   ])
 
   return (
@@ -36,7 +45,7 @@ export default async function ConsertosPage() {
       />
       <ConsertosClient
         inicial={consertos}
-        clientes={(clientesRes.data ?? []) as { id: string; name: string; phone: string | null }[]}
+        clientes={clientes}
         podeApagar={!ehOperadora(profile)}
       />
     </div>

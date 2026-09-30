@@ -251,29 +251,72 @@ export default function DashboardClient({
     if (p) setProdutoModal(p as unknown as ProdutoParaDetalhe)
   }
 
+  /*
+   * O que os números da tela MOSTRAM agora (loja, mês, ano, meses do gráfico).
+   * Os seletores mudam na hora do clique; isto só muda quando a busca inteira
+   * chega — é para onde os seletores voltam se ela falhar.
+   */
+  const exibido = useRef({ sid: initialStoreId, m: initialMonth, y: initialYear, meses: 6 })
+  /* Cliques rápidos (mês, mês, mês) disparam buscas que chegam fora de ordem:
+   * só a ÚLTIMA pode pintar a tela. */
+  const ultimaBusca = useRef(0)
+
+  /*
+   * TUDO OU NADA — e, se falhar, os seletores voltam.
+   *
+   * As buscas LANÇAM em falha (antes devolviam zero e o painel mostrava R$ 0
+   * como se fosse verdade). Com `Promise.all`, uma falha descartava as outras
+   * oito mas deixava o seletor na loja NOVA — e a tela mostrava, sob
+   * "Brasília", os números de Campinas.
+   *
+   * Aplicar card a card o que chegou (e manter o antigo no que falhou) daria
+   * uma tela com metade dos cards de cada loja, sem nada que diga qual é qual.
+   * Limpar o card que falhou mostraria R$ 0 — o número falso que a mudança nas
+   * buscas veio justamente eliminar. O único estado sempre verdadeiro é: ou
+   * tudo da escolha nova, ou tudo da anterior com o seletor de volta nela.
+   *
+   * `allSettled` e não `all`: espera todas terminarem (nenhuma resposta
+   * atrasada chega depois da decisão) e registra CADA falha, não só a primeira.
+   */
   const reload = useCallback(async (sid: string | null, m: number, y: number, meses: number) => {
+    const esta = ++ultimaBusca.current
     setLoading(true)
-    const [newKpis, newEstoque, newGrafico, newVendedoras, newParadas, newContas, newAniv, newCats, newEvol] =
-      await Promise.all([
-        buscarKpis(sid, m, y, settings.purchaseReservePct),
-        buscarEstoque(sid, settings.staleDays),
-        buscarGrafico(sid, meses),
-        buscarTopVendedoras(sid, m, y),
-        buscarPecasParadas(sid, settings.staleDays),
-        buscarContasVencer(sid),
-        buscarAniversariantes(sid),
-        buscarVendasPorCategoria(sid, m, y),
-        buscarEvolucaoVendas(sid, meses),
-      ])
-    setKpis(newKpis)
-    setEstoque(newEstoque)
-    setGrafico(newGrafico)
-    setTopVendedoras(newVendedoras)
-    setPecasParadas(newParadas)
-    setContasVencer(newContas)
-    setAniversariantes(newAniv)
-    setCategorias(newCats)
-    setEvolucao(newEvol)
+    const res = await Promise.allSettled([
+      buscarKpis(sid, m, y, settings.purchaseReservePct),
+      buscarEstoque(sid, settings.staleDays),
+      buscarGrafico(sid, meses),
+      buscarTopVendedoras(sid, m, y),
+      buscarPecasParadas(sid, settings.staleDays),
+      buscarContasVencer(sid),
+      buscarAniversariantes(sid),
+      buscarVendasPorCategoria(sid, m, y),
+      buscarEvolucaoVendas(sid, meses),
+    ] as const)
+    if (esta !== ultimaBusca.current) return   // outra busca mais nova já está a caminho
+
+    const [rKpis, rEstoque, rGrafico, rVendedoras, rParadas, rContas, rAniv, rCats, rEvol] = res
+    if (rKpis.status === 'fulfilled' && rEstoque.status === 'fulfilled' && rGrafico.status === 'fulfilled'
+      && rVendedoras.status === 'fulfilled' && rParadas.status === 'fulfilled' && rContas.status === 'fulfilled'
+      && rAniv.status === 'fulfilled' && rCats.status === 'fulfilled' && rEvol.status === 'fulfilled') {
+      setKpis(rKpis.value)
+      setEstoque(rEstoque.value)
+      setGrafico(rGrafico.value)
+      setTopVendedoras(rVendedoras.value)
+      setPecasParadas(rParadas.value)
+      setContasVencer(rContas.value)
+      setAniversariantes(rAniv.value)
+      setCategorias(rCats.value)
+      setEvolucao(rEvol.value)
+      exibido.current = { sid, m, y, meses }
+    } else {
+      console.error('[painel] falha ao recarregar — a tela continua na escolha anterior:',
+        res.flatMap(r => (r.status === 'rejected' ? [r.reason] : [])))
+      const antes = exibido.current
+      setStoreId(antes.sid)
+      setMonth(antes.m)
+      setYear(antes.y)
+      setGrafMeses(antes.meses)
+    }
     setLoading(false)
   }, [settings])
 

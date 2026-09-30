@@ -3,6 +3,7 @@ import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CABECALHO_USUARIO } from '@/lib/auth-header'
+import { MSG_AUTH_INSTAVEL } from '@/lib/erroDeSalvar'
 
 /**
  * Autenticação deduplicada por requisição.
@@ -71,12 +72,23 @@ export const getProfile = cache(async (): Promise<UserProfile | null> => {
   if (!user) return null
 
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('users')
     .select('id, full_name, role, store_id, is_active, stores(name)')
     .eq('id', user.id)
     .single()
 
+  /*
+   * PGRST116 = nenhuma linha: o perfil não existe, aí sim é "sem acesso".
+   * Qualquer OUTRO erro é o banco oscilando — e devolver null aqui fazia o
+   * `requireProfile` mandar para /login no meio de um "Salvar", apagando a
+   * venda da tela por um soluço de rede. Lançando, a action falha com uma
+   * mensagem que src/lib/erroDeSalvar.ts traduz em "tente de novo".
+   */
+  if (error && error.code !== 'PGRST116') {
+    console.error('[getProfile] falha ao ler o perfil:', error.message)
+    throw new Error(MSG_AUTH_INSTAVEL)
+  }
   if (!data) return null
 
   // O PostgREST devolve o join como objeto ou array dependendo da inferência de
@@ -103,8 +115,13 @@ export const getProfile = cache(async (): Promise<UserProfile | null> => {
   if (data.store_id === null) {
     const escolhida = (await cookies()).get(COOKIE_LOJA)?.value
     if (escolhida) {
-      const { data: loja } = await supabase
+      const { data: loja, error: erroLoja } = await supabase
         .from('stores').select('id, name').eq('id', escolhida).eq('is_active', true).maybeSingle()
+      // Mesmo motivo: falha de leitura não pode virar "nenhuma loja escolhida".
+      if (erroLoja) {
+        console.error('[getProfile] falha ao ler a loja escolhida:', erroLoja.message)
+        throw new Error(MSG_AUTH_INSTAVEL)
+      }
       if (loja) {
         lojaSelecionada = loja.id
         lojaSelecionadaNome = loja.name

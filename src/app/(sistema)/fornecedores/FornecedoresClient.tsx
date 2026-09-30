@@ -14,6 +14,7 @@ import FornecedorDetalheModal from './FornecedorDetalheModal'
 import MesclarDuplicadosModal from './MesclarDuplicadosModal'
 import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
 import { toggleSupplierStatus } from './actions'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 import type { SupplierWithCount } from './page'
 import styles from './FornecedoresClient.module.css'
 import Paginacao from '@/components/ui/Paginacao'
@@ -180,13 +181,30 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
     setDetalhe(null); setEditing(s); setFormOpen(true)
   }
 
+  /*
+   * O resultado era ignorado e a página recarregava como se tivesse dado certo;
+   * com a rede caída o `togglingId` ficava preso e a linha girava para sempre.
+   * Esta tela não tem área de erro e a interface não muda (pedido de 30/09):
+   * a falha vai para o console e a página NÃO recarrega fingindo sucesso.
+   */
+  async function alternarStatus(id: string, ativo: boolean) {
+    setTogglingId(id)
+    try {
+      const r = await toggleSupplierStatus(id, ativo)
+      if (!r.success) { console.error('Ativar/inativar fornecedor:', r.error); return }
+    } catch (err) {
+      console.error('Ativar/inativar fornecedor:', mensagemDeErroAoSalvar(err))
+      return
+    } finally {
+      setTogglingId(null)
+    }
+    window.location.reload()
+  }
+
   async function handleToggle(s: SupplierWithCount, e: React.MouseEvent) {
     e.stopPropagation()
     if (!s.is_active) {
-      setTogglingId(s.id)
-      await toggleSupplierStatus(s.id, true)
-      setTogglingId(null)
-      window.location.reload()
+      await alternarStatus(s.id, true)
       return
     }
     setConfirmDeactivateId(s.id)
@@ -194,10 +212,8 @@ export default function FornecedoresClient({ suppliers: initial }: Props) {
 
   async function confirmDeactivate(id: string, e: React.MouseEvent) {
     e.stopPropagation()
-    setTogglingId(id); setConfirmDeactivateId(null)
-    await toggleSupplierStatus(id, false)
-    setTogglingId(null)
-    window.location.reload()
+    setConfirmDeactivateId(null)
+    await alternarStatus(id, false)
   }
 
   return (

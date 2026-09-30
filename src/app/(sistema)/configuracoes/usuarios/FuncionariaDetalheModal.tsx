@@ -147,9 +147,12 @@ export default function FuncionariaDetalheModal({ user, onClose, onEdit }: Props
         .order('closing_date', { ascending: false })
         .limit(6),
 
-      supabase.from('stock_transfers')
+      /* Romaneios que ela ENVIOU. Era `stock_transfers`, a tabela do modelo
+         antigo que ninguém grava desde 30/08 — o contador ficava sempre em 0. */
+      supabase.from('transfers')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id),
+        .eq('sent_by', user.id)
+        .neq('status', 'cancelada'),
     ]).then(([allSalesRes, recentSalesRes, exchangesRes, cashRes, transfersRes]) => {
       const allSales = (allSalesRes.data ?? []) as SaleRow[]
 

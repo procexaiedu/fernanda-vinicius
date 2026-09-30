@@ -177,7 +177,17 @@ export default function ConferenciaModal({ romaneio, onClose }: {
        * estoque: ninguém sabe de onde a peça veio, e criar saldo a partir de um
        * palpite é como se inventa peça no sistema. Alguém decide depois.
        */
-      const achada = await identificarEtiqueta(cod, romaneio.to_store_id)
+      /* Sem o try, falha de rede rejeitava dentro do leitor: a sobra não era
+         anotada e nada aparecia na tela. É só leitura — bipar de novo é seguro. */
+      let achada: Awaited<ReturnType<typeof identificarEtiqueta>>
+      try {
+        achada = await identificarEtiqueta(cod, romaneio.to_store_id)
+      } catch (e) {
+        ultimaLeitura.current.delete(cod)
+        setUltimo(null)
+        setErro(`A ETIQUETA ${cod} NÃO FOI ANOTADA — BIPE DE NOVO. ${mensagemDeErroAoSalvar(e, { temRascunho: true })}`)
+        return
+      }
       setSobras(s => (s.some(x => x.barcode === cod)
         ? s
         : [...s, { barcode: cod, id: achada?.id ?? null, nome: achada?.name ?? 'não cadastrada' }]))

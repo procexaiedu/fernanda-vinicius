@@ -11,6 +11,7 @@ import {
 import { formatarDinheiro } from '@/lib/dinheiro'
 import styles from './Consertos.module.css'
 import DatePicker from '@/components/ui/DatePicker'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 interface Cliente { id: string; name: string; phone: string | null }
 
@@ -73,8 +74,17 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
   const [obs, setObs] = useState('')
   const [salvando, setSalvando] = useState(false)
 
+  /*
+   * Recarregar falhando NÃO é o salvar falhando. Sem o try próprio, o erro
+   * caía no catch de quem chamou e a tela dizia "não foi possível salvar"
+   * sobre um conserto que JÁ estava gravado — e ela registrava de novo.
+   */
   async function recarregar() {
-    setLista(await listarConsertos())
+    try {
+      setLista(await listarConsertos())
+    } catch {
+      setErro('A alteração foi salva, mas a lista não atualizou. Aperte F5 para ver a lista certa.')
+    }
   }
 
   async function salvar() {
@@ -92,8 +102,8 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
       if (!r.success) { setErro(r.error ?? 'Não foi possível registrar.'); return }
       setAberto(false); setCliente(''); setPeca(''); setServico(''); setPrazo(''); setObs('')
       await recarregar()
-    } catch {
-      setErro('Não foi possível registrar o conserto.')
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e))
     } finally {
       setSalvando(false)
     }
@@ -108,6 +118,8 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
       const r = await mudarStatus(c.id, passo.valor)
       if (!r.success) { setErro(r.error ?? 'Não foi possível atualizar.'); return }
       await recarregar()
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e))
     } finally {
       setOcupado(null)
     }
@@ -115,7 +127,15 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
 
   async function apagar(id: string) {
     setErro(null)
-    const r = await removerConserto(id)
+    /* Sem o try, falha de rede ou sessão vencida rejeitava em silêncio: o
+       clique não dava em nada e ela não sabia se tinha apagado. */
+    let r: Awaited<ReturnType<typeof removerConserto>>
+    try {
+      r = await removerConserto(id)
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e))
+      return
+    }
     if (!r.success) { setErro(r.error ?? 'Não foi possível remover.'); return }
     await recarregar()
   }

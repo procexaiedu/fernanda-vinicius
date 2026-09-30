@@ -39,7 +39,19 @@ const MS_LEITURA_DUPLA = 1500
  * O que NÃO fica salvo é a validade das peças — quem responde isso é o
  * servidor, em `revalidarRascunho`, toda vez que o rascunho volta.
  */
-const CHAVE_RASCUNHO = 'fv:transferencia:rascunho:v1'
+/*
+ * Uma chave por PESSOA e por LOJA DE ORIGEM.
+ *
+ * A v1 era uma chave só para a máquina inteira. Duas consequências: no
+ * computador da loja, a colega abria a tela e via (ou apagava) o romaneio da
+ * outra; e o rascunho de Brasília era APAGADO ao abrir a tela em Campinas —
+ * a lista "vazia" da origem nova sobrescrevia a caixa bipada da outra loja.
+ * Com a chave separada, cada rascunho só é tocado por quem o montou, na loja
+ * de onde ele sai.
+ */
+const CHAVE_RASCUNHO_V1 = 'fv:transferencia:rascunho:v1'
+const chaveRascunho = (usuarioId: string, origem: string) =>
+  `fv:transferencia:draft:v2:${usuarioId}:${origem}`
 
 interface Rascunho {
   origem: string
@@ -49,9 +61,9 @@ interface Rascunho {
   salvoEm: string
 }
 
-function lerRascunho(): Rascunho | null {
+function lerChave(chave: string): Rascunho | null {
   try {
-    const cru = localStorage.getItem(CHAVE_RASCUNHO)
+    const cru = localStorage.getItem(chave)
     if (!cru) return null
     const r = JSON.parse(cru) as Rascunho
     return Array.isArray(r?.linhas) && r.linhas.length ? r : null
@@ -62,17 +74,36 @@ function lerRascunho(): Rascunho | null {
   }
 }
 
-function gravarRascunho(r: Rascunho) {
-  try { localStorage.setItem(CHAVE_RASCUNHO, JSON.stringify(r)) } catch { /* idem */ }
+/**
+ * O rascunho desta pessoa para esta origem.
+ *
+ * Na primeira vez, se não houver v2, tenta a chave antiga — é onde está o
+ * romaneio de quem estava no meio de uma caixa quando esta versão subiu. Só
+ * migra se a origem da v1 for a pedida: rascunho de outra loja fica onde está,
+ * intacto, para quem o montou.
+ */
+function lerRascunho(usuarioId: string, origem: string): Rascunho | null {
+  const atual = lerChave(chaveRascunho(usuarioId, origem))
+  if (atual) return atual
+  const antigo = lerChave(CHAVE_RASCUNHO_V1)
+  if (!antigo || antigo.origem !== origem) return null
+  gravarRascunho(usuarioId, antigo)
+  try { localStorage.removeItem(CHAVE_RASCUNHO_V1) } catch { /* idem */ }
+  return antigo
 }
 
-function apagarRascunho() {
-  try { localStorage.removeItem(CHAVE_RASCUNHO) } catch { /* idem */ }
+function gravarRascunho(usuarioId: string, r: Rascunho) {
+  try { localStorage.setItem(chaveRascunho(usuarioId, r.origem), JSON.stringify(r)) } catch { /* idem */ }
 }
 
-export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onEnviado }: {
+function apagarRascunho(usuarioId: string, origem: string) {
+  try { localStorage.removeItem(chaveRascunho(usuarioId, origem)) } catch { /* idem */ }
+}
+
+export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, onClose, onEnviado }: {
   lojas: LojaOption[]
   lojaPadrao: string | null
+  usuarioId: string
   onClose: () => void
   onEnviado: (transferId: string) => void
 }) {
@@ -95,6 +126,14 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
   const [erro, setErro]       = useState<string | null>(null)
   const [ultimo, setUltimo]   = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  /*
+   * Depois do envio que deu certo, o botão não volta. Entre o `finally`
+   * soltar o `enviando` e o modal fechar havia uma janela em que um segundo
+   * clique mandava a caixa inteira de novo — e o envio ainda não é idempotente.
+   * O ref cobre o duplo clique antes mesmo de o React re-renderizar.
+   */
+  const [enviado, setEnviado] = useState(false)
+  const travaEnvio = useRef(false)
 
   /*
    * `restaurando` existe para o efeito que GRAVA não passar na frente do que
@@ -111,6 +150,10 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
 
   // Guarda o instante da última leitura de cada código, para filtrar repetição.
   const ultimaLeitura = useRef<Map<string, number>>(new Map())
+  /* Cópia da lista para o `registrar` consultar sem virar dependência dele
+     (o leitor re-registraria o callback a cada bipe). */
+  const linhasRef = useRef<Linha[]>([])
+  useEffect(() => { linhasRef.current = linhas }, [linhas])
 
   /*
    * O bipe entra por aqui venha do leitor ou da digitação. Uma função só,
@@ -125,12 +168,34 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
 
     const agora = Date.now()
     const anterior = ultimaLeitura.current.get(cod) ?? 0
-    if (agora - anterior < MS_LEITURA_DUPLA) return
+    if (agora - anterior < MS_LEITURA_DUPLA) {
+      /*
+       * Ignorar em silêncio só é seguro para peça de uma unidade. Com duas ou
+       * mais, ela pode ter bipado DUAS peças iguais em sequência rápida — e a
+       * segunda sumia sem aviso, indo uma a menos na caixa.
+       */
+      const naLista = linhasRef.current.find(l => l.barcode_number === cod)
+      if (naLista && naLista.quantity_in_stock > 1) {
+        setErro('Leitura repetida ignorada — se são duas peças, bipe de novo.')
+      }
+      return
+    }
     ultimaLeitura.current.set(cod, agora)
 
     setErro(null)
 
-    const r = await buscarPecaPorCodigo(cod, origem)
+    /* Sem o try, falha de rede rejeitava dentro do leitor: nenhum aviso e a
+       peça fora da lista, com ela achando que bipou. A busca só LÊ — bipar de
+       novo é seguro, por isso a leitura é liberada para o mesmo código. */
+    let r: Awaited<ReturnType<typeof buscarPecaPorCodigo>>
+    try {
+      r = await buscarPecaPorCodigo(cod, origem)
+    } catch (e) {
+      ultimaLeitura.current.delete(cod)
+      setUltimo(null)
+      setErro(`ESTA PEÇA NÃO ENTROU NA LISTA (${cod}) — BIPE DE NOVO. ${mensagemDeErroAoSalvar(e, { temRascunho: true })}`)
+      return
+    }
     if (!r.success) { setErro(r.error); setUltimo(null); return }
 
     setLinhas(atual => {
@@ -148,7 +213,7 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
     setUltimo(`${r.peca.name} · ${r.peca.barcode_number}`)
   }, [origem])
 
-  useBarcodeScanner({ onScan: registrar, ativo: !enviando })
+  useBarcodeScanner({ onScan: registrar, ativo: !enviando && !enviado })
 
   useEffect(() => { campoRef.current?.focus() }, [])
 
@@ -161,52 +226,77 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
    * bipado a caixa toda. Por isso a lista volta pelo que o servidor confirma,
    * e o que caiu fora é contado e dito na tela.
    */
-  useEffect(() => {
-    let vivo = true
-    ;(async () => {
-      /* A leitura mora aqui dentro, e não no corpo do efeito, por dois motivos:
-         `localStorage` fica fora do caminho síncrono de render, e o estado só é
-         tocado de dentro de uma função — que é o que a regra
-         react-hooks/set-state-in-effect pede. */
-      const r = lerRascunho()
-      // Rascunho de outra loja não serve para quem tem loja fixa.
-      if (!r || (origemTravada && r.origem !== origem)) { if (vivo) setRestaurando(false); return }
+  /*
+   * Contador de restaurações: a leitura é assíncrona e o modal pode fechar (ou
+   * a origem mudar) no meio dela. Só a mais recente pode tocar o estado.
+   */
+  const restauracaoAtual = useRef(0)
 
-      const res = await revalidarRascunho(r.linhas.map(l => l.id), r.origem)
-      if (!vivo) return
+  async function restaurar(origemAlvo: string) {
+    const minha = ++restauracaoAtual.current
+    const vivo = () => restauracaoAtual.current === minha
 
-      if (!res.success) {
-        // Falhou a reconferência: não apaga o rascunho nem mostra lista velha.
-        // Ela tenta de novo abrindo a tela; o trabalho continua guardado.
-        //
-        // A trava é necessária: sem ela, o efeito que GRAVA veria a lista vazia
-        // logo em seguida e apagaria o rascunho — o comentário acima prometia
-        // uma coisa e o código fazia a outra (achado na revisão de 16/09).
-        rascunhoTravado.current = true
-        setErro('Não consegui reconferir o romaneio guardado. Feche e abra a tela de novo.')
-        setRestaurando(false)
-        return
-      }
+    /* Cede a vez antes de tocar o estado: chamada da abertura do modal, esta
+       função roda dentro de um efeito, e setState síncrono ali é o que a regra
+       react-hooks/set-state-in-effect proíbe (render em cascata). */
+    await Promise.resolve()
+    if (!vivo()) return
 
-      const atuais = new Map(res.pecas.map(p => [p.id, p]))
-      const vivas = r.linhas.flatMap(l => {
-        const p = atuais.get(l.id)
-        if (!p) return []
-        // Saldo pode ter caído desde o bipe — a quantidade acompanha.
-        return [{ ...p, quantidade: Math.min(l.quantidade, p.quantity_in_stock) }]
-      })
+    const r = lerRascunho(usuarioId, origemAlvo)
+    if (!r) { if (vivo()) setRestaurando(false); return }
 
-      if (!vivas.length) { apagarRascunho(); setRestaurando(false); return }
+    /*
+     * Falha AQUI (rede, sessão, deploy) é tratada igual ao `success: false`:
+     * antes, a promise rejeitava, `restaurando` ficava true para sempre e o
+     * efeito que grava nunca mais rodava — tudo que ela bipasse depois se
+     * perdia ao fechar a tela, que é o bug que o rascunho veio corrigir.
+     */
+    let res: Awaited<ReturnType<typeof revalidarRascunho>> | null = null
+    let falha: string | null = null
+    try {
+      res = await revalidarRascunho(r.linhas.map(l => l.id), r.origem)
+    } catch (e) {
+      falha = mensagemDeErroAoSalvar(e, { temRascunho: true })
+    }
+    if (!vivo()) return
 
-      setOrigem(r.origem)
-      setDestino(r.destino)
-      setObs(r.obs)
-      setLinhas(vivas)
-      setRetomado({ quando: r.salvoEm, perdidas: r.linhas.length - vivas.length })
+    if (!res || !res.success) {
+      // Falhou a reconferência: não apaga o rascunho nem mostra lista velha.
+      // Ela tenta de novo abrindo a tela; o trabalho continua guardado.
+      //
+      // A trava é necessária: sem ela, o efeito que GRAVA veria a lista vazia
+      // logo em seguida e apagaria o rascunho — o comentário acima prometia
+      // uma coisa e o código fazia a outra (achado na revisão de 16/09).
+      rascunhoTravado.current = true
+      setErro(falha ?? 'Não consegui reconferir o romaneio guardado. Feche e abra a tela de novo.')
       setRestaurando(false)
-    })()
+      return
+    }
 
-    return () => { vivo = false }
+    const atuais = new Map(res.pecas.map(p => [p.id, p]))
+    const vivas = r.linhas.flatMap(l => {
+      const p = atuais.get(l.id)
+      if (!p) return []
+      // Saldo pode ter caído desde o bipe — a quantidade acompanha.
+      return [{ ...p, quantidade: Math.min(l.quantidade, p.quantity_in_stock) }]
+    })
+
+    if (!vivas.length) { apagarRascunho(usuarioId, r.origem); setRestaurando(false); return }
+
+    setDestino(r.destino)
+    setObs(r.obs)
+    setLinhas(vivas)
+    setRetomado({ quando: r.salvoEm, perdidas: r.linhas.length - vivas.length })
+    setRestaurando(false)
+  }
+
+  useEffect(() => {
+    /* A leitura mora dentro de uma função assíncrona, e não no corpo do efeito:
+       `localStorage` fica fora do caminho síncrono de render. */
+    ;(async () => { await restaurar(origem) })()
+    // Fechar o modal invalida a restauração em voo (ver `restauracaoAtual`).
+    const contador = restauracaoAtual
+    return () => { contador.current++ }
     // Roda uma vez, na abertura do modal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -218,14 +308,17 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
     // Nem apagar nem sobrescrever — bipar uma peça agora trocaria a caixa inteira
     // guardada por essa peça só. Destrava ao reabrir a tela ou ao Descartar.
     if (rascunhoTravado.current) return
-    if (!linhas.length) { apagarRascunho(); return }
-    gravarRascunho({ origem, destino, obs, linhas, salvoEm: new Date().toISOString() })
-  }, [linhas, origem, destino, obs, restaurando])
+    if (enviado) return
+    // A chave é da ORIGEM atual: lista vazia aqui só apaga o rascunho desta
+    // loja, nunca o de outra.
+    if (!linhas.length) { apagarRascunho(usuarioId, origem); return }
+    gravarRascunho(usuarioId, { origem, destino, obs, linhas, salvoEm: new Date().toISOString() })
+  }, [linhas, origem, destino, obs, restaurando, enviado, usuarioId])
 
   /* Sair da tela NÃO descarta. Só este botão descarta. */
   function descartarRascunho() {
     rascunhoTravado.current = false
-    apagarRascunho()
+    apagarRascunho(usuarioId, origem)
     setLinhas([])
     setRetomado(null)
     setErro(null)
@@ -242,6 +335,13 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
    * do banco recusaria, mas só depois de a pessoa ter bipado a caixa inteira.
    */
   function trocarOrigem(nova: string) {
+    /*
+     * O rascunho da origem anterior fica guardado na chave dela — não é
+     * apagado. E a origem nova traz o SEU rascunho, se houver: trocar de loja
+     * e voltar não pode custar a caixa bipada.
+     */
+    rascunhoTravado.current = false
+    setRestaurando(true)
     setOrigem(nova)
     setLinhas([])
     setRetomado(null)
@@ -249,6 +349,7 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
     setUltimo(null)
     ultimaLeitura.current.clear()
     if (nova === destino) setDestino(lojas.find(l => l.id !== nova)?.id ?? '')
+    void restaurar(nova)
   }
 
   function ajustar(id: string, delta: number) {
@@ -266,6 +367,8 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
   const venda = linhas.reduce((s, l) => s + l.sale_price * l.quantidade, 0)
 
   async function enviar() {
+    if (travaEnvio.current) return
+    travaEnvio.current = true
     setEnviando(true)
     setErro(null)
 
@@ -282,17 +385,22 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
         // pra montar, envia, e já cai no estoque de destino. Sem bipar na chegada.
         autoReceber: true,
       })
+      if (r.success) setEnviado(true)
     } catch (e) {
-      setErro(mensagemDeErroAoSalvar(e))
+      /* Erro sem resposta pode ter enviado. A mensagem manda conferir a lista
+         antes de reenviar — reenviar às cegas duplicaria a caixa inteira. O
+         rascunho fica: se não foi, ela não perdeu nada. */
+      travaEnvio.current = false
+      setErro(mensagemDeErroAoSalvar(e, { temRascunho: true }))
       return
     } finally {
       setEnviando(false)
     }
 
-    if (!r.success) { setErro(r.error ?? 'Erro ao enviar.'); return }
+    if (!r.success) { travaEnvio.current = false; setErro(r.error ?? 'Erro ao enviar.'); return }
 
     // Só aqui o rascunho morre: o romaneio existe no banco, não se perde mais.
-    apagarRascunho()
+    apagarRascunho(usuarioId, origem)
     router.refresh()
     onEnviado(r.transfer_id!)
   }
@@ -458,7 +566,7 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, onClose, onE
           </div>
           <div className={styles.acoes}>
             <Button variant="ghost" onClick={onClose} disabled={enviando}>Cancelar</Button>
-            <Button onClick={enviar} loading={enviando} disabled={linhas.length === 0 || !destino}>
+            <Button onClick={enviar} loading={enviando} disabled={linhas.length === 0 || !destino || enviado}>
               Enviar e dar entrada
             </Button>
           </div>

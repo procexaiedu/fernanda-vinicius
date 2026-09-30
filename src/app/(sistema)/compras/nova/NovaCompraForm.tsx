@@ -8,6 +8,7 @@ import DatePicker from '@/components/ui/DatePicker'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 import { salvarCompra, getItensCompraParaEtiquetas } from '../actions'
+import { novoIdDeRequisicao } from '@/lib/idempotencia'
 import type { GridRow, PaymentRow } from '../actions'
 import { validatePaymentGroups } from '@/lib/compras/validate-payments'
 import { generateCode as buildCode } from '@/lib/productCode'
@@ -17,6 +18,8 @@ import { excluirFornecedorRapido, excluirCategoriaRapida, excluirMaterialRapido 
 import styles from './NovaCompraForm.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
+import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
+import { mensagemConsignacaoMisturada } from '@/lib/compras/consignacao'
 
 // ─── Tipos de props ────────────────────────────────────────────────────────────
 
@@ -35,6 +38,8 @@ interface Props {
   categories:       string[]
   materials:        string[]
   defaultMarkupPct: number
+  /** Dono do rascunho local — ver `chaveDoRascunho`. */
+  userId:           string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -43,6 +48,9 @@ function generateCode(initials: string, month: number, costPrice: number): strin
   if (!initials || !month || !costPrice) return ''
   return buildCode(initials, month, costPrice)
 }
+
+/** Chave de comparação de fornecedor — a mesma no servidor e na tela. */
+const chaveFornecedor = normalizarNomeFornecedor
 
 function suggestInitials(name: string): string {
   return name.trim().split(/\s+/).map(w => w[0] ?? '').join('').toUpperCase().slice(0, 2)
@@ -75,6 +83,11 @@ function today() {
  * de uma vez por natureza — parcelar ali seria oferecer o que não existe.
  */
 const PARCELAVEL = new Set<PaymentRow['method']>(['credit', 'check'])
+
+/** Algum pagamento do grupo já tem valor ou situação digitados? */
+function pagamentosPreenchidos(ps: PaymentRow[] | undefined): boolean {
+  return !!ps?.some(p => (p.totalAmount || 0) > 0 || p.status !== '')
+}
 
 function emptyPayment(): PaymentRow {
   return {
@@ -113,7 +126,24 @@ function emptyRow(defaultStoreId: string): FormRow {
 
 // ─── Rascunho automático (localStorage) ─────────────────────────────────────────
 
-const DRAFT_KEY = 'fv:nova-compra:draft:v1'
+/*
+ * O RASCUNHO É POR USUÁRIO.
+ *
+ * A chave era uma só por navegador: no notebook da loja, quem abrisse "Nova
+ * Compra" herdava o rascunho de outra pessoa — e, ao salvar ou descartar,
+ * apagava o dela. Agora a chave leva o id de quem está logado.
+ *
+ * A chave ANTIGA continua sendo LIDA como reserva, e isso não é opcional:
+ * existe um rascunho de consignação de 47 linhas, não salvo, gravado nela no
+ * notebook da dona. Se a chave nova estiver vazia, o rascunho antigo é
+ * carregado e passa a ser gravado na chave nova; a antiga só é apagada quando
+ * ESSE rascunho for salvo como compra ou descartado de propósito.
+ */
+const DRAFT_KEY_ANTIGA = 'fv:nova-compra:draft:v1'
+
+function chaveDoRascunho(userId: string): string {
+  return userId ? `${DRAFT_KEY_ANTIGA}:${userId}` : DRAFT_KEY_ANTIGA
+}
 
 interface CompraDraft {
   v: 1
@@ -126,6 +156,21 @@ interface CompraDraft {
   rows: FormRow[]
   supplierPayments: Record<string, PaymentRow[]>
   supplierNFs: Record<string, { nfNumber: string; nfUrl: string; uploading: boolean }>
+  /** Opcional: rascunhos gravados antes de 30/09 não têm o campo. */
+  supplierDescontos?: Record<string, number>
+  /**
+   * O id desta compra para o servidor reconhecer um reenvio — ver
+   * `clientRequestId` em compras/actions.ts. Opcional: rascunhos anteriores
+   * (inclusive o de 47 linhas na chave antiga) não têm, e ganham um novo.
+   */
+  clientRequestId?: string
+  /**
+   * Este rascunho nasceu da chave ANTIGA. Sem a marca, bastava um F5 depois de
+   * recuperá-lo (aí ele já vem da chave do usuário) para a tela esquecer a
+   * origem — e salvar a compra deixava o rascunho antigo para trás, oferecendo
+   * de novo uma compra que já existe.
+   */
+  daChaveAntiga?: boolean
 }
 
 function rowHasContent(r: FormRow): boolean {
@@ -513,7 +558,7 @@ function StoreSelect({ value, onChange, stores }: {
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-export default function NovaCompraForm({ suppliers: initialSuppliers, stores, products, categories: initialCategories, materials: initialMaterials, defaultMarkupPct }: Props) {
+export default function NovaCompraForm({ suppliers: initialSuppliers, stores, products, categories: initialCategories, materials: initialMaterials, defaultMarkupPct, userId }: Props) {
   const router = useRouter()
   const defaultStoreId = stores.find(s => s.name.toLowerCase().includes('campinas'))?.id ?? stores[0]?.id ?? ''
 
@@ -563,6 +608,11 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
   const supplierGroups = useMemo(() => {
     const map = new Map<string, { groupKey: string; supplierName: string; subtotal: number }>()
     for (const row of rows) {
+      /* Só as linhas que VÃO para o servidor (com nome de produto — ver
+         `validRows`). Antes contava também linha sem produto, que o salvar
+         descarta: o subtotal da tela e o do servidor divergiam, e a compra era
+         recusada com pagamento "a mais" que a tela dizia estar certo. */
+      if (!row.productName.trim()) continue
       if (!row.supplierName.trim() || !row.costPrice) continue
       const key = row.supplierId ?? row.supplierName.trim().toLowerCase()
       const existing = map.get(key)
@@ -608,15 +658,38 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
   const [supplierNFs, setSupplierNFs] = useState<Record<string, { nfNumber: string; nfUrl: string; uploading: boolean }>>({})
   const nfInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
-  // Sincronizar pagamentos e NFs quando os grupos mudam
+  /*
+   * Sincronizar pagamentos e NFs quando os grupos mudam.
+   *
+   * NÃO APAGA MAIS O GRUPO QUE SAIU. O `groupKey` é o id do fornecedor quando a
+   * linha está ligada ao cadastro e o nome digitado quando não está — então
+   * apagar uma letra do fornecedor trocava a chave, e os pagamentos já
+   * digitados daquele fornecedor sumiam em silêncio. Religando (redigitar a
+   * letra), a chave voltava, mas os pagamentos não.
+   *
+   * Agora o grupo que sai fica guardado no estado (a tela e o salvar só olham
+   * os grupos ativos, então ele não aparece nem vai para o banco) e reaparece
+   * intacto quando a chave volta. E se exatamente UMA chave saiu e UMA entrou
+   * — o caso de só o vínculo ter mudado —, o que estava digitado migra para a
+   * chave nova, desde que ela ainda esteja em branco.
+   */
+  const chavesAnteriores = useRef<string[] | null>(null)
+
   useEffect(() => {
-    const activeKeys = new Set(supplierGroups.map(g => g.groupKey))
+    const atuais = supplierGroups.map(g => g.groupKey)
+    const activeKeys = new Set(atuais)
+    const antes = chavesAnteriores.current
+    chavesAnteriores.current = atuais
+
+    const saiu   = antes ? antes.filter(k => !activeKeys.has(k)) : []
+    const entrou = antes ? atuais.filter(k => !antes.includes(k)) : []
+    const migrar = saiu.length === 1 && entrou.length === 1 ? { de: saiu[0], para: entrou[0] } : null
 
     setSupplierPayments(prev => {
       let changed = false
       const next = { ...prev }
-      for (const key of Object.keys(next)) {
-        if (!activeKeys.has(key)) { delete next[key]; changed = true }
+      if (migrar && prev[migrar.de] && !pagamentosPreenchidos(prev[migrar.para])) {
+        next[migrar.para] = prev[migrar.de]; changed = true
       }
       for (const key of activeKeys) {
         // Já abre uma linha de pagamento para o fornecedor. Antes nascia vazio
@@ -630,18 +703,48 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
     setSupplierNFs(prev => {
       let changed = false
       const next = { ...prev }
-      for (const key of Object.keys(next)) {
-        if (!activeKeys.has(key)) { delete next[key]; changed = true }
+      if (migrar && prev[migrar.de] && !prev[migrar.para]?.nfNumber && !prev[migrar.para]?.nfUrl) {
+        next[migrar.para] = prev[migrar.de]; changed = true
       }
       for (const key of activeKeys) {
         if (!next[key]) { next[key] = { nfNumber: '', nfUrl: '', uploading: false }; changed = true }
       }
       return changed ? next : prev
     })
+
+    if (migrar) {
+      setSupplierDescontos(prev =>
+        prev[migrar.de] && !prev[migrar.para] ? { ...prev, [migrar.para]: prev[migrar.de] } : prev
+      )
+    }
   }, [supplierGroups])
 
   // Estado
   const [saving, setSaving]           = useState(false)
+  /*
+   * Trava síncrona do envio. `saving` só desabilita o botão no próximo render,
+   * e depois de salvar o `finally` o liberava ANTES de buscar as etiquetas —
+   * uma janela em que um segundo clique criava a compra de novo. O ref muda na
+   * hora e, depois de um salvamento com sucesso, NÃO volta: a compra já existe,
+   * reenviar só duplicaria.
+   */
+  const envioTravado = useRef(false)
+  /** Depois do sucesso o autosave não pode regravar o rascunho da compra já salva. */
+  const compraSalva = useRef(false)
+  /*
+   * O id DESTA compra, o mesmo em todo reenvio.
+   *
+   * Se a resposta do salvamento se perde, ela clica de novo — ou recarrega e
+   * recupera o rascunho — e antes a compra entrava duas vezes. Com o id no
+   * rascunho, o servidor reconhece a compra que já gravou e devolve a mesma.
+   * Nasce na primeira vez que é pedido; só troca quando a compra grava ou o
+   * rascunho é descartado (aí é outra compra).
+   */
+  const idDaCompra = useRef<string | null>(null)
+  function idDaCompraAtual(): string {
+    if (!idDaCompra.current) idDaCompra.current = novoIdDeRequisicao()
+    return idDaCompra.current
+  }
   const [error, setError]             = useState('')
   const [printerOpen, setPrinterOpen] = useState(false)
   const [printerItems, setPrinterItems] = useState<EtiquetasPrinterItem[]>([])
@@ -650,12 +753,31 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
   const [draftLoaded, setDraftLoaded]       = useState(false)
   const [draftRecovered, setDraftRecovered] = useState(false)
 
-  function clearDraft() {
-    try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
+  const draftKey = chaveDoRascunho(userId)
+  /** O rascunho desta tela veio da chave antiga (sem usuário)? Ver DRAFT_KEY_ANTIGA. */
+  const veioDaChaveAntiga = useRef(false)
+
+  /*
+   * A chave ANTIGA só sai quando a compra que veio DELA é SALVA
+   * (`compraSalva`). Descarte, limpar a grade ou o autosave com a tela vazia
+   * apagam só a chave do usuário: um clique errado em "Descartar" no notebook
+   * da dona levava junto o rascunho de 47 linhas, que não existe em nenhum
+   * outro lugar. Se ela descartar, ele volta ao abrir de novo — incômodo, mas
+   * recuperável; o contrário não é.
+   */
+  function clearDraft({ compraSalva: salva = false }: { compraSalva?: boolean } = {}) {
+    try {
+      localStorage.removeItem(draftKey)
+      if (salva && veioDaChaveAntiga.current) localStorage.removeItem(DRAFT_KEY_ANTIGA)
+    } catch { /* ignore */ }
+    /* Salvou, descartou ou esvaziou: o que está na tela deixou de ser a compra
+     * da chave antiga — salvar OUTRA compra depois não pode apagá-la. */
+    veioDaChaveAntiga.current = false
   }
 
   function discardDraft() {
     clearDraft()
+    idDaCompra.current = null   // descartou: o que vier agora é outra compra
     setPurchaseDate(today())
     setNotes('')
     setIsConsignment(false)
@@ -664,13 +786,18 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
     setRows([emptyRow(defaultStoreId)])
     setSupplierPayments({})
     setSupplierNFs({})
+    setSupplierDescontos({})
     setDraftRecovered(false)
   }
 
   // Carrega o rascunho ao montar (pós-hidratação, evita mismatch SSR)
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(DRAFT_KEY)
+      let raw = localStorage.getItem(draftKey)
+      if (!raw && draftKey !== DRAFT_KEY_ANTIGA) {
+        raw = localStorage.getItem(DRAFT_KEY_ANTIGA)
+        if (raw) veioDaChaveAntiga.current = true
+      }
       if (raw) {
         const d = JSON.parse(raw) as CompraDraft
         if (d && d.v === 1 && Array.isArray(d.rows) && draftIsMeaningful(d)) {
@@ -686,9 +813,17 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
             nfs[k] = { nfNumber: v.nfNumber ?? '', nfUrl: v.nfUrl ?? '', uploading: false }
           }
           setSupplierNFs(nfs)
+          setSupplierDescontos(d.supplierDescontos || {})
+          /* Recuperou o rascunho: continua com o id DELE. É exatamente o caso
+           * "salvou, a resposta se perdeu, ela recarregou" — com o mesmo id o
+           * servidor devolve a compra que já existe em vez de criar outra. */
+          if (typeof d.clientRequestId === 'string' && d.clientRequestId) idDaCompra.current = d.clientRequestId
+          if (d.daChaveAntiga) veioDaChaveAntiga.current = true
           setDraftRecovered(true)
-        } else {
-          localStorage.removeItem(DRAFT_KEY)
+        } else if (!veioDaChaveAntiga.current) {
+          // Rascunho vazio/corrompido na chave DESTE usuário: pode sair. O da
+          // chave antiga não é apagado aqui — ele pode ser de outra pessoa.
+          localStorage.removeItem(draftKey)
         }
       }
     } catch { /* rascunho corrompido — ignora */ }
@@ -701,19 +836,31 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
     if (!draftLoaded) return
     if (!draftIsMeaningful({ rows, notes })) {
       clearDraft()
+      /* Grade esvaziada é outra compra. Sem trocar o id, a próxima compra
+       * lançada nesta tela ia com o id de uma já salva (ou abandonada), e o
+       * servidor a confundia com um reenvio. */
+      idDaCompra.current = null
       return
     }
     const t = setTimeout(() => {
+      // Um autosave agendado logo antes do clique ressuscitaria o rascunho de
+      // uma compra que já existe — e ela a salvaria de novo amanhã.
+      if (compraSalva.current) return
       const draft: CompraDraft = {
         v: 1,
         savedAt: Date.now(),
         purchaseDate, notes, isConsignment, returnDeadline, minPurchasePct,
-        rows, supplierPayments, supplierNFs,
+        rows, supplierPayments, supplierNFs, supplierDescontos,
+        clientRequestId: idDaCompraAtual(),
+        daChaveAntiga: veioDaChaveAntiga.current || undefined,
       }
-      try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)) } catch { /* quota/privado — ignora */ }
+      try { localStorage.setItem(draftKey, JSON.stringify(draft)) } catch { /* quota/privado — ignora */ }
     }, 600)
     return () => clearTimeout(t)
-  }, [draftLoaded, rows, notes, purchaseDate, isConsignment, returnDeadline, minPurchasePct, supplierPayments, supplierNFs])
+    // `clearDraft` é recriada a cada render e só depende de `draftKey`, que já
+    // está na lista — incluí-la faria o autosave rodar em todo render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftLoaded, draftKey, rows, notes, purchaseDate, isConsignment, returnDeadline, minPurchasePct, supplierPayments, supplierNFs, supplierDescontos])
 
   const purchaseMonth = parseInt(purchaseDate.slice(5, 7)) || new Date().getMonth() + 1
 
@@ -740,12 +887,43 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
     }
   }
 
+  /*
+   * Cada tecla no campo de fornecedor chega aqui com `supplier = null` — o
+   * combobox não sabe se o texto ainda é o de um cadastro. Antes isso
+   * desligava a linha do cadastro e trocava as iniciais pelas sugeridas: ao
+   * corrigir uma letra de "Santa Prata", a linha virava fornecedor NOVO e o
+   * salvar criava um "Santa Prata" duplicado, com código de peça diferente.
+   *
+   * Agora, se o texto bate (nome normalizado) com EXATAMENTE UM fornecedor
+   * cadastrado, a linha continua ligada a ele e com as iniciais DELE. O texto
+   * digitado fica como está no campo — trocar pelo nome do cadastro no meio da
+   * digitação comeria o espaço que ela acabou de teclar.
+   */
   function handleSupplierSelect(index: number, name: string, supplier: SupplierOption | null) {
     if (supplier) {
       updateRow(index, { supplierId: supplier.id, supplierName: supplier.name, supplierInitials: supplier.initials })
-    } else {
-      updateRow(index, { supplierId: null, supplierName: name, supplierInitials: suggestInitials(name) })
+      return
     }
+
+    const chave = chaveFornecedor(name)
+    const iguais = chave ? suppliers.filter(s => chaveFornecedor(s.name) === chave) : []
+    if (iguais.length === 1) {
+      updateRow(index, { supplierId: iguais[0].id, supplierName: name, supplierInitials: iguais[0].initials })
+      return
+    }
+
+    /* Fornecedor novo: sugere iniciais só se as atuais eram automáticas (vazias,
+       sugeridas do nome anterior, ou do cadastro que acabou de se desligar).
+       Iniciais que ela digitou à mão não são sobrescritas a cada tecla. */
+    const atual = rows[index]
+    const eramAutomaticas = !atual.supplierInitials.trim()
+      || !!atual.supplierId
+      || atual.supplierInitials === suggestInitials(atual.supplierName)
+    updateRow(index, {
+      supplierId: null,
+      supplierName: name,
+      ...(eramAutomaticas ? { supplierInitials: suggestInitials(name) } : {}),
+    })
   }
 
   function handleCostChange(index: number, cost: number) {
@@ -891,6 +1069,16 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
 
     if (isConsignment && !returnDeadline) { setError('Informe o prazo de devolução da consignação.'); return }
 
+    /* O lote consignado tem um fornecedor e uma loja. Misturar virava um lote
+       só, no nome do primeiro fornecedor. O servidor barra também. */
+    if (isConsignment) {
+      const fornecedores = new Set(validRows.map(r => chaveFornecedor(r.supplierName)))
+      const lojas        = new Set(validRows.map(r => r.storeId))
+      if (fornecedores.size > 1 || lojas.size > 1) {
+        setError(mensagemConsignacaoMisturada(validRows, id => stores.find(s => s.id === id)?.name)); return
+      }
+    }
+
     if (!isConsignment) {
       if (supplierGroups.length === 0) { setError('Adicione itens com custo antes de salvar.'); return }
 
@@ -920,6 +1108,8 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
       }
     }
 
+    if (envioTravado.current) return
+    envioTravado.current = true
     setSaving(true)
 
     /*
@@ -947,37 +1137,76 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
         isConsignment,
         returnDeadline,
         minPurchasePct: minPurchasePct ? parseFloat(minPurchasePct) : null,
+        clientRequestId: idDaCompraAtual(),
       })
     } catch (e) {
       // Rascunho INTACTO de propósito: o `clearDraft()` só roda no sucesso, lá
       // embaixo. Falhou, ela recarrega a página e recupera tudo que digitou.
       setError(mensagemDeErroAoSalvar(e, { temRascunho: true }))
-      return
-    } finally {
+      envioTravado.current = false
       setSaving(false)
+      return
     }
 
-    if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
+    if (!result.success) {
+      /* O id já era de OUTRA compra (o servidor não gravou nada): troca por um
+       * novo, na tela e no rascunho, para que o próximo clique — ou o F5 que a
+       * mensagem pede — lance esta compra em vez de bater no mesmo erro. */
+      if (result.idReusado) {
+        idDaCompra.current = novoIdDeRequisicao()
+        try {
+          const raw = localStorage.getItem(draftKey)
+          if (raw) localStorage.setItem(draftKey, JSON.stringify({ ...JSON.parse(raw), clientRequestId: idDaCompra.current }))
+        } catch { /* sem rascunho legível — o id novo da tela já basta */ }
+      }
+      setError(result.error ?? 'Erro ao salvar.')
+      envioTravado.current = false
+      setSaving(false)
+      return
+    }
+
+    /*
+     * SALVOU: daqui em diante o botão fica travado de vez (`saving` continua
+     * true e o ref não é solto). Antes o `finally` liberava o botão antes da
+     * busca de etiquetas, e um clique nessa janela criava a compra de novo.
+     */
 
     // Compra salva de verdade — descarta o rascunho local
-    clearDraft()
+    compraSalva.current = true
+    clearDraft({ compraSalva: true })
+    idDaCompra.current = null   // a próxima compra (se esta tela continuar) é outra
 
     // Compra criada — oferece imprimir etiquetas antes de redirecionar
     if (result.purchaseId) {
-      const itens = await getItensCompraParaEtiquetas(result.purchaseId)
-      if (itens.length > 0) {
-        setPrinterItems(itens.map(it => ({
-          id: it.id,
-          name: it.name,
-          supplier_reference: it.supplier_reference,
-          sale_price: it.sale_price,
-          barcode_number: it.barcode_number,
-          label_format: it.label_format,
-          quantity: it.quantity,
-        })))
-        setPrinterOpen(true)
+      /*
+       * A busca das etiquetas pode falhar (rede, deploy). A compra JÁ ESTÁ
+       * salva: o que não pode acontecer é o erro escapar, o botão voltar e ela
+       * salvar de novo. Então avisa no lugar de erro da tela e segue para a
+       * lista, de onde a etiqueta se reimprime pelo botão da própria compra.
+       * Lista vazia também é falha: compra salva sempre tem peça.
+       */
+      let itens: Awaited<ReturnType<typeof getItensCompraParaEtiquetas>> = []
+      try {
+        itens = await getItensCompraParaEtiquetas(result.purchaseId)
+      } catch {
+        itens = []
+      }
+      if (itens.length === 0) {
+        setError('A COMPRA FOI SALVA, mas não consegui abrir as etiquetas. Imprima pela lista de Compras (botão de etiqueta da compra). Indo para a lista…')
+        setTimeout(() => { router.push('/compras'); router.refresh() }, 4000)
         return
       }
+      setPrinterItems(itens.map(it => ({
+        id: it.id,
+        name: it.name,
+        supplier_reference: it.supplier_reference,
+        sale_price: it.sale_price,
+        barcode_number: it.barcode_number,
+        label_format: it.label_format,
+        quantity: it.quantity,
+      })))
+      setPrinterOpen(true)
+      return
     }
 
     router.push('/compras')

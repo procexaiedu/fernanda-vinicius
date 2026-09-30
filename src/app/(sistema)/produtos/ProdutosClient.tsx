@@ -18,6 +18,7 @@ import type { ProductWithRelations, StoreOption, SupplierOption } from './page'
 import Paginacao from '@/components/ui/Paginacao'
 import ThOrdenavel from '@/components/ui/ThOrdenavel'
 import { useOrdenacao } from '@/hooks/useOrdenacao'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 import { usePaginacaoServidor } from '@/hooks/usePaginacaoServidor'
 import styles from './ProdutosClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
@@ -235,13 +236,29 @@ export default function ProdutosClient({
     e.stopPropagation(); setDetalhe(null); setEditing(prod); setFormOpen(true)
   }
 
+  /*
+   * O resultado da action era ignorado: sem permissão ou com sessão caída a
+   * peça simplesmente não mudava, sem aviso; e um erro de rede deixava o
+   * `togglingId` preso, com a linha girando para sempre. A mensagem vai no
+   * aviso que a barra já tem (o do bipe) — sem elemento novo na tela.
+   */
+  async function alternarStatus(id: string, ativo: boolean) {
+    setTogglingId(id)
+    try {
+      const r = await toggleProductStatus(id, ativo)
+      if (!r.success) { setBipInfo({ ok: false, msg: r.error ?? 'Não foi possível alterar o status da peça.' }); return }
+      router.refresh()
+    } catch (err) {
+      setBipInfo({ ok: false, msg: mensagemDeErroAoSalvar(err) })
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
   async function handleToggle(prod: ProductWithRelations, e: React.MouseEvent) {
     e.stopPropagation()
     if (!prod.is_active) {
-      setTogglingId(prod.id)
-      await toggleProductStatus(prod.id, true)
-      setTogglingId(null)
-      router.refresh()
+      await alternarStatus(prod.id, true)
       return
     }
     setConfirmDeactivateId(prod.id)
@@ -249,10 +266,8 @@ export default function ProdutosClient({
 
   async function confirmDeactivate(id: string, e: React.MouseEvent) {
     e.stopPropagation()
-    setTogglingId(id); setConfirmDeactivateId(null)
-    await toggleProductStatus(id, false)
-    setTogglingId(null)
-    router.refresh()
+    setConfirmDeactivateId(null)
+    await alternarStatus(id, false)
   }
 
   const copyCode = useCallback((code: string, e: React.MouseEvent) => {

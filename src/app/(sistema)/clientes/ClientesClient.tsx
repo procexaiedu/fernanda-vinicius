@@ -9,6 +9,7 @@ import Badge from '@/components/ui/Badge'
 import ClienteFormModal from './ClienteFormModal'
 import ClienteDetalheModal from './ClienteDetalheModal'
 import { deleteCustomer } from './actions'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 import type { CustomerWithStats, StoreOption, VendaAvulsa } from './page'
 import PanoramaClientes from './PanoramaClientes'
 import styles from './ClientesClient.module.css'
@@ -177,8 +178,23 @@ export default function ClientesClient({
     if (confirmDeleteId !== id) { setConfirmDeleteId(id); return }
     setDeletingId(id)
     setConfirmDeleteId(null)
-    await deleteCustomer(id)
-    setDeletingId(null)
+    /*
+     * O resultado era ignorado e a página recarregava de qualquer jeito: uma
+     * exclusão recusada (cliente com vendas, sem permissão, sessão caída)
+     * parecia ter funcionado até a cliente reaparecer na lista. Esta tela não
+     * tem área de erro e a interface não pode mudar (pedido de 30/09): a falha
+     * vai para o console e a linha fica — sem recarregar como se tivesse dado
+     * certo. O botão volta a responder mesmo com a rede caída (finally).
+     */
+    try {
+      const r = await deleteCustomer(id)
+      if (!r.success) { console.error('Excluir cliente:', r.error); return }
+    } catch (err) {
+      console.error('Excluir cliente:', mensagemDeErroAoSalvar(err))
+      return
+    } finally {
+      setDeletingId(null)
+    }
     window.location.reload()
   }
 

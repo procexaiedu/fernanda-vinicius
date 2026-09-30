@@ -21,6 +21,17 @@
 /** A mensagem que a versão nova do sistema derruba a página antiga. */
 const SISTEMA_ATUALIZADO = /server action|failed to find server action|was not found on the server/i
 
+/*
+ * O que o proxy (src/proxy.ts) responde a um "Salvar" sem sessão válida. Os
+ * textos são a mensagem do erro que chega aqui — mantenha as regex batendo.
+ */
+export const MSG_SESSAO_EXPIRADA = 'Sua sessão expirou.'
+export const MSG_AUTH_INSTAVEL = 'O login está instável no servidor.'
+const SESSAO_EXPIRADA = /sess[aã]o expirou/i
+const AUTH_INSTAVEL = /login est[aá] inst[aá]vel/i
+/* Resposta que não é da ação (HTML no lugar do payload do Next). */
+const RESPOSTA_INESPERADA = /unexpected response was received from the server/i
+
 /** Rede caiu, servidor reiniciando, timeout. */
 const SEM_RESPOSTA = /failed to fetch|networkerror|load failed|timeout|aborted/i
 
@@ -52,11 +63,42 @@ export function mensagemDeErroAoSalvar(
         + 'ANOTE O QUE ESTÁ NA TELA ANTES DE RECARREGAR (F5) — RECARREGAR AGORA APAGA ESTA VENDA.'
   }
 
+  /*
+   * Sessão vencida: F5 mandaria para /login e, sem rascunho, apagaria a tela.
+   * Entrar em OUTRA aba renova o cookie que esta aba também usa — ela volta
+   * aqui e clica em Salvar com tudo preenchido.
+   */
+  /*
+   * Resposta que não veio do Next: com o proxy tratando sessão, hoje isso é
+   * quase sempre o gateway sem o app — o "Update the service" do Portainer
+   * derruba o container por 3 a 5 min. A action nem chegou a rodar.
+   */
+  if (RESPOSTA_INESPERADA.test(bruto)) {
+    return 'O SISTEMA ESTÁ REINICIANDO (ATUALIZAÇÃO). ESPERE 1 OU 2 MINUTOS E CLIQUE EM SALVAR DE NOVO — '
+      + 'SE PEDIR LOGIN, ENTRE EM OUTRA ABA E VOLTE AQUI. '
+      + (comRascunho ? 'SEU RASCUNHO ESTÁ GUARDADO.' : 'NÃO RECARREGUE ESTA PÁGINA, O QUE VOCÊ DIGITOU CONTINUA AQUI.')
+  }
+
+  if (SESSAO_EXPIRADA.test(bruto)) {
+    return 'SUA SESSÃO EXPIROU. ABRA O SISTEMA EM OUTRA ABA (CTRL+T), ENTRE COM SEU LOGIN '
+      + 'E VOLTE AQUI PARA CLICAR EM SALVAR DE NOVO — '
+      + (comRascunho ? 'SEU RASCUNHO ESTÁ GUARDADO.' : 'NÃO RECARREGUE ESTA PÁGINA, O QUE VOCÊ DIGITOU CONTINUA AQUI.')
+  }
+
+  if (AUTH_INSTAVEL.test(bruto)) {
+    return 'O SERVIDOR DE LOGIN FALHOU POR UM INSTANTE. ESPERE ALGUNS SEGUNDOS E CLIQUE EM SALVAR DE NOVO — '
+      + (comRascunho ? 'SEU RASCUNHO ESTÁ GUARDADO.' : 'NÃO RECARREGUE A PÁGINA.')
+  }
+
+  /*
+   * Sem resposta NÃO quer dizer que não gravou: o servidor pode ter terminado
+   * e a resposta se perdido no caminho. Mandar "clique de novo" sem conferir
+   * duplicava venda/compra inteira — o salvamento ainda não é idempotente.
+   */
   if (SEM_RESPOSTA.test(bruto)) {
-    return comRascunho
-      ? 'O SERVIDOR NÃO RESPONDEU. CONFIRA A INTERNET E TENTE DE NOVO — SEU RASCUNHO ESTÁ GUARDADO.'
-      : 'O SERVIDOR NÃO RESPONDEU. CONFIRA A INTERNET E CLIQUE EM SALVAR DE NOVO — '
-        + 'NÃO RECARREGUE A PÁGINA, O QUE VOCÊ DIGITOU CONTINUA AQUI.'
+    return 'O SERVIDOR NÃO RESPONDEU A TEMPO — PODE TER SALVO OU NÃO. '
+      + 'ABRA A LISTA EM OUTRA ABA E CONFIRA SE JÁ APARECE ANTES DE CLICAR EM SALVAR DE NOVO — '
+      + (comRascunho ? 'SEU RASCUNHO ESTÁ GUARDADO.' : 'NÃO RECARREGUE ESTA PÁGINA, O QUE VOCÊ DIGITOU CONTINUA AQUI.')
   }
 
   /* Erro que não sabemos traduzir: mostra o original, mas sempre com a parte

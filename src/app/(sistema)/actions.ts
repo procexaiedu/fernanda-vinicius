@@ -303,6 +303,15 @@ export async function buscarKpis(
 
   const [receitaRes, despesaRes, salesRes, exchRes] = await Promise.all([receitaQ, despesaQ, salesQ, exchQ])
 
+  /*
+   * Falha de consulta NÃO é R$ 0. Com `data ?? []`, um soluço do banco virava
+   * receita zerada, ou despesa zerada e o "disponível para compra" inflado —
+   * número com cara de legítimo, na tela onde a dona decide quanto gastar em
+   * SP. Melhor o painel falhar à vista do que mentir.
+   */
+  const falhaKpi = receitaRes.error ?? despesaRes.error ?? salesRes.error ?? exchRes.error
+  if (falhaKpi) throw new Error(`Não foi possível calcular os indicadores: ${falhaKpi.message}`)
+
   const receitaBruta = (receitaRes.data ?? []).reduce((s: number, t: any) => s + Number(t.amount), 0)
 
   /*
@@ -807,22 +816,46 @@ export async function buscarCobrancasDoDia(storeId: string | null): Promise<Aler
 
   let q = admin
     .from('sales')
-    .select('id, total, previsao_pagamento, store_id, clients(name)')
+    /* Era `clients(name)`: a tabela é `customers`. O PostgREST respondia
+       "relação não encontrada", o erro caía no `return []` abaixo e o card
+       dizia "Ninguém prometeu pagar hoje" — todo dia, com dívida vencida. */
+    .select('id, total, previsao_pagamento, store_id, customers(name)')
     .not('previsao_pagamento', 'is', null)
     .lte('previsao_pagamento', hoje)
     .neq('status', 'cancelled')
     .order('previsao_pagamento', { ascending: true })
   if (storeId) q = q.eq('store_id', storeId)
 
+  /*
+   * Toda falha daqui LANÇA. As duas saídas silenciosas são ruins: lista vazia
+   * esconde quem deve, e — pior — pagamento que não carregou vira a venda
+   * inteira "em aberto", e a loja liga cobrando cliente que já pagou.
+   */
   const { data: vendas, error } = await q
-  if (error || !vendas?.length) return []
+  if (error) throw new Error(`Não foi possível carregar as cobranças: ${error.message}`)
+  if (!vendas?.length) return []
 
+  /* Em blocos: a lista cresce com o tempo (atrasada não sai) e `.in()` com
+     centenas de ids estoura a URL — ver CLAUDE.md, armadilhas do PostgREST. */
   const ids = vendas.map(v => v.id)
-  const { data: pagamentos } = await admin
-    .from('sale_payments').select('sale_id, amount').in('sale_id', ids)
+  const blocos: string[][] = []
+  for (let i = 0; i < ids.length; i += 200) blocos.push(ids.slice(i, i + 200))
+
+  const pagamentos: { sale_id: string; amount: number }[] = []
+  const trocas: { id: string; sale_id: string | null }[] = []
+  for (const bloco of blocos) {
+    const [pagRes, trocaRes] = await Promise.all([
+      admin.from('sale_payments').select('sale_id, amount').in('sale_id', bloco),
+      admin.from('exchanges').select('id, sale_id').in('sale_id', bloco),
+    ])
+    if (pagRes.error)   throw new Error(`Não foi possível carregar os pagamentos: ${pagRes.error.message}`)
+    if (trocaRes.error) throw new Error(`Não foi possível carregar as trocas: ${trocaRes.error.message}`)
+    pagamentos.push(...(pagRes.data ?? []))
+    trocas.push(...(trocaRes.data ?? []))
+  }
 
   const pagoPorVenda = new Map<string, number>()
-  for (const p of pagamentos ?? []) {
+  for (const p of pagamentos) {
     pagoPorVenda.set(p.sale_id, (pagoPorVenda.get(p.sale_id) ?? 0) + Number(p.amount))
   }
 
@@ -837,22 +870,25 @@ export async function buscarCobrancasDoDia(storeId: string | null): Promise<Aler
    * acontecido em 01/09 na tela de venda. Um aviso de cobrança que chama a
    * cliente por uma dívida quitada é pior que não avisar.
    */
-  const { data: trocas } = await admin
-    .from('exchanges').select('id, sale_id').in('sale_id', ids)
-
+  // `trocas` já veio junto com os pagamentos, nos mesmos blocos, lá em cima.
   const creditoPorVenda = new Map<string, number>()
-  const trocaIds = (trocas ?? []).map(t => t.id)
+  const trocaIds = trocas.map(t => t.id)
   if (trocaIds.length) {
-    const { data: devolvidos } = await admin
-      .from('exchange_items')
-      .select('exchange_id, quantity, unit_price')
-      .in('exchange_id', trocaIds)
-      .eq('direction', 'returned')
+    const devolvidos: { exchange_id: string; quantity: number; unit_price: number }[] = []
+    for (let i = 0; i < trocaIds.length; i += 200) {
+      const { data: lote, error: erroDev } = await admin
+        .from('exchange_items')
+        .select('exchange_id, quantity, unit_price')
+        .in('exchange_id', trocaIds.slice(i, i + 200))
+        .eq('direction', 'returned')
+      if (erroDev) throw new Error(`Não foi possível carregar as devoluções: ${erroDev.message}`)
+      devolvidos.push(...(lote ?? []))
+    }
 
     const vendaPorTroca = new Map<string, string>()
-    for (const t of trocas ?? []) if (t.sale_id) vendaPorTroca.set(t.id, t.sale_id)
+    for (const t of trocas) if (t.sale_id) vendaPorTroca.set(t.id, t.sale_id)
 
-    for (const it of devolvidos ?? []) {
+    for (const it of devolvidos) {
       const vendaId = vendaPorTroca.get(it.exchange_id)
       if (!vendaId) continue
       creditoPorVenda.set(
@@ -870,7 +906,7 @@ export async function buscarCobrancasDoDia(storeId: string | null): Promise<Aler
       const falta = parseFloat((
         Number(v.total) - (pagoPorVenda.get(v.id) ?? 0) - (creditoPorVenda.get(v.id) ?? 0)
       ).toFixed(2))
-      const cliente = (Array.isArray(v.clients) ? v.clients[0] : v.clients)?.name
+      const cliente = (Array.isArray(v.customers) ? v.customers[0] : v.customers)?.name
       return {
         sale_id:  v.id,
         cliente:  cliente ?? 'Sem cliente',

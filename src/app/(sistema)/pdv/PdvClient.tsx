@@ -39,11 +39,13 @@ export default function PdvClient({
    *
    * Por isso este painel FICA até alguém fechar ou até a próxima venda.
    */
-  const [ultimaVenda, setUltimaVenda] = useState<{ id: string } | null>(null)
+  /* `aviso`: a venda gravou com pendência (estoque/pagamento). O form remonta
+   * para a próxima cliente, então a mensagem mora aqui, no painel que fica. */
+  const [ultimaVenda, setUltimaVenda] = useState<{ id: string; aviso?: string } | null>(null)
   const [caixa, setCaixa]     = useState<CaixaData>(initialCaixa)
 
-  async function handleSaved(saleId: string) {
-    setUltimaVenda(saleId ? { id: saleId } : null)
+  async function handleSaved(saleId: string, aviso?: string) {
+    setUltimaVenda(saleId ? { id: saleId, aviso } : null)
     setSaleKey(k => k + 1)                                  // reseta o form p/ a próxima venda
     setCaixa(await buscarCaixaDoDia(caixa.storeId, date))   // atualiza o caixa do dia
   }
@@ -95,7 +97,7 @@ export default function PdvClient({
       </main>
 
       {ultimaVenda && (
-        <PainelNota saleId={ultimaVenda.id} onFechar={() => setUltimaVenda(null)} />
+        <PainelNota key={ultimaVenda.id} saleId={ultimaVenda.id} aviso={ultimaVenda.aviso} onFechar={() => setUltimaVenda(null)} />
       )}
     </div>
   )
@@ -114,7 +116,7 @@ export default function PdvClient({
  * que sumia em 2,2s. A NFC-e tem 5 minutos de janela: se a barra some antes de
  * a cliente pedir, a nota não sai mais na hora e vira problema do dia seguinte.
  */
-function PainelNota({ saleId, onFechar }: { saleId: string; onFechar: () => void }) {
+function PainelNota({ saleId, aviso, onFechar }: { saleId: string; aviso?: string; onFechar: () => void }) {
   const [estado, setEstado] = useState<'pronta' | 'emitindo' | 'ok' | 'erro'>('pronta')
   /*
    * A loja desta venda emite nota?
@@ -196,6 +198,10 @@ function PainelNota({ saleId, onFechar }: { saleId: string; onFechar: () => void
           )}
         </div>
       )}
+
+      {/* Venda gravada com pendência: o mesmo quadro de erro do painel, sem o
+          "Tentar de novo" — não há o que repetir, e salvar de novo duplicaria. */}
+      {aviso && <div className={styles.painelErro}>{aviso}</div>}
 
       {estado === 'erro' && (
         <div className={styles.painelErro}>

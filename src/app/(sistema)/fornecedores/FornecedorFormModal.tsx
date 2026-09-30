@@ -13,6 +13,7 @@ import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
 import { mascararCep } from '@/lib/cep'
 import { useCep } from '@/hooks/useCep'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 interface NominatimResult {
   display_name: string
@@ -270,10 +271,20 @@ export default function FornecedorFormModal({ supplier, allInitials, onClose }: 
     if (!validate()) return
     setIsSubmitting(true)
     setActionError(null)
-    const result = supplier
-      ? await updateSupplier(supplier.id, form)
-      : await createSupplier(form)
-    setIsSubmitting(false)
+    /* try/finally: sem ele, uma falha de rede, um deploy no meio ou a sessão
+     * caída deixam o botão girando para sempre e sem mensagem. Ver
+     * src/lib/erroDeSalvar.ts. */
+    let result: Awaited<ReturnType<typeof createSupplier>>
+    try {
+      result = supplier
+        ? await updateSupplier(supplier.id, form)
+        : await createSupplier(form)
+    } catch (err) {
+      setActionError(mensagemDeErroAoSalvar(err))
+      return
+    } finally {
+      setIsSubmitting(false)
+    }
     if (!result.success) { setActionError(result.error ?? 'Erro ao salvar.'); return }
     onClose()
     window.location.reload()

@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
-import { requireProfile } from '@/lib/auth'
+import { requireProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import SessaoClient from './SessaoClient'
 
@@ -20,25 +20,37 @@ export default async function SessaoPage({ params }: PageProps) {
   const profile = await requireProfile()
   const admin = createAdminClient()
 
-  const { data: sessao } = await admin
+  const { data: sessao, error: erroSessao } = await admin
     .from('inventory_sessions')
     .select('id, store_id, scope_type, scope_value, status, started_at, closed_at, totals, scope_product_ids, users!user_id(full_name), stores!store_id(name)')
     .eq('id', id)
     .maybeSingle()
 
+  // Falha de leitura não é 404: "não encontrada" mandaria abrir outra sessão.
+  if (erroSessao) throw new Error(`Não foi possível carregar a conferência: ${erroSessao.message}`)
   if (!sessao) notFound()
-  if (profile.role !== 'admin' && sessao.store_id !== profile.store_id) redirect('/estoque/conferencia')
+  /*
+   * Era `role !== 'admin' && ...`: qualquer admin abria sessão de qualquer loja
+   * — a Eleandra (admin de Brasília) via e bipava na contagem de Campinas.
+   * Mesma regra das ações: quem está numa loja só abre sessão dela.
+   */
+  const loja = lojaDoEscopo(profile)
+  if (loja && sessao.store_id !== loja) redirect('/estoque/conferencia')
 
   /*
    * Só os bipes. A quantidade esperada de cada peça NÃO vai para o navegador
    * enquanto a contagem está aberta — ver `carregarReconciliacao` em actions.ts.
    */
-  const { data: scans } = await admin
+  const { data: scans, error: erroBipes } = await admin
     .from('inventory_scans')
     .select('id, barcode_number, product_id, scanned_at, produto:products!product_id(name, code)')
     .eq('session_id', id)
     .order('scanned_at', { ascending: false })
     .limit(500)
+
+  /* A tela manda conferir a lista depois de um bipe incerto (F5). Lista vazia
+     por falha de leitura diria "não entrou" e o rebipe viraria sobra falsa. */
+  if (erroBipes) throw new Error(`Não foi possível carregar os bipes: ${erroBipes.message}`)
 
   const bipes = (scans ?? []).map(s => {
     const p = (s as { produto: unknown }).produto
@@ -51,10 +63,11 @@ export default async function SessaoPage({ params }: PageProps) {
     }
   }) as BipeRegistrado[]
 
-  const { count: totalBipes } = await admin
+  const { count: totalBipes, error: erroTotal } = await admin
     .from('inventory_scans')
     .select('id', { count: 'exact', head: true })
     .eq('session_id', id)
+  if (erroTotal) throw new Error(`Não foi possível contar os bipes: ${erroTotal.message}`)
 
   const escopo = (sessao.scope_product_ids ?? []) as string[]
   const stores = sessao.stores as unknown

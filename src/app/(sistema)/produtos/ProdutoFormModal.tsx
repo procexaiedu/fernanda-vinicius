@@ -147,6 +147,22 @@ export default function ProdutoFormModal({ product, suppliers, stores, categorie
     if (!costPrice || parseFloat(costPrice) <= 0) { setError('Custo é obrigatório.'); return }
     if (!salePrice || parseFloat(salePrice) <= 0) { setError('Preço de venda é obrigatório.'); return }
 
+    /*
+     * `parseInt(qty) || 1` gravava 1 quando ela zerava a peça: 0 é falsy. Campo
+     * vazio ou inválido agora é erro, não um palpite.
+     */
+    const qtdDigitada = Number(qty)
+    if (qty.trim() === '' || !Number.isInteger(qtdDigitada) || qtdDigitada < 0) {
+      setError('Quantidade em estoque inválida.'); return
+    }
+    /*
+     * Na edição, o estoque só vai se ela mexeu no número — e vai junto o saldo
+     * que a tela mostrava ao abrir, para o servidor recusar se houve venda ou
+     * transferência no meio. Sem isso, salvar o nome da peça desfazia a venda.
+     */
+    const qtdOriginal = product?.quantity_in_stock ?? 0
+    const enviaEstoque = !isEditing || qtdDigitada !== qtdOriginal
+
     const data = {
       name, category, material,
       supplier_id: supplierId,
@@ -154,7 +170,8 @@ export default function ProdutoFormModal({ product, suppliers, stores, categorie
       cost_price: parseFloat(costPrice),
       sale_price: parseFloat(salePrice),
       promotional_price: promoPrice ? parseFloat(promoPrice) : null,
-      quantity_in_stock: parseInt(qty) || 1,
+      quantity_in_stock: enviaEstoque ? qtdDigitada : undefined,
+      quantity_in_stock_original: isEditing && enviaEstoque ? qtdOriginal : undefined,
       ownership_type: ownership,
       purchase_month: parseInt(month),
       purchase_year: parseInt(year),
@@ -174,7 +191,13 @@ export default function ProdutoFormModal({ product, suppliers, stores, categorie
       setSaving(false)
     }
 
-    if (!result.success) { setError(result.error ?? 'Erro ao salvar.'); return }
+    if (!result.success) {
+      setError(result.error ?? 'Erro ao salvar.')
+      /* O saldo "original" vem da lista carregada com a página. Sem atualizá-la,
+       * reabrir a peça traria o mesmo número velho e a recusa se repetiria. */
+      if (result.estoqueMudou) router.refresh()
+      return
+    }
     router.refresh()
     onClose()
   }

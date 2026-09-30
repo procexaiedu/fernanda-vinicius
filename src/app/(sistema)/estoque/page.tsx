@@ -52,8 +52,16 @@ export default async function EstoquePage({ searchParams }: PageProps) {
   if (effectiveStoreId) query = query.eq('store_id', effectiveStoreId)
   if (params.qty_zero !== 'true') query = query.gt('quantity_in_stock', 0)
   if (params.q) {
+    /*
+     * O termo vai ENTRE ASPAS dentro do `.or()`. Cru, uma vírgula ou um
+     * parêntese digitado ("anel, ouro", "brinco (par)") quebrava a sintaxe do
+     * filtro do PostgREST: a consulta falhava e — com o erro engolido — a tela
+     * dizia que o estoque estava vazio. Dentro das aspas só `"` e `\` precisam
+     * de escape.
+     */
     const q = params.q.trim()
-    query = query.or(`name.ilike.%${q}%,code.ilike.%${q}%,barcode_number.ilike.%${q}%`)
+    const padrao = `"%${q.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}%"`
+    query = query.or(`name.ilike.${padrao},code.ilike.${padrao},barcode_number.ilike.${padrao}`)
   }
   if (params.category) query = query.eq('category', params.category)
   if (params.material) query = query.eq('material', params.material)
@@ -65,6 +73,9 @@ export default async function EstoquePage({ searchParams }: PageProps) {
     podeTrocarLoja ? admin.from('stores').select('id, name').order('name') : Promise.resolve({ data: [] }),
     admin.from('settings').select('value').eq('key', 'stale_product_days').maybeSingle(),
   ])
+
+  /* Falha é falha: lista vazia aqui diria "sem estoque" com a gaveta cheia. */
+  if (productsRes.error) throw new Error(`Não foi possível carregar o estoque: ${productsRes.error.message}`)
 
   const products = (productsRes.data ?? []) as ProductWithRelations[]
   const total = productsRes.count ?? 0

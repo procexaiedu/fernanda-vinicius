@@ -232,12 +232,13 @@ export async function registrarAcerto(dados: {
 
   const admin = createAdminClient()
 
-  const { data: lote } = await admin
+  const { data: lote, error: loteErr } = await admin
     .from('consignments')
     .select('id, store_id, status, total_cost_value, suppliers(name)')
     .eq('id', dados.consignmentId)
-    .single()
+    .maybeSingle()
 
+  if (loteErr) return { success: false, error: `Não foi possível ler a consignação: ${loteErr.message}` }
   if (!lote) return { success: false, error: 'Consignação não encontrada.' }
   if (!(await podeMexer((lote as any).store_id))) {
     return { success: false, error: 'Esta consignação é de outra loja.' }
@@ -247,12 +248,6 @@ export async function registrarAcerto(dados: {
   if (!Number.isFinite(valor) || valor <= 0) return { success: false, error: 'Informe o valor do acerto.' }
   if (!dados.data) return { success: false, error: 'Informe a data do acerto.' }
 
-  // Quanto já foi pago — recalculado no servidor, nunca vindo da tela.
-  const { data: jaFeitos, error: erroJaFeitos } = await admin
-    .from('consignment_acertos').select('amount').eq('consignment_id', dados.consignmentId)
-  // Falha lida como "nada pago ainda" deixaria pagar o lote duas vezes.
-  if (erroJaFeitos) return { success: false, error: `Não foi possível conferir os acertos: ${erroJaFeitos.message}` }
-  const acertado = (jaFeitos ?? []).reduce((s: number, a: any) => s + Number(a.amount), 0)
   const total = Number((lote as any).total_cost_value)
   /* Peça devolvida não se paga. Sem descontar aqui, o teto do acerto continuaria
      sendo o lote inteiro e ela conseguiria pagar por peça que já voltou. */
@@ -263,6 +258,18 @@ export async function registrarAcerto(dados: {
     // Sem saber o que voltou, não há teto confiável: melhor não aceitar o acerto.
     return { success: false, error: (e as Error).message }
   }
+
+  /*
+   * Quanto já foi pago — recalculado no servidor, nunca vindo da tela, e lido
+   * POR ÚLTIMO, imediatamente antes de gravar. Antes era lido antes das
+   * devoluções (duas consultas a mais de distância), o que alargava a janela
+   * em que um segundo clique lia o mesmo saldo e pagava o lote duas vezes.
+   */
+  const { data: jaFeitos, error: erroJaFeitos } = await admin
+    .from('consignment_acertos').select('amount').eq('consignment_id', dados.consignmentId)
+  // Falha lida como "nada pago ainda" deixaria pagar o lote duas vezes.
+  if (erroJaFeitos) return { success: false, error: `Não foi possível conferir os acertos: ${erroJaFeitos.message}` }
+  const acertado = (jaFeitos ?? []).reduce((s: number, a: any) => s + Number(a.amount), 0)
   const falta = Math.max(0, total - devolvido - acertado)
 
   /*
@@ -298,7 +305,7 @@ export async function registrarAcerto(dados: {
 
   if (txErr || !tx) return { success: false, error: `Erro ao lançar a despesa: ${txErr?.message}` }
 
-  const { error: acErr } = await admin.from('consignment_acertos').insert({
+  const { data: acerto, error: acErr } = await admin.from('consignment_acertos').insert({
     consignment_id: dados.consignmentId,
     acerto_date: dados.data,
     amount: valor,
@@ -306,12 +313,42 @@ export async function registrarAcerto(dados: {
     notes: dados.observacao?.trim() || null,
     transaction_id: tx.id,
     user_id: perfil.id,
-  })
+  }).select('id').single()
 
-  if (acErr) {
+  if (acErr || !acerto) {
     // A despesa já entrou: desfaz, senão sobra lançamento sem acerto por trás.
-    await admin.from('transactions').delete().eq('id', tx.id)
-    return { success: false, error: `Erro ao registrar o acerto: ${acErr.message}` }
+    const { error: desfazErr } = await admin.from('transactions').delete().eq('id', tx.id)
+    return {
+      success: false,
+      error: desfazErr
+        ? `Erro ao registrar o acerto: ${acErr?.message}. ATENÇÃO: a despesa de R$ ${valor.toFixed(2).replace('.', ',')} ficou no financeiro sem acerto — apague-a lá antes de tentar de novo.`
+        : `Erro ao registrar o acerto: ${acErr?.message}`,
+    }
+  }
+
+  /*
+   * CONFERÊNCIA DEPOIS DE GRAVAR.
+   *
+   * Sem transação, dois acertos simultâneos (duplo clique, duas abas) podem
+   * ter lido o mesmo saldo lá em cima e passado os dois. Relendo agora, com o
+   * próprio acerto já dentro da soma, o excesso aparece — e este acerto é
+   * desfeito. No pior caso os dois se desfazem e ela registra de novo; o que
+   * não acontece mais é pagar o lote duas vezes.
+   */
+  const { data: depois, error: depoisErr } = await admin
+    .from('consignment_acertos').select('amount').eq('consignment_id', dados.consignmentId)
+  if (!depoisErr && depois) {
+    const somaDepois = depois.reduce((s: number, a: any) => s + Number(a.amount), 0)
+    if (emCentavos(somaDepois) > emCentavos(total - devolvido) + 1) {
+      const { error: e1 } = await admin.from('consignment_acertos').delete().eq('id', acerto.id)
+      const { error: e2 } = e1 ? { error: null } : await admin.from('transactions').delete().eq('id', tx.id)
+      return {
+        success: false,
+        error: e1 || e2
+          ? 'Outro acerto foi registrado ao mesmo tempo e este passou do saldo, mas não consegui desfazê-lo. Confira os acertos e o financeiro deste lote.'
+          : 'Outro acerto foi registrado ao mesmo tempo neste lote. Este não foi gravado — confira o saldo e registre de novo se ainda faltar.',
+      }
+    }
   }
 
   await fecharSeQuitou(dados.consignmentId)
@@ -328,24 +365,66 @@ export async function removerAcerto(acertoId: string): Promise<ResultadoAcerto> 
 
   const admin = createAdminClient()
 
-  const { data: acerto } = await admin
+  const { data: acerto, error: lerErr } = await admin
     .from('consignment_acertos')
-    .select('id, consignment_id, transaction_id, consignments(store_id)')
+    .select('id, consignment_id, acerto_date, amount, payment_method, notes, transaction_id, user_id, consignments(store_id)')
     .eq('id', acertoId)
-    .single()
+    .maybeSingle()
 
-  if (!acerto) return { success: false, error: 'Acerto não encontrado.' }
-  if (!(await podeMexer((acerto as any).consignments?.store_id ?? null))) {
+  if (lerErr) return { success: false, error: `Não foi possível ler o acerto: ${lerErr.message}` }
+  if (!acerto) return { success: false, error: 'Acerto não encontrado — ele pode já ter sido removido. Atualize a tela.' }
+  const ac = acerto as unknown as {
+    id: string; consignment_id: string; acerto_date: string; amount: number
+    payment_method: string | null; notes: string | null; transaction_id: string | null
+    user_id: string | null; consignments: { store_id: string | null } | null
+  }
+  if (!(await podeMexer(ac.consignments?.store_id ?? null))) {
     return { success: false, error: 'Esta consignação é de outra loja.' }
   }
 
-  await admin.from('consignment_acertos').delete().eq('id', acertoId)
-  if ((acerto as any).transaction_id) {
-    await admin.from('transactions').delete().eq('id', (acerto as any).transaction_id)
+  /*
+   * ORDEM: acerto primeiro, despesa depois — e o acerto volta se a despesa
+   * não sair.
+   *
+   * Antes as duas exclusões ignoravam erro. Se só uma saísse, o lote e o
+   * financeiro passavam a contar histórias diferentes: acerto sem despesa
+   * (o lote se dizia pago e o financeiro não tinha a saída) ou despesa sem
+   * acerto. Apagar a despesa antes também não serve: a FK é `ON DELETE SET
+   * NULL`, então o acerto ficaria de pé, órfão, abatendo o saldo do lote.
+   *
+   * Então: apaga o acerto; se a despesa falhar, recoloca o acerto como era
+   * (mesmo id) e diz que nada mudou. Só se até a recolocação falhar é que a
+   * mensagem pede para apagar a despesa à mão — com o valor, para achar.
+   */
+  const { error: delAcErr } = await admin.from('consignment_acertos').delete().eq('id', acertoId)
+  if (delAcErr) return { success: false, error: `Não foi possível remover o acerto: ${delAcErr.message}. Nada foi alterado.` }
+
+  const txId = ac.transaction_id
+  if (txId) {
+    const { error: delTxErr } = await admin.from('transactions').delete().eq('id', txId)
+    if (delTxErr) {
+      const { error: voltaErr } = await admin.from('consignment_acertos').insert({
+        id: ac.id,
+        consignment_id: ac.consignment_id,
+        acerto_date: ac.acerto_date,
+        amount: ac.amount,
+        payment_method: ac.payment_method,
+        notes: ac.notes,
+        transaction_id: txId,
+        user_id: ac.user_id,
+      })
+      const valorTxt = Number(ac.amount).toFixed(2).replace('.', ',')
+      return {
+        success: false,
+        error: voltaErr
+          ? `O acerto foi removido, mas a despesa de R$ ${valorTxt} continua no financeiro (${delTxErr.message}). Apague-a no Financeiro.`
+          : `Não foi possível remover a despesa do acerto: ${delTxErr.message}. Nada foi alterado; tente de novo.`,
+      }
+    }
   }
 
   // Desfazer um acerto pode reabrir um lote que estava fechado.
-  await fecharSeQuitou((acerto as any).consignment_id)
+  await fecharSeQuitou(ac.consignment_id)
 
   revalidatePath('/compras')
   revalidatePath('/financeiro')

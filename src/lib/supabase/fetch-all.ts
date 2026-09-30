@@ -26,8 +26,24 @@ export async function fetchAll<T>(
   const todas: T[] = []
 
   for (let de = 0; ; de += tamanhoPagina) {
-    const { data, error } = await consulta(de, de + tamanhoPagina - 1)
-    if (error) break
+    let { data, error } = await consulta(de, de + tamanhoPagina - 1)
+    /*
+     * Uma segunda tentativa antes de desistir. Quem chama isto é o catálogo do
+     * PDV: um soluço de rede ali derrubaria a tela de venda com a cliente no
+     * balcão. A consulta é leitura pura — repetir não tem efeito colateral.
+     */
+    if (error) ({ data, error } = await consulta(de, de + tamanhoPagina - 1))
+    /*
+     * Era `break`: a falha na página 2 devolvia as 1.000 primeiras como se
+     * fossem o catálogo inteiro — exatamente o corte silencioso que esta
+     * função existe para acabar. Falha na página 1 devolvia catálogo VAZIO.
+     * Lista pela metade com cara de completa é pior que erro: quem chama
+     * decide o que mostrar, mas não recebe mentira.
+     */
+    if (error) {
+      const msg = (error as { message?: string }).message ?? String(error)
+      throw new Error(`Falha ao carregar a lista (a partir da linha ${de}): ${msg}`)
+    }
     const lote = data ?? []
     todas.push(...lote)
     // Lote menor que a página = chegou ao fim. Evita uma requisição extra vazia.

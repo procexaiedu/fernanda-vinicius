@@ -110,11 +110,72 @@ export async function deletarFornecedor(id: string): Promise<ActionResult> {
 
   const admin = createAdminClient()
 
-  // Desvincula produtos (nulla supplier_id) antes de deletar
-  await admin.from('products').update({ supplier_id: null }).eq('supplier_id', id)
+  /*
+   * Checa ANTES de escrever qualquer coisa.
+   *
+   * Antes a ordem era: tirar o fornecedor de todas as peças (sem olhar o erro)
+   * e só então tentar o delete — que falha pela FK quando há compra, pagamento
+   * ou consignação. Resultado: o fornecedor continuava lá e as peças dele
+   * ficavam sem fornecedor, com o código e o relatório por fornecedor quebrados.
+   *
+   * Fornecedor com histórico financeiro não se exclui: se inativa (o botão já
+   * existe na lista), que é reversível e mantém as compras rastreáveis.
+   */
+  const vinculos = [
+    ['purchases',         'compras lançadas'],
+    ['purchase_payments', 'pagamentos de compra'],
+    ['consignments',      'consignações'],
+  ] as const
+  for (const [tabela, rotulo] of vinculos) {
+    const { count, error } = await admin
+      .from(tabela)
+      .select('id', { count: 'exact', head: true })
+      .eq('supplier_id', id)
+    if (error) {
+      return { success: false, error: `Não foi possível conferir ${rotulo} do fornecedor: ${error.message}. Nada foi excluído.` }
+    }
+    if ((count ?? 0) > 0) {
+      return {
+        success: false,
+        error: `Este fornecedor tem ${rotulo} (${count}) — inative em vez de excluir, para não perder o histórico.`,
+      }
+    }
+  }
+
+  // Desvincula as peças (supplier_id é nullable). Guarda quais eram para
+  // devolver o vínculo se o delete ainda assim falhar.
+  const { data: desvinculadas, error: erroDesvincular } = await admin
+    .from('products')
+    .update({ supplier_id: null })
+    .eq('supplier_id', id)
+    .select('id')
+  if (erroDesvincular) {
+    return { success: false, error: `Não foi possível desvincular as peças: ${erroDesvincular.message}. Nada foi excluído.` }
+  }
 
   const { error } = await admin.from('suppliers').delete().eq('id', id)
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    /*
+     * Alguma referência que a checagem não cobre segurou o delete. Devolve o
+     * fornecedor às peças em vez de deixá-las órfãs. Em blocos: `.in()` vai na
+     * URL e estoura a partir de ~500 ids.
+     */
+    const ids = (desvinculadas ?? []).map(p => p.id as string)
+    for (let de = 0; de < ids.length; de += 150) {
+      const { error: erroVolta } = await admin
+        .from('products')
+        .update({ supplier_id: id })
+        .in('id', ids.slice(de, de + 150))
+      if (erroVolta) {
+        return {
+          success: false,
+          error: `O fornecedor não pôde ser excluído (${error.message}) e parte das peças ficou sem fornecedor: `
+               + `${erroVolta.message}. Avise o suporte.`,
+        }
+      }
+    }
+    return { success: false, error: `Não foi possível excluir o fornecedor: ${error.message}. Considere inativá-lo.` }
+  }
 
   revalidatePath('/fornecedores')
   return { success: true }
@@ -175,24 +236,51 @@ export async function buscarFornecedoresDuplicados(): Promise<FornecedorDuplicad
 
   const admin = createAdminClient()
 
-  const [fornRes, prodRes, compRes, consRes] = await Promise.all([
-    admin.from('suppliers').select('id, name, initials, is_active, created_at').order('created_at'),
-    admin.from('products').select('supplier_id'),
-    admin.from('purchases').select('supplier_id'),
-    admin.from('consignments').select('supplier_id'),
+  /*
+   * Lê TUDO, em blocos de 1000. Sem paginar, `products` passa do teto do
+   * PostgREST (5.000 no self-hosted) e o lote volta curto SEM erro — a contagem
+   * de peças sai menor e a tela sugere manter o cadastro errado. Erro lança:
+   * uma contagem zerada por falha de rede é pior que nenhuma contagem.
+   */
+  const BLOCO = 1000
+  async function lerTudo<T>(
+    rotulo: string,
+    pagina: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  ): Promise<T[]> {
+    const tudo: T[] = []
+    for (let de = 0; ; de += BLOCO) {
+      const { data, error } = await pagina(de, de + BLOCO - 1)
+      if (error) throw new Error(`Não foi possível ler ${rotulo}: ${error.message}`)
+      const lote = data ?? []
+      tudo.push(...lote)
+      if (lote.length < BLOCO) return tudo
+    }
+  }
+
+  type Ref = { supplier_id: string | null }
+  // `order('id')` dá ordem estável entre as páginas; sem ela o range pode repetir ou pular linha.
+  const [fornecedores, produtos, compras, consignacoes] = await Promise.all([
+    lerTudo<{ id: string; name: string; initials: string; is_active: boolean; created_at: string }>(
+      'os fornecedores',
+      (de, ate) => admin.from('suppliers').select('id, name, initials, is_active, created_at')
+        .order('created_at').order('id').range(de, ate),
+    ),
+    lerTudo<Ref>('as peças', (de, ate) => admin.from('products').select('supplier_id').order('id').range(de, ate)),
+    lerTudo<Ref>('as compras', (de, ate) => admin.from('purchases').select('supplier_id').order('id').range(de, ate)),
+    lerTudo<Ref>('as consignações', (de, ate) => admin.from('consignments').select('supplier_id').order('id').range(de, ate)),
   ])
 
-  const conta = (linhas: Array<{ supplier_id: string | null }> | null) => {
+  const conta = (linhas: Ref[]) => {
     const m = new Map<string, number>()
-    for (const l of linhas ?? []) {
+    for (const l of linhas) {
       if (l.supplier_id) m.set(l.supplier_id, (m.get(l.supplier_id) ?? 0) + 1)
     }
     return m
   }
-  const nProd = conta(prodRes.data), nComp = conta(compRes.data), nCons = conta(consRes.data)
+  const nProd = conta(produtos), nComp = conta(compras), nCons = conta(consignacoes)
 
   const grupos = new Map<string, FornecedorDuplicado['cadastros']>()
-  for (const f of fornRes.data ?? []) {
+  for (const f of fornecedores) {
     const chave = normalizarNomeFornecedor(f.name)
     if (!chave) continue
     const lista = grupos.get(chave) ?? []

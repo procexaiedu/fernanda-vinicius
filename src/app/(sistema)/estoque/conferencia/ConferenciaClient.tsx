@@ -9,6 +9,7 @@ import SearchableSelect from '@/components/ui/SearchableSelect'
 import { abrirConferencia } from './actions'
 import type { SessaoResumo, EscopoDisponivel } from './page'
 import styles from './ConferenciaClient.module.css'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 interface Props {
   sessoes: SessaoResumo[]
@@ -54,12 +55,19 @@ export default function ConferenciaClient({ sessoes, escopos, totalLoja, stores,
     if (!escolhido) return
     setErro(null)
     setAbrindo(true)
-    const res = await abrirConferencia({
-      store_id:    isAdmin ? (lojaAtual ?? undefined) : undefined,
-      scope_type:  escolhido === '__loja__' ? 'loja' : 'categoria',
-      scope_value: escolhido === '__loja__' ? null : escolhido,
-    })
-    setAbrindo(false)
+    let res: Awaited<ReturnType<typeof abrirConferencia>>
+    try {
+      res = await abrirConferencia({
+        store_id:    isAdmin ? (lojaAtual ?? undefined) : undefined,
+        scope_type:  escolhido === '__loja__' ? 'loja' : 'categoria',
+        scope_value: escolhido === '__loja__' ? null : escolhido,
+      })
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e))
+      return
+    } finally {
+      setAbrindo(false)
+    }
     if (!res.success || !res.session_id) {
       setErro(res.error ?? 'Não foi possível abrir a conferência.')
       return

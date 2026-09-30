@@ -6,6 +6,7 @@ import { buscarCaixaDoDia, finalizarCaixa, type CaixaDoDia as CaixaData } from '
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
 import styles from './pdv.module.css'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 interface StoreOpt { id: string; name: string; city: string }
 
@@ -62,8 +63,13 @@ export default function CaixaDoDia({ stores, isAdmin, date, caixa, onCaixaChange
 
   async function changeStore(storeId: string) {
     setLoading(true)
-    onCaixaChange(await buscarCaixaDoDia(storeId, date))
-    setLoading(false)
+    try {
+      onCaixaChange(await buscarCaixaDoDia(storeId, date))
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e))
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleFinalizar() {
@@ -76,16 +82,23 @@ export default function CaixaDoDia({ stores, isAdmin, date, caixa, onCaixaChange
       counted:    parseBRL(counted),
       difference: parseBRL(counted) - caixa.totals.cash,
     }
-    const res = await finalizarCaixa(caixa.storeId, date, parseBRL(counted), notes)
-    if (res.success) {
-      onCaixaChange(await buscarCaixaDoDia(caixa.storeId, date))  // a visão zera
-      setJustClosed(snapshot)
-      setCounted('0,00')
-      setNotes('')
-    } else {
-      setError(res.error ?? 'Erro ao fechar o caixa.')
+    /* Sem o try, falha de rede ou sessão vencida deixava "Finalizar" girando
+       para sempre, sem dizer se o caixa fechou ou não. */
+    try {
+      const res = await finalizarCaixa(caixa.storeId, date, parseBRL(counted), notes)
+      if (res.success) {
+        onCaixaChange(await buscarCaixaDoDia(caixa.storeId, date))  // a visão zera
+        setJustClosed(snapshot)
+        setCounted('0,00')
+        setNotes('')
+      } else {
+        setError(res.error ?? 'Erro ao fechar o caixa.')
+      }
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e))
+    } finally {
+      setFinalizing(false)
     }
-    setFinalizing(false)
   }
 
   const expectedCash = caixa.totals.cash

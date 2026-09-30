@@ -247,13 +247,51 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
     if (!interno || tab !== 'transferencias' || transfers !== null) return
     setLoadingTransfers(true)
     const supabase = createBrowserClient()
+    /*
+     * Lê do romaneio (`transfers` + `transfer_items`), não de `stock_transfers`.
+     * Aquela tabela é do modelo antigo (RPC fv.transfer_stock) e ninguém mais
+     * grava nela desde 30/08: a aba mostrava "nenhuma transferência" para peça
+     * que já tinha ido e voltado entre as lojas.
+     *
+     * A peça aparece pelos dois lados: `product_id` é a linha que SAIU da loja,
+     * `dest_product_id` é a linha que a recebeu no destino. Romaneio cancelado
+     * fica de fora — a peça não chegou a mudar de loja.
+     */
     supabase
-      .from('stock_transfers')
-      .select('id, quantity, created_at, notes, from_store:stores!from_store_id(name), to_store:stores!to_store_id(name), users!user_id(full_name)')
-      .eq('product_id', produto.id)
+      .from('transfer_items')
+      .select(
+        'id, quantity_sent, created_at, '
+        + 'transfer:transfers!transfer_id!inner(status, sent_at, notes, '
+        + 'from_store:stores!from_store_id(name), to_store:stores!to_store_id(name), '
+        + 'remetente:users!sent_by(full_name))',
+      )
+      .or(`product_id.eq.${produto.id},dest_product_id.eq.${produto.id}`)
+      .gt('quantity_sent', 0)
+      .neq('transfer.status', 'cancelada')
       .order('created_at', { ascending: false })
       .limit(20)
-      .then(({ data }: { data: unknown }) => { setTransfers((data as Transfer[]) ?? []); setLoadingTransfers(false) })
+      .then(({ data, error }: { data: unknown; error: { message: string } | null }) => {
+        if (error) console.error('[produto] falha ao ler transferências da peça', error.message)
+        const um = <T,>(v: unknown) => (Array.isArray(v) ? v[0] : v) as T | null
+        type Linha = { id: string; quantity_sent: number; created_at: string; transfer: unknown }
+        type Cab = {
+          sent_at: string; notes: string | null
+          from_store: unknown; to_store: unknown; remetente: unknown
+        }
+        setTransfers(((data ?? []) as Linha[]).map(l => {
+          const t = um<Cab>(l.transfer)
+          return {
+            id:         l.id,
+            quantity:   l.quantity_sent,
+            created_at: t?.sent_at ?? l.created_at,
+            notes:      t?.notes ?? null,
+            from_store: um<{ name: string }>(t?.from_store),
+            to_store:   um<{ name: string }>(t?.to_store),
+            users:      um<{ full_name: string }>(t?.remetente),
+          }
+        }))
+        setLoadingTransfers(false)
+      })
   }, [tab, transfers, produto.id, interno])
 
   const tabs: { key: Tab; label: string }[] = [

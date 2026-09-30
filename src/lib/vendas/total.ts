@@ -48,9 +48,17 @@ export function calcularTotalDaVenda({ subtotal, discountPct, manualDiscount }: 
   const rawDiscount = subtotal * discountPct / 100 + manualDiscount
   const rawTotal    = Math.max(0, subtotal - rawDiscount)
 
+  /*
+   * Centavos ANTES do teto. Conta em ponto flutuante não fecha exata:
+   * 300 − 15% dá 255.00000000000003, e `Math.ceil` disso é 256 — um real a
+   * mais cobrado numa venda que já era redonda. Arredondar para centavos
+   * primeiro tira a poeira do float sem mexer no que é centavo de verdade
+   * (255,01 continua subindo para 256, que é a regra).
+   */
+  const totalEmCentavos = Math.round(rawTotal * 100) / 100
   const total = rawDiscount > 0
-    ? Math.ceil(rawTotal)
-    : parseFloat(rawTotal.toFixed(2))
+    ? Math.ceil(totalEmCentavos)
+    : totalEmCentavos
 
   return {
     total,
