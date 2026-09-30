@@ -409,6 +409,19 @@ export interface AjusteConferencia {
 }
 
 /**
+ * Peça que o fechamento deixou de ajustar porque teve movimento de estoque
+ * (venda, transferência, baixa, troca, compra) depois do início da contagem.
+ * O número contado pode estar velho — gravá-lo por cima criaria peça fantasma
+ * ou falta falsa. Ver supabase/migrations/20261001_conferencia_segura.sql.
+ */
+export interface PecaNaoAjustada {
+  product_id: string
+  name: string
+  code: string
+  motivo: string
+}
+
+/**
  * Fecha a sessão aplicando os ajustes.
  *
  * Produto ausente da lista fica como está — é o "deixar como está" da tela, e não
@@ -422,7 +435,12 @@ export async function fecharConferencia(
   sessionId: string,
   ajustes: AjusteConferencia[],
   totais: Record<string, number>,
-): Promise<ActionResult & { ajustes_aplicados?: number; ajustes_ignorados?: number }> {
+): Promise<ActionResult & {
+  ajustes_aplicados?: number
+  ajustes_ignorados?: number
+  /** Peças que movimentaram durante a contagem e por isso NÃO foram ajustadas. */
+  nao_ajustados?: PecaNaoAjustada[]
+}> {
   const { id, loja } = await usuarioAtual()
   const admin = createAdminClient()
 
@@ -472,13 +490,27 @@ export async function fecharConferencia(
   })
   if (error) return { success: false, error: error.message }
 
-  const json = data as { success: boolean; error?: string; ajustes_aplicados?: number }
+  const json = data as {
+    success: boolean
+    error?: string
+    ajustes_aplicados?: number
+    /* Só existe a partir da migration 20261001_conferencia_segura; antes dela
+       vem ausente e a tela segue como sempre. */
+    nao_ajustados?: PecaNaoAjustada[]
+    ignorados?: unknown[]
+  } | null
+  if (!json) return { success: false, error: 'O fechamento não retornou resposta — recarregue a página e confira.' }
   if (!json.success) return { success: false, error: json.error ?? 'Erro ao fechar a conferência.' }
 
   revalidatePath('/estoque/conferencia')
   revalidatePath('/estoque')
   revalidatePath('/produtos')
-  return { success: true, ajustes_aplicados: json.ajustes_aplicados, ajustes_ignorados: ignorados }
+  return {
+    success: true,
+    ajustes_aplicados: json.ajustes_aplicados,
+    ajustes_ignorados: ignorados + (Array.isArray(json.ignorados) ? json.ignorados.length : 0),
+    nao_ajustados: Array.isArray(json.nao_ajustados) ? json.nao_ajustados : [],
+  }
 }
 
 /** Cancela sem aplicar nada. Os bipes ficam registrados — a sessão vira histórico. */

@@ -105,6 +105,12 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
   } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  /*
+   * Fechou, mas com peças que movimentaram durante a contagem e ficaram SEM
+   * ajuste. A tela fica aqui (em vez de voltar para a lista) só para ela ler
+   * quais são; o botão de aplicar some, porque a sessão já está fechada.
+   */
+  const [fechadaComPendencia, setFechadaComPendencia] = useState(false)
   const [agora, setAgora] = useState(() => Date.now())
 
   const ultimoCodigo = useRef<{ codigo: string; ts: number } | null>(null)
@@ -348,6 +354,20 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
       setFechando(false)
     }
     if (!res.success) { setErro(res.error ?? 'Erro ao fechar.'); return }
+
+    const pendentes = res.nao_ajustados ?? []
+    if (pendentes.length > 0) {
+      const n = pendentes.length
+      const nomes = pendentes.map(p => (p.code ? `${p.name} (${p.code})` : p.name)).join(', ')
+      setFechadaComPendencia(true)
+      setErro(
+        `Conferência fechada (${res.ajustes_aplicados ?? 0} ajuste${(res.ajustes_aplicados ?? 0) === 1 ? '' : 's'} aplicado${(res.ajustes_aplicados ?? 0) === 1 ? '' : 's'}). `
+        + `${n} peça${n > 1 ? 's' : ''} ${n > 1 ? 'tiveram' : 'teve'} venda/transferência durante a contagem e NÃO `
+        + `${n > 1 ? 'foram ajustadas' : 'foi ajustada'}: ${nomes}. Confira ${n > 1 ? 'essas peças' : 'essa peça'} de novo.`,
+      )
+      return
+    }
+
     router.push('/estoque/conferencia')
     router.refresh()
   }
@@ -582,14 +602,22 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
       {erro && <div className={styles.erro}>{erro}</div>}
 
       <div className={styles.rodape}>
-        <Button size="sm" variant="ghost" onClick={() => setFase('contando')} disabled={fechando}>
-          Voltar a contar
-        </Button>
-        <Button onClick={aplicarEFechar} loading={fechando} disabled={motivosFaltando > 0}>
-          {totalAplicar === 0
-            ? 'Fechar sem ajustes'
-            : `Aplicar ${totalAplicar} ajuste${totalAplicar > 1 ? 's' : ''} e fechar`}
-        </Button>
+        {fechadaComPendencia ? (
+          <Button onClick={() => { router.push('/estoque/conferencia'); router.refresh() }}>
+            Voltar
+          </Button>
+        ) : (
+          <>
+            <Button size="sm" variant="ghost" onClick={() => setFase('contando')} disabled={fechando}>
+              Voltar a contar
+            </Button>
+            <Button onClick={aplicarEFechar} loading={fechando} disabled={motivosFaltando > 0}>
+              {totalAplicar === 0
+                ? 'Fechar sem ajustes'
+                : `Aplicar ${totalAplicar} ajuste${totalAplicar > 1 ? 's' : ''} e fechar`}
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )

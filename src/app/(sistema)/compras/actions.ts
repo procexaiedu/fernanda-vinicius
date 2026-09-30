@@ -6,11 +6,10 @@ import { createClient } from '@/lib/supabase/server'
 import { generateCode } from '@/lib/productCode'
 import { validatePaymentGroups } from '@/lib/compras/validate-payments'
 import { formatarNomeProprio } from '@/lib/nomeProprio'
-import { recalcularTotaisDaCompra } from '@/lib/compras/totais'
 import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
 import { mensagemConsignacaoMisturada } from '@/lib/compras/consignacao'
 import {
-  idDeRequisicaoValido, colunaDeIdempotenciaAusente, violouUnico, avisarIdempotenciaDesligada,
+  idDeRequisicaoValido, violouUnico,
 } from '@/lib/idempotencia'
 
 /** Chave de comparação de fornecedor — a mesma no servidor e na tela. */
@@ -118,93 +117,38 @@ async function verifyAdmin(): Promise<{ userId: string | null; error: string | n
   return { userId: user.id, error: null }
 }
 
-// ─── Idempotência ─────────────────────────────────────────────────────────────
+// ─── Transação no banco (RPC) ────────────────────────────────────────────────
+//
+// Desde 01/10 a compra, a edição e a exclusão são gravadas por funções do
+// banco (`fv.salvar_compra`, `fv.editar_compra`, `fv.excluir_compra` — ver
+// supabase/migrations/20261001_compra_transacional.sql), numa transação só.
+// Padrão "TS calcula, SQL persiste": toda regra continua aqui; a função só
+// grava, e qualquer erro desfaz tudo.
 
-type Admin = ReturnType<typeof createAdminClient>
-
-/**
- * A compra com este `client_request_id` — o reenvio de uma compra que já entrou.
- *
- * `colunaAusente` = a migration de 30/09 ainda não foi aplicada: segue SEM
- * idempotência, como antes (o deploy não pode travar a compra pela ordem).
- */
-async function procurarCompraPorPedido(
-  admin: Admin, idReq: string,
-): Promise<{ purchaseId: string | null } | { colunaAusente: true } | { erro: true }> {
-  const { data, error } = await admin
-    .from('purchases').select('id').eq('client_request_id', idReq).maybeSingle()
-  if (error) {
-    if (colunaDeIdempotenciaAusente(error)) {
-      avisarIdempotenciaDesligada('purchases', error)
-      return { colunaAusente: true }
-    }
-    console.error('[salvarCompra] falha ao procurar compra pelo client_request_id', error)
-    return { erro: true }
-  }
-  return { purchaseId: (data?.id as string | undefined) ?? null }
-}
+/** Mensagem da compra cujo `clientRequestId` já pertence a OUTRA compra. */
+const MSG_ID_DE_OUTRA_COMPRA =
+  'Este salvamento já foi usado para outra compra. Recarregue a página (F5) e lance de novo — nada desta compra foi gravado.'
 
 /**
- * A resposta para um reenvio cuja compra JÁ EXISTE.
+ * O texto de uma falha do `rpc()`.
  *
- * O primeiro envio pode ter criado a compra e parado depois (itens,
- * pagamentos) — e o erro dele é que se perdeu, ou ela o viu e clicou de novo.
- * Devolver "sucesso" aí esconderia uma compra pela metade atrás da tela de
- * etiquetas. Confere pelo menos as linhas: cada linha da grade vira um
- * `purchase_items`, 1 para 1.
- *
- * ANTES disso confere se é MESMO a mesma compra: nº de peças e custo total,
- * gravados no cabeçalho num insert só (não ficam "pela metade"). Loja e
- * fornecedor não entram porque `purchases` não os guarda (ficam nulos; estão
- * nas peças). Um id que sobrou de uma compra já salva e foi mandado com OUTRA
- * devolvia "sucesso" e abria as etiquetas da compra antiga — e a nova nunca
- * entrava. Divergiu: erro claro, nada gravado, `idReusado` para a tela.
+ * Com `code` (erro do Postgres ou do PostgREST) a transação foi desfeita:
+ * NADA foi gravado, e dá para dizer isso. Sem `code` a falha foi de rede — a
+ * função pode ter terminado e a resposta se perdido, então não se afirma nada.
  */
-async function respostaDaCompraJaGravada(
-  admin: Admin, purchaseId: string, data: CompraFormData,
-): Promise<ActionResult> {
-  const [compraRes, itensRes] = await Promise.all([
-    admin.from('purchases').select('total_cost, total_items').eq('id', purchaseId).maybeSingle(),
-    admin.from('purchase_items').select('id', { count: 'exact', head: true }).eq('purchase_id', purchaseId),
-  ])
-  const count = itensRes.count
-
-  if (!compraRes.error && compraRes.data && !itensRes.error) {
-    /* A mesma conta do insert lá embaixo (`totalCost`/`totalItems`). */
-    const custoEnviado = data.rows.reduce((s, r) => s + r.costPrice * r.quantity, 0)
-    const pecasEnviadas = data.rows.reduce((s, r) => s + r.quantity, 0)
-    const outraCompra =
-      Math.abs((Number(compraRes.data.total_cost) || 0) - custoEnviado) > 0.011
-      || (Number(compraRes.data.total_items) || 0) !== pecasEnviadas
-      /* Mais linhas gravadas que as mandadas não é pendência — é outra compra. */
-      || (count ?? 0) > data.rows.length
-    if (outraCompra) {
-      console.error('[salvarCompra] clientRequestId de OUTRA compra — nada gravado', {
-        purchaseId,
-        gravada: { custo: compraRes.data.total_cost, pecas: compraRes.data.total_items, linhas: count },
-        enviada: { custo: custoEnviado, pecas: pecasEnviadas, linhas: data.rows.length },
-      })
-      return {
-        success: false, idReusado: true,
-        error: 'Este salvamento já foi usado para outra compra. Recarregue a página (F5) e lance de novo — nada desta compra foi gravado.',
-      }
-    }
-  }
-
-  if (compraRes.error || !compraRes.data || itensRes.error || (count ?? 0) < data.rows.length) {
-    console.error('[salvarCompra] reenvio de compra gravada pela metade (ou sem como conferir)', {
-      purchaseId, itens: count, esperado: data.rows.length, error: compraRes.error ?? itensRes.error,
-    })
-    return {
-      success: false,
-      error: 'Esta compra JÁ TINHA SIDO gravada (o primeiro envio chegou), mas pode ter ficado incompleta. '
-        + 'NÃO salve de novo — isso duplicaria as peças. Confira em Compras.',
-    }
-  }
-  console.info('[salvarCompra] reenvio reconhecido — devolvendo a compra já gravada', { purchaseId })
-  return { success: true, purchaseId }
+function falhaDoBanco(
+  err: { code?: string; message?: string },
+  oQue: string,
+  semCodigo: string,
+): string {
+  if (err.code) return `Não foi possível ${oQue}: ${err.message ?? 'erro do banco'}. Nada foi gravado — confira e tente de novo.`
+  return semCodigo
 }
 
+type RespostaSalvarCompra =
+  | { erro: 'id_reusado'; purchase_id: string }
+  | { purchase_id: string; ja_existia: true; itens: number; incompleta: boolean }
+  | { purchase_id: string; ja_existia: false; consignment_id: string | null; product_ids: string[] }
 // ─── Action: salvar compra ────────────────────────────────────────────────────
 
 export async function salvarCompra(data: CompraFormData): Promise<ActionResult> {
@@ -214,29 +158,13 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   if (!data.rows.length) return { success: false, error: 'Adicione ao menos um item.' }
 
   /*
-   * REENVIO DE UMA COMPRA QUE JÁ ENTROU? Confere ANTES de criar fornecedor ou
-   * peça. Se a resposta do primeiro envio se perdeu com tudo gravado, o
-   * segundo clique (ou o rascunho recuperado) criava a compra inteira de novo:
-   * peças duplicadas, estoque somado duas vezes, parcelas em dobro.
-   *
-   * O LIMITE, e ele é real: a coluna só existe em `purchases`, que é gravada
-   * DEPOIS de fornecedores e peças. Se a falha foi ANTES desse insert (peças
-   * já criadas, compra não), não há o que achar aqui e o reenvio cria as peças
-   * de novo. Isto protege o caso "gravou tudo e a resposta se perdeu" e o
-   * duplo clique — não substitui uma transação.
+   * REENVIO DE UMA COMPRA QUE JÁ ENTROU é reconhecido DENTRO de
+   * `fv.salvar_compra`, pelo `client_request_id`, antes de gravar qualquer
+   * coisa — e, como a gravação agora é uma transação só, não existe mais a
+   * compra "pela metade" (peças criadas sem compra) que o reenvio duplicava.
    */
   const admin = createAdminClient()
-  let idReq = idDeRequisicaoValido(data.clientRequestId)
-  if (idReq) {
-    const achada = await procurarCompraPorPedido(admin, idReq)
-    if ('colunaAusente' in achada) idReq = null
-    else if ('erro' in achada) {
-      /* Na dúvida não grava: seguir às cegas é exatamente o que duplica. */
-      return { success: false, error: 'Não consegui conferir se esta compra já tinha sido gravada. Nada foi registrado agora — tente salvar de novo em instantes.' }
-    } else if (achada.purchaseId) {
-      return respostaDaCompraJaGravada(admin, achada.purchaseId, data)
-    }
-  }
+  const idReq = idDeRequisicaoValido(data.clientRequestId)
 
   /*
    * CONSIGNAÇÃO É POR FORNECEDOR E POR LOJA.
@@ -334,9 +262,16 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   const purchaseMonth = parseInt(data.purchaseDate.slice(5, 7))
   const purchaseYear  = parseInt(data.purchaseDate.slice(0, 4))
 
-  // ── 1. Criar fornecedores novos ───────────────────────────────────────────
-  // supplierKey = supplierId existente OU supplierName (novo)
-  const supplierCache = new Map<string, string>() // key → id final
+  // ── 1. Resolver fornecedores (só leitura; quem cria é a função do banco) ──
+  //
+  // Cada linha ganha uma REFERÊNCIA de fornecedor: o id do cadastro, ou
+  // `novo:N` — o N-ésimo fornecedor novo, que `fv.salvar_compra` cria na
+  // mesma transação da compra (antes era um INSERT solto, que ficava para
+  // trás se algo falhasse depois).
+  const supplierCache = new Map<string, string>() // key → referência final
+  const fornecedoresNovos: Array<{ name: string; initials: string }> = []
+  const NOVO = 'novo:'
+  const ehNovo = (ref: string) => ref.startsWith(NOVO)
 
   /*
    * FORNECEDOR "NOVO" QUE JÁ EXISTE É REUSADO, NÃO DUPLICADO.
@@ -352,7 +287,7 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
    * na loja.
    */
   const existentesPorChave = new Map<string, { id: string; initials: string | null }>()
-  const iniciaisDoCadastro = new Map<string, string>() // supplierId → initials
+  const iniciaisDoCadastro = new Map<string, string>() // referência → initials
 
   if (data.rows.some(r => !r.supplierId)) {
     const { data: cadastrados, error: cadErr } = await admin
@@ -382,16 +317,12 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
       continue
     }
 
-    const { data: created, error } = await admin
-      .from('suppliers')
-      .insert({ name: formatarNomeProprio(row.supplierName), initials: row.supplierInitials.trim().toUpperCase() })
-      .select('id, initials')
-      .single()
-
-    if (error || !created) return { success: false, error: `Erro ao criar fornecedor "${row.supplierName}": ${error?.message}` }
-    supplierCache.set(key, created.id)
+    const initials = row.supplierInitials.trim().toUpperCase()
+    const ref = `${NOVO}${fornecedoresNovos.length}`
+    fornecedoresNovos.push({ name: formatarNomeProprio(row.supplierName), initials })
+    supplierCache.set(key, ref)
     // Outra grafia do MESMO fornecedor novo, mais abaixo na grade, cai aqui.
-    existentesPorChave.set(chaveFornecedor(row.supplierName), { id: created.id, initials: created.initials })
+    existentesPorChave.set(chaveFornecedor(row.supplierName), { id: ref, initials })
   }
 
   function resolveSupplier(row: GridRow): string {
@@ -399,7 +330,15 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
     return supplierCache.get(row.supplierName.trim().toLowerCase())!
   }
 
-  // Mapeia o groupKey de um SupplierPaymentGroup para o id real do fornecedor.
+  /** A referência no formato do payload: id do cadastro OU índice do novo. */
+  function refParaPayload(ref: string | null): { supplier_id: string | null; supplier_novo: number | null } {
+    if (!ref) return { supplier_id: null, supplier_novo: null }
+    return ehNovo(ref)
+      ? { supplier_id: null, supplier_novo: Number(ref.slice(NOVO.length)) }
+      : { supplier_id: ref, supplier_novo: null }
+  }
+
+  // Mapeia o groupKey de um SupplierPaymentGroup para a referência do fornecedor.
   // O groupKey vem do front como `row.supplierId ?? supplierName.toLowerCase()`.
   function resolveGroupSupplier(groupKey: string): string | null {
     const row = data.rows.find(
@@ -409,7 +348,7 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   }
 
   // ── 2. Resolver iniciais para geração do código ───────────────────────────
-  const initialsCache = new Map<string, string>() // supplierId → initials
+  const initialsCache = new Map<string, string>() // referência → initials
 
   for (const row of data.rows) {
     const supId = resolveSupplier(row)
@@ -419,6 +358,10 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
       initialsCache.set(supId, doCadastro)
     } else if (row.supplierInitials.trim()) {
       initialsCache.set(supId, row.supplierInitials.trim().toUpperCase())
+    } else if (ehNovo(supId)) {
+      // Fornecedor novo sem iniciais: é o que o cadastro dele vai guardar
+      // (vazio) — mesmo resultado da releitura de antes, que caía em "FV".
+      initialsCache.set(supId, fornecedoresNovos[Number(supId.slice(NOVO.length))]?.initials || 'FV')
     } else {
       // Leitura que falha não pode virar "FV": o código da peça sairia com o
       // prefixo errado e a etiqueta já impressa não tem volta.
@@ -428,201 +371,66 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
     }
   }
 
-  /*
-   * `.in('id', [...])` vai na URL, e URL tem teto: o PostgREST devolve 414 a
-   * partir de ~500 ids, e o CLAUDE.md manda paginar acima de ~200. Uma mala de
-   * São Paulo tem 300 peças — exatamente a faixa que quebra. 150 por bloco
-   * deixa folga para o resto da querystring.
+  /* ── 3. Linhas: peça nova (criar/duplicar) ou reusada (somar estoque) ─────
+   *
+   * UMA linha do payload por linha da grade, NA ORDEM: `purchase_items` liga
+   * a linha i à peça i, e o `barcode_number` sai da sequência do banco na
+   * ordem das linhas (a mesma do INSERT em lote de antes).
+   *
+   * Peça reusada vai com `product_id` e a função soma o estoque de forma
+   * atômica (`quantity_in_stock = quantity_in_stock + x`). A mesma peça em
+   * duas linhas soma as duas — o problema do "saldo lido uma vez" (revisão de
+   * 16/09) deixa de existir.
    */
-  const BLOCO_IN = 150
-  const emBlocos = <T,>(xs: T[]): T[][] => {
-    const out: T[][] = []
-    for (let i = 0; i < xs.length; i += BLOCO_IN) out.push(xs.slice(i, i + BLOCO_IN))
-    return out
-  }
-
-  /* ── 3. Criar / reusar / duplicar produtos ─────────────────────────────────
-   *
-   * EM LOTE, NÃO UMA PEÇA POR VEZ.
-   *
-   * Antes era um `for` com `await` dentro: cada peça nova custava um INSERT e
-   * cada peça reusada um SELECT mais um UPDATE, em fila. Uma mala de São Paulo
-   * traz 300 linhas — são 300 a 600 idas ao banco em série, mais 300 depois
-   * para gravar o `purchase_id`. Com ~40ms de ida e volta cada, passa de meio
-   * minuto de tela travada, e a dona relatou a compra grande "travando no
-   * salvar".
-   *
-   * Agora é um INSERT só para as peças novas.
-   *
-   * A ORDEM DO RETORNO IMPORTA: `purchase_items` liga `data.rows[i]` a
-   * `resolvedProductIds[i]`, então trocar duas peças de lugar penduraria o
-   * subtotal de uma na outra. O Postgres devolve as linhas de um
-   * `INSERT ... VALUES ... RETURNING` na ordem em que foram inseridas — e a
-   * conferência de quantidade logo abaixo é o que impede de seguir com a
-   * suposição quebrada.
-   */
-  const ownership = data.isConsignment ? 'consignment' : 'own'
-
-  const reusar = data.rows
-    .map((row, i) => ({ row, i }))
-    .filter(({ row }) => row.productId && !row.productExistingCostDiffers)
-
-  const novas = data.rows
-    .map((row, i) => ({ row, i }))
-    .filter(({ row }) => !row.productId || row.productExistingCostDiffers)
-
-  const resolvedProductIds: string[] = new Array(data.rows.length)
-
-  // ── Peças novas: um INSERT para todas ──
-  if (novas.length) {
-    const linhas = novas.map(({ row }) => {
-      const supId    = resolveSupplier(row)
-      const initials = initialsCache.get(supId) ?? 'FV'
-      return {
-        code:              generateCode(initials, purchaseMonth, row.costPrice),
-        name:              row.productName.trim(),
-        category:          row.category.trim().toLowerCase(),
-        material:          row.material.trim().toLowerCase(),
-        supplier_id:       supId,
-        store_id:          row.storeId,
-        cost_price:        row.costPrice,
-        sale_price:        row.salePrice,
-        promotional_price: row.promoPrice ?? null,
-        quantity_in_stock: row.quantity,
-        ownership_type:    ownership,
-        purchase_month:    purchaseMonth,
-        purchase_year:     purchaseYear,
-        is_active:         true,
-      }
-    })
-
-    const { data: criadas, error } = await admin.from('products').insert(linhas).select('id')
-
-    if (error || !criadas) {
-      return { success: false, error: `Erro ao criar as peças: ${error?.message}` }
+  const linhas = data.rows.map(row => {
+    const reusa = !!row.productId && !row.productExistingCostDiffers
+    const ref = resolveSupplier(row)
+    return {
+      product_id:        reusa ? row.productId : null,
+      ...refParaPayload(ref),
+      code:              generateCode(initialsCache.get(ref) ?? 'FV', purchaseMonth, row.costPrice),
+      name:              row.productName.trim(),
+      category:          row.category.trim().toLowerCase(),
+      material:          row.material.trim().toLowerCase(),
+      store_id:          row.storeId,
+      cost_price:        row.costPrice,
+      sale_price:        row.salePrice,
+      promotional_price: row.promoPrice ?? null,
+      quantity:          row.quantity,
+      label_format:      row.labelFormat,
+      purchase_month:    purchaseMonth,
+      purchase_year:     purchaseYear,
     }
-    if (criadas.length !== novas.length) {
-      // Voltou quantidade diferente: a correspondência por posição não vale
-      // mais, e seguir aqui ligaria peça à linha errada da compra.
-      return {
-        success: false,
-        error: `O banco criou ${criadas.length} peças de ${novas.length}. A compra não foi salva.`,
-      }
-    }
+  })
 
-    novas.forEach(({ i }, n) => { resolvedProductIds[i] = criadas[n].id as string })
-  }
-
-  // ── Peças reusadas: um SELECT para todas, depois os UPDATEs em paralelo ──
-  if (reusar.length) {
-    const ids = reusar.map(({ row }) => row.productId as string)
-    const saldo = new Map<string, number>()
-
-    for (const bloco of emBlocos(ids)) {
-      const { data: atuais, error } = await admin
-        .from('products').select('id, quantity_in_stock').in('id', bloco)
-
-      if (error) return { success: false, error: `Erro ao ler o estoque atual: ${error.message}` }
-
-      for (const p of (atuais ?? []) as Array<{ id: string; quantity_in_stock: number }>) {
-        saldo.set(p.id, Number(p.quantity_in_stock ?? 0))
-      }
-    }
-
-    /*
-     * SOMA POR PEÇA ANTES DE GRAVAR.
-     *
-     * A mesma peça pode aparecer em duas linhas da grade. Gravando linha a
-     * linha a partir do saldo lido UMA vez, as duas escreveriam "saldo + a
-     * sua quantidade" e a segunda apagaria a primeira: 3 + 2 e 3 + 1 viravam
-     * 4, não 6. O loop antigo, em série, relia o saldo entre uma e outra e não
-     * tinha o problema — o lote introduziu, a revisão de 16/09 pegou.
-     */
-    const somaPorPeca = new Map<string, number>()
-    for (const { row, i } of reusar) {
-      const id = row.productId as string
-      resolvedProductIds[i] = id
-      somaPorPeca.set(id, (somaPorPeca.get(id) ?? 0) + row.quantity)
-    }
-
-    /* Cada peça soma um valor diferente, então não há UPDATE único — mas agora
-     * cada id aparece uma vez só, e podem ir juntas. Em blocos de 20 para não
-     * abrir 300 conexões de uma vez contra o PostgREST. */
-    const agora = new Date().toISOString()
-    const pecas = [...somaPorPeca.entries()]
-    for (let de = 0; de < pecas.length; de += 20) {
-      const bloco = pecas.slice(de, de + 20)
-      const erros = await Promise.all(bloco.map(([id, qtd]) =>
-        admin.from('products')
-          .update({ quantity_in_stock: (saldo.get(id) ?? 0) + qtd, updated_at: agora })
-          .eq('id', id)
-          .then(r => r.error)
-      ))
-      const falhou = erros.find(Boolean)
-      if (falhou) return { success: false, error: `Erro ao somar o estoque: ${falhou.message}` }
-    }
-  }
-
-  // ── 4. Consignação ────────────────────────────────────────────────────────
-  let consignmentId: string | null = null
-
-  if (data.isConsignment) {
-    const totalPieces = data.rows.reduce((s, r) => s + r.quantity, 0)
-    const totalCost   = data.rows.reduce((s, r) => s + r.costPrice * r.quantity, 0)
-    const firstSupId  = resolveSupplier(data.rows[0])
-
-    const { data: consignment, error } = await admin
-      .from('consignments')
-      .insert({
-        supplier_id:      firstSupId,
-        store_id:         data.rows[0]?.storeId ?? null,
-        user_id:          userId,
-        received_date:    data.purchaseDate,
-        return_deadline:  data.returnDeadline || null,
-        min_purchase_pct: data.minPurchasePct ?? null,
-        total_pieces:     totalPieces,
-        total_cost_value: totalCost,
-        status:           'active',
-      })
-      .select('id')
-      .single()
-
-    if (error || !consignment) return { success: false, error: `Erro ao criar consignação: ${error?.message}` }
-
-    consignmentId = consignment.id
-
-    // Um UPDATE por bloco: todas as peças recebem o mesmo valor.
-    for (const bloco of emBlocos(resolvedProductIds)) {
-      const { error: ligaErr } = await admin.from('products')
-        .update({ consignment_id: consignment.id })
-        .in('id', bloco)
-
-      if (ligaErr) {
-        return { success: false, error: `Erro ao ligar as peças ao lote: ${ligaErr.message}` }
-      }
-    }
-
-    /*
-     * E SEGUE PARA CRIAR A COMPRA — não retorna mais aqui.
-     *
-     * Consignação era um beco sem saída: criava o lote, marcava as peças e
-     * voltava. Como detalhe, edição, exclusão e IMPRESSÃO DE ETIQUETA são todos
-     * pendurados em `purchases`, a consignação não tinha nenhum dos quatro. Em
-     * 07/09 a dona carregou 65 peças de Brasília e não conseguiu imprimir uma
-     * etiqueta sequer — precisei criar a compra na mão, no banco, para
-     * destravá-la.
-     *
-     * Nas palavras dele: "esse consignado é exatamente igual a compra, mas é
-     * uma compra que ela ainda não pagou". Então é isso que ele é agora — uma
-     * `purchase` como qualquer outra, com `consignment_id` ligando ao lote. O
-     * que NÃO acontece é pagamento: essas peças só viram despesa no acerto.
-     */
-  }
-
-  // ── 5. Criar purchase ─────────────────────────────────────────────────────
+  // ── 4. Totais e lote consignado ───────────────────────────────────────────
   const totalCost  = data.rows.reduce((s, r) => s + r.costPrice * r.quantity, 0)
   const totalItems = data.rows.reduce((s, r) => s + r.quantity, 0)
 
+  /*
+   * Consignação cria o lote E a compra (com `consignment_id`), na mesma
+   * transação.
+   *
+   * Consignação era um beco sem saída: criava o lote, marcava as peças e
+   * voltava. Como detalhe, edição, exclusão e IMPRESSÃO DE ETIQUETA são todos
+   * pendurados em `purchases`, a consignação não tinha nenhum dos quatro. Em
+   * 07/09 a dona carregou 65 peças de Brasília e não conseguiu imprimir uma
+   * etiqueta sequer. "esse consignado é exatamente igual a compra, mas é uma
+   * compra que ela ainda não pagou". O que NÃO acontece é pagamento: essas
+   * peças só viram despesa no acerto.
+   */
+  const consignacao = data.isConsignment
+    ? {
+        ...refParaPayload(resolveSupplier(data.rows[0])),
+        store_id:         data.rows[0]?.storeId ?? null,
+        return_deadline:  data.returnDeadline || null,
+        min_purchase_pct: data.minPurchasePct ?? null,
+        total_pieces:     totalItems,
+        total_cost_value: totalCost,
+      }
+    : null
+
+  // ── 5. Cabeçalho da compra ────────────────────────────────────────────────
   // Concatenar NFs de todos os fornecedores (ex: "CT:001042 | BL:002033")
   const allNfNumbers = data.supplierPayments
     .filter(g => g.nfNumber?.trim())
@@ -655,83 +463,7 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   const notasComDesconto =
     [data.notes?.trim(), ...linhasDesconto].filter(Boolean).join('\n') || null
 
-  const linhaDaCompra = {
-    supplier_id:   null,
-    store_id:      null,
-    user_id:       userId,
-    purchase_date: data.purchaseDate,
-    total_cost:    totalCost,
-    total_items:   totalItems,
-    nf_number:     allNfNumbers,
-    nf_url:        firstNfUrl,
-    notes:         notasComDesconto,
-    // Nulo em compra própria; preenchido quando o lote é consignado.
-    consignment_id: consignmentId,
-  }
-  /* O `as` só silencia a checagem de propriedade extra da inferência do
-   * insert — a coluna é opcional e pode nem existir ainda (ver abaixo). */
-  const inserirCompra = (comId: boolean) => admin
-    .from('purchases')
-    .insert(comId && idReq ? { ...linhaDaCompra, client_request_id: idReq } as typeof linhaDaCompra : linhaDaCompra)
-    .select('id')
-    .single()
-
-  let { data: purchase, error: purchErr } = await inserirCompra(true)
-
-  if (purchErr && idReq) {
-    if (violouUnico(purchErr)) {
-      /*
-       * Corrida: outro envio desta MESMA compra (duas abas com o mesmo
-       * rascunho — o duplo clique já é barrado na tela por `envioTravado`)
-       * gravou a compra entre a conferência lá de cima e aqui. O índice único
-       * impede a compra dupla, mas as peças que ESTE envio criou/somou acima
-       * ficam soltas — é o limite descrito no início da função; vai para o
-       * log para alguém conferir.
-       */
-      const outra = await procurarCompraPorPedido(admin, idReq)
-      if ('purchaseId' in outra && outra.purchaseId) {
-        console.error('[salvarCompra] envio duplo barrado pelo índice único — peças deste envio ficaram sem compra', {
-          purchaseId: outra.purchaseId, pecas: resolvedProductIds,
-        })
-        return { success: true, purchaseId: outra.purchaseId }
-      }
-    } else if (colunaDeIdempotenciaAusente(purchErr)) {
-      /* A conferência passou (cache velho?) mas o insert não conhece a coluna:
-       * grava sem ela, como antes da migration. */
-      avisarIdempotenciaDesligada('purchases', purchErr)
-      ;({ data: purchase, error: purchErr } = await inserirCompra(false))
-    }
-  }
-
-  if (purchErr || !purchase) return { success: false, error: `Erro ao criar compra: ${purchErr?.message}` }
-
-  // ── 6. Criar purchase_items ───────────────────────────────────────────────
-  const purchaseItems = data.rows.map((row, i) => ({
-    purchase_id:  purchase.id,
-    product_id:   resolvedProductIds[i],
-    quantity:     row.quantity,
-    unit_cost:    row.costPrice,
-    subtotal:     row.costPrice * row.quantity,
-    label_format: row.labelFormat,
-  }))
-
-  const { error: itemsErr } = await admin.from('purchase_items').insert(purchaseItems)
-  if (itemsErr) return { success: false, error: `Erro ao criar itens: ${itemsErr.message}` }
-
-  /* Linkar purchase_id nas peças novas — um UPDATE, não um por peça.
-   *
-   * Só as novas: peça reusada já pertence à compra em que entrou primeiro, e
-   * reescrever isso apagaria de onde ela veio. */
-  const idsNovas = novas.map(({ i }) => resolvedProductIds[i]).filter(Boolean)
-  for (const bloco of emBlocos(idsNovas)) {
-    const { error: linkErr } = await admin.from('products')
-      .update({ purchase_id: purchase.id })
-      .in('id', bloco)
-
-    if (linkErr) return { success: false, error: `Erro ao ligar as peças à compra: ${linkErr.message}` }
-  }
-
-  // ── 7. Criar purchase_payments + transactions ─────────────────────────────
+  // ── 6. Parcelas + despesas ────────────────────────────────────────────────
   //
   // CADA PARCELA É UMA LINHA. Antes, uma compra em 3x gravava UMA linha com a
   // contagem em `installment_number` e UMA transação com o valor cheio numa
@@ -752,9 +484,10 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
     ? []
     : data.supplierPayments.filter(g => subtotalPorGrupo.has(g.groupKey))
 
+  const pagamentos: Array<Record<string, unknown>> = []
   for (const group of gruposDePagamento) {
-    const nfNum           = group.nfNumber?.trim() || null
-    const groupSupplierId = resolveGroupSupplier(group.groupKey)
+    const nfNum    = group.nfNumber?.trim() || null
+    const supplier = refParaPayload(resolveGroupSupplier(group.groupKey))
 
     for (const payment of group.payments) {
       const parcelas = PARCELAVEL.has(payment.method) ? Math.max(1, payment.installments) : 1
@@ -762,17 +495,13 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
       // A situação declarada é respeitada. Antes, `(isCredit || !isPending)`
       // forçava 'completed': crédito sempre virava pago, e qualquer status não
       // 'pending' também — o que tornava a declaração da usuária irrelevante.
+      // (`paid_at` = agora, para os pagos, é posto pela função do banco.)
       const status = payment.status === 'pending' ? 'pending' : 'completed'
-      const paidAt = status === 'completed' ? new Date().toISOString() : null
-
       const valores = dividirEmParcelas(payment.totalAmount, parcelas)
 
       for (let i = 0; i < parcelas; i++) {
-        const vencimento = vencimentoDaParcela(payment.firstDueDate, i)
-
-        const { error: ppErr } = await admin.from('purchase_payments').insert({
-          purchase_id:        purchase.id,
-          supplier_id:        groupSupplierId,
+        pagamentos.push({
+          ...supplier,
           payment_method:     payment.method,
           amount:             valores[i],
           // ORDINAL (1, 2, 3…), não a contagem. Antes guardava o TOTAL de
@@ -781,38 +510,90 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
           // campo sempre nulo — nunca foi usado, então dá para acertar sem
           // migrar nada.
           installment_number: parcelas > 1 ? i + 1 : null,
-          due_date:           vencimento,
+          due_date:           vencimentoDaParcela(payment.firstDueDate, i),
           status,
-          paid_at:            paidAt,
+          description:        descricaoDaDespesa(payment.method, i + 1, parcelas, nfNum),
         })
-        if (ppErr) return { success: false, error: `Erro ao criar pagamento: ${ppErr.message}` }
-
-        const desc = descricaoDaDespesa(payment.method, i + 1, parcelas, nfNum)
-
-        const { error: txErr } = await admin.from('transactions').insert({
-          store_id:         null,
-          type:             'expense',
-          amount:           valores[i],
-          category:         'compra_fornecedor',
-          description:      desc,
-          reference_type:   'purchase',
-          reference_id:     purchase.id,
-          user_id:          userId,
-          payment_method:   payment.method,
-          transaction_date: data.purchaseDate,
-          due_date:         vencimento,
-          status,
-          paid_at:          paidAt,
-        })
-        if (txErr) return { success: false, error: `Erro ao criar transação: ${txErr.message}` }
       }
     }
+  }
+
+  // ── 7. Grava tudo numa transação ──────────────────────────────────────────
+  const payload = {
+    client_request_id:  idReq,
+    user_id:            userId,
+    purchase_date:      data.purchaseDate,
+    is_consignment:     data.isConsignment,
+    fornecedores_novos: fornecedoresNovos,
+    linhas,
+    consignacao,
+    compra: {
+      total_cost:  totalCost,
+      total_items: totalItems,
+      nf_number:   allNfNumbers,
+      nf_url:      firstNfUrl,
+      notes:       notasComDesconto,
+    },
+    pagamentos,
+  }
+
+  let { data: resp, error: rpcErr } = await admin.rpc('salvar_compra', { p: payload })
+
+  /* Índice único do `client_request_id` disparou: outro envio desta MESMA
+   * compra passou na frente. A função trava pelo id (advisory lock), então é
+   * raro — e a transação deste envio já foi desfeita. Chamar de novo cai no
+   * reconhecimento do reenvio e devolve a compra que entrou. */
+  if (rpcErr && idReq && violouUnico(rpcErr)) {
+    ;({ data: resp, error: rpcErr } = await admin.rpc('salvar_compra', { p: payload }))
+  }
+
+  if (rpcErr || !resp) {
+    console.error('[salvarCompra] fv.salvar_compra falhou', rpcErr)
+    return {
+      success: false,
+      error: falhaDoBanco(
+        rpcErr ?? {},
+        'salvar a compra',
+        idReq
+          ? 'Não foi possível confirmar se a compra foi gravada (falha de conexão). Salve de novo: se ela já tiver entrado, o sistema reconhece e não duplica.'
+          : 'Não foi possível confirmar se a compra foi gravada (falha de conexão). Confira em Compras antes de salvar de novo.',
+      ),
+    }
+  }
+
+  const r = resp as RespostaSalvarCompra
+
+  if ('erro' in r) {
+    /*
+     * O id já pertence a OUTRA compra (custo total, nº de peças ou nº de
+     * linhas diferentes). Nada foi gravado; `idReusado` faz a tela trocar o id.
+     */
+    console.error('[salvarCompra] clientRequestId de OUTRA compra — nada gravado', {
+      purchaseId: r.purchase_id, enviada: { custo: totalCost, pecas: totalItems, linhas: data.rows.length },
+    })
+    return { success: false, idReusado: true, error: MSG_ID_DE_OUTRA_COMPRA }
+  }
+
+  if (r.ja_existia) {
+    /* Só compra gravada ANTES da transação (código antigo) pode estar pela
+     * metade. Devolver "sucesso" aí esconderia isso atrás das etiquetas. */
+    if (r.incompleta) {
+      console.error('[salvarCompra] reenvio de compra gravada pela metade', {
+        purchaseId: r.purchase_id, itens: r.itens, esperado: data.rows.length,
+      })
+      return {
+        success: false,
+        error: 'Esta compra JÁ TINHA SIDO gravada (o primeiro envio chegou), mas pode ter ficado incompleta. '
+          + 'NÃO salve de novo — isso duplicaria as peças. Confira em Compras.',
+      }
+    }
+    console.info('[salvarCompra] reenvio reconhecido — devolvendo a compra já gravada', { purchaseId: r.purchase_id })
   }
 
   revalidatePath('/compras')
   revalidatePath('/produtos')
   revalidatePath('/estoque')
-  return { success: true, purchaseId: purchase.id }
+  return { success: true, purchaseId: r.purchase_id }
 }
 
 
@@ -981,78 +762,51 @@ export async function buscarDetalheCompra(purchaseId: string): Promise<{ data: P
 // ─── Action: deletar compra ───────────────────────────────────────────────────
 
 export async function deletarCompra(purchaseId: string): Promise<ActionResult> {
-  const { error: authErr } = await verifyAdmin()
-  if (authErr) return { success: false, error: authErr }
+  const { userId, error: authErr } = await verifyAdmin()
+  if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
 
   const admin = createAdminClient()
 
   /*
-   * ORDEM DA EXCLUSÃO — pensada para o "tentar de novo" não estornar duas vezes.
+   * TUDO OU NADA, desde 01/10 (`fv.excluir_compra`).
    *
-   * Não há transação entre as escritas (PostgREST, sem RPC para isso). Antes,
-   * o estoque era estornado PRIMEIRO e os erros das exclusões seguintes eram
-   * ignorados: se a exclusão da compra falhasse, ela continuava na lista, a
-   * dona clicava em Excluir de novo — e o estoque era estornado outra vez,
-   * sumindo com peça que estava na vitrine.
+   * Antes eram sete escritas soltas, ordenadas para que o "tentar de novo" não
+   * estornasse o estoque duas vezes — e ainda assim o pior caso era um estorno
+   * que faltava, peça por peça, para corrigir na conferência. Agora a função
+   * apaga financeiro, parcelas, vínculo das peças, itens, estorna o estoque
+   * (nunca abaixo de zero, como antes) e apaga o cabeçalho numa transação só.
    *
-   * Agora:
-   *   1. Tudo que é LEITURA e CONFERÊNCIA vem antes de qualquer escrita. Se
-   *      algo falha aqui, nada foi tocado.
-   *   2. Financeiro, pagamentos e o vínculo das peças saem primeiro. São
-   *      exclusões que podem ser repetidas sem efeito colateral.
-   *   3. `purchase_items` é apagado — e é ELE a fonte do estorno. Daqui em
-   *      diante, um retry não encontra mais itens e não estorna de novo.
-   *   4. O estorno usa a lista lida no passo 1, já em memória.
-   *   5. Por último, o cabeçalho da compra.
+   * Peça que já vendeu continua barrando a exclusão: o estorno tiraria do
+   * estoque unidades que já saíram pela venda, e a venda ficaria apontando
+   * para uma compra que não existe mais. O caminho é editar a compra.
    *
-   * O pior caso passa a ser um estorno que FALTA (dito na mensagem, peça por
-   * peça, para corrigir na conferência) em vez de um estorno em dobro calado.
+   * Cada peça estornada deixa rastro em `stock_movements` (quem excluiu):
+   * sem isso a conferência de estoque não enxergaria a saída.
    */
+  const { data: resp, error: rpcErr } = await admin.rpc('excluir_compra', {
+    p_purchase_id: purchaseId,
+    p_user_id:     userId,
+  })
 
-  // ── 1. Leituras e conferências ──
-  const { data: compra, error: compraErr } = await admin
-    .from('purchases').select('id').eq('id', purchaseId).maybeSingle()
-  if (compraErr) return { success: false, error: `Não foi possível ler a compra: ${compraErr.message}` }
-  if (!compra) return { success: false, error: 'Compra não encontrada — ela pode já ter sido excluída. Atualize a lista.' }
-
-  const { data: items, error: itemsErr } = await admin
-    .from('purchase_items')
-    .select('product_id, quantity')
-    .eq('purchase_id', purchaseId)
-
-  // Sem os itens não há como saber o que estornar: parar ANTES de apagar.
-  if (itemsErr || !items) {
-    return { success: false, error: `Não foi possível ler as peças da compra: ${itemsErr?.message ?? 'sem resposta'}. Nada foi excluído.` }
-  }
-
-  // A mesma peça pode estar em duas linhas: soma antes, estorna uma vez só.
-  const estornoPorPeca = new Map<string, number>()
-  for (const it of items as Array<{ product_id: string | null; quantity: number }>) {
-    if (!it.product_id) continue
-    estornoPorPeca.set(it.product_id, (estornoPorPeca.get(it.product_id) ?? 0) + Number(it.quantity || 0))
-  }
-  const idsPecas = [...estornoPorPeca.keys()]
-
-  /*
-   * Peça que já vendeu não sai por exclusão de compra.
-   *
-   * O estorno tiraria do estoque unidades que já saíram pela venda — o saldo
-   * iria a zero "à força" (o `Math.max(0, …)`), e a venda ficaria apontando
-   * para uma compra que não existe mais, sem custo de origem. Nesse caso o
-   * caminho é editar a compra, que respeita o que já foi vendido.
-   */
-  const nomesVendidos = new Set<string>()
-  for (let de = 0; de < idsPecas.length; de += 150) {
-    const bloco = idsPecas.slice(de, de + 150)
-    const { data: vendidos, error: vendErr } = await admin
-      .from('sale_items').select('product_id, products(name)').in('product_id', bloco)
-    if (vendErr) return { success: false, error: `Não foi possível conferir as vendas das peças: ${vendErr.message}. Nada foi excluído.` }
-    for (const v of (vendidos ?? []) as unknown as Array<{ products: { name: string } | null }>) {
-      nomesVendidos.add(v.products?.name ?? 'peça sem nome')
+  if (rpcErr || !resp) {
+    console.error('[deletarCompra] fv.excluir_compra falhou', rpcErr)
+    return {
+      success: false,
+      error: falhaDoBanco(
+        rpcErr ?? {},
+        'excluir a compra',
+        'Não foi possível confirmar a exclusão (falha de conexão). Atualize a lista: se a compra ainda aparecer, exclua de novo.',
+      ),
     }
   }
-  if (nomesVendidos.size > 0) {
-    const lista = [...nomesVendidos]
+
+  const r = resp as { ok: true } | { erro: 'nao_encontrada' } | { erro: 'tem_venda'; pecas: string[] }
+
+  if ('erro' in r) {
+    if (r.erro === 'nao_encontrada') {
+      return { success: false, error: 'Compra não encontrada — ela pode já ter sido excluída. Atualize a lista.' }
+    }
+    const lista = r.pecas ?? []
     const exemplos = lista.slice(0, 3).join(', ') + (lista.length > 3 ? ` e mais ${lista.length - 3}` : '')
     return {
       success: false,
@@ -1060,61 +814,10 @@ export async function deletarCompra(purchaseId: string): Promise<ActionResult> {
     }
   }
 
-  // ── 2. Financeiro, pagamentos e vínculo — repetíveis sem efeito colateral ──
-  const { error: txErr } = await admin.from('transactions')
-    .delete().eq('reference_id', purchaseId).eq('reference_type', 'purchase')
-  if (txErr) return { success: false, error: `Erro ao apagar os lançamentos financeiros: ${txErr.message}. A compra e o estoque não foram alterados.` }
-
-  const { error: ppErr } = await admin.from('purchase_payments').delete().eq('purchase_id', purchaseId)
-  if (ppErr) return { success: false, error: `Erro ao apagar os pagamentos: ${ppErr.message}. O estoque não foi alterado; tente excluir de novo.` }
-
-  // Nullar purchase_id nos produtos antes de deletar (FK constraint)
-  const { error: linkErr } = await admin.from('products').update({ purchase_id: null }).eq('purchase_id', purchaseId)
-  if (linkErr) return { success: false, error: `Erro ao desligar as peças da compra: ${linkErr.message}. O estoque não foi alterado; tente excluir de novo.` }
-
-  // ── 3. Itens — a partir daqui um retry não estorna de novo ──
-  const { error: delItemsErr } = await admin.from('purchase_items').delete().eq('purchase_id', purchaseId)
-  if (delItemsErr) return { success: false, error: `Erro ao apagar as peças da compra: ${delItemsErr.message}. O estoque não foi alterado; tente excluir de novo.` }
-
-  // ── 4. Estorno do estoque, com a lista lida no passo 1 ──
-  const falhasEstorno: string[] = []
-  for (let de = 0; de < idsPecas.length; de += 150) {
-    const bloco = idsPecas.slice(de, de + 150)
-    const { data: atuais, error: lerErr } = await admin
-      .from('products').select('id, name, quantity_in_stock').in('id', bloco)
-    if (lerErr || !atuais) {
-      for (const id of bloco) falhasEstorno.push(`${id} (−${estornoPorPeca.get(id)})`)
-      continue
-    }
-    const porId = new Map((atuais as Array<{ id: string; name: string; quantity_in_stock: number | null }>).map(p => [p.id, p]))
-    for (const id of bloco) {
-      const p = porId.get(id)
-      if (!p) continue // peça apagada por outro caminho: não há o que estornar
-      const qtd = estornoPorPeca.get(id) ?? 0
-      const { error: updErr } = await admin.from('products')
-        .update({ quantity_in_stock: Math.max(0, Number(p.quantity_in_stock ?? 0) - qtd), updated_at: new Date().toISOString() })
-        .eq('id', id)
-      if (updErr) falhasEstorno.push(`${p.name} (−${qtd})`)
-    }
-  }
-
-  // ── 5. Cabeçalho ──
-  const { error } = await admin.from('purchases').delete().eq('id', purchaseId)
-
   revalidatePath('/compras')
   revalidatePath('/produtos')
   revalidatePath('/estoque')
   revalidatePath('/financeiro')
-
-  if (falhasEstorno.length) {
-    return {
-      success: false,
-      error: `A compra foi excluída, mas o estoque destas peças não foi estornado: ${falhasEstorno.join(', ')}. Ajuste pela conferência de estoque — NÃO exclua de novo.`,
-    }
-  }
-  if (error) {
-    return { success: false, error: `Peças e estoque já foram desfeitos, mas o registro da compra não saiu: ${error.message}. Clique em excluir de novo — o estoque não será mexido outra vez.` }
-  }
   return { success: true }
 }
 
@@ -1314,23 +1017,17 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
   const admin = createAdminClient()
 
   /*
-   * SEM TRANSAÇÃO — ENTÃO A ORDEM É A PROTEÇÃO.
+   * TS CONFERE, O BANCO GRAVA NUMA TRANSAÇÃO SÓ (desde 01/10).
    *
-   * O PostgREST não dá transação entre chamadas, e criar RPC para isso é
-   * mudança de schema. O que dá para fazer, e é feito aqui:
-   *
-   *   1. TODAS as leituras e TODAS as conferências antes da primeira escrita.
-   *      Qualquer coisa errada (leitura que falhou, estoque que ficaria
-   *      negativo, peça que não é desta compra) para aqui, sem tocar em nada.
-   *   2. Peças: produto e depois o item da compra, um par por vez. Se o item
-   *      falhar, o estoque daquele produto volta ao que era — senão o próximo
-   *      "salvar" somaria o mesmo delta de novo, porque o delta é calculado
-   *      contra a quantidade gravada no item.
-   *   3. Pagamentos e financeiro são atualizados NO LUGAR, não apagados e
-   *      recriados: uma falha no meio deixa o lançamento antigo, não um buraco.
-   *   4. Cabeçalho e totais por último — são o que menos dói se ficar para trás.
-   *
-   * Toda escrita confere `error` e aborta com mensagem dizendo até onde foi.
+   *   1. TODAS as leituras e TODAS as conferências aqui, com as mensagens de
+   *      sempre (vendas, estoque que ficaria negativo, peça/pagamento que não
+   *      é desta compra, pareamento pagamento ↔ despesa).
+   *   2. `fv.editar_compra` grava peças, estoque (delta atômico), itens,
+   *      pagamentos, financeiro, cabeçalho e totais — tudo ou nada. Antes eram
+   *      escritas soltas, e uma falha no meio deixava "as peças anteriores já
+   *      foram salvas" e o estoque para corrigir à mão.
+   *   3. Pagamentos e despesas continuam atualizados NO LUGAR (mesmos ids),
+   *      preservando descrição e data de pagamento.
    */
 
   // ── 1. Leituras ─────────────────────────────────────────────────────────
@@ -1434,7 +1131,6 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
     deltaPorPeca.set(item.productId, (deltaPorPeca.get(item.productId) ?? 0) + (item.quantity - originalQty))
   }
 
-  const novoEstoque = new Map<string, number>()
   for (const [pid, delta] of deltaPorPeca) {
     const atual = estoqueAtual.get(pid)!.quantity_in_stock
     const novo = atual + delta
@@ -1452,7 +1148,6 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
         error: `"${nome}": só há ${atual} em estoque — as outras já saíram (venda, transferência ou baixa). A quantidade desta compra não pode ficar abaixo de ${minimo}.`,
       }
     }
-    novoEstoque.set(pid, novo)
   }
 
   // ── 3. Pagamentos e financeiro: leituras e conferências ─────────────────
@@ -1519,66 +1214,42 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
     despesasSobrando = livres
   }
 
-  // ── 4. Escritas: peças ──────────────────────────────────────────────────
-  const agora = new Date().toISOString()
-  for (const item of payload.items) {
-    const antes = estoqueAtual.get(item.productId)!.quantity_in_stock
-    const { error: prodUpdErr } = await admin.from('products').update({
-      name:              item.name.trim(),
-      category:          item.category.trim().toLowerCase(),
-      material:          item.material.trim().toLowerCase(),
-      cost_price:        item.costPrice,
-      sale_price:        item.salePrice,
-      promotional_price: item.promoPrice ?? null,
-      label_format:      item.labelFormat,
-      supplier_id:       item.supplierId,
-      store_id:          item.storeId,
-      quantity_in_stock: novoEstoque.get(item.productId) ?? antes,
-      updated_at:        agora,
-    }).eq('id', item.productId)
+  // ── 4. Monta a edição já resolvida ──────────────────────────────────────
+  /*
+   * `quantidade_original` é a quantidade do item LIDA acima — base de todos os
+   * deltas. A função trava os itens e, se alguma mudou desde a leitura (outra
+   * edição salva no meio), aborta sem gravar: o delta estaria errado.
+   */
+  const itens = payload.items.map(item => ({
+    purchase_item_id:    item.purchaseItemId,
+    product_id:          item.productId,
+    quantidade_original: originalPorItem.get(item.purchaseItemId)!.quantity,
+    quantity:            item.quantity,
+    name:                item.name.trim(),
+    category:            item.category.trim().toLowerCase(),
+    material:            item.material.trim().toLowerCase(),
+    cost_price:          item.costPrice,
+    sale_price:          item.salePrice,
+    promotional_price:   item.promoPrice ?? null,
+    label_format:        item.labelFormat,
+    supplier_id:         item.supplierId,
+    store_id:            item.storeId,
+  }))
 
-    if (prodUpdErr) {
-      return { success: false, error: `Erro ao salvar "${item.name}": ${prodUpdErr.message}. As peças anteriores a ela já foram salvas; confira e salve de novo.` }
-    }
+  const pagamentos: Array<Record<string, unknown>> = []
+  const despesas: Array<Record<string, unknown>> = []
 
-    const { error: itemUpdErr } = await admin.from('purchase_items').update({
-      quantity:     item.quantity,
-      unit_cost:    item.costPrice,
-      subtotal:     item.costPrice * item.quantity,
-      label_format: item.labelFormat,
-    }).eq('id', item.purchaseItemId)
-
-    if (itemUpdErr) {
-      // Devolve o estoque: o delta é medido contra `purchase_items.quantity`,
-      // que não mudou — sem isto o próximo salvar somaria o delta de novo.
-      const { error: voltaErr } = await admin.from('products')
-        .update({ quantity_in_stock: antes, updated_at: new Date().toISOString() })
-        .eq('id', item.productId)
-      return {
-        success: false,
-        error: voltaErr
-          ? `Erro ao salvar "${item.name}": ${itemUpdErr.message}. ATENÇÃO: o estoque dela ficou em ${novoEstoque.get(item.productId)} e deveria voltar a ${antes} — corrija na conferência antes de salvar de novo.`
-          : `Erro ao salvar "${item.name}": ${itemUpdErr.message}. As peças anteriores a ela já foram salvas; salve de novo.`,
-      }
-    }
-  }
-
-  // ── 5. Escritas: pagamentos e financeiro (só compra própria) ────────────
   if (!ehConsignacao) {
+    // Só o que a tela edita. `status` e `paid_at` NÃO vêm da tela: quem quita
+    // é o financeiro, e reescrever aqui zerava a data do pagamento.
     for (const pay of payload.payments) {
-      // Só o que a tela edita. `status` e `paid_at` NÃO vêm da tela: quem quita
-      // é o financeiro, e reescrever aqui zerava a data do pagamento.
-      const { error: ppUpdErr } = await admin.from('purchase_payments')
-        .update({
-          payment_method: pay.paymentMethod,
-          amount:         pay.amount,
-          due_date:       pay.dueDate || null,
-          supplier_id:    pay.supplierId ?? null,
-        })
-        .eq('id', pay.id)
-      if (ppUpdErr) {
-        return { success: false, error: `As peças foram salvas, mas um pagamento não: ${ppUpdErr.message}. Salve de novo.` }
-      }
+      pagamentos.push({
+        id:             pay.id,
+        payment_method: pay.paymentMethod,
+        amount:         pay.amount,
+        due_date:       pay.dueDate || null,
+        supplier_id:    pay.supplierId ?? null,
+      })
     }
 
     // NF de fallback para despesa nova: só quando a compra tem UMA nota.
@@ -1589,7 +1260,8 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
       const antiga = despesaDoPagamento.get(pay.id)
 
       const status = orig.status === 'pending' ? 'pending' : 'completed'
-      const paidAt = status === 'completed' ? (antiga?.paid_at ?? orig.paid_at ?? agora) : null
+      // Nulo em pago = "agora", posto pela função do banco.
+      const paidAt = status === 'completed' ? (antiga?.paid_at ?? orig.paid_at ?? null) : null
 
       /* Descrição: a que já existe vale, a não ser que o MÉTODO mudou (aí o
          "Cheque 2/3" antigo mentiria). Nesse caso remonta com a regra da
@@ -1608,70 +1280,50 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
         )
       }
 
-      const campos = {
-        amount:           pay.amount,
-        payment_method:   pay.paymentMethod,
-        transaction_date: payload.purchaseDate,
-        due_date:         pay.dueDate || null,
+      despesas.push({
+        id:             antiga?.id ?? null,   // nulo = despesa nova
+        payment_method: pay.paymentMethod,
+        amount:         pay.amount,
+        due_date:       pay.dueDate || null,
         status,
-        paid_at:          paidAt,
-        description:      descricao,
-      }
-
-      const { error: txErr } = antiga
-        ? await admin.from('transactions').update(campos).eq('id', antiga.id)
-        : await admin.from('transactions').insert({
-            ...campos,
-            store_id:       null,
-            type:           'expense',
-            category:       'compra_fornecedor',
-            reference_type: 'purchase',
-            reference_id:   payload.purchaseId,
-            user_id:        userId,
-          })
-
-      if (txErr) {
-        return { success: false, error: `Peças e pagamentos foram salvos, mas o financeiro não: ${txErr.message}. Salve de novo.` }
-      }
-    }
-
-    if (despesasSobrando.length) {
-      const { error: delErr } = await admin.from('transactions')
-        .delete().in('id', despesasSobrando.map(t => t.id))
-      if (delErr) {
-        return { success: false, error: `A compra foi salva, mas sobraram lançamentos antigos no financeiro: ${delErr.message}. Salve de novo.` }
-      }
+        paid_at:        paidAt,
+        description:    descricao,
+      })
     }
   }
 
-  // ── 6. Cabeçalho e totais ───────────────────────────────────────────────
-  const { error: headErr } = await admin.from('purchases').update({
-    purchase_date: payload.purchaseDate,
-    notes:         payload.notes || null,
-    nf_number:     payload.nfNumber || null,
-    updated_at:    new Date().toISOString(),
-  }).eq('id', payload.purchaseId)
-
-  if (headErr) {
-    revalidatePath('/compras')
-    return { success: false, error: `Peças e pagamentos foram salvos, mas data/observação/NF não: ${headErr.message}. Salve de novo.` }
-  }
-
+  // ── 5. Grava tudo numa transação ────────────────────────────────────────
   /*
-   * Os totais saem dos ITENS GRAVADOS, não do payload da tela.
-   *
-   * Antes eram somados a partir de `payload.items`, o que dá o mesmo número
-   * enquanto tudo dá certo — e um número errado quando não dá: se a gravação de
-   * um item falhar, o total ainda contaria com ele. Lendo do banco, o total é
-   * sempre o que realmente está lá.
+   * Peças, estoque (por delta atômico, recusando negativo), itens, pagamentos,
+   * financeiro, cabeçalho e os totais — refeitos a partir dos itens gravados,
+   * não do payload. Qualquer erro desfaz tudo: acabou o "as peças anteriores a
+   * ela já foram salvas".
    */
-  try {
-    await recalcularTotaisDaCompra([payload.purchaseId])
-  } catch (e) {
-    // As peças e os pagamentos já foram gravados; só o total ficou para trás.
-    // Dizer isso é melhor que deixar a tela achar que deu tudo certo.
-    revalidatePath('/compras')
-    return { success: false, error: `A compra foi salva, mas o total não foi atualizado: ${(e as Error).message}. Salve de novo.` }
+  const { error: rpcErr } = await admin.rpc('editar_compra', {
+    p: {
+      purchase_id:      payload.purchaseId,
+      user_id:          userId,
+      purchase_date:    payload.purchaseDate,
+      notes:            payload.notes || null,
+      nf_number:        payload.nfNumber || null,
+      itens,
+      pagamentos,
+      despesas,
+      // Despesa sem pagamento por trás: a regravação antiga já as apagava.
+      despesas_remover: despesasSobrando.map(t => t.id),
+    },
+  })
+
+  if (rpcErr) {
+    console.error('[editarCompra] fv.editar_compra falhou', rpcErr)
+    return {
+      success: false,
+      error: falhaDoBanco(
+        rpcErr,
+        'salvar a edição',
+        'Não foi possível confirmar se a edição foi salva (falha de conexão). Recarregue a página e confira antes de salvar de novo.',
+      ),
+    }
   }
 
   revalidatePath('/compras')

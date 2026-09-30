@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { lojaDoEscopo, requireProfile } from '@/lib/auth'
+import { idDeRequisicaoValido } from '@/lib/idempotencia'
 
 /**
  * Transferência entre lojas — romaneio, trânsito e conferência no destino.
@@ -61,6 +62,12 @@ export async function enviarTransferencia(dados: {
   notes?: string
   /** IDA (envio): entra direto no destino, sem conferência. false = devolução (confere por bipe). */
   autoReceber?: boolean
+  /**
+   * uuid do romaneio, gerado pela tela e guardado no rascunho. Reenviar com o
+   * mesmo id devolve o romaneio já gravado em vez de tirar a caixa da origem
+   * de novo (migration 20261001_transferencia_idempotente.sql).
+   */
+  clientRequestId?: string | null
 }): Promise<ActionResult & { transfer_id?: string; autoRecebida?: boolean }> {
   const { perfil, erro } = await admin()
   if (!perfil) return { success: false, error: erro! }
@@ -76,14 +83,33 @@ export async function enviarTransferencia(dados: {
     return { success: false, error: 'Você só pode enviar peças da sua própria loja.' }
   }
 
-  const { data, error } = await createAdminClient().rpc('enviar_transferencia', {
+  const args = {
     p_from_store_id: dados.from_store_id,
     p_to_store_id:   dados.to_store_id,
     p_itens:         dados.itens,
     p_user_id:       perfil.id,
     p_notes:         dados.notes?.trim() || null,
     p_auto_receber:  dados.autoReceber ?? false,
-  })
+  }
+  // Id inválido (tela antiga, lixo) = envia sem idempotência, como antes.
+  const idRequisicao = idDeRequisicaoValido(dados.clientRequestId)
+  const supa = createAdminClient()
+
+  let { data, error } = await supa.rpc('enviar_transferencia',
+    idRequisicao ? { ...args, p_client_request_id: idRequisicao } : args)
+
+  /*
+   * PGRST202 = o PostgREST não conhece a função com o parâmetro novo: a
+   * migration ainda não foi aplicada, ou o cache de schema dele está velho.
+   * Nesse caso a função NÃO rodou (nada foi gravado), então repetir sem o id
+   * é seguro — segue sem idempotência, como antes do deploy. O deploy do
+   * código não pode travar o envio só porque a migration atrasou.
+   */
+  if (idRequisicao && error?.code === 'PGRST202') {
+    console.warn('[transferencias] enviar_transferencia sem p_client_request_id — envio SEM proteção contra reenvio. '
+      + 'Aplique supabase/migrations/20261001_transferencia_idempotente.sql e recarregue o schema do PostgREST.', error)
+    ;({ data, error } = await supa.rpc('enviar_transferencia', args))
+  }
 
   // Erro do banco é erro na tela. Uma peça que falhou derruba o romaneio
   // inteiro (a função é uma transação só), então engolir isso deixaria a

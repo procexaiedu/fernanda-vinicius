@@ -12,6 +12,7 @@ import type { LojaOption } from './page'
 import styles from './NovaTransferenciaModal.module.css'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
+import { idDeRequisicaoValido, novoIdDeRequisicao } from '@/lib/idempotencia'
 
 interface Linha extends PecaBipada {
   quantidade: number
@@ -59,6 +60,11 @@ interface Rascunho {
   obs: string
   linhas: Linha[]
   salvoEm: string
+  /**
+   * uuid deste romaneio para o envio idempotente. Opcional: rascunho gravado
+   * antes dele existir não tem, e ganha um novo ao ser retomado.
+   */
+  idRequisicao?: string
 }
 
 function lerChave(chave: string): Rascunho | null {
@@ -134,6 +140,14 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, o
    */
   const [enviado, setEnviado] = useState(false)
   const travaEnvio = useRef(false)
+  /*
+   * Um id por ROMANEIO, não por clique. Vai no rascunho: se o envio sai mas a
+   * resposta se perde, o reenvio (mesmo depois de fechar e reabrir a tela)
+   * leva o mesmo id e o banco devolve o romaneio já gravado em vez de tirar a
+   * caixa da origem duas vezes. Só muda quando o romaneio acaba: enviado com
+   * sucesso, descartado, ou outra origem (outro rascunho).
+   */
+  const [idRequisicao, setIdRequisicao] = useState(() => novoIdDeRequisicao())
 
   /*
    * `restaurando` existe para o efeito que GRAVA não passar na frente do que
@@ -286,6 +300,9 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, o
     setDestino(r.destino)
     setObs(r.obs)
     setLinhas(vivas)
+    // O id do rascunho é o do romaneio que PODE já ter sido enviado — manter.
+    const idGuardado = idDeRequisicaoValido(r.idRequisicao)
+    if (idGuardado) setIdRequisicao(idGuardado)
     setRetomado({ quando: r.salvoEm, perdidas: r.linhas.length - vivas.length })
     setRestaurando(false)
   }
@@ -312,13 +329,14 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, o
     // A chave é da ORIGEM atual: lista vazia aqui só apaga o rascunho desta
     // loja, nunca o de outra.
     if (!linhas.length) { apagarRascunho(usuarioId, origem); return }
-    gravarRascunho(usuarioId, { origem, destino, obs, linhas, salvoEm: new Date().toISOString() })
-  }, [linhas, origem, destino, obs, restaurando, enviado, usuarioId])
+    gravarRascunho(usuarioId, { origem, destino, obs, linhas, salvoEm: new Date().toISOString(), idRequisicao })
+  }, [linhas, origem, destino, obs, restaurando, enviado, usuarioId, idRequisicao])
 
   /* Sair da tela NÃO descarta. Só este botão descarta. */
   function descartarRascunho() {
     rascunhoTravado.current = false
     apagarRascunho(usuarioId, origem)
+    setIdRequisicao(novoIdDeRequisicao())
     setLinhas([])
     setRetomado(null)
     setErro(null)
@@ -342,6 +360,9 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, o
      */
     rascunhoTravado.current = false
     setRestaurando(true)
+    // Outra origem = outro romaneio. Se ela tiver rascunho lá, `restaurar`
+    // troca pelo id guardado nele.
+    setIdRequisicao(novoIdDeRequisicao())
     setOrigem(nova)
     setLinhas([])
     setRetomado(null)
@@ -384,6 +405,7 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, o
         // Toda transferência (ida e devolução) entra direto no destino: ela bipa
         // pra montar, envia, e já cai no estoque de destino. Sem bipar na chegada.
         autoReceber: true,
+        clientRequestId: idRequisicao,
       })
       if (r.success) setEnviado(true)
     } catch (e) {
@@ -401,6 +423,8 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, o
 
     // Só aqui o rascunho morre: o romaneio existe no banco, não se perde mais.
     apagarRascunho(usuarioId, origem)
+    // Romaneio encerrado: o próximo é outro envio, com outro id.
+    setIdRequisicao(novoIdDeRequisicao())
     router.refresh()
     onEnviado(r.transfer_id!)
   }

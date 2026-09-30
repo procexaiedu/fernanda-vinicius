@@ -300,7 +300,7 @@ Migrado em 24/08/2026 para o **Supabase self-hosted da ProceX**.
 | App | `https://fevinicius.procexai.tech`, serviço swarm `fevinicius_web` |
 | Postgres externo | porta **5433**, não 5432 |
 
-**O app builda a partir do GitHub no start do container.** Push na `main` não chega na loja sozinho: é preciso *Update the service* no Portainer (Services → `fevinicius_web`), o que leva 3 a 5 min de `npm install` + build. Existe um Service webhook do Portainer que faz isso por HTTP.
+**O app builda a partir do GitHub no start do container.** ⚠️ **Push na `main` PUBLICA SOZINHO:** o repositório tem um webhook do GitHub (evento `push`) que chama o Service webhook do Portainer e atualiza o `fevinicius_web` na hora — 3 a 5 min de `npm install` + build. Com o `UpdateConfig` em `stop-first`, a loja fica fora nesse tempo e telas abertas perdem o "Salvar" (server action de build antigo). **Só dê push fora do horário da loja**, e aplique migration ANTES do push quando o código depender dela. (Confirmado em 30/09/2026: o push das 19:00 disparou o deploy sozinho.)
 
 **Não existe runtime de Edge Functions** nesse servidor — nenhum dos 9 projetos usa. As 3 funções de Disparos foram portadas para dentro do app (`src/lib/ycloud.ts`, `src/lib/disparo/enviarLote.ts`, `src/app/api/ycloud-webhook/route.ts`). Ver `supabase/functions/README.md`.
 

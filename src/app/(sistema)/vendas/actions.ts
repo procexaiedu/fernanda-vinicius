@@ -6,11 +6,8 @@ import { createClient } from '@/lib/supabase/server'
 import { calcularTotalDaVenda } from '@/lib/vendas/total'
 import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { produtoDeConserto } from '@/lib/conserto'
-import { registrarPagamentoDoConserto, registrarConsertoDaVenda } from '@/app/(sistema)/consertos/interno'
 import { lojaEmiteNota } from '@/lib/fiscal/emitente'
-import {
-  idDeRequisicaoValido, colunaDeIdempotenciaAusente, violouUnico, avisarIdempotenciaDesligada,
-} from '@/lib/idempotencia'
+import { idDeRequisicaoValido } from '@/lib/idempotencia'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -249,64 +246,41 @@ async function resolverConsertos(
 }
 
 /**
- * Fecha os consertos que esta venda cobrou.
+ * O vínculo do conserto que a linha cobra — gravado DENTRO de `fv.salvar_venda`,
+ * na mesma transação da venda (antes eram `registrarPagamentoDoConserto` /
+ * `registrarConsertoDaVenda`, em consertos/interno.ts, com os mesmos valores).
  *
- * O `RETURNING` de um INSERT com várias linhas devolve na MESMA ORDEM em que
- * foram enviadas, então o índice casa item com a linha criada. É o que permite
- * gravar em qual `sale_item` cada conserto foi cobrado.
+ * `{ id }`: peça já registrada — a venda diz que foi PAGA, não que saiu.
+ * Pagar e entregar são coisas diferentes ("ela diz se a cliente paga o
+ * conserto depois ou antes"); quem entrega é quem clica em "Cliente levou".
  *
- * Falhar aqui não derruba a venda: a venda aconteceu e o dinheiro entrou. Um
- * conserto que ficou marcado como "pronto" é corrigível na tela; uma venda
- * perdida, não.
+ * `{ novo }`: cobrança direta, sem peça registrada antes. O PDV cria o
+ * registro — senão o conserto existiria só como dinheiro, e a tela de
+ * Consertos ficaria cega para ele. Pagou e levou nasce ENTREGUE; pagou
+ * adiantado nasce NA LOJA.
+ *
+ * Falhar o vínculo NÃO derruba a venda: a venda aconteceu e o dinheiro
+ * entrou. A função roda o vínculo num savepoint e devolve o que falhou em
+ * `consertos_pendentes`, que vai para o log.
  */
-async function fecharConsertosDaVenda(
-  items: SaleItem[],
-  criados: { id: string }[] | null,
+function vinculoDoConserto(
+  item: SaleItem,
   contexto: { storeId: string; customerId: string | null; userId: string },
-): Promise<void> {
-  if (!criados?.length) return
-
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i]
-    if (!item?.isConserto || !criados[i]) continue
-
-    try {
-      if (item.consertoId) {
-        /*
-         * Peça já registrada: a venda diz que foi PAGA, não que saiu.
-         *
-         * Pagar e entregar são coisas diferentes — "ela diz se a cliente paga o
-         * conserto depois ou antes". Pagando adiantado, a peça continua na loja,
-         * e marcá-la como entregue aqui a apagaria da tela justamente enquanto
-         * ainda está aqui. Quem entrega é quem clica em "Cliente levou".
-         */
-        await registrarPagamentoDoConserto(item.consertoId, criados[i].id)
-      } else {
-        /*
-         * Cobrança direta, sem peça registrada antes. O PDV cria o registro —
-         * senão o conserto existiria só como dinheiro, e a tela de Consertos
-         * ficaria cega para ele.
-         */
-        await registrarConsertoDaVenda({
-          storeId:     contexto.storeId,
-          customerId:  contexto.customerId,
-          descricao:   item.consertoDescricao ?? null,
-          saleItemId:  criados[i].id,
-          userId:      contexto.userId,
-          ficouNaLoja: !!item.consertoFicouNaLoja,
-        })
-      }
-    } catch (e) {
-      /*
-       * A venda NÃO falha por isto (ver a nota acima: a venda vale mais que o
-       * vínculo). Mas o catch era vazio, e um conserto que não fechou sumia
-       * sem rastro — agora fica no log do servidor com o que precisa para
-       * corrigir à mão na tela de Consertos.
-       */
-      console.error('[vendas] conserto não foi fechado pela venda', {
-        consertoId: item.consertoId ?? null, saleItemId: criados[i].id, erro: e,
-      })
-    }
+): Record<string, unknown> | null {
+  if (!item.isConserto) return null
+  if (item.consertoId) return { id: item.consertoId }
+  const hoje = new Date().toISOString().slice(0, 10)
+  return {
+    novo: {
+      store_id:    contexto.storeId,
+      customer_id: contexto.customerId,
+      // Sem descrição digitada sobra o genérico — melhor que perder o registro.
+      peca:        item.consertoDescricao?.trim() || 'Conserto',
+      recebido_em: hoje,
+      status:      item.consertoFicouNaLoja ? 'recebido' : 'entregue',
+      entregue_em: item.consertoFicouNaLoja ? null : hoje,
+      user_id:     contexto.userId,
+    },
   }
 }
 
@@ -336,6 +310,12 @@ function conferirValores(data: VendaFormData): string | null {
     if (!numeroValido(it.unitPrice) || it.unitPrice <= 0) {
       return `Item ${i + 1} (${it.productName || 'sem nome'}): preço inválido.`
     }
+  }
+  /* `fv.exchanges.customer_id` é NOT NULL. A tela já barra, mas sem esta
+   * checagem a RPC transacional desfaria a venda inteira com uma mensagem
+   * genérica. */
+  if (data.exchangeItems.length > 0 && !data.customerId) {
+    return 'Troca precisa de cliente identificado. Selecione a cliente da venda.'
   }
   for (const [i, ei] of data.exchangeItems.entries()) {
     if (!numeroValido(ei.quantity) || !Number.isInteger(ei.quantity) || ei.quantity < 1) {
@@ -459,161 +439,176 @@ async function conferirConsertosDaCliente(
   return null
 }
 
-/**
- * Soma `delta` ao estoque de uma peça (negativo = saiu). Serviço não tem estoque.
- *
- * Antes cada lugar fazia `(prod?.quantity_in_stock ?? 0) + delta`: se a
- * LEITURA falhasse (rede, timeout), o `?? 0` gravava o saldo como se a peça
- * tivesse zero — uma peça com 5 em estoque vendida com a leitura falhando
- * ficava com −1. Agora leitura falhou = não grava nada, e quem chamou fica
- * sabendo qual peça ficou para trás.
- *
- * Continua sendo ler-e-escrever (não é atômico); o conserto de verdade é uma
- * RPC com `quantity_in_stock = quantity_in_stock + delta`, que muda o banco e
- * ficou fora desta correção.
- *
- * Devolve `null` quando deu certo, ou o nome/id da peça que ficou para trás.
- */
-async function moverEstoque(
-  admin: Admin,
-  productId: string,
-  delta: number,
-  extra: Record<string, unknown> = {},
-): Promise<string | null> {
-  const { data: prod, error } = await admin
-    .from('products')
-    .select('name, quantity_in_stock, is_service')
-    .eq('id', productId)
-    .single()
-  if (error || !prod) {
-    console.error('[vendas] leitura de estoque falhou — saldo NÃO alterado', { productId, delta, error })
-    return productId
-  }
-  if (prod.is_service) return null   // serviço (conserto) não controla estoque
-
-  const { error: updErr } = await admin
-    .from('products')
-    .update({ quantity_in_stock: (Number(prod.quantity_in_stock) || 0) + delta, ...extra })
-    .eq('id', productId)
-  if (updErr) {
-    console.error('[vendas] gravação de estoque falhou', { productId, delta, error: updErr })
-    return prod.name ?? productId
-  }
-  return null
-}
-
-/**
- * Mensagem para quando a venda JÁ ESTÁ gravada mas um passo depois falhou.
- *
- * Voltar "erro" puro aqui era o pior dos mundos: a tela liberava o botão, ela
- * clicava de novo e a venda entrava duas vezes. Com `saleId` na resposta o
- * formulário sabe que a venda existe e não deixa salvar de novo.
- */
-function gravadaComPendencia(o_que: string): string {
-  return `A venda FOI gravada, mas ${o_que}. NÃO salve de novo (duplicaria a venda) — confira em Vendas e avise a administração.`
-}
-
-/**
- * A venda com este `client_request_id` — o reenvio de uma venda que já entrou.
- *
- * `{ saleId: null }` = não existe, pode gravar. `colunaAusente` = a migration
- * de 30/09 ainda não foi aplicada: segue SEM idempotência (o deploy não pode
- * travar o balcão por causa da ordem). `erro` = não deu para conferir.
- */
-async function procurarVendaPorPedido(
-  admin: Admin, idReq: string,
-): Promise<{ saleId: string | null } | { colunaAusente: true } | { erro: true }> {
-  const { data, error } = await admin
-    .from('sales').select('id').eq('client_request_id', idReq).maybeSingle()
-  if (error) {
-    if (colunaDeIdempotenciaAusente(error)) {
-      avisarIdempotenciaDesligada('sales', error)
-      return { colunaAusente: true }
-    }
-    console.error('[salvarVenda] falha ao procurar venda pelo client_request_id', error)
-    return { erro: true }
-  }
-  return { saleId: (data?.id as string | undefined) ?? null }
-}
-
-/** Diferença até um centavo é arredondamento, não outra venda. */
-const TOLERANCIA_CENTAVO = 0.011
-
 /* A tela reconhece este caso por `idReusado`, não pelo texto — e nem daria
  * para exportar a constante: arquivo 'use server' só exporta função async. */
 const MSG_ID_DE_OUTRA_VENDA =
   'Este salvamento já foi usado para outra venda. Recarregue a página (F5) e lance de novo — nada desta venda foi gravado.'
 
+const METODO_LABEL: Record<string, string> = { cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito' }
+
 /**
- * A resposta para um reenvio cuja venda JÁ EXISTE.
+ * A linha de `fv.sales` e o corpo da venda (itens, pagamentos, financeiro,
+ * troca), já resolvidos — o pacote de `fv.salvar_venda` / `fv.editar_venda`.
  *
- * Não basta devolver "sucesso": o primeiro envio pode ter gravado a venda e
- * parado num passo depois (itens, pagamento) — a resposta de pendência é que
- * se perdeu. Então confere se itens e pagamentos entraram todos, pela mesma
- * contagem que a tela mandou (cada linha vira uma linha, 1 para 1).
+ * "O TypeScript calcula, o SQL persiste": toda conta de dinheiro fica aqui (e
+ * o total em src/lib/vendas/total.ts); a função só grava estas linhas, com
+ * estas colunas, e mexe no estoque. Os valores são os mesmos que cada insert
+ * do caminho antigo mandava ao PostgREST.
  *
- * ANTES disso confere se é MESMO a mesma venda (impressão digital: loja,
- * cliente, total e nº de peças). O id vive no rascunho e na tela; se por
- * qualquer caminho ele sobrar de uma venda já gravada e for mandado com
- * OUTRA venda, só contar linhas devolvia "sucesso" — a tela mostrava "venda
- * registrada", o rascunho sumia e a venda nova nunca entrava no caixa.
- * Divergiu: erro claro, nada gravado, e `idReusado` para a tela gerar outro id.
- *
- * Com pendência (ou sem conseguir conferir) volta `saleId` junto do erro: a
- * tela trava o botão e apaga o rascunho, como no caminho normal — ver
- * `gravadaComPendencia`.
+ * `data` já passou por `prepararVenda` (conserto resolvido, custo relido).
  */
-async function respostaDaVendaJaGravada(
-  admin: Admin, saleId: string, data: VendaFormData, storeId: string,
-): Promise<ActionResult> {
-  const [vendaRes, itensRes, pagRes] = await Promise.all([
-    admin.from('sales').select('store_id, customer_id, total, discount_pct').eq('id', saleId).maybeSingle(),
-    admin.from('sale_items').select('id', { count: 'exact', head: true }).eq('sale_id', saleId),
-    admin.from('sale_payments').select('id', { count: 'exact', head: true }).eq('sale_id', saleId),
-  ])
-  if (vendaRes.error || !vendaRes.data || itensRes.error || pagRes.error) {
-    console.error('[salvarVenda] reenvio: falha ao conferir a venda existente', { saleId, error: vendaRes.error ?? itensRes.error ?? pagRes.error })
-    return {
-      success: false, saleId,
-      error: 'Esta venda JÁ ESTAVA gravada (o primeiro envio chegou), mas não consegui conferir se entrou completa. NÃO salve de novo — confira em Vendas.',
+function montarPacoteDaVenda(
+  data: VendaFormData,
+  ctx: {
+    storeId: string
+    userId: string
+    pixPct: number
+    birthdayPct: number
+    /** Custo do cadastro, por peça — o das peças devolvidas vem daqui. */
+    custos: Map<string, number>
+  },
+) {
+  // ── Totais ────────────────────────────────────────────────────────────────
+  const subtotal   = data.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+  const totalCost  = data.items.reduce((s, i) => s + i.unitCost  * i.quantity, 0)
+
+  const discountPct = (data.hasPix ? ctx.pixPct : 0) + (data.hasBirthday ? ctx.birthdayPct : 0)
+  // Espelha o front: quando há desconto, o total sobe para o inteiro seguinte
+  // e o desconto é reconciliado (subtotal − total). Grava redondo.
+  /* Um cálculo só para tela e banco — ver src/lib/vendas/total.ts. */
+  const { total, discountAmt } = calcularTotalDaVenda({
+    subtotal, discountPct, manualDiscount: data.manualDiscount,
+  })
+
+  const discountTypeParts: string[] = []
+  if (data.hasPix)             discountTypeParts.push('pix')
+  if (data.hasBirthday)        discountTypeParts.push('birthday')
+  if (data.manualDiscount > 0) discountTypeParts.push('manual')
+  const discountType = discountTypeParts.join(',') || null
+
+  // ── Troca ─────────────────────────────────────────────────────────────────
+  const exchangeCredit = data.exchangeItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+  const hasExchange    = data.exchangeItems.length > 0
+
+  const sale = {
+    store_id:        ctx.storeId,
+    customer_id:     data.customerId ?? null,
+    user_id:         ctx.userId,
+    seller_id:       data.sellerId ?? ctx.userId,
+    sale_date:       data.saleDate,
+    subtotal,
+    discount_type:   discountType,
+    discount_pct:    discountPct,
+    discount_amount: discountAmt,
+    manual_discount: data.manualDiscount,
+    total,
+    total_cost:      totalCost,
+    /* Só quando ficou saldo. O saldo em si não é gravado: sai da soma de
+     * sale_payments, que é a única fonte que não pode divergir. */
+    previsao_pagamento: data.previsaoPagamento ?? null,
+    destinatario_cpf:   data.destinatarioCpf ?? null,
+    payment_summary: buildPaymentSummary(data.payments, hasExchange, exchangeCredit),
+    status:          'completed',
+    notes:           data.notes || null,
+  }
+
+  const contextoConserto = { storeId: ctx.storeId, customerId: data.customerId, userId: ctx.userId }
+  const items = data.items.map(i => ({
+    product_id: i.productId,
+    quantity:   i.quantity,
+    unit_price: i.unitPrice,
+    unit_cost:  i.unitCost,
+    subtotal:   parseFloat((i.unitPrice * i.quantity).toFixed(2)),
+    conserto:   vinculoDoConserto(i, contextoConserto),
+  }))
+
+  const payments = data.payments.map(p => ({
+    payment_method: p.method,
+    amount:         p.amount,
+    installments:   p.installments,
+    card_brand:     (p.method === 'credit' || p.method === 'debit') ? (p.cardBrand ?? null) : null,
+  }))
+
+  /* Uma linha do financeiro por pagamento. `reference_id` (a venda) e
+   * `paid_at` (now()) são preenchidos pela função. */
+  const transactions = data.payments.map(p => ({
+    store_id:         ctx.storeId,
+    type:             'income',
+    amount:           p.amount,
+    category:         'venda',
+    description:      p.installments > 1 ? `Venda — ${METODO_LABEL[p.method] ?? p.method} ${p.installments}x` : 'Venda',
+    reference_type:   'sale',
+    user_id:          ctx.userId,
+    payment_method:   p.method,
+    transaction_date: data.saleDate,
+    status:           'completed',
+  }))
+
+  let exchange = null
+  if (hasExchange) {
+    const priceDifference = parseFloat((total - exchangeCredit).toFixed(2))
+    const differenceMethod = data.payments[0]?.method ?? null
+    exchange = {
+      row: {
+        original_sale_id: data.exchangeItems[0]?.originalSaleId ?? null,
+        store_id:         ctx.storeId,
+        customer_id:      data.customerId,
+        user_id:          ctx.userId,
+        exchange_date:    data.saleDate,
+        reason:           'Troca de produto',
+        price_difference: priceDifference,
+        payment_method:   priceDifference > 0 ? differenceMethod : null,
+      },
+      // Voltam ao estoque (e reativam a peça), com o custo do cadastro para o CMV.
+      returned: data.exchangeItems.map(ei => ({
+        product_id: ei.productId,
+        quantity:   ei.quantity,
+        unit_price: ei.unitPrice,
+        unit_cost:  ctx.custos.get(ei.productId) ?? 0,
+      })),
+      // O que a cliente está levando nessa venda.
+      given: data.items.map(i => ({
+        product_id: i.productId,
+        quantity:   i.quantity,
+        unit_price: i.unitPrice,
+        unit_cost:  i.unitCost,
+      })),
     }
   }
 
-  /*
-   * O total esperado sai da MESMA conta do insert (src/lib/vendas/total.ts),
-   * com o percentual que ficou gravado na venda — assim uma mudança de
-   * configuração entre os dois envios não faz a mesma venda parecer outra.
-   */
-  const venda    = vendaRes.data
-  const subtotal = data.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
-  const pctGravado = data.hasPix || data.hasBirthday ? Number(venda.discount_pct) || 0 : 0
-  const { total: totalEsperado } = calcularTotalDaVenda({
-    subtotal, discountPct: pctGravado, manualDiscount: data.manualDiscount,
-  })
-  const outraVenda =
-    venda.store_id !== storeId
-    || (venda.customer_id ?? null) !== (data.customerId ?? null)
-    || Math.abs((Number(venda.total) || 0) - totalEsperado) > TOLERANCIA_CENTAVO
-    /* Mais peças gravadas do que as mandadas não é pendência — é outra venda.
-     * Menos continua sendo "gravada pela metade", logo abaixo. */
-    || (itensRes.count ?? 0) > data.items.length
-  if (outraVenda) {
-    console.error('[salvarVenda] clientRequestId de OUTRA venda — nada gravado', {
-      saleId,
-      gravada: { loja: venda.store_id, cliente: venda.customer_id, total: venda.total, itens: itensRes.count },
-      enviada: { loja: storeId, cliente: data.customerId ?? null, total: totalEsperado, itens: data.items.length },
-    })
-    return { success: false, idReusado: true, error: MSG_ID_DE_OUTRA_VENDA }
-  }
+  return { sale, items, payments, transactions, exchange }
+}
 
-  if ((itensRes.count ?? 0) < data.items.length || (pagRes.count ?? 0) < data.payments.length) {
-    console.error('[salvarVenda] reenvio de venda gravada pela metade', {
-      saleId, itens: itensRes.count, esperadoItens: data.items.length, pagamentos: pagRes.count,
-    })
-    return { success: false, saleId, error: gravadaComPendencia('pode ter ficado incompleta (peças ou pagamentos)') }
+type ErroRpc = { code?: string; message?: string } | null
+
+/**
+ * O banco respondeu com um erro (a transação foi desfeita), ou a resposta nem
+ * chegou (rede, timeout)? No segundo caso a venda PODE ter entrado.
+ *
+ * PGRST202 / 42883 = a função não existe: a migration 20261001 não foi
+ * aplicada antes do deploy. Não há caminho antigo de propósito — fica no log
+ * em destaque para quem for olhar.
+ */
+function erroDoBancoRespondeu(err: ErroRpc, onde: string): boolean {
+  if (err?.code === 'PGRST202' || err?.code === '42883') {
+    console.error(`[${onde}] função do banco AUSENTE — aplique supabase/migrations/20261001_venda_transacional.sql (e recarregue o schema do PostgREST)`, err)
   }
-  console.info('[salvarVenda] reenvio reconhecido — devolvendo a venda já gravada', { saleId })
-  return { success: true, saleId }
+  return !!err?.code
+}
+
+/** Consertos cujo vínculo falhou dentro da função — a venda entrou mesmo assim. */
+function logarConsertosPendentes(onde: string, saleId: string, pendentes: unknown) {
+  if (Array.isArray(pendentes) && pendentes.length) {
+    console.error(`[${onde}] conserto não foi fechado pela venda — corrigir na tela de Consertos`, { saleId, pendentes })
+  }
+}
+
+function revalidarVendas() {
+  revalidatePath('/vendas')
+  revalidatePath('/produtos')
+  revalidatePath('/estoque')
+  revalidatePath('/financeiro')
+  revalidatePath('/clientes')
 }
 
 /**
@@ -672,7 +667,7 @@ async function prepararVenda(
   admin: Admin,
   storeId: string,
   data: VendaFormData,
-): Promise<{ data: VendaFormData; pixPct: number; birthdayPct: number } | { error: string }> {
+): Promise<{ data: VendaFormData; pixPct: number; birthdayPct: number; custos: Map<string, number> } | { error: string }> {
   if (!data.items.length) return { error: 'Adicione ao menos um produto.' }
 
   const erroValores = conferirValores(data)
@@ -704,13 +699,32 @@ async function prepararVenda(
     },
     pixPct: pct.pixPct,
     birthdayPct: pct.birthdayPct,
+    custos: pecas.custos,
   }
 }
 
 // ─── Action: salvar venda ─────────────────────────────────────────────────────
 
+/**
+ * Lança uma venda nova — numa transação só, via `fv.salvar_venda`.
+ *
+ * "O TypeScript calcula, o SQL persiste": aqui ficam login, escopo de loja,
+ * todas as conferências (`prepararVenda`) e todas as contas; a função do
+ * banco recebe as linhas prontas e grava venda, itens, estoque (atômico),
+ * consertos, pagamentos, financeiro e troca — ou nada. Por isso não existe
+ * mais a resposta "a venda FOI gravada, mas…": ou entrou inteira, ou não
+ * entrou.
+ *
+ * IDEMPOTÊNCIA: o `clientRequestId` vai no pacote e é conferido DENTRO da
+ * função, sob trava — reenvio da mesma venda devolve a que já existe;
+ * id de outra venda devolve `idReusado` sem gravar nada.
+ *
+ * DEPLOY: depende de supabase/migrations/20261001_venda_transacional.sql.
+ * Aplique a migration ANTES do push — não há caminho antigo; sem a função
+ * (PGRST202/42883) salvar responde erro e o log diz qual migration falta.
+ */
 export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
-  const { userId, role, storeId: userStoreId, error: authErr } = await verifyUser()
+  const { userId, storeId: userStoreId, error: authErr } = await verifyUser()
   if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
 
   const admin = createAdminClient()
@@ -728,308 +742,73 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
   const finalStoreId = userStoreId ?? data.storeId
   if (!finalStoreId) return { success: false, error: 'Loja não definida.' }
 
-  // ── 0. Reenvio de uma venda que já entrou? ────────────────────────────────
-  /*
-   * ANTES de qualquer escrita — inclusive `resolverConsertos`, dentro de
-   * `prepararVenda`. A resposta do primeiro envio pode ter se perdido (rede,
-   * timeout, deploy) com a venda inteira gravada; sem esta conferência o
-   * segundo clique — ou o rascunho recuperado — lançava tudo de novo: estoque
-   * baixado duas vezes, pagamento em dobro no caixa.
-   */
-  let idReq = idDeRequisicaoValido(data.clientRequestId)
-  if (idReq) {
-    const achada = await procurarVendaPorPedido(admin, idReq)
-    if ('colunaAusente' in achada) idReq = null
-    else if ('erro' in achada) {
-      /* Na dúvida não grava: seguir às cegas é exatamente o que duplica. */
-      return { success: false, error: 'Não consegui conferir se esta venda já tinha sido gravada. Nada foi registrado agora — tente salvar de novo em instantes.' }
-    } else if (achada.saleId) {
-      return respostaDaVendaJaGravada(admin, achada.saleId, data, finalStoreId)
-    }
-  }
+  /* Id inválido = salva sem idempotência, como antes (ver src/lib/idempotencia.ts). */
+  const idReq = idDeRequisicaoValido(data.clientRequestId)
 
   // ── 1. Conferir tudo antes de gravar (valores, settings, loja, custo) ─────
   const prep = await prepararVenda(admin, finalStoreId, data)
   if ('error' in prep) return { success: false, error: prep.error }
-  data = prep.data
-  const { pixPct, birthdayPct } = prep
 
-  // ── 2. Calcular totais ────────────────────────────────────────────────────
-  const subtotal   = data.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
-  const totalCost  = data.items.reduce((s, i) => s + i.unitCost  * i.quantity, 0)
-
-  const discountPct = (data.hasPix ? pixPct : 0) + (data.hasBirthday ? birthdayPct : 0)
-  // Espelha o front: quando há desconto, o total é arredondado ao inteiro mais próximo
-  // e o desconto é reconciliado (subtotal − total). Grava redondo, sem centavos quebrados.
-  /* Um cálculo só para tela e banco — ver src/lib/vendas/total.ts. */
-  const { total, discountAmt } = calcularTotalDaVenda({
-    subtotal, discountPct, manualDiscount: data.manualDiscount,
+  // ── 2. Montar o pacote e gravar numa transação ────────────────────────────
+  const pacote = montarPacoteDaVenda(prep.data, {
+    storeId: finalStoreId, userId, pixPct: prep.pixPct, birthdayPct: prep.birthdayPct, custos: prep.custos,
   })
 
-  const discountTypeParts: string[] = []
-  if (data.hasPix)          discountTypeParts.push('pix')
-  if (data.hasBirthday)     discountTypeParts.push('birthday')
-  if (data.manualDiscount > 0) discountTypeParts.push('manual')
-  const discountType = discountTypeParts.join(',') || null
+  const { data: resp, error } = await admin.rpc('salvar_venda', {
+    p: { client_request_id: idReq, ...pacote },
+  })
 
-  // ── 3. Calcular crédito de troca ──────────────────────────────────────────
-  const exchangeCredit = data.exchangeItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
-  const hasExchange    = data.exchangeItems.length > 0
-
-  // ── 4. Montar payment_summary ─────────────────────────────────────────────
-  const paymentSummary = buildPaymentSummary(data.payments, hasExchange, exchangeCredit)
-
-  // ── 5. Criar venda ────────────────────────────────────────────────────────
-  const linhaDaVenda = {
-    store_id:        finalStoreId,
-    customer_id:     data.customerId ?? null,
-    user_id:         userId,
-    seller_id:       data.sellerId ?? userId,
-    sale_date:       data.saleDate,
-    subtotal,
-    discount_type:   discountType,
-    discount_pct:    discountPct,
-    discount_amount: discountAmt,
-    manual_discount: data.manualDiscount,
-    total,
-    total_cost:      totalCost,
-    /* Só quando ficou saldo. O saldo em si não é gravado: sai da soma de
-     * sale_payments, que é a única fonte que não pode divergir. */
-    previsao_pagamento: data.previsaoPagamento ?? null,
-    destinatario_cpf:   data.destinatarioCpf ?? null,
-    payment_summary: paymentSummary,
-    status:          'completed',
-    notes:           data.notes || null,
-  }
-  /* O `as` só silencia a checagem de propriedade extra da inferência do
-   * insert — a coluna é opcional e pode nem existir ainda (ver abaixo). */
-  const inserirVenda = (comId: boolean) => admin
-    .from('sales')
-    .insert(comId && idReq ? { ...linhaDaVenda, client_request_id: idReq } as typeof linhaDaVenda : linhaDaVenda)
-    .select('id')
-    .single()
-
-  let { data: sale, error: saleErr } = await inserirVenda(true)
-
-  if (saleErr && idReq) {
-    if (violouUnico(saleErr)) {
-      /* Corrida: o outro envio desta MESMA venda (duplo clique) gravou entre a
-       * conferência lá em cima e este insert. O índice único barrou; devolve a
-       * dele. Não confere itens aqui — o outro envio ainda está gravando e
-       * responde por eles. */
-      const outra = await procurarVendaPorPedido(admin, idReq)
-      if ('saleId' in outra && outra.saleId) {
-        console.info('[salvarVenda] envio duplo barrado pelo índice único', { saleId: outra.saleId })
-        return { success: true, saleId: outra.saleId }
-      }
-    } else if (colunaDeIdempotenciaAusente(saleErr)) {
-      /* A conferência passou (cache velho?) mas o insert não conhece a coluna:
-       * grava sem ela, como antes da migration. */
-      avisarIdempotenciaDesligada('sales', saleErr)
-      ;({ data: sale, error: saleErr } = await inserirVenda(false))
+  if (error) {
+    console.error('[salvarVenda] fv.salvar_venda falhou', error)
+    if (erroDoBancoRespondeu(error, 'salvarVenda')) {
+      /* O banco respondeu com erro: a transação foi desfeita inteira. */
+      return { success: false, error: 'Não foi possível gravar a venda. Nada foi registrado — tente salvar de novo em instantes.' }
+    }
+    /* A resposta não chegou: a venda pode ter entrado. Com o id, salvar de
+     * novo é seguro (o banco reconhece e não duplica); sem ele, não. */
+    return {
+      success: false,
+      error: idReq
+        ? 'Não consegui confirmar se a venda foi gravada (falha de conexão). Salve de novo — se ela já tiver entrado, o sistema reconhece e não duplica.'
+        : 'Não consegui confirmar se a venda foi gravada (falha de conexão). Confira em Vendas ANTES de salvar de novo.',
     }
   }
 
-  /* O detalhe técnico (mensagem do Postgres) vai para o log; no balcão ela lê
-   * o que aconteceu e o que fazer. Aqui nada foi gravado ainda. */
-  if (saleErr || !sale) {
-    console.error('[salvarVenda] insert em sales falhou', saleErr)
+  const r = (resp ?? {}) as {
+    sale_id?: string; ja_existia?: boolean; incompleta?: boolean
+    erro?: string; sale_id_existente?: string; consertos_pendentes?: unknown
+  }
+
+  if (r.erro === 'id_reusado') {
+    console.error('[salvarVenda] clientRequestId de OUTRA venda — nada gravado', {
+      saleIdExistente: r.sale_id_existente, loja: finalStoreId, cliente: data.customerId ?? null,
+      total: pacote.sale.total, itens: pacote.items.length,
+    })
+    return { success: false, idReusado: true, error: MSG_ID_DE_OUTRA_VENDA }
+  }
+
+  if (!r.sale_id) {
+    console.error('[salvarVenda] fv.salvar_venda respondeu sem sale_id', resp)
     return { success: false, error: 'Não foi possível gravar a venda. Nada foi registrado — tente salvar de novo em instantes.' }
   }
 
-  // ── 6. Criar sale_items e decrementar estoque ─────────────────────────────
-  // (Consertos já resolvidos em `prepararVenda`, antes de a venda existir.)
-  const saleItems = data.items.map(i => ({
-    sale_id:    sale.id,
-    product_id: i.productId,
-    quantity:   i.quantity,
-    unit_price: i.unitPrice,
-    unit_cost:  i.unitCost,
-    subtotal:   parseFloat((i.unitPrice * i.quantity).toFixed(2)),
-  }))
-
-  const { data: itensCriados, error: itemsErr } = await admin.from('sale_items').insert(saleItems).select('id')
-  if (itemsErr) {
-    console.error('[salvarVenda] insert em sale_items falhou', { saleId: sale.id, error: itemsErr })
-    return { success: false, saleId: sale.id, error: gravadaComPendencia('as peças não entraram nela') }
-  }
-
-  await fecharConsertosDaVenda(data.items, itensCriados, {
-    storeId: finalStoreId, customerId: data.customerId, userId,
-  })
-
-  /* Peça que não teve o estoque atualizado. A venda segue (o dinheiro entrou),
-   * mas quem salvou fica sabendo — ver `moverEstoque`. */
-  const estoquePendente: string[] = []
-
-  for (const item of data.items) {
-    // `last_sale_date` nunca era gravado: dos 77 produtos já vendidos, ZERO
-    // tinham a data. Isso quebrava a view `v_stale_products` e o alerta
-    // "produtos sem venda há X dias" do dashboard, que passava a contar o
-    // catálogo inteiro como parado — 601 de 971 SKUs, número sem significado.
-    const falhou = await moverEstoque(admin, item.productId, -item.quantity, { last_sale_date: data.saleDate })
-    if (falhou) estoquePendente.push(item.productName || falhou)
-  }
-
-  // ── 7. Criar sale_payments + transactions ─────────────────────────────────
-  for (const payment of data.payments) {
-    const { error: ppErr } = await admin.from('sale_payments').insert({
-      sale_id:        sale.id,
-      payment_method: payment.method,
-      amount:         payment.amount,
-      installments:   payment.installments,
-      card_brand:     (payment.method === 'credit' || payment.method === 'debit') ? (payment.cardBrand ?? null) : null,
-    })
-    if (ppErr) {
-      console.error('[salvarVenda] insert em sale_payments falhou', { saleId: sale.id, error: ppErr })
-      return { success: false, saleId: sale.id, error: gravadaComPendencia('um dos pagamentos não foi registrado') }
+  if (r.ja_existia) {
+    /* Só venda gravada pelo caminho antigo (sem transação) pode estar pela
+     * metade. Volta `saleId` junto do erro: a tela trava o botão. */
+    if (r.incompleta) {
+      console.error('[salvarVenda] reenvio de venda gravada pela metade (anterior à venda transacional)', { saleId: r.sale_id })
+      return {
+        success: false, saleId: r.sale_id,
+        error: 'Esta venda JÁ ESTAVA gravada, mas pode ter ficado incompleta (peças ou pagamentos). NÃO salve de novo (duplicaria a venda) — confira em Vendas e avise a administração.',
+      }
     }
-
-    const methodLabel = { cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito' }[payment.method] ?? payment.method
-    const desc = payment.installments > 1
-      ? `Venda — ${methodLabel} ${payment.installments}x`
-      : `Venda${data.customerId ? '' : ''}`
-
-    const { error: txErr } = await admin.from('transactions').insert({
-      store_id:         finalStoreId,
-      type:             'income',
-      amount:           payment.amount,
-      category:         'venda',
-      description:      desc,
-      reference_type:   'sale',
-      reference_id:     sale.id,
-      user_id:          userId,
-      payment_method:   payment.method,
-      transaction_date: data.saleDate,
-      status:           'completed',
-      paid_at:          new Date().toISOString(),
-    })
-    if (txErr) {
-      console.error('[salvarVenda] insert em transactions falhou', { saleId: sale.id, error: txErr })
-      return { success: false, saleId: sale.id, error: gravadaComPendencia('um pagamento não entrou no financeiro') }
-    }
+    console.info('[salvarVenda] reenvio reconhecido — devolvendo a venda já gravada', { saleId: r.sale_id })
+    return { success: true, saleId: r.sale_id }
   }
 
-  // ── 8. Criar exchange se tiver troca ──────────────────────────────────────
-  if (hasExchange) {
-    const priceDifference = parseFloat((total - exchangeCredit).toFixed(2))
-    const differenceMethod = data.payments[0]?.method ?? null
-
-    const { data: exchange, error: exchErr } = await admin
-      .from('exchanges')
-      .insert({
-        sale_id:          sale.id,
-        original_sale_id: data.exchangeItems[0]?.originalSaleId ?? null,
-        store_id:         finalStoreId,
-        customer_id:      data.customerId,
-        user_id:          userId,
-        exchange_date:    data.saleDate,
-        reason:           'Troca de produto',
-        price_difference: priceDifference,
-        payment_method:   priceDifference > 0 ? differenceMethod : null,
-      })
-      .select('id')
-      .single()
-
-    if (exchErr || !exchange) {
-      console.error('[salvarVenda] insert em exchanges falhou', { saleId: sale.id, error: exchErr })
-      return { success: false, saleId: sale.id, error: gravadaComPendencia('a troca (peça devolvida) não foi registrada') }
-    }
-
-    const erroTroca = await gravarItensDaTroca(admin, exchange.id, data, estoquePendente)
-    if (erroTroca) {
-      return { success: false, saleId: sale.id, error: gravadaComPendencia(erroTroca) }
-    }
-  }
-
-  revalidatePath('/vendas')
-  revalidatePath('/produtos')
-  revalidatePath('/estoque')
-  revalidatePath('/financeiro')
-  revalidatePath('/clientes')
-
-  if (estoquePendente.length) {
-    return {
-      success: false, saleId: sale.id,
-      error: gravadaComPendencia(`o estoque destas peças não foi atualizado: ${estoquePendente.join(', ')}`),
-    }
-  }
-  return { success: true, saleId: sale.id }
-}
-
-/**
- * As duas metades da troca: o que voltou (entra no estoque) e o que saiu.
- *
- * Antes os inserts de `exchange_items` não conferiam erro — a troca podia
- * ficar gravada sem as peças, e o estoque da peça devolvida subia mesmo
- * assim. Agora: peça devolvida só volta ao estoque se a linha dela gravou.
- *
- * Devolve o que falhou (para a mensagem) ou `null`. As falhas de ESTOQUE vão
- * para `estoquePendente`, que quem chamou já reporta.
- */
-async function gravarItensDaTroca(
-  admin: Admin,
-  exchangeId: string,
-  data: VendaFormData,
-  estoquePendente: string[],
-): Promise<string | null> {
-  // Custo da peça devolvida: snapshot do cadastro, para o CMV
-  const idsDevolvidos = [...new Set(data.exchangeItems.map(ei => ei.productId))]
-  const { data: custos, error: custoErr } = idsDevolvidos.length
-    ? await admin.from('products').select('id, cost_price').in('id', idsDevolvidos)
-    : { data: [], error: null }
-  if (custoErr || !custos) {
-    console.error('[vendas] leitura do custo das peças devolvidas falhou', { exchangeId, error: custoErr })
-    return 'as peças devolvidas não foram registradas na troca'
-  }
-  const custoDe = new Map(custos.map(c => [c.id as string, Number(c.cost_price) || 0]))
-
-  // Itens devolvidos (returned) — voltam ao estoque, snapshot do custo para CMV
-  for (const ei of data.exchangeItems) {
-    const { error: insErr } = await admin.from('exchange_items').insert({
-      exchange_id: exchangeId,
-      direction:   'returned',
-      product_id:  ei.productId,
-      quantity:    ei.quantity,
-      unit_price:  ei.unitPrice,
-      unit_cost:   custoDe.get(ei.productId) ?? 0,
-    })
-    if (insErr) {
-      console.error('[vendas] insert em exchange_items (returned) falhou', { exchangeId, error: insErr })
-      return `a peça devolvida "${ei.productName}" não foi registrada na troca`
-    }
-    /*
-     * `is_active: true` junto com o saldo.
-     *
-     * Peça vendida costuma ficar zerada, e peça zerada é inativada — foram
-     * 703 delas em 30/08, depois da recontagem. Devolver só a quantidade
-     * deixaria a peça com estoque e invisível: não aparece em /estoque, não
-     * é achada na busca e o bipe não encontra. Voltou para a gaveta, volta
-     * para as listas.
-     */
-    const falhou = await moverEstoque(admin, ei.productId, ei.quantity, {
-      is_active: true,
-      updated_at: new Date().toISOString(),
-    })
-    if (falhou) estoquePendente.push(ei.productName || falhou)
-  }
-
-  // Itens dados (given) — os que o cliente está levando nessa venda
-  for (const item of data.items) {
-    const { error: insErr } = await admin.from('exchange_items').insert({
-      exchange_id: exchangeId,
-      direction:   'given',
-      product_id:  item.productId,
-      quantity:    item.quantity,
-      unit_price:  item.unitPrice,
-      unit_cost:   item.unitCost,
-    })
-    if (insErr) {
-      console.error('[vendas] insert em exchange_items (given) falhou', { exchangeId, error: insErr })
-      return 'as peças levadas não foram registradas na troca'
-    }
-  }
-  return null
+  logarConsertosPendentes('salvarVenda', r.sale_id, r.consertos_pendentes)
+  revalidarVendas()
+  return { success: true, saleId: r.sale_id }
 }
 
 // ─── Action: detalhe de uma venda ─────────────────────────────────────────────
@@ -1235,61 +1014,37 @@ export async function buscarVendasCliente(customerId: string, storeId: string): 
 
 // ─── Action: deletar venda ────────────────────────────────────────────────────
 
+/**
+ * Exclui a venda numa transação só, via `fv.excluir_venda`: estoque de volta
+ * (a peça que voltou na troca sai de novo), financeiro, pagamentos, itens,
+ * troca e a venda — ou nada — deixando uma linha em `fv.stock_movements`
+ * por peça devolvida (sem isso a conferência não via a exclusão, porque os
+ * itens somem). Antes eram deletes soltos: um que falhasse no
+ * meio deixava a venda existindo com o estoque já devolvido.
+ *
+ * DEPLOY: depende de supabase/migrations/20261001_venda_transacional.sql
+ * (aplicar ANTES do push; sem caminho antigo).
+ */
 export async function deletarVenda(saleId: string): Promise<ActionResult> {
-  const { error: authErr } = await verifyUser()
-  if (authErr) return { success: false, error: authErr }
+  const { userId, error: authErr } = await verifyUser()
+  if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
 
   const admin = createAdminClient()
 
-  // Reverter estoque dos itens vendidos
-  const { data: items } = await admin
-    .from('sale_items').select('product_id, quantity').eq('sale_id', saleId)
-
-  /* Ver `moverEstoque`: leitura que falha não grava mais saldo inventado.
-   * A exclusão segue (a dona pediu para excluir), e o log diz qual peça
-   * ficou com o saldo por corrigir. */
-  if (items) {
-    for (const item of items) {
-      await moverEstoque(admin, item.product_id, item.quantity)
-    }
-  }
-
-  // Reverter exchange vinculado à venda atual (via sale_id, não original_sale_id)
-  const { data: exchanges } = await admin
-    .from('exchanges').select('id').eq('sale_id', saleId)
-
-  if (exchanges) {
-    for (const exch of exchanges) {
-      // Itens que voltaram ao estoque (returned) precisam ser decrementados de volta
-      const { data: returned } = await admin
-        .from('exchange_items').select('product_id, quantity').eq('exchange_id', exch.id).eq('direction', 'returned')
-
-      if (returned) {
-        for (const r of returned) {
-          await moverEstoque(admin, r.product_id, -r.quantity)
-        }
-      }
-
-      await admin.from('exchange_items').delete().eq('exchange_id', exch.id)
-      await admin.from('exchanges').delete().eq('id', exch.id)
-    }
-  }
-
-  await admin.from('transactions').delete().eq('reference_id', saleId).eq('reference_type', 'sale')
-  await admin.from('sale_payments').delete().eq('sale_id', saleId)
-  await admin.from('sale_items').delete().eq('sale_id', saleId)
-  const { error } = await admin.from('sales').delete().eq('id', saleId)
-
+  /* `p_user_id`: quem excluiu, no rastro de `fv.stock_movements` — a
+   * conferência de estoque lê de lá o que se mexeu durante a contagem. */
+  const { error } = await admin.rpc('excluir_venda', { p_sale_id: saleId, p_user_id: userId })
   if (error) {
-    console.error('[deletarVenda] delete em sales falhou', { saleId, error })
-    return { success: false, error: 'Não foi possível excluir a venda. Confira em Vendas se ela ainda aparece e avise a administração.' }
+    console.error('[deletarVenda] fv.excluir_venda falhou', { saleId, error })
+    return {
+      success: false,
+      error: erroDoBancoRespondeu(error, 'deletarVenda')
+        ? 'Não foi possível excluir a venda. Nada foi alterado — tente de novo em instantes.'
+        : 'Não consegui confirmar se a venda foi excluída (falha de conexão). Confira em Vendas se ela ainda aparece antes de tentar de novo.',
+    }
   }
 
-  revalidatePath('/vendas')
-  revalidatePath('/produtos')
-  revalidatePath('/estoque')
-  revalidatePath('/financeiro')
-  revalidatePath('/clientes')
+  revalidarVendas()
   return { success: true }
 }
 
@@ -1428,11 +1183,14 @@ export async function buscarVendaParaEdicao(saleId: string): Promise<{ data: Edi
 
 // ─── Action: editar venda ──────────────────────────────────────────────────────
 // Reverte os efeitos da venda antiga (estoque, troca, pagamentos, transações) e
-// reaplica com os novos dados, mantendo o MESMO id. Reaproveita a lógica já
-// validada de salvarVenda/deletarVenda.
+// reaplica com os novos dados, mantendo o MESMO id — numa transação só, via
+// `fv.editar_venda`. As conferências e as contas são as mesmas de salvarVenda.
+//
+// DEPLOY: depende de supabase/migrations/20261001_venda_transacional.sql
+// (aplicar ANTES do push; sem caminho antigo).
 
 export async function editarVenda(saleId: string, data: VendaFormData): Promise<ActionResult> {
-  const { userId, role, storeId: userStoreId, error: authErr } = await verifyUser()
+  const { userId, storeId: userStoreId, error: authErr } = await verifyUser()
   if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
 
   const admin = createAdminClient()
@@ -1449,210 +1207,32 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
   const bloqueio = await motivoParaNaoEditar(admin, saleId)
   if (bloqueio) return { success: false, error: bloqueio }
 
-  // Tudo conferido ANTES de desfazer a venda antiga — falhar aqui não muda nada.
+  // Tudo conferido ANTES de mexer na venda — falhar aqui não muda nada.
   const prep = await prepararVenda(admin, finalStoreId, data)
   if ('error' in prep) return { success: false, error: prep.error }
-  data = prep.data
-  const { pixPct, birthdayPct } = prep
 
-  /* Peças cujo saldo não foi atualizado — ver `moverEstoque`. */
-  const estoquePendente: string[] = []
-  /* A partir daqui a venda antiga começa a ser desfeita: falhar deixa a venda
-   * pela metade, e a mensagem precisa dizer isso. */
-  const parouNoMeio = 'A edição parou no meio e a venda pode ter ficado incompleta. NÃO tente de novo — abra a venda em Vendas, confira e avise a administração.'
-
-  // ── 1. Reverter efeitos antigos ───────────────────────────────────────────
-  /* Sem conferir o erro desta leitura, uma falha pulava a devolução ao
-   * estoque e apagava os itens mesmo assim — a peça saía duas vezes. */
-  const { data: oldItems, error: oldItemsErr } = await admin.from('sale_items').select('product_id, quantity').eq('sale_id', saleId)
-  if (oldItemsErr || !oldItems) {
-    console.error('[editarVenda] leitura dos itens antigos falhou', { saleId, error: oldItemsErr })
-    return { success: false, error: 'Não consegui ler os itens atuais da venda. Nada foi alterado — tente de novo em instantes.' }
-  }
-  for (const it of oldItems) {
-    const falhou = await moverEstoque(admin, it.product_id, it.quantity)
-    if (falhou) estoquePendente.push(falhou)
-  }
-
-  /* Com o bloqueio acima, venda com troca não chega aqui; o laço fica para o
-   * caso de a troca ter sido gravada entre a conferência e este ponto. */
-  const { data: oldExchanges } = await admin.from('exchanges').select('id').eq('sale_id', saleId)
-  if (oldExchanges) {
-    for (const exch of oldExchanges) {
-      const { data: returned } = await admin.from('exchange_items').select('product_id, quantity').eq('exchange_id', exch.id).eq('direction', 'returned')
-      if (returned) {
-        for (const r of returned) {
-          const falhou = await moverEstoque(admin, r.product_id, -r.quantity)
-          if (falhou) estoquePendente.push(falhou)
-        }
-      }
-      await admin.from('exchange_items').delete().eq('exchange_id', exch.id)
-      await admin.from('exchanges').delete().eq('id', exch.id)
-    }
-  }
-
-  /* Delete que falha e segue em frente duplicava pagamento (o velho fica, o
-   * novo entra) — o caixa do dia dobrava. */
-  const delTx = await admin.from('transactions').delete().eq('reference_id', saleId).eq('reference_type', 'sale')
-  const delPg = delTx.error ? null : await admin.from('sale_payments').delete().eq('sale_id', saleId)
-  const delIt = !delPg || delPg.error ? null : await admin.from('sale_items').delete().eq('sale_id', saleId)
-  if (delTx.error || !delPg || delPg.error || !delIt || delIt.error) {
-    console.error('[editarVenda] limpeza da venda antiga falhou', {
-      saleId, error: delTx.error ?? delPg?.error ?? delIt?.error,
-    })
-    return { success: false, error: parouNoMeio }
-  }
-
-  // ── 2. Recalcular totais (igual salvarVenda) ──────────────────────────────
-  const subtotal   = data.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
-  const totalCost   = data.items.reduce((s, i) => s + i.unitCost * i.quantity, 0)
-  const discountPct = (data.hasPix ? pixPct : 0) + (data.hasBirthday ? birthdayPct : 0)
-  /* Um cálculo só para tela e banco — ver src/lib/vendas/total.ts. */
-  const { total, discountAmt } = calcularTotalDaVenda({
-    subtotal, discountPct, manualDiscount: data.manualDiscount,
+  const pacote = montarPacoteDaVenda(prep.data, {
+    storeId: finalStoreId, userId, pixPct: prep.pixPct, birthdayPct: prep.birthdayPct, custos: prep.custos,
   })
 
-  const discountTypeParts: string[] = []
-  if (data.hasPix)             discountTypeParts.push('pix')
-  if (data.hasBirthday)        discountTypeParts.push('birthday')
-  if (data.manualDiscount > 0) discountTypeParts.push('manual')
-  const discountType = discountTypeParts.join(',') || null
-
-  const exchangeCredit = data.exchangeItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
-  const hasExchange    = data.exchangeItems.length > 0
-  const paymentSummary = buildPaymentSummary(data.payments, hasExchange, exchangeCredit)
-
-  // ── 3. Atualizar a venda (mesmo id) ───────────────────────────────────────
-  const { error: updErr } = await admin.from('sales').update({
-    store_id:        finalStoreId,
-    customer_id:     data.customerId ?? null,
-    seller_id:       data.sellerId ?? userId,
-    sale_date:       data.saleDate,
-    subtotal,
-    discount_type:   discountType,
-    discount_pct:    discountPct,
-    discount_amount: discountAmt,
-    manual_discount: data.manualDiscount,
-    total,
-    total_cost:      totalCost,
-    payment_summary: paymentSummary,
-    status:          'completed',
-    /* Faltava aqui: a edição gravava tudo menos a data prometida, então
-     * marcar "fica devendo" numa venda existente não persistia nada. */
-    previsao_pagamento: data.previsaoPagamento ?? null,
-    destinatario_cpf:   data.destinatarioCpf ?? null,
-    notes:           data.notes || null,
-    updated_at:      new Date().toISOString(),
-  }).eq('id', saleId)
-  if (updErr) {
-    console.error('[editarVenda] update em sales falhou', { saleId, error: updErr })
-    return { success: false, error: parouNoMeio }
-  }
-
-  // ── 4. Reinserir itens + baixar estoque (skip serviço) ────────────────────
-  // (Consertos já resolvidos em `prepararVenda`.)
-  const saleItems = data.items.map(i => ({
-    sale_id:    saleId,
-    product_id: i.productId,
-    quantity:   i.quantity,
-    unit_price: i.unitPrice,
-    unit_cost:  i.unitCost,
-    subtotal:   parseFloat((i.unitPrice * i.quantity).toFixed(2)),
-  }))
-  const { data: itensCriados, error: itemsErr } = await admin.from('sale_items').insert(saleItems).select('id')
-  if (itemsErr) {
-    console.error('[editarVenda] insert em sale_items falhou', { saleId, error: itemsErr })
-    return { success: false, error: parouNoMeio }
-  }
-
-  await fecharConsertosDaVenda(data.items, itensCriados, {
-    storeId: finalStoreId, customerId: data.customerId, userId,
+  const { data: resp, error } = await admin.rpc('editar_venda', {
+    p: { sale_id: saleId, ...pacote },
   })
 
-  for (const item of data.items) {
-    const falhou = await moverEstoque(admin, item.productId, -item.quantity)
-    if (falhou) estoquePendente.push(item.productName || falhou)
-  }
-
-  // ── 5. Pagamentos + transações ────────────────────────────────────────────
-  for (const payment of data.payments) {
-    const { error: ppErr } = await admin.from('sale_payments').insert({
-      sale_id:        saleId,
-      payment_method: payment.method,
-      amount:         payment.amount,
-      installments:   payment.installments,
-      card_brand:     (payment.method === 'credit' || payment.method === 'debit') ? (payment.cardBrand ?? null) : null,
-    })
-    if (ppErr) {
-      console.error('[editarVenda] insert em sale_payments falhou', { saleId, error: ppErr })
-      return { success: false, error: parouNoMeio }
-    }
-
-    const methodLabel = { cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito' }[payment.method] ?? payment.method
-    const desc = payment.installments > 1 ? `Venda — ${methodLabel} ${payment.installments}x` : 'Venda'
-    const { error: txErr } = await admin.from('transactions').insert({
-      store_id:         finalStoreId,
-      type:             'income',
-      amount:           payment.amount,
-      category:         'venda',
-      description:      desc,
-      reference_type:   'sale',
-      reference_id:     saleId,
-      user_id:          userId,
-      payment_method:   payment.method,
-      transaction_date: data.saleDate,
-      status:           'completed',
-      paid_at:          new Date().toISOString(),
-    })
-    if (txErr) {
-      console.error('[editarVenda] insert em transactions falhou', { saleId, error: txErr })
-      return { success: false, error: parouNoMeio }
-    }
-  }
-
-  // ── 6. Recriar troca, se houver ───────────────────────────────────────────
-  if (hasExchange) {
-    const priceDifference = parseFloat((total - exchangeCredit).toFixed(2))
-    const differenceMethod = data.payments[0]?.method ?? null
-
-    const { data: exchange, error: exchErr } = await admin
-      .from('exchanges')
-      .insert({
-        sale_id:          saleId,
-        original_sale_id: data.exchangeItems[0]?.originalSaleId ?? null,
-        store_id:         finalStoreId,
-        customer_id:      data.customerId,
-        user_id:          userId,
-        exchange_date:    data.saleDate,
-        reason:           'Troca de produto',
-        price_difference: priceDifference,
-        payment_method:   priceDifference > 0 ? differenceMethod : null,
-      })
-      .select('id')
-      .single()
-
-    if (exchErr || !exchange) {
-      console.error('[editarVenda] insert em exchanges falhou', { saleId, error: exchErr })
-      return { success: false, error: parouNoMeio }
-    }
-
-    /* Mesma gravação da venda nova — e agora com os erros conferidos. */
-    const erroTroca = await gravarItensDaTroca(admin, exchange.id, data, estoquePendente)
-    if (erroTroca) return { success: false, error: parouNoMeio }
-  }
-
-  revalidatePath('/vendas')
-  revalidatePath('/produtos')
-  revalidatePath('/estoque')
-  revalidatePath('/financeiro')
-  revalidatePath('/clientes')
-
-  if (estoquePendente.length) {
+  if (error) {
+    console.error('[editarVenda] fv.editar_venda falhou', { saleId, error })
     return {
-      success: false, saleId,
-      error: `A venda foi atualizada, mas o estoque destas peças não foi: ${estoquePendente.join(', ')}. NÃO salve de novo — confira em Vendas e avise a administração.`,
+      success: false,
+      error: erroDoBancoRespondeu(error, 'editarVenda')
+        ? 'Não foi possível salvar a edição. A venda continua como estava — tente de novo em instantes.'
+        : 'Não consegui confirmar se a edição foi salva (falha de conexão). Abra a venda em Vendas e confira antes de tentar de novo.',
     }
   }
+
+  const r = (resp ?? {}) as { sale_id?: string; erro?: string; consertos_pendentes?: unknown }
+  if (r.erro === 'nao_encontrada') return { success: false, error: 'Venda não encontrada.' }
+
+  logarConsertosPendentes('editarVenda', saleId, r.consertos_pendentes)
+  revalidarVendas()
   return { success: true, saleId }
 }
-
