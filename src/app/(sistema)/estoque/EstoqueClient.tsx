@@ -20,6 +20,7 @@ import { usePaginacaoServidor } from '@/hooks/usePaginacaoServidor'
 import styles from './EstoqueClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { calcularGiro, ROTULO_FAIXA, textoDias } from '@/lib/giro'
+import type { TotaisEstoque } from '@/lib/estoque/consulta'
 
 /* getStatusVenda saiu daqui: eram duas cópias com 60 e 90 escritos na mão,
  * enquanto a configuração do negócio diz 30. A regra agora é uma só, em
@@ -45,6 +46,8 @@ interface Filters {
 interface Props {
   products: ProductWithRelations[]
   total: number
+  /** Soma do filtro inteiro (servidor); `null` se a soma falhou. */
+  totais: TotaisEstoque | null
   page: number
   perPage: number
   isAdmin: boolean
@@ -63,7 +66,7 @@ interface Props {
 }
 
 export default function EstoqueClient({
-  products, total, page, perPage, isAdmin, stores, categories, materials, staleDays, filters, lojaDoBipe,
+  products, total, totais, page, perPage, isAdmin, stores, categories, materials, staleDays, filters, lojaDoBipe,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -194,6 +197,25 @@ export default function EstoqueClient({
 
   return (
     <>
+      {/* Totais do filtro (pedido da Eleandra, 02/10): conferir a loja sem
+          somar a planilha. Custo só para admin, como as colunas de custo. */}
+      <div className={styles.statsRow}>
+        <div className={styles.stat}>
+          <span className={styles.statLabel}>Peças</span>
+          <span className={styles.statValue}>{totais ? totais.pecas.toLocaleString('pt-BR') : '—'}</span>
+        </div>
+        {isAdmin && (
+          <div className={styles.stat}>
+            <span className={styles.statLabel}>Custo total</span>
+            <span className={styles.statValue}>{totais?.custo != null ? fmt(totais.custo) : '—'}</span>
+          </div>
+        )}
+        <div className={styles.stat}>
+          <span className={styles.statLabel}>Venda total</span>
+          <span className={styles.statValue}>{totais ? fmt(totais.venda) : '—'}</span>
+        </div>
+      </div>
+
       {/* Toolbar */}
       <div className={styles.toolbar}>
         <div className={styles.toolbarLeft}>

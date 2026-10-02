@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { ehAdminGlobal, ehOperadora, lojaDoEscopo, podeFiltrarPorLoja, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { aplicarFiltrosProdutos, somarEstoque } from '@/lib/estoque/consulta'
 import EstoqueClient from './EstoqueClient'
 import type { ProductWithRelations, StoreOption } from '../produtos/page'
 import PageHeader from '@/components/ui/PageHeader'
@@ -42,32 +43,27 @@ export default async function EstoquePage({ searchParams }: PageProps) {
   const offset = (page - 1) * PAGE_SIZE
   const admin = createAdminClient()
 
-  let query = admin
-    .from('products')
-    .select('*, suppliers(id, name, initials), stores(id, name), purchases(purchase_date)', { count: 'exact' })
-    .eq('is_active', true)
+  /*
+   * Lista, totais e Exportar com os MESMOS filtros (src/lib/estoque/consulta.ts):
+   * a faixa de totais soma o filtro inteiro, não os 50 da página.
+   */
+  const filtros = {
+    q: params.q, category: params.category, material: params.material, qty_zero: params.qty_zero,
+  }
+  const query = aplicarFiltrosProdutos(
+    admin
+      .from('products')
+      .select('*, suppliers(id, name, initials), stores(id, name), purchases(purchase_date)', { count: 'exact' }),
+    'estoque', filtros, effectiveStoreId,
+  )
     .order('created_at', { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1)
 
-  if (effectiveStoreId) query = query.eq('store_id', effectiveStoreId)
-  if (params.qty_zero !== 'true') query = query.gt('quantity_in_stock', 0)
-  if (params.q) {
-    /*
-     * O termo vai ENTRE ASPAS dentro do `.or()`. Cru, uma vírgula ou um
-     * parêntese digitado ("anel, ouro", "brinco (par)") quebrava a sintaxe do
-     * filtro do PostgREST: a consulta falhava e — com o erro engolido — a tela
-     * dizia que o estoque estava vazio. Dentro das aspas só `"` e `\` precisam
-     * de escape.
-     */
-    const q = params.q.trim()
-    const padrao = `"%${q.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}%"`
-    query = query.or(`name.ilike.${padrao},code.ilike.${padrao},barcode_number.ilike.${padrao}`)
-  }
-  if (params.category) query = query.eq('category', params.category)
-  if (params.material) query = query.eq('material', params.material)
-
-  const [productsRes, categoriesRes, materialsRes, storesRes, staleRes] = await Promise.all([
+  const [productsRes, totais, categoriesRes, materialsRes, storesRes, staleRes] = await Promise.all([
     query,
+    /* Falha nos totais não derruba a lista: a faixa mostra "—", nunca um zero
+     * que pareceria estoque vazio. */
+    somarEstoque(admin, filtros, effectiveStoreId, isAdmin).catch(() => null),
     admin.from('category_label_mapping').select('category').eq('is_active', true).order('category'),
     admin.from('products').select('material').eq('is_active', true).not('material', 'is', null),
     podeTrocarLoja ? admin.from('stores').select('id, name').order('name') : Promise.resolve({ data: [] }),
@@ -93,6 +89,7 @@ export default async function EstoquePage({ searchParams }: PageProps) {
       <EstoqueClient
         products={products}
         total={total}
+        totais={totais}
         page={page}
         perPage={PAGE_SIZE}
         isAdmin={isAdmin}
