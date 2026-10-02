@@ -1,6 +1,6 @@
 'use server'
 
-import { requireProfile } from '@/lib/auth'
+import { lojaDoEscopo, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { montarCsv, nomeArquivo, type ColunaCsv } from '@/lib/exportar/csv'
 import { precoEfetivo } from '@/lib/pricing'
@@ -72,6 +72,8 @@ interface LinhaProduto {
   created_at: string
   suppliers: { name: string; initials: string } | null
   stores: { name: string } | null
+  /** Lote de consignação; o fornecedor DO LOTE é a consignante. */
+  consignments: { suppliers: { name: string } | null } | null
 }
 
 /** dd/mm/aaaa — o Excel pt-BR reconhece como data; ISO ele trata como texto. */
@@ -93,7 +95,7 @@ const CAMPOS =
   'code, name, category, material, barcode_number, supplier_reference, cost_price, ' +
   'sale_price, promotional_price, promotional_active, quantity_in_stock, ownership_type, ' +
   'purchase_month, purchase_year, last_sale_date, is_active, created_at, ' +
-  'suppliers(name, initials), stores(name)'
+  'suppliers(name, initials), stores(name), consignments(suppliers(name))'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /** Os mesmos filtros das telas, num lugar só — a contagem e a varredura têm de usar exatamente estes. */
@@ -101,14 +103,15 @@ function aplicarFiltros(
   q: any,
   origem: 'produtos' | 'estoque',
   filtros: FiltrosExportacao,
-  lojaForcada: string | null,
+  loja: string | null,
 ) {
-  const loja = lojaForcada ?? filtros.store_id
   if (loja) q = q.eq('store_id', loja)
 
   if (filtros.q) {
+    // Entre aspas, igual às telas: vírgula ou parêntese no termo quebrava o `.or()`.
     const termo = filtros.q.trim()
-    q = q.or(`name.ilike.%${termo}%,code.ilike.%${termo}%,barcode_number.ilike.%${termo}%`)
+    const padrao = `"%${termo.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}%"`
+    q = q.or(`name.ilike.${padrao},code.ilike.${padrao},barcode_number.ilike.${padrao}`)
   }
   if (filtros.category) q = q.eq('category', filtros.category)
   if (filtros.material) q = q.eq('material', filtros.material)
@@ -128,7 +131,7 @@ function aplicarFiltros(
 async function buscarTudo(
   origem: 'produtos' | 'estoque',
   filtros: FiltrosExportacao,
-  lojaForcada: string | null,
+  loja: string | null,
 ): Promise<LinhaProduto[]> {
   const admin = createAdminClient()
 
@@ -145,7 +148,7 @@ async function buscarTudo(
    */
   const { count, error: erroCount } = await aplicarFiltros(
     admin.from('products').select('code', { count: 'exact', head: true }),
-    origem, filtros, lojaForcada,
+    origem, filtros, loja,
   )
   if (erroCount) throw new Error(erroCount.message)
 
@@ -157,7 +160,7 @@ async function buscarTudo(
 
     const { data: lote, error } = await aplicarFiltros(
       admin.from('products').select(CAMPOS),
-      origem, filtros, lojaForcada,
+      origem, filtros, loja,
     )
       // Ordem estável: sem `order`, o lote 2 pode repetir linha do lote 1.
       .order('code', { ascending: true })
@@ -178,7 +181,37 @@ async function buscarTudo(
   return linhas
 }
 
+const ehConsignado = (p: LinhaProduto) => p.ownership_type === 'consignment'
+
+/**
+ * Planilha do Estoque (reunião de 02/10 com a Eleandra): o que tem na gaveta,
+ * de quem é e quanto vale. "Origem" separa próprio de consignado para ela
+ * filtrar no Excel; a consignante é o fornecedor DO LOTE (`consignments`),
+ * com o fornecedor da peça como reserva para consignado sem lote.
+ * "Preço venda" é o `sale_price`, o mesmo que a tela mostra, para os totais
+ * baterem com ela.
+ */
+function colunasEstoque(comCusto: boolean): ColunaCsv<LinhaProduto>[] {
+  const lista: ColunaCsv<LinhaProduto>[] = [
+    { titulo: 'Loja',        valor: p => p.stores?.name },
+    { titulo: 'Etiqueta',    valor: p => p.barcode_number },
+    { titulo: 'Código',      valor: p => p.code },
+    { titulo: 'Nome',        valor: p => p.name },
+    { titulo: 'Origem',      valor: p => (ehConsignado(p) ? 'Consignado' : 'Próprio') },
+    { titulo: 'Consignante', valor: p => (ehConsignado(p) ? (p.consignments?.suppliers?.name ?? p.suppliers?.name) : '') },
+    { titulo: 'Fornecedor',  valor: p => p.suppliers?.name },
+    { titulo: 'Quantidade',  valor: p => p.quantity_in_stock },
+  ]
+  if (comCusto) lista.push({ titulo: 'Custo unit.', valor: p => p.cost_price })
+  lista.push({ titulo: 'Preço venda', valor: p => p.sale_price })
+  if (comCusto) lista.push({ titulo: 'Total custo', valor: p => p.cost_price * p.quantity_in_stock })
+  lista.push({ titulo: 'Total venda', valor: p => p.sale_price * p.quantity_in_stock })
+  return lista
+}
+
 function colunas(comCusto: boolean, origem: 'produtos' | 'estoque'): ColunaCsv<LinhaProduto>[] {
+  if (origem === 'estoque') return colunasEstoque(comCusto)
+
   const base: ColunaCsv<LinhaProduto>[] = [
     { titulo: 'Código',        valor: p => p.code },
     { titulo: 'Produto',       valor: p => p.name },
@@ -235,8 +268,17 @@ async function exportar(
   const profile = await requireProfile()
   const admin = profile.role === 'admin'
 
+  /*
+   * A MESMA loja da tela, pela mesma regra (`lojaDoEscopo`). Antes era
+   * `admin ? null : profile.store_id`: todo admin caía no filtro da URL, que
+   * fica vazio para quem não vê o seletor (admin de loja, e o admin global
+   * depois de escolher a loja ao entrar). Sem loja, o arquivo saía com
+   * Brasília e Campinas juntas (02/10: ~1.300 un. "em BSB", real ~500).
+   */
+  const loja = lojaDoEscopo(profile, filtros.store_id)
+
   try {
-    const linhas = await buscarTudo(origem, filtros, admin ? null : profile.store_id)
+    const linhas = await buscarTudo(origem, filtros, loja)
     if (linhas.length === 0) {
       return { success: false, error: 'Nenhum produto no filtro atual — nada para exportar.' }
     }
