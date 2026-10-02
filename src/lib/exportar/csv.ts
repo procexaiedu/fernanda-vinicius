@@ -53,10 +53,19 @@ function celula(v: string | number | null | undefined): string {
   return /[";\n\r]/.test(seguro) ? `"${seguro.replace(/"/g, '""')}"` : seguro
 }
 
-/** Monta o arquivo inteiro, já com BOM e CRLF. */
-export function montarCsv<T>(linhas: T[], colunas: ColunaCsv<T>[]): string {
+/**
+ * Monta o arquivo inteiro, já com BOM e CRLF.
+ *
+ * `rodape`: uma linha final (ex.: TOTAL), uma célula por coluna, na mesma ordem.
+ */
+export function montarCsv<T>(
+  linhas: T[],
+  colunas: ColunaCsv<T>[],
+  rodape?: (string | number | null | undefined)[],
+): string {
   const cabecalho = colunas.map(c => celula(c.titulo)).join(';')
   const corpo = linhas.map(l => colunas.map(c => celula(c.valor(l))).join(';'))
+  if (rodape) corpo.push(colunas.map((_, i) => celula(rodape[i])).join(';'))
   // CRLF: é o que o Excel espera; com LF puro algumas versões juntam as linhas.
   return BOM_UTF8 + [cabecalho, ...corpo].join('\r\n') + '\r\n'
 }

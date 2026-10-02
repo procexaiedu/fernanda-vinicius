@@ -4,6 +4,7 @@ import { lojaDoEscopo, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { montarCsv, nomeArquivo, type ColunaCsv } from '@/lib/exportar/csv'
 import { precoEfetivo } from '@/lib/pricing'
+import { aplicarFiltrosProdutos as aplicarFiltros, type FiltrosProdutos } from '@/lib/estoque/consulta'
 
 /**
  * Exportação de Produtos e Estoque para planilha.
@@ -32,15 +33,9 @@ import { precoEfetivo } from '@/lib/pricing'
 
 const LOTE = 1000
 
-export interface FiltrosExportacao {
-  q?: string
-  store_id?: string
-  category?: string
-  material?: string
-  supplier_id?: string
-  active?: string
-  qty_zero?: string
-}
+/* Os filtros moram em src/lib/estoque/consulta.ts: a tela, os totais e a
+ * exportação usam a mesma função, e não três cópias. */
+type FiltrosExportacao = FiltrosProdutos
 
 export interface ArquivoExportado {
   nome: string
@@ -97,36 +92,6 @@ const CAMPOS =
   'purchase_month, purchase_year, last_sale_date, is_active, created_at, ' +
   'suppliers(name, initials), stores(name), consignments(suppliers(name))'
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/** Os mesmos filtros das telas, num lugar só — a contagem e a varredura têm de usar exatamente estes. */
-function aplicarFiltros(
-  q: any,
-  origem: 'produtos' | 'estoque',
-  filtros: FiltrosExportacao,
-  loja: string | null,
-) {
-  if (loja) q = q.eq('store_id', loja)
-
-  if (filtros.q) {
-    // Entre aspas, igual às telas: vírgula ou parêntese no termo quebrava o `.or()`.
-    const termo = filtros.q.trim()
-    const padrao = `"%${termo.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}%"`
-    q = q.or(`name.ilike.${padrao},code.ilike.${padrao},barcode_number.ilike.${padrao}`)
-  }
-  if (filtros.category) q = q.eq('category', filtros.category)
-  if (filtros.material) q = q.eq('material', filtros.material)
-  if (filtros.supplier_id) q = q.eq('supplier_id', filtros.supplier_id)
-
-  if (origem === 'estoque') {
-    q = q.eq('is_active', true)
-    if (filtros.qty_zero !== 'true') q = q.gt('quantity_in_stock', 0)
-  } else if (filtros.active !== 'false') {
-    q = q.eq('is_active', true)
-  }
-
-  return q
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 async function buscarTudo(
   origem: 'produtos' | 'estoque',
@@ -209,6 +174,22 @@ function colunasEstoque(comCusto: boolean): ColunaCsv<LinhaProduto>[] {
   return lista
 }
 
+/**
+ * Linha TOTAL do Estoque (pedido da Eleandra, 02/10): soma das colunas de
+ * quantidade e de total; as demais ficam vazias. Soma em centavos, como os
+ * totais da tela (src/lib/estoque/consulta.ts), para baterem no centavo.
+ */
+const SOMADAS = new Set(['Quantidade', 'Total custo', 'Total venda'])
+
+function rodapeEstoque(linhas: LinhaProduto[], cols: ColunaCsv<LinhaProduto>[]): (string | number | null)[] {
+  return cols.map((c, i) => {
+    if (i === 0) return 'TOTAL'
+    if (!SOMADAS.has(c.titulo)) return null
+    const centavos = linhas.reduce((s, l) => s + Math.round((Number(c.valor(l)) || 0) * 100), 0)
+    return centavos / 100
+  })
+}
+
 function colunas(comCusto: boolean, origem: 'produtos' | 'estoque'): ColunaCsv<LinhaProduto>[] {
   if (origem === 'estoque') return colunasEstoque(comCusto)
 
@@ -283,11 +264,12 @@ async function exportar(
       return { success: false, error: 'Nenhum produto no filtro atual — nada para exportar.' }
     }
 
+    const cols = colunas(admin, origem)
     return {
       success: true,
       arquivo: {
         nome:     nomeArquivo(origem, new Date()),
-        conteudo: montarCsv(linhas, colunas(admin, origem)),
+        conteudo: montarCsv(linhas, cols, origem === 'estoque' ? rodapeEstoque(linhas, cols) : undefined),
         linhas:   linhas.length,
       },
     }
