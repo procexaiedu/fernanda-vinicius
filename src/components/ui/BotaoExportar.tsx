@@ -37,7 +37,14 @@ export default function BotaoExportar({ exportar, rotulo = 'Exportar' }: {
       return
     }
 
-    const blob = new Blob([r.arquivo.conteudo], { type: 'text/csv;charset=utf-8' })
+    /*
+     * O BOM vai em BYTES, aqui no navegador. O que vinha no texto do servidor
+     * não chegava: a resposta da server action é decodificada com TextDecoder,
+     * que come o BOM do começo de cada trecho de texto, e o arquivo saía sem
+     * ele (acento quebrado no Excel, 02/10). Tira o que sobrar e põe os 3 bytes.
+     */
+    const texto = r.arquivo.conteudo.replace(/^\uFEFF/, '')
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), texto], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
