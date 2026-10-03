@@ -1,5 +1,7 @@
 import { ehAdminGlobal, podeFiltrarPorLoja, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { emLotes } from '@/lib/supabase/em-lotes'
+import { faltaPagar, resumirVendas } from '@/lib/vendas/lista'
 import VendasClient from './VendasClient'
 import MinhaMetaCard from './MinhaMetaCard'
 import { getUserProgress } from '@/lib/metas/server'
@@ -113,74 +115,54 @@ export default async function VendasPage() {
     closingsQuery,
   ])
 
-  const rawSales = salesRes.data
-  const saleIds = (rawSales ?? []).map((s: any) => s.id)
-  const sellerIds = [...new Set((rawSales ?? []).map((s: any) => s.seller_id).filter(Boolean))]
-
-  // Lote 2 — tudo que depende dos ids das vendas, também em paralelo
-  const [itemCountsRes, exchangesRes, sellersRes, paymentsRes] = await Promise.all([
-    saleIds.length
-      ? admin.from('sale_items').select('sale_id').in('sale_id', saleIds)
-      : Promise.resolve({ data: [] as any[] }),
-    saleIds.length
-      ? admin.from('exchanges').select('id, sale_id, original_sale_id').or(`sale_id.in.(${saleIds.join(',')}),original_sale_id.in.(${saleIds.join(',')})`)
-      : Promise.resolve({ data: [] as any[] }),
-    sellerIds.length
-      ? admin.from('users').select('id, full_name').in('id', sellerIds as string[])
-      : Promise.resolve({ data: [] as any[] }),
-    saleIds.length
-      ? admin.from('sale_payments').select('sale_id, amount').in('sale_id', saleIds)
-      : Promise.resolve({ data: [] as { sale_id: string; amount: number }[] }),
-  ])
-
-  /* Quanto entrou por venda. Some daqui, não de uma coluna em `sales`. */
-  const pagoPorVenda = new Map<string, number>()
-  for (const p of (paymentsRes.data ?? []) as { sale_id: string; amount: number }[]) {
-    pagoPorVenda.set(p.sale_id, (pagoPorVenda.get(p.sale_id) ?? 0) + Number(p.amount))
+  /*
+   * Falha aqui LANÇA (cai na tela de erro de (sistema)). Era `data ?? []`: a
+   * busca de trocas levava 414 e a lista seguia mostrando "Falta R$324,00"
+   * numa venda paga, sem nenhum erro na tela.
+   */
+  for (const [rotulo, res] of [
+    ['as vendas', salesRes], ['as lojas', storesRes], ['as vendedoras', usersRes], ['os fechamentos de caixa', closingsRes],
+  ] as const) {
+    if (res.error) {
+      console.error(`[vendas] falha ao carregar ${rotulo}:`, res.error)
+      throw new Error(`Não foi possível carregar ${rotulo}: ${res.error.message}`)
+    }
   }
+
+  const rawSales = salesRes.data ?? []
+  const saleIds: string[] = rawSales.map((s: any) => s.id)
+  const sellerIds = [...new Set(rawSales.map((s: any) => s.seller_id).filter(Boolean))] as string[]
 
   /*
-   * Peça devolvida na troca também PAGA a venda.
+   * Lote 2 — tudo que depende dos ids das vendas, também em paralelo.
    *
-   * Sem isto a venda da Madalena — colar de R$498 pago com R$70 em Pix e um
-   * colar de R$428 devolvido — aparecia como "FALTA R$428,00". Ela não devia
-   * nada: a mercadoria cobriu a diferença.
+   * Sempre em lotes de 100 ids (emLotes): a lista inteira num `.in()` passa de
+   * ~8 KB de URL perto de 200 vendas e o Kong responde 414. As trocas saem em
+   * duas consultas (venda nova e venda original) em vez de um `.or()` que
+   * repetia a lista de ids duas vezes na mesma URL.
    */
-  const creditoTrocaPorVenda = new Map<string, number>()
-  const trocaIds = ((exchangesRes.data ?? []) as { id?: string; sale_id?: string }[])
-    .map(e => e.id).filter(Boolean) as string[]
-  if (trocaIds.length) {
-    const { data: devolvidos } = await admin
-      .from('exchange_items')
-      .select('exchange_id, quantity, unit_price')
-      .in('exchange_id', trocaIds)
-      .eq('direction', 'returned')
+  const [itens, trocasDaVendaNova, trocasDaOriginal, vendedoras, pagamentos] = await Promise.all([
+    emLotes(saleIds, lote => admin.from('sale_items').select('sale_id').in('sale_id', lote), 'os itens das vendas'),
+    emLotes(saleIds, lote => admin.from('exchanges').select('id, sale_id, original_sale_id').in('sale_id', lote), 'as trocas'),
+    emLotes(saleIds, lote => admin.from('exchanges').select('id, sale_id, original_sale_id').in('original_sale_id', lote), 'as trocas'),
+    emLotes(sellerIds, lote => admin.from('users').select('id, full_name').in('id', lote), 'as vendedoras'),
+    emLotes(saleIds, lote => admin.from('sale_payments').select('sale_id, amount').in('sale_id', lote), 'os pagamentos'),
+  ])
 
-    const vendaPorTroca = new Map<string, string>()
-    for (const e of (exchangesRes.data ?? []) as { id: string; sale_id: string | null }[]) {
-      if (e.sale_id) vendaPorTroca.set(e.id, e.sale_id)
-    }
-    for (const it of (devolvidos ?? []) as { exchange_id: string; quantity: number; unit_price: number }[]) {
-      const vendaId = vendaPorTroca.get(it.exchange_id)
-      if (!vendaId) continue
-      creditoTrocaPorVenda.set(
-        vendaId,
-        (creditoTrocaPorVenda.get(vendaId) ?? 0) + Number(it.unit_price) * Number(it.quantity),
-      )
-    }
-  }
+  const trocas = [...new Map([...trocasDaVendaNova, ...trocasDaOriginal].map(t => [t.id, t])).values()]
+  const devolvidos = await emLotes(
+    trocas.map(t => t.id),
+    lote => admin.from('exchange_items').select('exchange_id, quantity, unit_price').in('exchange_id', lote).eq('direction', 'returned'),
+    'as peças devolvidas nas trocas',
+  )
 
-  const itemCounts = new Map<string, number>()
-  for (const item of (itemCountsRes.data ?? []) as any[]) {
-    itemCounts.set(item.sale_id, (itemCounts.get(item.sale_id) ?? 0) + 1)
-  }
-
-  const exchangeSaleIds = new Set(((exchangesRes.data ?? []) as any[]).map(e => e.original_sale_id))
+  /* Quanto entrou por venda: `sale_payments` + peça devolvida na troca. Nunca de uma coluna em `sales`. */
+  const resumo = resumirVendas({ itens, pagamentos, trocas, devolvidos })
 
   const sellersMap = new Map<string, string>()
-  for (const u of (sellersRes.data ?? []) as any[]) sellersMap.set(u.id, u.full_name)
+  for (const u of vendedoras) sellersMap.set(u.id, u.full_name)
 
-  const sales: SaleRow[] = (rawSales ?? []).map((s: any) => ({
+  const sales: SaleRow[] = rawSales.map((s: any) => ({
     id:              s.id,
     sale_date:       s.sale_date,
     created_at:      s.created_at,
@@ -190,19 +172,16 @@ export default async function VendasPage() {
     store_id:        s.store_id,
     seller_name:     s.seller_id ? (sellersMap.get(s.seller_id) ?? null) : null,
     seller_id:       s.seller_id ?? null,
-    items_count:     itemCounts.get(s.id) ?? 0,
+    items_count:     resumo.get(s.id)?.itens ?? 0,
     subtotal:        Number(s.subtotal),
     discount_pct:    Number(s.discount_pct),
     discount_amount: Number(s.discount_amount),
     total:           Number(s.total),
     payment_summary: s.payment_summary,
     status:          s.status,
-    has_exchange:    exchangeSaleIds.has(s.id),
-    valor_pago:      (pagoPorVenda.get(s.id) ?? 0) + (creditoTrocaPorVenda.get(s.id) ?? 0),
-    /* Arredondado para não gerar "falta R$0,00" por resto de ponto flutuante. */
-    falta_pagar:     parseFloat((
-      Number(s.total) - (pagoPorVenda.get(s.id) ?? 0) - (creditoTrocaPorVenda.get(s.id) ?? 0)
-    ).toFixed(2)),
+    has_exchange:    resumo.get(s.id)?.temTroca ?? false,
+    valor_pago:      (resumo.get(s.id)?.pago ?? 0) + (resumo.get(s.id)?.creditoTroca ?? 0),
+    falta_pagar:     faltaPagar(Number(s.total), resumo.get(s.id)),
     previsao_pagamento: s.previsao_pagamento ?? null,
   }))
 
