@@ -15,7 +15,10 @@ export interface ItemRomaneio {
   barcode_number: string
   quantity_sent: number
   quantity_received: number | null
+  /* Zerado para quem não é admin: ver o map abaixo. */
   unit_cost: number
+  /* Congelado no envio. NULL nos itens enviados antes de 15/09/2026. */
+  unit_sale_price: number | null
   reetiquetar: boolean
   divergence_type: 'falta' | 'sobra' | null
 }
@@ -73,7 +76,7 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
       'origem:stores!from_store_id(name), destino:stores!to_store_id(name), ' +
       'quem_enviou:users!sent_by(full_name), quem_recebeu:users!received_by(full_name), ' +
       'transfer_items(id, product_id, product_code, product_name, barcode_number, ' +
-      'quantity_sent, quantity_received, unit_cost, reetiquetar, divergence_type)',
+      'quantity_sent, quantity_received, unit_cost, unit_sale_price, reetiquetar, divergence_type)',
       { count: 'exact' },
     )
     .order('sent_at', { ascending: false })
@@ -102,6 +105,23 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
 
   const primeiro = (v: unknown) => (Array.isArray(v) ? v[0] : v)
 
+  /*
+   * Custo não sai do servidor para quem não é admin (pedido da Eleandra,
+   * 05/10/2026: "essa informação não pode aparecer para elas"). Esconder só na
+   * tela não basta, o payload vai inteiro para o navegador.
+   *
+   * O CÓDIGO vai junto: nas peças de fornecedor ele carrega o custo
+   * (FEF09110 = custo R$ 110). Para conferir, a etiqueta e o nome bastam.
+   */
+  const semCusto = (i: ItemRomaneio): ItemRomaneio =>
+    isAdmin ? i : { ...i, unit_cost: 0, product_code: '' }
+  const totaisSemCusto = (t: Romaneio['totals']): Romaneio['totals'] => {
+    if (isAdmin || !t) return t
+    const resto = { ...t }
+    delete resto.custo_total
+    return resto
+  }
+
   const romaneios = (transfRes.data ?? []).map(t => {
     const r = t as unknown as Record<string, unknown>
     return {
@@ -113,13 +133,17 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
       received_at:   r.received_at as string | null,
       notes:         r.notes as string | null,
       receipt_notes: r.receipt_notes as string | null,
-      totals:        (r.totals ?? null) as Romaneio['totals'],
+      totals:        totaisSemCusto((r.totals ?? null) as Romaneio['totals']),
       de:     (primeiro(r.origem)  as { name: string } | null)?.name ?? '—',
       para:   (primeiro(r.destino) as { name: string } | null)?.name ?? '—',
       enviou: (primeiro(r.quem_enviou)  as { full_name: string } | null)?.full_name ?? '—',
       recebeu:(primeiro(r.quem_recebeu) as { full_name: string } | null)?.full_name ?? null,
       itens: ((r.transfer_items ?? []) as ItemRomaneio[])
-        .map(i => ({ ...i, unit_cost: Number(i.unit_cost ?? 0) }))
+        .map(i => semCusto({
+          ...i,
+          unit_cost: Number(i.unit_cost ?? 0),
+          unit_sale_price: i.unit_sale_price == null ? null : Number(i.unit_sale_price),
+        }))
         .sort((a, b) => a.product_name.localeCompare(b.product_name, 'pt-BR')),
     } as Romaneio
   })

@@ -157,7 +157,7 @@ export default function TransferenciasClient({
                 <th>Enviada</th>
                 <th>Rota</th>
                 <th className={`${styles.num} col-num`}>Peças</th>
-                <th className={`${styles.num} col-num`}>Custo</th>
+                {isAdmin && <th className={`${styles.num} col-num`}>Custo</th>}
                 <th>Status</th>
                 <th className="col-tertiary">Responsáveis</th>
                 <th />
@@ -180,7 +180,7 @@ export default function TransferenciasClient({
                       {pecas}
                       <span className={styles.itens}>{enviados.length} {enviados.length === 1 ? 'item' : 'itens'}</span>
                     </td>
-                    <td className={`${styles.num} col-num`}>{formatarDinheiro(r.totals?.custo_total ?? 0)}</td>
+                    {isAdmin && <td className={`${styles.num} col-num`}>{formatarDinheiro(r.totals?.custo_total ?? 0)}</td>}
                     <td>
                       <Badge variant={COR[r.status]}>{ROTULO[r.status]}</Badge>
                       {r.status === 'divergente' && (

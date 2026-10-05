@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Printer } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { formatarDinheiro } from '@/lib/dinheiro'
@@ -22,6 +23,12 @@ import styles from './RelatorioCompra.module.css'
  *
  * "Tem que ser branco, senão coitado da minha impressora": a folha é branca com
  * texto preto mesmo no tema escuro do sistema. Ver o CSS.
+ *
+ * "Para a loja" (05/10/2026): a mesma folha sem custo, sem código, sem acerto e
+ * sem pagamentos, com etiqueta e preço de venda. É a que acompanha o lote até a
+ * loja que vai conferir ("essa informação não pode aparecer para elas"). O
+ * código sai porque nas peças de fornecedor ele carrega o custo (FEF09110 =
+ * custo R$ 110).
  */
 export default function RelatorioCompra({ detail, consignacao, onFechar }: {
   detail: PurchaseDetail
@@ -32,12 +39,16 @@ export default function RelatorioCompra({ detail, consignacao, onFechar }: {
   const fornecedores = [...new Set(detail.items.map(i => i.supplier_name).filter(Boolean))]
   const lojas = [...new Set(detail.items.map(i => i.store_name).filter(Boolean))]
   const totalVenda = detail.items.reduce((s, i) => s + i.sale_price * i.quantity, 0)
+  const [paraLoja, setParaLoja] = useState(false)
 
   return (
     <div className={styles.wrapper}>
       {/* Some na impressão: é controle de tela, não parte do documento. */}
       <div className={styles.acoes}>
         <Button size="sm" variant="ghost" onClick={onFechar}>Fechar</Button>
+        <Button size="sm" variant="ghost" onClick={() => setParaLoja(v => !v)}>
+          {paraLoja ? 'Versão completa (com custo)' : 'Versão para a loja (sem custo)'}
+        </Button>
         <Button size="sm" onClick={() => window.print()}>
           <Printer size={14} />
           Imprimir
@@ -67,13 +78,13 @@ export default function RelatorioCompra({ detail, consignacao, onFechar }: {
 
         <div className={styles.resumo}>
           <div><span>Peças</span><strong>{detail.total_items}</strong></div>
-          <div><span>Custo total</span><strong>{formatarDinheiro(detail.total_cost)}</strong></div>
+          {!paraLoja && <div><span>Custo total</span><strong>{formatarDinheiro(detail.total_cost)}</strong></div>}
           <div><span>Venda total</span><strong>{formatarDinheiro(totalVenda)}</strong></div>
         </div>
 
         {/* O acerto é o que ela confere com a fornecedora — vem antes das peças,
             pela mesma razão que no modal: é a linha mais procurada da folha. */}
-        {consignacao && (
+        {consignacao && !paraLoja && (
           <div className={styles.acerto}>
             <span>Já acertado <strong>{formatarDinheiro(consignacao.acertado)}</strong></span>
             <span>Falta <strong>{formatarDinheiro(consignacao.falta)}</strong></span>
@@ -85,12 +96,13 @@ export default function RelatorioCompra({ detail, consignacao, onFechar }: {
           <thead>
             <tr>
               <th>#</th>
+              {paraLoja && <th>Etiqueta</th>}
               <th>Peça</th>
-              <th>Código</th>
+              {!paraLoja && <th>Código</th>}
               <th>Fornecedor</th>
               <th className={styles.num}>Qtd.</th>
-              <th className={styles.num}>Custo un.</th>
-              <th className={styles.num}>Subtotal</th>
+              <th className={styles.num}>{paraLoja ? 'Venda un.' : 'Custo un.'}</th>
+              <th className={styles.num}>{paraLoja ? 'Total venda' : 'Subtotal'}</th>
               <th className={styles.conferido}>Conferido</th>
             </tr>
           </thead>
@@ -98,12 +110,15 @@ export default function RelatorioCompra({ detail, consignacao, onFechar }: {
             {detail.items.map((i, n) => (
               <tr key={i.id}>
                 <td className={styles.ordem}>{n + 1}</td>
+                {paraLoja && <td className={styles.codigo}>{i.barcode_number ?? '—'}</td>}
                 <td>{i.product_name}</td>
-                <td className={styles.codigo}>{i.code}</td>
+                {!paraLoja && <td className={styles.codigo}>{i.code}</td>}
                 <td>{i.supplier_name}</td>
                 <td className={styles.num}>{i.quantity}</td>
-                <td className={styles.num}>{formatarDinheiro(i.unit_cost)}</td>
-                <td className={styles.num}>{formatarDinheiro(i.subtotal)}</td>
+                <td className={styles.num}>{formatarDinheiro(paraLoja ? i.sale_price : i.unit_cost)}</td>
+                <td className={styles.num}>
+                  {formatarDinheiro(paraLoja ? i.sale_price * i.quantity : i.subtotal)}
+                </td>
                 {/* Quadradinho para conferir no papel, como no romaneio. */}
                 <td className={styles.conferido}><span className={styles.quadrado} /></td>
               </tr>
@@ -114,13 +129,13 @@ export default function RelatorioCompra({ detail, consignacao, onFechar }: {
               <td colSpan={4}>Total</td>
               <td className={styles.num}>{detail.total_items}</td>
               <td />
-              <td className={styles.num}>{formatarDinheiro(detail.total_cost)}</td>
+              <td className={styles.num}>{formatarDinheiro(paraLoja ? totalVenda : detail.total_cost)}</td>
               <td />
             </tr>
           </tfoot>
         </table>
 
-        {detail.payments.length > 0 && (
+        {detail.payments.length > 0 && !paraLoja && (
           <>
             <h3 className={styles.subtitulo}>Pagamentos</h3>
             <table className={styles.tabela}>
@@ -159,8 +174,8 @@ export default function RelatorioCompra({ detail, consignacao, onFechar }: {
         )}
 
         <div className={styles.assinaturas}>
-          <div><span className={styles.linha} />Conferente</div>
-          <div><span className={styles.linha} />Fornecedor</div>
+          <div><span className={styles.linha} />Conferente{paraLoja && ' na loja · data'}</div>
+          <div><span className={styles.linha} />{paraLoja ? 'Assinatura' : 'Fornecedor'}</div>
         </div>
       </div>
       </ParaImprimir>
