@@ -14,15 +14,19 @@ import styles from './Romaneio.module.css'
  * local: aquele fala PPLA com a impressora térmica de etiqueta. Isto é folha A4
  * na impressora comum.
  *
- * Os números vêm de `totals`, congelado no envio, e o nome/custo de cada peça
+ * Os números vêm de `totals`, congelado no envio, e o nome/preço de cada peça
  * vem da linha do item, não de um join com `products`. É o que garante que o
  * papel dentro da caixa e a tela de quem confere digam a mesma coisa mesmo que
  * a peça seja renomeada ou reprecificada no meio do caminho.
+ *
+ * SEM CUSTO E SEM CÓDIGO, para ninguém (05/10/2026): o papel vai para a outra
+ * loja e quem confere é funcionária. O código saiu junto porque nas peças de
+ * fornecedor ele carrega o custo (FEF09110 = custo R$ 110). Etiqueta + nome
+ * bastam para conferir. O custo continua na lista, só para admin.
  */
 export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () => void }) {
   const enviados = r.itens.filter(i => i.quantity_sent > 0)
   const pecas = r.totals?.pecas ?? enviados.reduce((s, i) => s + i.quantity_sent, 0)
-  const custo = r.totals?.custo_total ?? enviados.reduce((s, i) => s + i.unit_cost * i.quantity_sent, 0)
   /* Sem fallback de propósito: o preço de venda daquele dia não foi guardado
      nos romaneios antigos e não dá para reconstruir. Ver page.tsx. */
   const venda = r.totals?.venda_total
@@ -69,12 +73,9 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
           </div>
         </header>
 
-        {/* Peça, custo e venda — o trio que ela pediu em 15/09. "Itens" saiu:
-            ela perguntou o que diferenciava de "peças" e não havia resposta que
-            mudasse alguma decisão dela. */}
+        {/* Peças e venda. O custo saiu em 05/10 (ver o topo do arquivo). */}
         <div className={styles.resumo}>
           <div><span>Peças</span><strong>{pecas}</strong></div>
-          <div><span>Custo total</span><strong>{formatarDinheiro(custo)}</strong></div>
           <div>
             <span>Venda total</span>
             <strong>{venda === undefined ? '—' : formatarDinheiro(venda)}</strong>
@@ -96,9 +97,9 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
               <th>#</th>
               <th>Etiqueta</th>
               <th>Peça</th>
-              <th>Código</th>
               <th className={`${styles.num} col-num`}>Qtd.</th>
-              <th className={`${styles.num} col-num`}>Custo un.</th>
+              <th className={`${styles.num} col-num`}>Venda un.</th>
+              <th className={`${styles.num} col-num`}>Total venda</th>
               {conferido ? (
                 <>
                   <th className={`${styles.num} col-num`}>Recebido</th>
@@ -118,9 +119,14 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
                   {i.reetiquetar && <span className={styles.tagReetiquetar}>nova no destino</span>}
                 </td>
                 <td>{i.product_name}</td>
-                <td className={styles.codigo}>{i.product_code}</td>
                 <td className={`${styles.num} col-num`}>{i.quantity_sent}</td>
-                <td className={`${styles.num} col-num`}>{formatarDinheiro(i.unit_cost)}</td>
+                {/* "—" nos itens anteriores a 15/09: o preço do dia não foi guardado. */}
+                <td className={`${styles.num} col-num`}>
+                  {i.unit_sale_price == null ? '—' : formatarDinheiro(i.unit_sale_price)}
+                </td>
+                <td className={`${styles.num} col-num`}>
+                  {i.unit_sale_price == null ? '—' : formatarDinheiro(i.unit_sale_price * i.quantity_sent)}
+                </td>
                 {conferido ? (
                   <>
                     <td className={`${styles.num} col-num`}>{i.quantity_received ?? 0}</td>

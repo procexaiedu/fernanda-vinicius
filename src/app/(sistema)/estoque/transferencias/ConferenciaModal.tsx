@@ -344,7 +344,7 @@ export default function ConferenciaModal({ romaneio, onClose }: {
                     </td>
                     <td>
                       <span className={styles.nome}>{i.product_name}</span>
-                      <span className={styles.codigo}>{i.product_code}</span>
+                      {i.product_code && <span className={styles.codigo}>{i.product_code}</span>}
                     </td>
                     <td className={`${styles.num} col-num`}>{i.quantity_sent}</td>
                     <td className={`${styles.num} col-num`}>{lidas}</td>

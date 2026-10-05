@@ -689,6 +689,7 @@ export interface PurchaseDetail {
     label_format: string
     store_name: string
     code: string
+    barcode_number: string | null
   }>
   payments: Array<{
     id: string
@@ -718,7 +719,7 @@ export async function buscarDetalheCompra(purchaseId: string): Promise<{ data: P
    */
   const { data: rawItems, error: itemsErr } = await admin
     .from('purchase_items')
-    .select('id, quantity, unit_cost, subtotal, label_format, products(name, code, category, material, sale_price, suppliers(name), stores(name))')
+    .select('id, quantity, unit_cost, subtotal, label_format, products(name, code, barcode_number, category, material, sale_price, suppliers(name), stores(name))')
     .eq('purchase_id', purchaseId)
 
   if (itemsErr || !rawItems) {
@@ -748,6 +749,7 @@ export async function buscarDetalheCompra(purchaseId: string): Promise<{ data: P
     label_format: item.label_format ?? 'A',
     store_name: item.products?.stores?.name ?? '—',
     code: item.products?.code ?? '—',
+    barcode_number: item.products?.barcode_number ?? null,
   }))
 
   return {
