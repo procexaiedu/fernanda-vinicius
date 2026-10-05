@@ -18,7 +18,7 @@ import {
   Monitor,
   LogOut,
   Sun,
-  Moon, Wrench,
+  Moon, Wrench, ArrowLeftRight,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './Sidebar.module.css'
@@ -42,6 +42,8 @@ interface NavItem {
    * contrário. O inverso — `adminOnly` esquecido — abriria por descuido.
    */
   operadoraVe?: boolean
+  /** Some para a admin (ela chega à tela por outro caminho). */
+  soOperadora?: boolean
   /**
    * Item de configuração da REDE — lojas, usuários, metas, regras do negócio.
    * Só o admin global. Um admin de loja que abrisse isso estaria mexendo na
@@ -90,6 +92,9 @@ const NAV_GROUPS: NavGroup[] = [
     itens: [
       { label: 'Produtos', href: '/produtos', icon: <Package size={18} />, adminOnly: true },
       { label: 'Estoque',  href: '/estoque',  icon: <Warehouse size={18} /> },
+      /* Só a operadora: ela não abre /estoque, e é aqui que confere a caixa que
+         chegou. A admin chega pelo botão "Transferências" do Estoque. */
+      { label: 'Transferências', href: '/estoque/transferencias', icon: <ArrowLeftRight size={18} />, operadoraVe: true, soOperadora: true },
     ],
   },
   {
@@ -159,7 +164,7 @@ export default function Sidebar({
       itens: g.itens.filter(i =>
         userRole === 'operator'
           ? i.operadoraVe === true          // lista curta e explícita
-          : (!i.adminOnly || userRole === 'admin') && (!i.redeOnly || podeConfigurarRede)),
+          : !i.soOperadora && (!i.adminOnly || userRole === 'admin') && (!i.redeOnly || podeConfigurarRede)),
     }))
     .filter(g => g.itens.length > 0)
 

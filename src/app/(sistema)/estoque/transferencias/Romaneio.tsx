@@ -48,7 +48,7 @@ export default function Romaneio({ r, onFechar, recemEnviado = false }: {
   const reetiquetar = enviados.filter(i => i.reetiquetar)
 
   // Desfecho: depois de conferida (recebida/divergente), o papel mostra o que
-  // VOLTOU (recebido) e o que FICOU (faltou) por peça — não um quadrado em branco.
+  // RECEBIDO e o que FALTOU por peça — não um quadrado em branco.
   const conferido = r.status === 'recebida' || r.status === 'divergente'
   const totalRecebido = enviados.reduce((s, i) => s + (i.quantity_received ?? 0), 0)
   const totalFaltou = pecas - totalRecebido
@@ -161,8 +161,9 @@ export default function Romaneio({ r, onFechar, recemEnviado = false }: {
 
         {conferido && (
           <p className={styles.desfecho}>
-            Enviado <strong>{pecas}</strong> · Recebido (voltou) <strong>{totalRecebido}</strong>
-            {' · '}Faltou (ficou) <strong>{totalFaltou}</strong>
+            {/* Sem "(voltou)/(ficou)": na ida da consignação isso lia ao contrário. */}
+            Enviado <strong>{pecas}</strong> · Recebido em {r.para} <strong>{totalRecebido}</strong>
+            {' · '}Faltou <strong>{totalFaltou}</strong>
           </p>
         )}
 
