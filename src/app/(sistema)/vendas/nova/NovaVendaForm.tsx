@@ -523,8 +523,10 @@ function CustomerCombobox({ value, onChange, onCreateClick, customers, storeId }
 
 // ─── ProductCombobox (venda) ──────────────────────────────────────────────────
 
-function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGridKeyDown }: {
+function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGridKeyDown, mostrarCodigo = false }: {
   value: string
+  /** Código só para admin: ele carrega o custo (05/10/2026). */
+  mostrarCodigo?: boolean
   onChange: (name: string, product: ProductOption | null) => void
   products: ProductOption[]
   rowIndex?: number
@@ -606,7 +608,9 @@ function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGrid
                 </span>
               </div>
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {p.code} · {fmt(p.promotional_active && p.promotional_price ? p.promotional_price : p.sale_price)}
+                {/* Código só para admin: ele carrega o custo. A busca por código continua. */}
+                {mostrarCodigo && <>{p.code} · </>}
+                {fmt(p.promotional_active && p.promotional_price ? p.promotional_price : p.sale_price)}
                 {p.promotional_active && p.promotional_price && (
                   <span style={{ color: '#4CAF7D', marginLeft: 4 }}>promo</span>
                 )}
@@ -2010,6 +2014,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                         )
                       ) : (
                       <ProductCombobox
+                        mostrarCodigo={userProfile.role === 'admin'}
                         value={row.productName}
                         onChange={(name, p) => handleProductSelect(i, name, p)}
                         products={products.filter(p => p.store_id === storeId)}

@@ -299,7 +299,8 @@ export default function EstoqueClient({
             <thead>
               <tr>
                 <ThOrdenavel ord={ord} coluna="produto">Produto</ThOrdenavel>
-                <ThOrdenavel ord={ord} coluna="codigo">Código</ThOrdenavel>
+                {/* Código só para admin: ele carrega o custo (05/10/2026). */}
+                {isAdmin && <ThOrdenavel ord={ord} coluna="codigo">Código</ThOrdenavel>}
                 {isAdmin && <ThOrdenavel ord={ord} coluna="fornecedor" className="col-secondary col-truncate">Fornecedor</ThOrdenavel>}
                 {isAdmin && <ThOrdenavel ord={ord} coluna="loja" className="col-tertiary col-truncate">Loja</ThOrdenavel>}
                 <ThOrdenavel ord={ord} coluna="qtd" className="col-num">Qtd.</ThOrdenavel>
@@ -334,9 +335,11 @@ export default function EstoqueClient({
                       </div>
                     </td>
 
-                    <td>
-                      <span className={styles.code}>{prod.code}</span>
-                    </td>
+                    {isAdmin && (
+                      <td>
+                        <span className={styles.code}>{prod.code}</span>
+                      </td>
+                    )}
 
                     {isAdmin && (
                       <td className={`${styles.mutedCell} col-secondary col-truncate`} title={prod.suppliers?.name ?? undefined}>

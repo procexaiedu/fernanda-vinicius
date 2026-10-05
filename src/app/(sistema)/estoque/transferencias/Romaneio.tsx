@@ -6,6 +6,7 @@ import { formatarDinheiro } from '@/lib/dinheiro'
 import type { Romaneio as RomaneioT } from './page'
 import ParaImprimir from '@/components/ui/ParaImprimir'
 import styles from './Romaneio.module.css'
+import { TITULO_ROMANEIO } from '@/lib/consignacaoEntreLojas'
 
 /**
  * O romaneio impresso — o papel que vai dentro da caixa.
@@ -53,7 +54,7 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
       <div className={styles.folha}>
         <header className={styles.cabecalho}>
           <div>
-            <h2 className={styles.titulo}>Romaneio de Transferência</h2>
+            <h2 className={styles.titulo}>{TITULO_ROMANEIO[r.kind] ?? 'Romaneio de Transferência'}</h2>
             <p className={styles.rota}>
               {r.de} <span className={styles.seta}>→</span> {r.para}
             </p>

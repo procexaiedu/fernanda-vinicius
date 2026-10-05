@@ -214,6 +214,23 @@ export default function ConferenciaModal({ romaneio, onClose }: {
 
   useBarcodeScanner({ onScan: registrar, ativo: !salvando })
 
+  /*
+   * Marcação manual (05/10/2026): peça sem etiqueta legível ou leitor fora do
+   * ar. Conta igual a um bipe, uma unidade por clique, sem passar do romaneio.
+   */
+  function marcar(item: typeof esperados[number]) {
+    setErro(null)
+    setBipados(atual => {
+      const ja = atual.get(item.product_id) ?? 0
+      if (ja >= item.quantity_sent) return atual
+      const novo = new Map(atual)
+      novo.set(item.product_id, ja + 1)
+      return novo
+    })
+    setUltimo(`${item.product_name} · ${item.barcode_number} (marcada à mão)`)
+    campoRef.current?.focus()
+  }
+
   const conferidas = [...bipados.values()].reduce((s, n) => s + n, 0)
   const totalEsperado = esperados.reduce((s, i) => s + i.quantity_sent, 0)
   const faltando = esperados
@@ -351,7 +368,15 @@ export default function ConferenciaModal({ romaneio, onClose }: {
                     <td>
                       {ok
                         ? <span className={styles.selOk}><Check size={12} /> conferida</span>
-                        : <span className={styles.selFalta}>falta {i.quantity_sent - lidas}</span>}
+                        : (
+                          <>
+                            <span className={styles.selFalta}>falta {i.quantity_sent - lidas}</span>
+                            <button type="button" className={styles.marcar} onClick={() => marcar(i)}
+                              disabled={salvando} title="Sem conseguir bipar: marcar uma unidade como conferida">
+                              marcar
+                            </button>
+                          </>
+                        )}
                     </td>
                   </tr>
                 )
@@ -377,9 +402,12 @@ export default function ConferenciaModal({ romaneio, onClose }: {
             <AlertTriangle size={14} />
             <span>
               <strong>{faltando.length} peça{faltando.length > 1 ? 's' : ''} não foi bipada.</strong>{' '}
-              Ao confirmar, o saldo delas volta para {romaneio.de} — é a hipótese mais provável
-              (não foi embalada) e mantém o total fechado. Se sumiu mesmo, a conferência de estoque
-              de {romaneio.de} vai acusar.
+              {romaneio.kind === 'lote_fornecedor'
+                ? <>Ao confirmar, elas ficam registradas como falta e não entram no estoque. A admin
+                  resolve com a fornecedora.</>
+                : <>Ao confirmar, o saldo delas volta para {romaneio.de} — é a hipótese mais provável
+                  (não foi embalada) e mantém o total fechado. Se sumiu mesmo, a conferência de estoque
+                  de {romaneio.de} vai acusar.</>}
             </span>
           </div>
         )}

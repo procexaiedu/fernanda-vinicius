@@ -99,6 +99,7 @@ export default async function SessaoPage({ params }: PageProps) {
       }}
       bipesIniciais={bipes}
       totalBipesInicial={totalBipes ?? 0}
+      mostrarCodigo={profile.role === 'admin'}
     />
   )
 }

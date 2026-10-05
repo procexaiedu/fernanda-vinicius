@@ -160,7 +160,9 @@ function colunasEstoque(comCusto: boolean): ColunaCsv<LinhaProduto>[] {
   const lista: ColunaCsv<LinhaProduto>[] = [
     { titulo: 'Loja',        valor: p => p.stores?.name },
     { titulo: 'Etiqueta',    valor: p => p.barcode_number },
-    { titulo: 'Código',      valor: p => p.code },
+    /* Código só para admin: nas peças de fornecedor ele carrega o custo
+       (FEF09110 = custo R$ 110). Decisão de 05/10/2026. */
+    ...(comCusto ? [{ titulo: 'Código', valor: (p: LinhaProduto) => p.code }] : []),
     { titulo: 'Nome',        valor: p => p.name },
     { titulo: 'Origem',      valor: p => (ehConsignado(p) ? 'Consignado' : 'Próprio') },
     { titulo: 'Consignante', valor: p => (ehConsignado(p) ? (p.consignments?.suppliers?.name ?? p.suppliers?.name) : '') },
@@ -216,7 +218,8 @@ function colunas(comCusto: boolean, origem: 'produtos' | 'estoque'): ColunaCsv<L
     base.push({ titulo: 'Ativo', valor: p => (p.is_active ? 'Sim' : 'Não') })
   }
 
-  if (!comCusto) return base
+  // Sem custo, sem código: o código carrega o custo (ver colunasEstoque).
+  if (!comCusto) return base.filter(c => c.titulo !== 'Código')
 
   // Custo entra logo antes do preço de venda, que é como se lê a margem.
   const posicao = base.findIndex(c => c.titulo === 'Preço de venda')

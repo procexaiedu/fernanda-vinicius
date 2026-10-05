@@ -961,3 +961,10 @@
 }
 
 .supplierPayLiquido strong { color: var(--text-primary); }
+
+/* Aviso da remessa: a linha de outra loja não entra direto no estoque. */
+.remessaDica {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}

@@ -1,0 +1,56 @@
+.carregando {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.resumo {
+  display: flex;
+  gap: 28px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.resumo div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.resumo span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.resumo strong {
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+/* O número que ela procura: fica do lado direito, em destaque. */
+.valor { margin-left: auto; text-align: right; }
+.valor strong { color: var(--accent); }
+
+.aviso {
+  font-size: 12px;
+  color: var(--warning, var(--text-secondary));
+}
+
+.vencimento {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 220px;
+}
+
+.vencimento span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.nota {
+  font-size: 12px;
+  color: var(--text-muted);
+}
