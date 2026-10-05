@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { Printer } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { formatarDinheiro } from '@/lib/dinheiro'
@@ -25,7 +26,20 @@ import { TITULO_ROMANEIO } from '@/lib/consignacaoEntreLojas'
  * fornecedor ele carrega o custo (FEF09110 = custo R$ 110). Etiqueta + nome
  * bastam para conferir. O custo continua na lista, só para admin.
  */
-export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () => void }) {
+export default function Romaneio({ r, onFechar, recemEnviado = false }: {
+  r: RomaneioT
+  onFechar: () => void
+  /* Aberto sozinho logo após fechar a remessa: já chama a impressão. */
+  recemEnviado?: boolean
+}) {
+  /* Pedido da Eleandra (05/10/2026): fechou o consignado, o papel já aparece
+     para imprimir e ir na caixa. O atraso deixa o portal de impressão montar. */
+  useEffect(() => {
+    if (!recemEnviado) return
+    const t = setTimeout(() => window.print(), 400)
+    return () => clearTimeout(t)
+  }, [recemEnviado])
+
   const enviados = r.itens.filter(i => i.quantity_sent > 0)
   const pecas = r.totals?.pecas ?? enviados.reduce((s, i) => s + i.quantity_sent, 0)
   /* Sem fallback de propósito: o preço de venda daquele dia não foi guardado
@@ -43,6 +57,9 @@ export default function Romaneio({ r, onFechar }: { r: RomaneioT; onFechar: () =
     <div className={styles.wrapper}>
       {/* Some na impressão: é controle de tela, não parte do documento. */}
       <div className={styles.acoes}>
+        {recemEnviado && (
+          <span className={styles.recemEnviado}>Remessa enviada. Imprima e coloque o romaneio na caixa.</span>
+        )}
         <Button size="sm" variant="ghost" onClick={onFechar}>Fechar</Button>
         <Button size="sm" onClick={() => window.print()}>
           <Printer size={14} />

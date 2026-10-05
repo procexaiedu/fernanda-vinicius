@@ -60,6 +60,7 @@ export default function TransferenciasClient({
   const [novaAberta, setNovaAberta] = useState(false)
   const [conferindo, setConferindo] = useState<RomaneioT | null>(null)
   const [vendoRomaneio, setVendoRomaneio] = useState<RomaneioT | null>(null)
+  const [recemEnviado, setRecemEnviado] = useState<string | null>(null)
   const [cancelando, setCancelando] = useState<RomaneioT | null>(null)
   const [acertando, setAcertando] = useState<RomaneioT | null>(null)
   const [motivo, setMotivo] = useState('')
@@ -120,6 +121,13 @@ export default function TransferenciasClient({
    */
   const podeAcertar = (r: RomaneioT) =>
     isAdmin && r.kind === 'consignacao' && (r.status === 'recebida' || r.status === 'divergente') && !r.acerto_at
+
+  /*
+   * Fechou a remessa, o romaneio abre sozinho para imprimir e ir na caixa
+   * (pedido da Eleandra, 05/10/2026). Derivado da lista e não copiado num
+   * estado: ele aparece assim que o refresh traz a remessa nova.
+   */
+  const romaneioRecemEnviado = recemEnviado ? romaneios.find(r => r.id === recemEnviado) ?? null : null
 
   const emTransito = romaneios.filter(r => r.status === 'enviada')
   /* O que a loja de quem está olhando tem para conferir. */
@@ -263,7 +271,17 @@ export default function TransferenciasClient({
           lojaPadrao={minhaLoja}
           usuarioId={usuarioId}
           onClose={() => setNovaAberta(false)}
-          onEnviado={() => { setNovaAberta(false); router.refresh() }}
+          onEnviado={id => {
+            setNovaAberta(false)
+            setRecemEnviado(id)
+            /* A remessa nova é a mais recente: só aparece na 1ª página e sem
+               filtro que a esconda (ela nasce "enviada"). */
+            if (page !== 1 || (filtroStatus && filtroStatus !== 'enviada')) {
+              startTransition(() => router.push('?'))
+            } else {
+              router.refresh()
+            }
+          }}
         />
       )}
 
@@ -274,6 +292,12 @@ export default function TransferenciasClient({
       {vendoRomaneio && (
         <Modal isOpen size="xl" hideHeader onClose={() => setVendoRomaneio(null)}>
           <Romaneio r={vendoRomaneio} onFechar={() => setVendoRomaneio(null)} />
+        </Modal>
+      )}
+
+      {!vendoRomaneio && romaneioRecemEnviado && (
+        <Modal isOpen size="xl" hideHeader onClose={() => setRecemEnviado(null)}>
+          <Romaneio r={romaneioRecemEnviado} recemEnviado onFechar={() => setRecemEnviado(null)} />
         </Modal>
       )}
 
