@@ -17,7 +17,16 @@
 .acoes {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+}
+
+/* Aviso de tela logo após fechar a remessa. Tema do sistema: não vai pro papel. */
+.recemEnviado {
+  margin-right: auto;
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 /*
