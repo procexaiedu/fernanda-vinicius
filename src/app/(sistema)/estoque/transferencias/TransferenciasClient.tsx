@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ClipboardCheck, FileText, Plus, XCircle } from 'lucide-react'
+import { ClipboardCheck, FileText, HandCoins, Plus, XCircle } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
@@ -12,13 +12,15 @@ import NovaTransferenciaModal from './NovaTransferenciaModal'
 import ConferenciaModal from './ConferenciaModal'
 import Romaneio from './Romaneio'
 import { cancelarTransferencia } from './actions'
-import type { LojaOption, Romaneio as RomaneioT } from './page'
+import AcertoConsignacaoModal from './AcertoConsignacaoModal'
+import type { ConsignacaoAberta, LojaOption, Romaneio as RomaneioT } from './page'
+import { ROTULO_TIPO } from '@/lib/consignacaoEntreLojas'
 import styles from './TransferenciasClient.module.css'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 const ROTULO: Record<RomaneioT['status'], string> = {
-  enviada:    'Em trânsito',
+  enviada:    'Em trânsito · a conferir',
   recebida:   'Recebida',
   divergente: 'Divergência',
   cancelada:  'Cancelada',
@@ -41,6 +43,7 @@ interface Props {
   page: number
   perPage: number
   lojas: LojaOption[]
+  consignacoesAbertas: ConsignacaoAberta[]
   isAdmin: boolean
   minhaLoja: string | null
   filtroStatus: string
@@ -48,7 +51,7 @@ interface Props {
 }
 
 export default function TransferenciasClient({
-  romaneios, total, page, perPage, lojas, isAdmin, minhaLoja, filtroStatus, usuarioId,
+  romaneios, total, page, perPage, lojas, consignacoesAbertas, isAdmin, minhaLoja, filtroStatus, usuarioId,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -58,6 +61,7 @@ export default function TransferenciasClient({
   const [conferindo, setConferindo] = useState<RomaneioT | null>(null)
   const [vendoRomaneio, setVendoRomaneio] = useState<RomaneioT | null>(null)
   const [cancelando, setCancelando] = useState<RomaneioT | null>(null)
+  const [acertando, setAcertando] = useState<RomaneioT | null>(null)
   const [motivo, setMotivo] = useState('')
   const [erroCancel, setErroCancel] = useState<string | null>(null)
   const [salvandoCancel, setSalvandoCancel] = useState(false)
@@ -86,6 +90,8 @@ export default function TransferenciasClient({
    */
   const podeCancelar = (r: RomaneioT) =>
     isAdmin && r.status === 'enviada' && (!minhaLoja || r.from_store_id === minhaLoja)
+    // Lote do fornecedor não volta para "a origem": confere ou exclui a compra.
+    && r.kind !== 'lote_fornecedor'
 
   async function confirmarCancelamento() {
     if (!cancelando) return
@@ -108,7 +114,16 @@ export default function TransferenciasClient({
     router.refresh()
   }
 
+  /*
+   * Acerto da consignação entre lojas: só admin (o valor sai do custo), depois
+   * da conferência na chegada e uma vez só.
+   */
+  const podeAcertar = (r: RomaneioT) =>
+    isAdmin && r.kind === 'consignacao' && (r.status === 'recebida' || r.status === 'divergente') && !r.acerto_at
+
   const emTransito = romaneios.filter(r => r.status === 'enviada')
+  /* O que a loja de quem está olhando tem para conferir. */
+  const aConferir = emTransito.filter(podeConferir)
 
   return (
     <>
@@ -133,6 +148,7 @@ export default function TransferenciasClient({
           {emTransito.length > 0 && (
             <span className={styles.transito}>
               {emTransito.length} em trânsito — o saldo delas não está em nenhuma loja
+              {aConferir.length > 0 && ` · ${aConferir.length} para você conferir`}
             </span>
           )}
         </div>
@@ -174,6 +190,7 @@ export default function TransferenciasClient({
                     <td className="col-date">{dataHora(r.sent_at)}</td>
                     <td>
                       <span className={styles.rota}>{r.de} <span className={styles.seta}>→</span> {r.para}</span>
+                      {r.kind !== 'transferencia' && <span className={styles.tipo}>{ROTULO_TIPO[r.kind]}</span>}
                       {r.notes && <span className={styles.obs}>{r.notes}</span>}
                     </td>
                     <td className={`${styles.num} col-num`}>
@@ -183,6 +200,9 @@ export default function TransferenciasClient({
                     {isAdmin && <td className={`${styles.num} col-num`}>{formatarDinheiro(r.totals?.custo_total ?? 0)}</td>}
                     <td>
                       <Badge variant={COR[r.status]}>{ROTULO[r.status]}</Badge>
+                      {isAdmin && r.kind === 'consignacao' && r.acerto_at && (
+                        <span className={styles.obs}>acertada</span>
+                      )}
                       {r.status === 'divergente' && (
                         <span className={styles.divergencia}>
                           {faltas > 0 && `${faltas} falta${faltas > 1 ? 's' : ''}`}
@@ -203,6 +223,12 @@ export default function TransferenciasClient({
                         <button className={`${styles.acao} ${styles.acaoPrincipal}`}
                           onClick={() => setConferindo(r)} title="Conferir chegada">
                           <ClipboardCheck size={14} />
+                        </button>
+                      )}
+                      {podeAcertar(r) && (
+                        <button className={styles.acao} onClick={() => setAcertando(r)}
+                          title="Acerto da consignação (o que ficou vira conta a pagar)">
+                          <HandCoins size={14} />
                         </button>
                       )}
                       {podeCancelar(r) && (
@@ -233,6 +259,7 @@ export default function TransferenciasClient({
       {novaAberta && (
         <NovaTransferenciaModal
           lojas={lojas}
+          consignacoesAbertas={consignacoesAbertas}
           lojaPadrao={minhaLoja}
           usuarioId={usuarioId}
           onClose={() => setNovaAberta(false)}
@@ -248,6 +275,14 @@ export default function TransferenciasClient({
         <Modal isOpen size="xl" hideHeader onClose={() => setVendoRomaneio(null)}>
           <Romaneio r={vendoRomaneio} onFechar={() => setVendoRomaneio(null)} />
         </Modal>
+      )}
+
+      {acertando && (
+        <AcertoConsignacaoModal
+          romaneio={acertando}
+          onClose={() => setAcertando(null)}
+          onAcertado={() => { setAcertando(null); router.refresh() }}
+        />
       )}
 
       {cancelando && (

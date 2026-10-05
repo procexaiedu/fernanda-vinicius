@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { lojaDoEscopo, requireProfile } from '@/lib/auth'
 import { idDeRequisicaoValido } from '@/lib/idempotencia'
+import { CRITERIO_ACERTO_CONSIGNACAO_LOJA } from '@/lib/consignacaoEntreLojas'
 
 /**
  * Transferência entre lojas — romaneio, trânsito e conferência no destino.
@@ -60,8 +61,15 @@ export async function enviarTransferencia(dados: {
   to_store_id: string
   itens: ItemEnvio[]
   notes?: string
-  /** IDA (envio): entra direto no destino, sem conferência. false = devolução (confere por bipe). */
+  /**
+   * "Levo na mão": entra direto no destino, sem conferência. Desde 05/10/2026
+   * o padrão é false: a remessa fica em trânsito até a loja de destino conferir.
+   */
   autoReceber?: boolean
+  /** transferencia | consignacao | devolucao_consignacao (lote_fornecedor nasce pela compra). */
+  kind?: 'transferencia' | 'consignacao' | 'devolucao_consignacao'
+  /** Só na devolução: o romaneio da consignação que está voltando. */
+  consignacaoId?: string | null
   /**
    * uuid do romaneio, gerado pela tela e guardado no rascunho. Reenviar com o
    * mesmo id devolve o romaneio já gravado em vez de tirar a caixa da origem
@@ -91,12 +99,27 @@ export async function enviarTransferencia(dados: {
     p_notes:         dados.notes?.trim() || null,
     p_auto_receber:  dados.autoReceber ?? false,
   }
+  const kind = dados.kind ?? 'transferencia'
+  if (kind === 'devolucao_consignacao' && !dados.consignacaoId) {
+    return { success: false, error: 'Escolha a consignação que está sendo devolvida.' }
+  }
+  /* Tipo só vai quando não é a transferência simples: assim, com a migration de
+     05/10 ainda não aplicada, a transferência comum continua saindo. */
+  const comTipo = kind === 'transferencia'
+    ? args
+    : { ...args, p_kind: kind, p_consignacao_id: dados.consignacaoId ?? null }
   // Id inválido (tela antiga, lixo) = envia sem idempotência, como antes.
   const idRequisicao = idDeRequisicaoValido(dados.clientRequestId)
   const supa = createAdminClient()
 
   let { data, error } = await supa.rpc('enviar_transferencia',
-    idRequisicao ? { ...args, p_client_request_id: idRequisicao } : args)
+    idRequisicao ? { ...comTipo, p_client_request_id: idRequisicao } : comTipo)
+
+  /* Consignação/devolução sem a função nova no banco: recusar. Mandar como
+     transferência comum perderia o tipo e, com ele, o acerto. */
+  if (kind !== 'transferencia' && error?.code === 'PGRST202') {
+    return { success: false, error: 'O banco ainda não tem a consignação entre lojas (migration 20261005). Avise o suporte.' }
+  }
 
   /*
    * PGRST202 = o PostgREST não conhece a função com o parâmetro novo: a
@@ -382,4 +405,63 @@ export async function identificarEtiqueta(
 
   if (!data) return null
   return { id: data.id, name: data.name, code: data.code }
+}
+
+export interface AcertoConsignacao {
+  resumo: {
+    criterio: 'custo' | 'venda'
+    de: string
+    para: string
+    pecas_enviadas: number
+    pecas_devolvidas: number
+    pecas_ficaram: number
+    faltou_na_ida: number
+    faltou_na_volta: number
+    valor: number
+  }
+  itens: Array<{
+    etiqueta: string; peca: string; enviado: number; recebido: number; devolvido: number
+    faltou_volta: number; ficou: number; unitario: number; valor: number
+  }>
+}
+
+/**
+ * Acerto da consignação entre lojas: prévia (confirmar=false) ou fechamento,
+ * que lança a conta a pagar PENDENTE na loja de destino. Só admin: o valor sai
+ * do custo. A admin de loja só acerta consignação que envolve a loja dela.
+ */
+export async function acertoConsignacao(
+  transferId: string,
+  confirmar: boolean,
+  vencimento?: string | null,
+): Promise<ActionResult & { acerto?: AcertoConsignacao }> {
+  const { perfil, erro } = await admin()
+  if (!perfil) return { success: false, error: erro! }
+
+  const supa = createAdminClient()
+  const escopo = lojaDoEscopo(perfil)
+  if (escopo) {
+    const { data: t, error: e } = await supa
+      .from('transfers').select('from_store_id, to_store_id').eq('id', transferId).maybeSingle()
+    if (e) return { success: false, error: e.message }
+    if (!t) return { success: false, error: 'Transferência não encontrada.' }
+    if (t.from_store_id !== escopo && t.to_store_id !== escopo) {
+      return { success: false, error: 'Esta consignação não envolve a sua loja.' }
+    }
+  }
+
+  const { data, error } = await supa.rpc('acerto_consignacao_loja', {
+    p_transfer_id: transferId,
+    p_user_id:     perfil.id,
+    p_criterio:    CRITERIO_ACERTO_CONSIGNACAO_LOJA,
+    p_vencimento:  vencimento || null,
+    p_confirmar:   confirmar,
+  })
+  if (error) return { success: false, error: error.message }
+
+  const r = data as { success: boolean; error?: string } & Partial<AcertoConsignacao>
+  if (!r.success) return { success: false, error: r.error ?? 'Erro no acerto.' }
+
+  if (confirmar) { revalidarTudo(); revalidatePath('/financeiro') }
+  return { success: true, acerto: { resumo: r.resumo!, itens: r.itens ?? [] } }
 }

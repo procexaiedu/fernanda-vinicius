@@ -36,6 +36,8 @@ interface Props {
   sessao: SessaoInfo
   bipesIniciais: BipeRegistrado[]
   totalBipesInicial: number
+  /** Código só para admin: nas peças de fornecedor ele carrega o custo (05/10/2026). Sem ele, mostra a etiqueta. */
+  mostrarCodigo?: boolean
 }
 
 /**
@@ -90,7 +92,7 @@ function hora(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial }: Props) {
+export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial, mostrarCodigo = false }: Props) {
   const router = useRouter()
   const escopoNome = sessao.scope_type === 'loja' ? 'Loja inteira' : (sessao.scope_value ?? '')
 
@@ -207,7 +209,7 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
 
     setUltimo({
       nome:     res.produto?.name ?? 'Não cadastrado',
-      code:     res.produto?.code ?? codigo,
+      code:     mostrarCodigo ? (res.produto?.code ?? codigo) : codigo,
       repetido: !!res.repetido,
       achado:   !!res.produto,
       preco:    res.produto?.preco ?? 0,
@@ -237,7 +239,7 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
       if (!armado || armado.id !== doServidor.id || Date.now() - armado.ts > MS_CONFIRMA_DESFAZER) {
         desfazerArmado.current = { id: doServidor.id, ts: Date.now() }
         const peca = doServidor.produto
-          ? `${doServidor.produto.name} (${doServidor.produto.code})`
+          ? `${doServidor.produto.name} (${mostrarCodigo ? doServidor.produto.code : doServidor.barcode_number})`
           : doServidor.barcode_number
         setErro(`Clique de novo em Desfazer para apagar o último bipe da contagem: ${peca}`)
         return
@@ -358,7 +360,7 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
     const pendentes = res.nao_ajustados ?? []
     if (pendentes.length > 0) {
       const n = pendentes.length
-      const nomes = pendentes.map(p => (p.code ? `${p.name} (${p.code})` : p.name)).join(', ')
+      const nomes = pendentes.map(p => (mostrarCodigo && p.code ? `${p.name} (${p.code})` : p.name)).join(', ')
       setFechadaComPendencia(true)
       setErro(
         `Conferência fechada (${res.ajustes_aplicados ?? 0} ajuste${(res.ajustes_aplicados ?? 0) === 1 ? '' : 's'} aplicado${(res.ajustes_aplicados ?? 0) === 1 ? '' : 's'}). `
@@ -519,7 +521,7 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
           {bipes.slice(0, 12).map(b => (
             <div key={b.id} className={styles.linhaBipe}>
               <span className={styles.bipeHora}>{hora(b.scanned_at)}</span>
-              <span className={styles.bipeCode}>{b.produto?.code ?? b.barcode_number}</span>
+              <span className={styles.bipeCode}>{mostrarCodigo ? (b.produto?.code ?? b.barcode_number) : b.barcode_number}</span>
               <span className={styles.bipeNome}>{b.produto?.name ?? 'não cadastrado'}</span>
               {b.produto
                 ? <Check size={14} className={styles.iconeOk} />
@@ -561,6 +563,7 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
       </div>
 
       <GrupoDivergencia
+        mostrarCodigo={mostrarCodigo}
         titulo="Falta"
         descricao="Está no sistema, não apareceu na gaveta — vai sair do estoque"
         linhas={rec.falta}
@@ -571,6 +574,7 @@ export default function SessaoClient({ sessao, bipesIniciais, totalBipesInicial 
       />
 
       <GrupoDivergencia
+        mostrarCodigo={mostrarCodigo}
         titulo="Sobra"
         descricao="Apareceu mais do que o sistema diz"
         linhas={rec.sobra}
@@ -636,7 +640,8 @@ function Balde({ titulo, valor, tom }: { titulo: string; valor: number; tom?: 'f
 
 const POR_PAGINA = 20
 
-function GrupoDivergencia({ titulo, descricao, linhas, motivo, setMotivo, excecoes, alternar }: {
+function GrupoDivergencia({ titulo, descricao, linhas, motivo, setMotivo, excecoes, alternar, mostrarCodigo }: {
+  mostrarCodigo: boolean
   titulo: string
   descricao: string
   linhas: LinhaReconciliacao[]
@@ -680,7 +685,7 @@ function GrupoDivergencia({ titulo, descricao, linhas, motivo, setMotivo, exceco
           const deixar = excecoes.has(l.product_id)
           return (
             <div key={l.product_id} className={`${styles.linhaDiv} ${deixar ? styles.linhaIgnorada : ''}`}>
-              <span className={styles.bipeCode}>{l.code}</span>
+              <span className={styles.bipeCode}>{mostrarCodigo ? l.code : ''}</span>
               <span className={styles.linhaNome}>{l.name}</span>
               <span className={styles.linhaNumeros}>
                 <strong>{l.esperado}</strong> → <strong>{l.contado}</strong>

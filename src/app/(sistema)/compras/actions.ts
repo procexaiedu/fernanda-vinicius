@@ -93,6 +93,13 @@ export interface CompraFormData {
    * recuperado, duplo clique) de lançar a compra duas vezes.
    */
   clientRequestId?: string | null
+  /**
+   * Loja de onde as peças SAEM fisicamente (05/10/2026). Linhas de OUTRA loja
+   * não entram direto: viram remessa em trânsito ("lote do fornecedor") e só
+   * entram no estoque quando a loja de destino conferir. Vazio = as peças já
+   * estão na loja de destino (como antes).
+   */
+  remessaDe?: string | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -537,14 +544,24 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
     pagamentos,
   }
 
-  let { data: resp, error: rpcErr } = await admin.rpc('salvar_compra', { p: payload })
+  /*
+   * Com remessa: `salvar_compra_com_remessa` grava a compra e abre a remessa na
+   * MESMA transação (migration 20261005_transferencia_duas_pontas). Só se
+   * alguma linha é de outra loja; senão, o caminho de sempre.
+   */
+  const remessaDe = data.remessaDe && data.rows.some(r => r.storeId !== data.remessaDe) ? data.remessaDe : null
+  const gravar = () => remessaDe
+    ? admin.rpc('salvar_compra_com_remessa', { p: payload, p_remessa_de: remessaDe })
+    : admin.rpc('salvar_compra', { p: payload })
+
+  let { data: resp, error: rpcErr } = await gravar()
 
   /* Índice único do `client_request_id` disparou: outro envio desta MESMA
    * compra passou na frente. A função trava pelo id (advisory lock), então é
    * raro — e a transação deste envio já foi desfeita. Chamar de novo cai no
    * reconhecimento do reenvio e devolve a compra que entrou. */
   if (rpcErr && idReq && violouUnico(rpcErr)) {
-    ;({ data: resp, error: rpcErr } = await admin.rpc('salvar_compra', { p: payload }))
+    ;({ data: resp, error: rpcErr } = await gravar())
   }
 
   if (rpcErr || !resp) {

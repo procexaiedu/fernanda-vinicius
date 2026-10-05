@@ -8,7 +8,8 @@ import Button from '@/components/ui/Button'
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { buscarPecaPorCodigo, enviarTransferencia, revalidarRascunho, type PecaBipada } from './actions'
-import type { LojaOption } from './page'
+import type { ConsignacaoAberta, LojaOption } from './page'
+import { ROTULO_TIPO } from '@/lib/consignacaoEntreLojas'
 import styles from './NovaTransferenciaModal.module.css'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
@@ -106,8 +107,11 @@ function apagarRascunho(usuarioId: string, origem: string) {
   try { localStorage.removeItem(chaveRascunho(usuarioId, origem)) } catch { /* idem */ }
 }
 
-export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, onClose, onEnviado }: {
+type TipoEnvio = 'transferencia' | 'consignacao' | 'devolucao_consignacao'
+
+export default function NovaTransferenciaModal({ lojas, consignacoesAbertas = [], lojaPadrao, usuarioId, onClose, onEnviado }: {
   lojas: LojaOption[]
+  consignacoesAbertas?: ConsignacaoAberta[]
   lojaPadrao: string | null
   usuarioId: string
   onClose: () => void
@@ -132,6 +136,14 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, o
   const [erro, setErro]       = useState<string | null>(null)
   const [ultimo, setUltimo]   = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  /*
+   * Duas pontas (05/10/2026): o romaneio sai e fica EM TRÂNSITO até a loja de
+   * destino conferir. "Levo na mão" é a exceção da admin que carrega a caixa
+   * ela mesma (o fluxo de 21/09): aí entra direto.
+   */
+  const [tipo, setTipo] = useState<TipoEnvio>('transferencia')
+  const [consignacaoId, setConsignacaoId] = useState('')
+  const [levoNaMao, setLevoNaMao] = useState(false)
   /*
    * Depois do envio que deu certo, o botão não volta. Entre o `finally`
    * soltar o `enviando` e o modal fechar havia uma janela em que um segundo
@@ -402,9 +414,9 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, o
         to_store_id:   destino,
         itens: linhas.map(l => ({ product_id: l.id, quantity: l.quantidade })),
         notes: obs,
-        // Toda transferência (ida e devolução) entra direto no destino: ela bipa
-        // pra montar, envia, e já cai no estoque de destino. Sem bipar na chegada.
-        autoReceber: true,
+        autoReceber: levoNaMao,
+        kind: tipo,
+        consignacaoId: tipo === 'devolucao_consignacao' ? consignacaoId : null,
         clientRequestId: idRequisicao,
       })
       if (r.success) setEnviado(true)
@@ -460,9 +472,57 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, o
           </div>
         </div>
 
+        <div className={styles.rotas}>
+          <div className={styles.campo}>
+            <span>Tipo</span>
+            <SearchableSelect
+              value={tipo}
+              onChange={v => { setTipo((v || 'transferencia') as TipoEnvio); setConsignacaoId('') }}
+              options={(['transferencia', 'consignacao', 'devolucao_consignacao'] as const)
+                .map(t => ({ value: t, label: ROTULO_TIPO[t] }))}
+              placeholder="Tipo"
+              searchable={false}
+              permitirLimpar={false}
+              disabled={enviando}
+            />
+          </div>
+          {tipo === 'devolucao_consignacao' && (
+            <div className={styles.campo}>
+              <span>Qual consignação está voltando</span>
+              <SearchableSelect
+                value={consignacaoId}
+                onChange={v => {
+                  setConsignacaoId(v)
+                  // A devolução volta para a loja que mandou a consignação.
+                  const c = consignacoesAbertas.find(x => x.id === v)
+                  if (c) setDestino(c.from_store_id)
+                }}
+                options={consignacoesAbertas
+                  .filter(c => c.to_store_id === origem)
+                  .map(c => ({
+                    value: c.id,
+                    label: `${c.de} → ${c.para} · ${new Date(c.sent_at).toLocaleDateString('pt-BR')} · Nº ${c.id.slice(0, 8).toUpperCase()}`,
+                  }))}
+                placeholder={consignacoesAbertas.some(c => c.to_store_id === origem)
+                  ? 'Escolha a consignação'
+                  : 'Nenhuma consignação aberta nesta loja'}
+                searchable={false}
+                disabled={enviando}
+              />
+            </div>
+          )}
+        </div>
+
+        <label className={styles.levoNaMao}>
+          <input type="checkbox" checked={levoNaMao} onChange={e => setLevoNaMao(e.target.checked)} disabled={enviando} />
+          <span>Levo na mão: as peças entram direto no destino, sem conferência</span>
+        </label>
+
         <p className={styles.tipoDica}>
-          Bipe as peças para montar a transferência. Ao enviar, elas já entram no
-          estoque da loja de destino — não precisa bipar de novo na chegada.
+          {levoNaMao
+            ? 'Ao enviar, as peças já entram no estoque da loja de destino.'
+            : 'Ao enviar, as peças saem desta loja e ficam em trânsito. Só entram no estoque do destino quando a loja de lá conferir e confirmar. Imprima o romaneio para ir junto na caixa.'}
+          {tipo === 'consignacao' && ' O que não voltar será acertado como conta a pagar da loja de destino.'}
         </p>
 
         <div className={styles.bipeArea}>
@@ -590,8 +650,9 @@ export default function NovaTransferenciaModal({ lojas, lojaPadrao, usuarioId, o
           </div>
           <div className={styles.acoes}>
             <Button variant="ghost" onClick={onClose} disabled={enviando}>Cancelar</Button>
-            <Button onClick={enviar} loading={enviando} disabled={linhas.length === 0 || !destino || enviado}>
-              Enviar e dar entrada
+            <Button onClick={enviar} loading={enviando}
+              disabled={linhas.length === 0 || !destino || enviado || (tipo === 'devolucao_consignacao' && !consignacaoId)}>
+              {levoNaMao ? 'Enviar e dar entrada' : 'Enviar (fica em trânsito)'}
             </Button>
           </div>
         </div>

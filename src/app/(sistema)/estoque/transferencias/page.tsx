@@ -2,6 +2,7 @@ import { requireProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import TransferenciasClient from './TransferenciasClient'
 import PageHeader from '@/components/ui/PageHeader'
+import { tipoRomaneio, type TipoRomaneio } from '@/lib/consignacaoEntreLojas'
 
 /* 10 por página, como todas as listas do sistema — é o que o componente
  * Paginacao assume no rótulo "Mostrando 1-10 de N". */
@@ -40,6 +41,11 @@ export interface Romaneio {
    * decidir quanto mandar, e seria mentira.
    */
   totals: { pecas?: number; itens?: number; custo_total?: number; venda_total?: number } | null
+  /* Desde 05/10/2026 (migration 20261005_transferencia_duas_pontas). */
+  kind: TipoRomaneio
+  consignacao_id: string | null
+  /* Acerto da consignação entre lojas. Só vem para admin. */
+  acerto_at: string | null
   de: string
   para: string
   enviou: string
@@ -48,6 +54,16 @@ export interface Romaneio {
 }
 
 export interface LojaOption { id: string; name: string }
+
+/** Consignação já conferida no destino e sem acerto: pode receber devolução. */
+export interface ConsignacaoAberta {
+  id: string
+  from_store_id: string
+  to_store_id: string
+  de: string
+  para: string
+  sent_at: string
+}
 
 interface PageProps {
   searchParams: Promise<{ page?: string; status?: string }>
@@ -73,6 +89,7 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
     .from('transfers')
     .select(
       'id, from_store_id, to_store_id, status, sent_at, received_at, notes, receipt_notes, totals, ' +
+      'kind, consignacao_id, acerto_at, ' +
       'origem:stores!from_store_id(name), destino:stores!to_store_id(name), ' +
       'quem_enviou:users!sent_by(full_name), quem_recebeu:users!received_by(full_name), ' +
       'transfer_items(id, product_id, product_code, product_name, barcode_number, ' +
@@ -98,10 +115,26 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
   }
   if (params.status) q = q.eq('status', params.status)
 
-  const [transfRes, storesRes] = await Promise.all([
+  /* Para a devolução: as consignações que a loja recebeu e ainda não acertou.
+     Só admin monta romaneio, então só ela precisa da lista. */
+  let qAbertas = supa
+    .from('transfers')
+    .select('id, from_store_id, to_store_id, sent_at, origem:stores!from_store_id(name), destino:stores!to_store_id(name)')
+    .eq('kind', 'consignacao')
+    .in('status', ['recebida', 'divergente'])
+    .is('acerto_at', null)
+    .order('sent_at', { ascending: false })
+  if (escopo) qAbertas = qAbertas.eq('to_store_id', escopo)
+
+  const [transfRes, storesRes, abertasRes] = await Promise.all([
     q,
     supa.from('stores').select('id, name').order('name'),
+    isAdmin ? qAbertas : Promise.resolve({ data: [], error: null }),
   ])
+
+  /* Erro de leitura é erro na tela, não lista vazia (ver CLAUDE.md). */
+  if (transfRes.error) throw new Error(`Não foi possível ler as transferências: ${transfRes.error.message}`)
+  if (abertasRes.error) throw new Error(`Não foi possível ler as consignações: ${abertasRes.error.message}`)
 
   const primeiro = (v: unknown) => (Array.isArray(v) ? v[0] : v)
 
@@ -134,6 +167,9 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
       notes:         r.notes as string | null,
       receipt_notes: r.receipt_notes as string | null,
       totals:        totaisSemCusto((r.totals ?? null) as Romaneio['totals']),
+      kind:          tipoRomaneio(r.kind),
+      consignacao_id:(r.consignacao_id ?? null) as string | null,
+      acerto_at:     isAdmin ? (r.acerto_at ?? null) as string | null : null,
       de:     (primeiro(r.origem)  as { name: string } | null)?.name ?? '—',
       para:   (primeiro(r.destino) as { name: string } | null)?.name ?? '—',
       enviou: (primeiro(r.quem_enviou)  as { full_name: string } | null)?.full_name ?? '—',
@@ -150,6 +186,16 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
 
   const lojas = (storesRes.data ?? []) as LojaOption[]
 
+  const consignacoesAbertas: ConsignacaoAberta[] = ((abertasRes.data ?? []) as unknown as Record<string, unknown>[])
+    .map(c => ({
+      id:            c.id as string,
+      from_store_id: c.from_store_id as string,
+      to_store_id:   c.to_store_id as string,
+      sent_at:       c.sent_at as string,
+      de:   (primeiro(c.origem)  as { name: string } | null)?.name ?? '—',
+      para: (primeiro(c.destino) as { name: string } | null)?.name ?? '—',
+    }))
+
   return (
     <div>
       <PageHeader
@@ -162,6 +208,7 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
         page={page}
         perPage={PAGE_SIZE}
         lojas={lojas}
+        consignacoesAbertas={consignacoesAbertas}
         isAdmin={isAdmin}
         /* O escopo, não o `store_id`: a admin global que escolheu Campinas no
          * login opera como Campinas enquanto estiver nela. */

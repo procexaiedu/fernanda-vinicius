@@ -336,3 +336,15 @@
   font-size: 12px;
   color: var(--text-muted);
 }
+
+/* "Levo na mão" — exceção da admin; o padrão é ficar em trânsito. */
+.levoNaMao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.levoNaMao input { accent-color: var(--accent); }

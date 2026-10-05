@@ -314,7 +314,9 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
           <div className={styles.headerInfo}>
             <div className={styles.productName}>{produto.name}</div>
             <div className={styles.headerMeta}>
-              <span className={styles.code}>{produto.code}</span>
+              {/* Código só na visão interna (admin): ele carrega o custo (05/10/2026).
+                  Fora dela, a etiqueta identifica a peça. */}
+              <span className={styles.code}>{interno ? produto.code : (produto.barcode_number ?? '')}</span>
               <span className={styles.metaItem}><span className={styles.metaLabel}>Categoria:</span> {category}</span>
               <span className={styles.metaItem}><span className={styles.metaLabel}>Material:</span> {produto.material}</span>
               {interno && produto.suppliers && (

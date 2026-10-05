@@ -598,6 +598,13 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
   const [purchaseDate, setPurchaseDate]     = useState(today())
   const [notes, setNotes]                   = useState('')
   const [isConsignment, setIsConsignment]   = useState(false)
+  /*
+   * De onde as peças SAEM (05/10/2026). Ela compra em São Paulo e despacha de
+   * Campinas: linha de outra loja vira remessa em trânsito e só entra no
+   * estoque de lá quando a loja conferir. '' = já estão na loja de destino.
+   * Só aparece com mais de uma loja na tela (admin de loja só vê a dela).
+   */
+  const [remessaDe, setRemessaDe] = useState(defaultStoreId)
   const [returnDeadline, setReturnDeadline] = useState('')
   const [minPurchasePct, setMinPurchasePct] = useState('')
 
@@ -1138,6 +1145,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
         returnDeadline,
         minPurchasePct: minPurchasePct ? parseFloat(minPurchasePct) : null,
         clientRequestId: idDaCompraAtual(),
+        remessaDe: stores.length > 1 ? (remessaDe || null) : null,
       })
     } catch (e) {
       // Rascunho INTACTO de propósito: o `clearDraft()` só roda no sucesso, lá
@@ -1279,6 +1287,21 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
                 />
               </div>
             </>
+          )}
+
+          {stores.length > 1 && (
+            <div className={styles.field}>
+              <label className={styles.label}>Peças saem de</label>
+              <select className={styles.input} value={remessaDe} onChange={e => setRemessaDe(e.target.value)}>
+                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                <option value="">Já estão na loja de destino</option>
+              </select>
+              {remessaDe && validRows.some(r => r.storeId && r.storeId !== remessaDe) && (
+                <span className={styles.remessaDica}>
+                  Peças de outra loja ficam em trânsito e só entram no estoque quando a loja conferir a chegada.
+                </span>
+              )}
+            </div>
           )}
 
           <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
