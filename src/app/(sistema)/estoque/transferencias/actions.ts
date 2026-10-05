@@ -268,7 +268,11 @@ export async function buscarPecaPorCodigo(
   barcode: string,
   storeId: string,
 ): Promise<{ success: true; peca: PecaBipada } | { success: false; error: string }> {
-  const perfil = await requireProfile()
+  /* Só quem monta romaneio (admin): a resposta traz custo e código. Desde
+     05/10 a operadora abre esta tela para conferir, e server action é
+     chamável direto. */
+  const { perfil, erro } = await admin()
+  if (!perfil) return { success: false, error: erro! }
   // Quem tem loja só bipa peça dela — o id que vem da tela é sugestão.
   storeId = lojaDoEscopo(perfil, storeId) ?? storeId
 
@@ -338,7 +342,9 @@ export async function revalidarRascunho(
   productIds: string[],
   storeId: string,
 ): Promise<{ success: true; pecas: PecaBipada[] } | { success: false; error: string }> {
-  const perfil = await requireProfile()
+  // Mesmo motivo de buscarPecaPorCodigo: devolve custo e código.
+  const { perfil, erro } = await admin()
+  if (!perfil) return { success: false, error: erro! }
   storeId = lojaDoEscopo(perfil, storeId) ?? storeId
 
   if (!productIds.length) return { success: true, pecas: [] }
@@ -392,7 +398,7 @@ export async function identificarEtiqueta(
   barcode: string,
   lojaPreferida?: string | null,
 ): Promise<{ id: string; name: string; code: string } | null> {
-  await requireProfile()
+  const perfil = await requireProfile()
 
   const { data: linhas } = await createAdminClient()
     .from('products')
@@ -404,7 +410,8 @@ export async function identificarEtiqueta(
   const data = lista.find(p => p.store_id === lojaPreferida) ?? lista[0]
 
   if (!data) return null
-  return { id: data.id, name: data.name, code: data.code }
+  // Código carrega custo nas peças de fornecedor: só admin recebe.
+  return { id: data.id, name: data.name, code: perfil.role === 'admin' ? data.code : '' }
 }
 
 export interface AcertoConsignacao {

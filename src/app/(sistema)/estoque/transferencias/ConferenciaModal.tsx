@@ -236,6 +236,8 @@ export default function ConferenciaModal({ romaneio, onClose }: {
   const faltando = esperados
     .map(i => ({ item: i, falta: i.quantity_sent - (bipados.get(i.product_id) ?? 0) }))
     .filter(x => x.falta > 0)
+  /* Em peças, não em linhas: 2 brincos iguais faltando são 2, não 1. */
+  const pecasFaltando = faltando.reduce((s, x) => s + x.falta, 0)
 
   const temDivergencia = faltando.length > 0 || sobras.length > 0
 
@@ -401,7 +403,7 @@ export default function ConferenciaModal({ romaneio, onClose }: {
           <div className={styles.avisoFalta}>
             <AlertTriangle size={14} />
             <span>
-              <strong>{faltando.length} peça{faltando.length > 1 ? 's' : ''} não foi bipada.</strong>{' '}
+              <strong>{pecasFaltando} peça{pecasFaltando > 1 ? 's não foram bipadas' : ' não foi bipada'}.</strong>{' '}
               {romaneio.kind === 'lote_fornecedor'
                 ? <>Ao confirmar, elas ficam registradas como falta e não entram no estoque. A admin
                   resolve com a fornecedora.</>

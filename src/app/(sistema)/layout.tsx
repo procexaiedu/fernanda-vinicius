@@ -2,29 +2,14 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { requireProfile, ehOperadora, podeConfigurarRede, precisaEscolherLoja } from '@/lib/auth'
 import { CABECALHO_CAMINHO } from '@/lib/auth-header'
+import { operadoraPodeVer } from '@/lib/acessoOperadora'
 import SistemaLayoutClient from './layout-client'
 
-/**
- * O que a operadora alcança — por URL, não por menu.
- *
- * Esconder item da barra lateral não é controle de acesso: basta digitar
- * `/produtos` no endereço. Quatro telas (`/clientes`, `/disparos`, `/estoque`,
- * `/produtos`) não tinham trava nenhuma até 01/09.
- *
+/*
+ * O que a operadora alcança (lista do que PODE) mora em src/lib/acessoOperadora.ts.
  * A trava mora AQUI, no layout, porque é o único ponto por onde toda página do
- * sistema passa. E é uma LISTA DO QUE PODE, não do que não pode: tela nova
- * nasce fora do alcance dela até alguém decidir o contrário. Uma lista de
- * proibições esqueceria a próxima.
+ * sistema passa.
  */
-const OPERADORA_PODE = [
-  '/pdv',        // atender e fechar a venda
-  '/vendas',     // as vendas do dia — a query já limita a hoje
-  '/consertos',  // recebe a peça da cliente no balcão e devolve quando volta
-]
-
-function operadoraPodeVer(pathname: string): boolean {
-  return OPERADORA_PODE.some(p => pathname === p || pathname.startsWith(p + '/'))
-}
 
 export default async function SistemaLayout({ children }: { children: React.ReactNode }) {
   // Um único round trip: perfil + nome da loja vêm juntos pelo join, e o resultado
