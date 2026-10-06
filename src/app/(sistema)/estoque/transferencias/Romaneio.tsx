@@ -157,6 +157,23 @@ export default function Romaneio({ r, onFechar, recemEnviado = false }: {
               </tr>
             ))}
           </tbody>
+          {/* Pedido de 06/10: os totais também no FIM da lista, onde termina a conferência. */}
+          <tfoot>
+            <tr>
+              <td colSpan={3}>Total</td>
+              <td className={`${styles.num} col-num`}>{pecas}</td>
+              <td />
+              <td className={`${styles.num} col-num`}>{venda === undefined ? '—' : formatarDinheiro(venda)}</td>
+              {conferido ? (
+                <>
+                  <td className={`${styles.num} col-num`}>{totalRecebido}</td>
+                  <td className={`${styles.num} col-num`}>{totalFaltou}</td>
+                </>
+              ) : (
+                <td />
+              )}
+            </tr>
+          </tfoot>
         </table>
 
         {conferido && (

@@ -585,6 +585,7 @@ export default function NovaTransferenciaModal({ lojas, consignacoesAbertas = []
                   <th className={`${styles.num} col-num`}>Enviar</th>
                   <th className={`${styles.num} col-num`}>Na loja</th>
                   <th className={`${styles.num} col-num`}>Custo</th>
+                  <th className={`${styles.num} col-num`}>Venda</th>
                   <th />
                 </tr>
               </thead>
@@ -612,6 +613,9 @@ export default function NovaTransferenciaModal({ lojas, consignacoesAbertas = []
                     </td>
                     <td className={`${styles.num} col-num`}>{l.quantity_in_stock}</td>
                     <td className={`${styles.num} col-num`}>{formatarDinheiro(l.cost_price * l.quantidade)}</td>
+                    {/* Pedido de 06/10: conferir custo e venda enquanto bipa. Mesma
+                        conta do custo (× quantidade), para a coluna fechar com o rodapé. */}
+                    <td className={`${styles.num} col-num`}>{formatarDinheiro(l.sale_price * l.quantidade)}</td>
                     <td>
                       <button type="button" className={styles.remover} disabled={enviando}
                         onClick={() => setLinhas(a => a.filter(x => x.id !== l.id))} aria-label="Tirar do romaneio">

@@ -136,6 +136,13 @@
   vertical-align: top;
 }
 
+.tabela tfoot td {
+  border-top: 1px solid #111;
+  border-bottom: none;
+  font-weight: 700;
+  padding-top: 7px;
+}
+
 .ordem  { color: #888; width: 24px; }
 .num    { text-align: right; white-space: nowrap; }
 
