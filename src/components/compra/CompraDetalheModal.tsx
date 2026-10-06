@@ -22,6 +22,9 @@ function methodLabel(m: string) {
   return { pix: 'PIX', cash: 'Dinheiro', transfer: 'Transferência', credit: 'Crédito', debit: 'Débito', check: 'Cheque' }[m] ?? m
 }
 
+const totalStyle = { textAlign: 'right', fontWeight: 700, padding: '8px 12px', color: 'var(--accent)', whiteSpace: 'nowrap' } as const
+const totalLabelStyle = { display: 'block', color: 'var(--text-muted)', fontSize: 10, fontWeight: 600 } as const
+
 interface Props {
   purchaseId: string
   onClose: () => void
@@ -196,10 +199,24 @@ export default function CompraDetalheModal({ purchaseId, onClose, onDeleted, can
                     </tr>
                   ))}
                 </tbody>
+                {/* Pedido de 06/10: além do custo, o total de peças e a venda
+                    total do lote, cada um embaixo da sua coluna. */}
                 <tfoot>
                   <tr>
-                    <td colSpan={10} style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: 11, padding: '8px 12px', fontWeight: 600 }}>CUSTO TOTAL</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, padding: '8px 12px', color: 'var(--accent)' }}>{fmt(detail.total_cost)}</td>
+                    <td colSpan={7} style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: 11, padding: '8px 12px', fontWeight: 600 }}>TOTAIS</td>
+                    <td style={totalStyle}>
+                      <span style={totalLabelStyle}>PEÇAS</span>
+                      {detail.items.reduce((s, i) => s + Number(i.quantity), 0)}
+                    </td>
+                    <td />
+                    <td style={totalStyle}>
+                      <span style={totalLabelStyle}>VENDA TOTAL</span>
+                      {fmt(detail.items.reduce((s, i) => s + Number(i.sale_price) * Number(i.quantity), 0))}
+                    </td>
+                    <td style={totalStyle}>
+                      <span style={totalLabelStyle}>CUSTO TOTAL</span>
+                      {fmt(detail.total_cost)}
+                    </td>
                   </tr>
                 </tfoot>
               </table>
