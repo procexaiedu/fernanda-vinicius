@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ShoppingCart, Receipt, CheckCircle2, FileText, X, MessageCircle,
+import { ShoppingCart, Receipt, CheckCircle2, FileText, X, MessageCircle, Printer,
 } from 'lucide-react'
 import NovaVendaForm from '../vendas/nova/NovaVendaForm'
 import CaixaDoDia from './CaixaDoDia'
@@ -134,6 +134,8 @@ function PainelNota({ saleId, aviso, onFechar }: { saleId: string; aviso?: strin
   /* Link pronto ANTES do clique: abrir o WhatsApp depois de um `await` é o que
    * o navegador barra como pop-up. */
   const [linkWhats, setLinkWhats] = useState<string | null>(null)
+  /* O que ficou fora da nota sem impedir a emissão (o conserto). */
+  const [avisos, setAvisos] = useState<string[]>([])
 
   useEffect(() => {
     let vivo = true
@@ -144,6 +146,7 @@ function PainelNota({ saleId, aviso, onFechar }: { saleId: string; aviso?: strin
   async function emitir() {
     setEstado('emitindo'); setMensagem(null)
     const r = await emitirNotaDaVenda(saleId)
+    setAvisos(r.avisos ?? [])
     if (r.success) {
       setEstado('ok')
       setDanfe(r.danfeUrl ?? null)
@@ -181,11 +184,17 @@ function PainelNota({ saleId, aviso, onFechar }: { saleId: string; aviso?: strin
         </button>
       </div>
 
-      {danfe && (
+      {estado === 'ok' && (
         <div className={styles.painelLinks}>
-          <a className={styles.painelDanfe} href={danfe} target="_blank" rel="noopener noreferrer">
-            Abrir DANFE para imprimir
+          {/* Cupom 80mm para a térmica; o PDF da Focus continua ao lado. */}
+          <a className={styles.painelDanfe} href={`/cupom/${saleId}`} target="_blank" rel="noopener noreferrer">
+            <Printer size={13} /> Imprimir cupom
           </a>
+          {danfe && (
+            <a className={styles.painelDanfe} href={danfe} target="_blank" rel="noopener noreferrer">
+              Abrir DANFE (PDF)
+            </a>
+          )}
           {/*
             Só aparece se a venda tem cliente COM telefone. Venda avulsa não
             tem para quem mandar, e um botão que abre o WhatsApp em branco no
@@ -202,6 +211,7 @@ function PainelNota({ saleId, aviso, onFechar }: { saleId: string; aviso?: strin
       {/* Venda gravada com pendência: o mesmo quadro de erro do painel, sem o
           "Tentar de novo" — não há o que repetir, e salvar de novo duplicaria. */}
       {aviso && <div className={styles.painelErro}>{aviso}</div>}
+      {avisos.map((a, i) => <div key={i} className={styles.painelInfo}>{a}</div>)}
 
       {estado === 'erro' && (
         <div className={styles.painelErro}>
