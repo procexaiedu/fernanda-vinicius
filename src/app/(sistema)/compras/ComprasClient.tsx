@@ -14,6 +14,10 @@ import { useOrdenacao } from '@/hooks/useOrdenacao'
 import styles from './ComprasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import {
+  passaNoTipo, passaNoStatus, contarConsignacoesAtivas, statusFiltroValido,
+  type TipoFiltro, type StatusFiltro, type StatusLote,
+} from '@/lib/compras/filtroLista'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +36,8 @@ interface Purchase {
   paymentStatus: 'paid' | 'pending'
   /** Preenchido quando esta compra é um lote consignado. */
   consignment_id?: string | null
+  /** Status do lote ligado (só quando é consignação). */
+  consignmentStatus?: StatusLote | null
   type: 'purchase'
 }
 
@@ -67,8 +73,9 @@ function fmtDate(s: string) {
 export default function ComprasClient({ purchases, consignments }: Props) {
   const router = useRouter()
   const [search, setSearch]         = useState('')
-  const [typeFilter, setTypeFilter] = useState<'all' | 'purchase' | 'consignment'>('all')
-  const [statusFilter, setStatusFilter] = usePersistedState<'all' | 'paid' | 'pending' | 'active'>('fv-filtros-compras-status', 'all')
+  const [typeFilter, setTypeFilter] = useState<TipoFiltro>('all')
+  const [statusSalvo, setStatusFilter] = usePersistedState<StatusFiltro>('fv-filtros-compras-status', 'all')
+  const statusFilter = statusFiltroValido(statusSalvo)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [reprintOpen, setReprintOpen]   = useState(false)
   const [reprintItems, setReprintItems] = useState<EtiquetasPrinterItem[]>([])
@@ -85,9 +92,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
   type Row = (Purchase | Consignment)
 
   const allRows: Row[] = useMemo(() => {
-    const rows: Row[] = []
-    if (typeFilter !== 'consignment') rows.push(...purchases)
-    if (typeFilter !== 'purchase')    rows.push(...consignments)
+    const rows: Row[] = [...purchases, ...consignments].filter(r => passaNoTipo(r, typeFilter))
     return rows.sort((a, b) => {
       const dateA = a.type === 'purchase' ? a.purchase_date : a.received_date
       const dateB = b.type === 'purchase' ? b.purchase_date : b.received_date
@@ -114,16 +119,7 @@ export default function ComprasClient({ purchases, consignments }: Props) {
           if (!match) return false
         }
       }
-      if (statusFilter !== 'all') {
-        if (row.type === 'purchase') {
-          if (statusFilter === 'active') return false
-          if (statusFilter !== row.paymentStatus) return false
-        } else {
-          if (statusFilter === 'paid' || statusFilter === 'pending') return false
-          if (statusFilter === 'active' && row.status !== 'active') return false
-        }
-      }
-      return true
+      return passaNoStatus(row, statusFilter)
     })
   }, [allRows, search, statusFilter])
 
@@ -137,8 +133,9 @@ export default function ComprasClient({ purchases, consignments }: Props) {
   })
 
   const totalCompras  = purchases.length
-  const totalConsign  = consignments.filter(c => c.status === 'active').length
-  const totalPendente = purchases.filter(p => p.paymentStatus === 'pending')
+  const totalConsign  = contarConsignacoesAtivas([...purchases, ...consignments])
+  // Lote consignado não tem pagamento (a linha diz "A acertar"): não é conta a pagar.
+  const totalPendente = purchases.filter(p => p.paymentStatus === 'pending' && !p.consignment_id)
     .reduce((s, p) => s + p.total_cost, 0)
 
   return (

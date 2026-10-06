@@ -8,6 +8,7 @@ import { validatePaymentGroups } from '@/lib/compras/validate-payments'
 import { formatarNomeProprio } from '@/lib/nomeProprio'
 import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
 import { mensagemConsignacaoMisturada } from '@/lib/compras/consignacao'
+import { remessaEstaPendente, itemQueMexeNaRemessa, mensagemRemessaPendente } from '@/lib/compras/remessaPendente'
 import {
   idDeRequisicaoValido, violouUnico,
 } from '@/lib/idempotencia'
@@ -879,6 +880,8 @@ export interface CompraParaEdicao {
   stores: Array<{ id: string; name: string; city: string }>
   suppliers: Array<{ id: string; name: string; initials: string }>
   hasAnySale: boolean
+  /** Lojas com remessa de lote ainda não conferida (vazio = nenhuma). Trava os itens. */
+  remessaPendentePara: string[]
 }
 
 export interface EditItemData {
@@ -983,6 +986,8 @@ export async function buscarCompraParaEdicao(
   ])
 
   const hasAnySale = productIds.some(pid => (soldCounts.get(pid) ?? 0) > 0)
+  const remessa = await lerRemessaPendente(admin, purchaseId)
+  if ('erro' in remessa) return { data: null, error: remessa.erro }
 
   return {
     data: {
@@ -1023,8 +1028,32 @@ export async function buscarCompraParaEdicao(
       stores:    (storesRes.data    ?? []) as Array<{ id: string; name: string; city: string }>,
       suppliers: (suppliersRes.data ?? []) as Array<{ id: string; name: string; initials: string }>,
       hasAnySale,
+      remessaPendentePara: remessa.lojas,
     }
   }
+}
+
+/*
+ * Remessa de lote do fornecedor ainda não conferida pela loja de destino (ver
+ * src/lib/compras/remessaPendente.ts). Falha de leitura não vira "sem remessa":
+ * liberaria a edição que joga peça em trânsito direto no estoque.
+ */
+async function lerRemessaPendente(
+  admin: ReturnType<typeof createAdminClient>,
+  purchaseId: string,
+): Promise<{ lojas: string[] } | { erro: string }> {
+  const { data, error } = await admin
+    .from('transfers')
+    .select('status, stores!to_store_id(name)')
+    .eq('purchase_id', purchaseId)
+    .eq('kind', 'lote_fornecedor')
+  if (error || !data) {
+    return { erro: `Não foi possível conferir a remessa desta compra: ${error?.message ?? 'sem resposta'}. Nada foi alterado.` }
+  }
+  const lojas = (data as unknown as Array<{ status: string; stores: { name: string } | null }>)
+    .filter(t => remessaEstaPendente(t.status))
+    .map(t => t.stores?.name ?? 'outra loja')
+  return { lojas: [...new Set(lojas)] }
 }
 
 // ─── Action: salvar edição de compra ─────────────────────────────────────────
@@ -1063,6 +1092,39 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
    * E o financeiro não é mexido: a despesa do consignado nasce no acerto.
    */
   const ehConsignacao = !!(compra as { consignment_id: string | null }).consignment_id
+
+  /*
+   * Remessa do lote ainda em trânsito: quantidade, loja, custo e preço travados
+   * até a loja conferir (src/lib/compras/remessaPendente.ts). Compara com o que
+   * está GRAVADO, não com a tela, para que salvar só a data/NF/pagamento passe.
+   */
+  const remessa = await lerRemessaPendente(admin, payload.purchaseId)
+  if ('erro' in remessa) return { success: false, error: remessa.erro }
+  if (remessa.lojas.length > 0) {
+    const { data: gravados, error: gravErr } = await admin
+      .from('purchase_items')
+      .select('id, quantity, products!inner(name, store_id, cost_price, sale_price, promotional_price)')
+      .eq('purchase_id', payload.purchaseId)
+    if (gravErr || !gravados) {
+      return { success: false, error: `Não foi possível ler as peças da compra: ${gravErr?.message ?? 'sem resposta'}. Nada foi alterado.` }
+    }
+    const mudou = itemQueMexeNaRemessa(
+      (gravados as unknown as Array<{
+        id: string; quantity: number
+        products: { name: string; store_id: string; cost_price: number; sale_price: number; promotional_price: number | null }
+      }>).map(g => ({
+        purchaseItemId: g.id,
+        name:           g.products.name,
+        quantity:       g.quantity,
+        storeId:        g.products.store_id,
+        costPrice:      g.products.cost_price,
+        salePrice:      g.products.sale_price,
+        promoPrice:     g.products.promotional_price,
+      })),
+      payload.items,
+    )
+    if (mudou) return { success: false, error: mensagemRemessaPendente(remessa.lojas, mudou) }
+  }
 
   if (!ehConsignacao) {
     // Mesma trava da criação: editar não pode zerar o valor, apagar a situação,
