@@ -323,6 +323,20 @@ export default function EditCompraForm({ compra }: Props) {
           </div>
         )}
 
+        {compra.remessaPendentePara.length > 0 && (
+          <div className={styles.storeWarning}>
+            <AlertTriangle size={13} />
+            Remessa para {compra.remessaPendentePara.join(' e ')} ainda não conferida: as peças estão em trânsito
+            e os itens ficam travados até a loja conferir a chegada (Estoque › Transferências).
+            Data, NF, observação e pagamentos podem ser editados.
+          </div>
+        )}
+
+        {/* fieldset só para travar os campos: sem borda nem espaço próprio */}
+        <fieldset
+          disabled={compra.remessaPendentePara.length > 0}
+          style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
+        >
         <div className={styles.tableWrapper}>
           <table className={styles.table}>
             <thead>
@@ -472,6 +486,7 @@ export default function EditCompraForm({ compra }: Props) {
             </tbody>
           </table>
         </div>
+        </fieldset>
       </div>
 
       {/* ── Pagamentos ─────────────────────────────────────────────────── */}

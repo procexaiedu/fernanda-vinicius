@@ -44,20 +44,15 @@ export default async function ComprasPage() {
     carregarCompras(),
     admin.from('purchase_payments')
       .select('purchase_id, status, amount'),
-    (() => {
-      /*
-       * Consignação tem loja própria — aqui o filtro é direto.
-       *
-       * Desde 07/09 o lote consignado TAMBÉM cria uma `purchase`, para ganhar
-       * detalhe, edição, exclusão e impressão de etiqueta como qualquer compra.
-       * Listar os dois mostraria o mesmo lote duas vezes, então esta consulta
-       * traz só os lotes ANTIGOS, que nasceram sem compra atrás.
-       */
-      let q = admin.from('consignments')
-        .select('id, received_date, return_deadline, total_pieces, total_cost_value, status, supplier_id, store_id')
-      if (escopo) q = q.eq('store_id', escopo)
-      return q.order('received_date', { ascending: false })
-    })(),
+    /*
+     * Todos os lotes, sem o filtro de loja: o status do lote (ativo/acertado)
+     * é o que diz se a COMPRA ligada a ele é uma "consignação ativa", e a
+     * compra entra na loja pelas peças (rateio), não pela loja do lote. O
+     * escopo da loja é aplicado abaixo, só nos lotes antigos sem compra.
+     */
+    admin.from('consignments')
+      .select('id, received_date, return_deadline, total_pieces, total_cost_value, status, supplier_id, store_id')
+      .order('received_date', { ascending: false }),
     carregarLojas(),
   ])
 
@@ -101,8 +96,14 @@ export default async function ComprasPage() {
     paymentsByPurchase.get(pay.purchase_id)!.push(pay)
   }
 
+  const statusDoLote = new Map(consignments.map(c => [c.id as string, c.status as string]))
+
   const purchasesWithMeta = purchases.map(p => ({
     ...p,
+    /* Status do lote quando a compra é uma consignação (desde 07/09 todo lote
+       vira compra); é ele que alimenta o filtro e o card de consignações. */
+    consignmentStatus: (p.consignment_id ? statusDoLote.get(p.consignment_id) ?? null : null) as
+      'active' | 'settled' | 'returned' | null,
     suppliers:         [...(suppliersByPurchase.get(p.id) ?? [])],
     supplierInitials:  [...(initialssByPurchase.get(p.id) ?? [])],
     storeNames:        [...(storesByPurchase.get(p.id) ?? [])],
@@ -127,6 +128,7 @@ export default async function ComprasPage() {
 
   const consignmentsWithMeta = consignments
     .filter(c => !lotesJaNaLista.has(c.id))
+    .filter(c => !escopo || c.store_id === escopo)
     .map(c => ({
       ...c,
       storeName: storeMap.get(c.store_id ?? '') ?? '—',
