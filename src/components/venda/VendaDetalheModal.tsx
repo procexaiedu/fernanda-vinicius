@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArrowLeftRight, AlertTriangle, X, Trash2, Receipt, FileText, RefreshCw, Download, MessageCircle } from 'lucide-react'
+import { ArrowLeftRight, AlertTriangle, X, Trash2, Receipt, FileText, RefreshCw, Download, MessageCircle, Printer } from 'lucide-react'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import { emitirNotaDaVenda, sincronizarNota, cancelarNotaDaVenda } from '@/app/(sistema)/vendas/fiscal'
@@ -309,15 +309,18 @@ function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, l
   const [ocupado, setOcupado] = useState<'emitir' | 'sincronizar' | 'cancelar' | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [recusas, setRecusas] = useState<{ campo: string; motivo: string }[]>([])
+  /* O que ficou fora da nota sem impedir a emissão (o conserto). */
+  const [avisos, setAvisos] = useState<string[]>([])
   const [pedindoJustificativa, setPedindoJustificativa] = useState(false)
   const [justificativa, setJustificativa] = useState('')
 
   async function rodar(qual: 'emitir' | 'sincronizar' | 'cancelar') {
-    setOcupado(qual); setErro(null); setRecusas([])
+    setOcupado(qual); setErro(null); setRecusas([]); setAvisos([])
     const r = qual === 'emitir'      ? await emitirNotaDaVenda(saleId)
             : qual === 'sincronizar' ? await sincronizarNota(saleId)
             :                          await cancelarNotaDaVenda(saleId, justificativa)
     setOcupado(null)
+    setAvisos(r.avisos ?? [])
     if (!r.success) {
       setErro(r.error ?? 'Falhou.')
       setRecusas(r.recusas ?? [])
@@ -365,6 +368,7 @@ function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, l
         <div className={styles.fiscalMotivo}>{nfce.motivo_rejeicao}</div>
       )}
 
+      {avisos.map((a, i) => <div key={i} className={styles.fiscalMotivo}>{a}</div>)}
       {erro && <div className={styles.fiscalErro}>{erro}</div>}
       {recusas.length > 0 && (
         <ul className={styles.fiscalRecusas}>
@@ -386,6 +390,13 @@ function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, l
             <Button size="sm" variant="ghost" onClick={() => rodar('sincronizar')} loading={ocupado === 'sincronizar'}>
               <RefreshCw size={13} /> Consultar na Receita
             </Button>
+          )}
+
+          {/* Cupom 80mm para a térmica do balcão. O PDF da Focus segue ao lado. */}
+          {autorizada && (
+            <a className={styles.fiscalDanfe} href={`/cupom/${saleId}`} target="_blank" rel="noopener noreferrer">
+              <Printer size={13} /> Imprimir cupom
+            </a>
           )}
 
           {nfce.danfe_url && (

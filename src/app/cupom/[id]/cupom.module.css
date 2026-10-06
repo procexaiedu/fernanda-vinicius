@@ -1,0 +1,122 @@
+/*
+ * Cupom NFC-e para bobina térmica de 80mm.
+ *
+ * A área útil da bobina de 80mm é ~72mm (a cabeça não imprime nas bordas), e é
+ * essa a largura do cupom. Preto puro, sem cinza: a térmica não tem meio-tom e
+ * cinza claro some no papel. Sem tema escuro aqui — isto é papel.
+ */
+
+@page {
+  size: 80mm auto;
+  margin: 0;
+}
+
+.pagina {
+  min-height: 100vh;
+  background: #e9e9e9;
+  color: #000;
+  padding: 16px 0 40px;
+  font-family: var(--font-mono);
+}
+
+.barra {
+  width: 72mm;
+  margin: 0 auto 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: #333;
+}
+
+.imprimir {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: #111;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.imprimir:hover { background: #333; }
+
+.aviso {
+  max-width: 420px;
+  margin: 40px auto;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: #222;
+  background: #fff;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.cupom {
+  width: 72mm;
+  margin: 0 auto;
+  padding: 3mm 0;
+  background: #fff;
+  color: #000;
+  font-size: 9pt;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.cupom > * + * {
+  margin-top: 2mm;
+  padding-top: 2mm;
+  border-top: 1px dashed #000;
+}
+
+.centro { text-align: center; }
+.nome { font-size: 11pt; display: block; }
+
+.titulo {
+  text-align: center;
+  font-weight: 700;
+  font-size: 8.5pt;
+}
+
+.homologacao {
+  text-align: center;
+  font-weight: 700;
+  border: 1px solid #000;
+  padding: 1mm;
+}
+
+.itens {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8.5pt;
+}
+.itens th { font-weight: 700; text-align: right; border-bottom: 1px solid #000; }
+.itens td { text-align: right; vertical-align: top; padding-top: 0.6mm; white-space: nowrap; }
+.itens th + th, .itens td + td { padding-left: 1.6mm; }
+.itens th.desc, .itens td.desc { text-align: left; white-space: normal; width: 100%; }
+
+.totais {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 2mm;
+  margin: 0;
+}
+.totais dt, .totais dd { margin: 0; }
+.totais dd { text-align: right; }
+.forte { font-weight: 700; font-size: 10pt; }
+.cab { font-weight: 700; }
+
+.chave { font-weight: 700; letter-spacing: 0.2px; margin-top: 1mm; }
+
+.qr {
+  display: flex;
+  justify-content: center;
+}
+.qr svg { width: 34mm; height: 34mm; }
+
+@media print {
+  .pagina { background: #fff; padding: 0; min-height: 0; }
+  .barra { display: none; }
+  .cupom { margin: 0 auto; padding: 0 0 6mm; }
+}

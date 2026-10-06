@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { emitirNfce, consultarNfce, cancelarNfce, type AmbienteFiscal } from '@/lib/fiscal/focus'
 import { lojaEmiteNota } from '@/lib/fiscal/emitente'
 import {
-  montarNfce, validarVenda, ratearDesconto, refDaVenda,
+  montarNfce, validarVenda, ratearDesconto, refDaVenda, prepararParaNota,
   type ItemVenda, type MetodoPagamento, type VendaParaNota,
 } from '@/lib/fiscal/montarNfce'
 
@@ -39,6 +39,8 @@ export interface ResultadoFiscal {
   error?: string
   /** Recusas da nossa validação, antes de falar com a Focus. */
   recusas?: { campo: string; motivo: string }[]
+  /** O que ficou fora da nota sem impedir a emissão (o conserto). */
+  avisos?: string[]
 }
 
 /**
@@ -170,23 +172,47 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
   if (!cnpjLoja) return { success: false, error: 'Loja sem CNPJ cadastrado.' }
 
   // ── Itens, com a classificação fiscal já resolvida pela view ──
-  const { data: itens } = await admin
+  /*
+   * Falha de leitura PARA aqui, com a mensagem de rede. Era `(x ?? [])`: a
+   * consulta de pagamentos falhava (coluna `method`, que não existe — o nome é
+   * `payment_method`) e a nota era recusada como "venda sem forma de
+   * pagamento", escondendo o erro de verdade.
+   */
+  const { data: itens, error: erroItens } = await admin
     .from('sale_items')
-    .select('product_id, quantity, unit_price, products(code, name)')
+    .select('product_id, quantity, unit_price, products(code, name, is_service)')
     .eq('sale_id', saleId)
 
+  if (erroItens) return { success: false, error: 'Não consegui ler os itens da venda. Tente de novo em instantes.' }
   if (!itens?.length) return { success: false, error: 'Venda sem itens.' }
 
-  const { data: fiscais } = await admin
+  const { data: fiscais, error: erroFiscal } = await admin
     .from('fiscal_do_produto')
     .select('product_id, codigo_ncm, cfop, unidade, icms_origem, csosn')
     .in('product_id', itens.map(i => i.product_id))
 
-  const fiscalPorProduto = new Map((fiscais ?? []).map(f => [f.product_id, f]))
+  if (erroFiscal || !fiscais) return { success: false, error: 'Não consegui ler a classificação fiscal das peças. Tente de novo em instantes.' }
+  const fiscalPorProduto = new Map(fiscais.map(f => [f.product_id, f]))
 
-  // ── Pagamentos ──
-  const { data: pagamentos } = await admin
-    .from('sale_payments').select('method, amount').eq('sale_id', saleId)
+  // ── Pagamentos: sale_payments + peça devolvida na troca + o que ficou fiado ──
+  const [pagRes, trocaRes] = await Promise.all([
+    admin.from('sale_payments').select('payment_method, amount, card_brand').eq('sale_id', saleId),
+    admin.from('exchanges').select('id').eq('sale_id', saleId),
+  ])
+  if (pagRes.error || !pagRes.data || trocaRes.error || !trocaRes.data) {
+    return { success: false, error: 'Não consegui ler os pagamentos da venda. Tente de novo em instantes.' }
+  }
+
+  /* A troca é gravada com `sale_id` = a venda nova (ver src/lib/vendas/lista.ts):
+   * a peça devolvida PAGA parte desta venda. */
+  let creditoTroca = 0
+  if (trocaRes.data.length) {
+    const { data: devolvidos, error: erroDev } = await admin
+      .from('exchange_items').select('quantity, unit_price')
+      .in('exchange_id', trocaRes.data.map(t => t.id)).eq('direction', 'returned')
+    if (erroDev || !devolvidos) return { success: false, error: 'Não consegui ler a troca da venda. Tente de novo em instantes.' }
+    creditoTroca = devolvidos.reduce((s, d) => s + Number(d.unit_price) * Number(d.quantity), 0)
+  }
 
   /*
    * O desconto é UM valor na venda e a NFC-e quer linha a linha, fechando no
@@ -198,7 +224,7 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
 
   const itensNota: ItemVenda[] = itens.map((i, idx) => {
     const f = fiscalPorProduto.get(i.product_id)
-    const prod = (Array.isArray(i.products) ? i.products[0] : i.products) as { code: string; name: string } | null
+    const prod = (Array.isArray(i.products) ? i.products[0] : i.products) as { code: string; name: string; is_service: boolean } | null
     return {
       product_id:     i.product_id,
       codigo:         prod?.code ?? i.product_id.slice(0, 8),
@@ -211,10 +237,22 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
       unidade:        f?.unidade ?? null,
       icms_origem:    f?.icms_origem ?? null,
       csosn:          f?.csosn ?? null,
+      servico:        !!prod?.is_service,
     }
   })
 
-  const vendaParaNota: VendaParaNota = {
+  const pagos = pagRes.data.map(p => ({
+    metodo:   p.payment_method as MetodoPagamento,
+    valor:    Number(p.amount),
+    bandeira: p.card_brand ?? null,
+  }))
+  if (creditoTroca > 0) pagos.push({ metodo: 'troca', valor: parseFloat(creditoTroca.toFixed(2)), bandeira: null })
+  /* Fiado: o saldo não é gravado em lugar nenhum — sai da conta, como na
+   * lista de vendas (`faltaPagar`). Sobra de até 1 centavo não é fiado. */
+  const fiado = parseFloat((Number(venda.total) - pagos.reduce((s, p) => s + p.valor, 0)).toFixed(2))
+  if (fiado > 0.009) pagos.push({ metodo: 'fiado', valor: fiado, bandeira: null })
+
+  const vendaCompleta: VendaParaNota = {
     id: venda.id,
     /*
      * `created_at`, não `sale_date`.
@@ -225,13 +263,17 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
      */
     data: venda.created_at,
     itens: itensNota,
-    pagamentos: (pagamentos ?? []).map(p => ({
-      metodo: p.method as MetodoPagamento,
-      valor: Number(p.amount),
-    })),
+    pagamentos: pagos,
     cpf_destinatario: venda.destinatario_cpf,
     observacao: venda.notes,
   }
+
+  /* Conserto sai da nota (ver SERVICO_NA_NFCE). Só conserto: não há nota, e
+   * não é erro — nada é gravado na venda. */
+  const preparo = prepararParaNota(vendaCompleta)
+  if (preparo.semNota) return { success: false, error: preparo.semNota }
+  const vendaParaNota = preparo.venda
+  const avisos = preparo.avisos
 
   const emitenteFiscal = {
     cnpj: cnpjLoja,
@@ -246,7 +288,7 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
       nfce_status: 'erro',
       nfce_motivo_rejeicao: recusas.map(r => `${r.campo}: ${r.motivo}`).join(' · '),
     }).eq('id', saleId)
-    return { success: false, error: 'A venda não está pronta para emitir.', recusas }
+    return { success: false, error: 'A venda não está pronta para emitir.', recusas, avisos }
   }
 
   // ── Emite ──
@@ -275,8 +317,8 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
   }
 
   return resp.ok
-    ? { success: true, status: 'autorizada', chave: resp.chave, danfeUrl: resp.danfeUrl, ...daCliente }
-    : { success: false, status: resp.status, error: resp.mensagem ?? 'A nota não foi autorizada.' }
+    ? { success: true, status: 'autorizada', chave: resp.chave, danfeUrl: resp.danfeUrl, avisos, ...daCliente }
+    : { success: false, status: resp.status, error: resp.mensagem ?? 'A nota não foi autorizada.', avisos }
 }
 
 // ─── Gravação do resultado ────────────────────────────────────────────────────
@@ -322,6 +364,9 @@ async function gravarResultado(
     nfce_numero:          resp.numero ? Number(resp.numero) : null,
     nfce_serie:           resp.serie ? Number(resp.serie) : null,
     nfce_danfe_url:       resp.danfeUrl ?? null,
+    /* O cupom 80mm (/cupom/[id]) usa estes dois quando o XML não foi baixado. */
+    nfce_qrcode_url:      resp.qrcodeUrl ?? null,
+    nfce_protocolo:       resp.protocolo ?? null,
     nfce_xml:             xml,
     nfce_motivo_rejeicao: resp.ok ? null : (resp.mensagem ?? null),
     nfce_emitida_em:      resp.ok ? new Date().toISOString() : null,

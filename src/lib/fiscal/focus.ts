@@ -81,6 +81,12 @@ export interface RespostaNota {
   /** URL do DANFE em PDF, para mandar à cliente. */
   danfeUrl?: string
   xmlUrl?: string
+  /** Conteúdo do QR Code (URL da SEFAZ com a chave). Vai no cupom 80mm. */
+  qrcodeUrl?: string
+  /** "Consulte pela chave de acesso em": URL de consulta da UF. */
+  urlConsulta?: string
+  /** Protocolo de autorização. Só vem na consulta completa. */
+  protocolo?: string
   /** Texto do SEFAZ — é o que diz o que corrigir. */
   mensagem?: string
   /** Corpo cru, para o log. Erro fiscal sem o corpo é impossível de diagnosticar. */
@@ -96,6 +102,9 @@ interface CorpoFocus {
   serie?: string
   caminho_danfe?: string
   caminho_xml_nota_fiscal?: string
+  qrcode_url?: string
+  url_consulta_nf?: string
+  protocolo_nota_fiscal?: { numero_protocolo?: string }
   erros?: { campo?: string; mensagem?: string }[]
   codigo?: string
   mensagem?: string
@@ -122,6 +131,9 @@ function interpretar(http: number, corpo: CorpoFocus): RespostaNota {
     serie:    corpo.serie,
     danfeUrl: corpo.caminho_danfe ? absoluta(corpo.caminho_danfe) : undefined,
     xmlUrl:   corpo.caminho_xml_nota_fiscal ? absoluta(corpo.caminho_xml_nota_fiscal) : undefined,
+    qrcodeUrl:   corpo.qrcode_url,
+    urlConsulta: corpo.url_consulta_nf,
+    protocolo:   corpo.protocolo_nota_fiscal?.numero_protocolo,
     mensagem,
     bruto: corpo,
   }
