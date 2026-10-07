@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { calcularTotalDaVenda } from '@/lib/vendas/total'
-import { getProfile, lojaDoEscopo } from '@/lib/auth'
+import { getProfile, ehAdmin, lojaDoEscopo } from '@/lib/auth'
 import { produtoDeConserto } from '@/lib/conserto'
 import { lojaEmiteNota } from '@/lib/fiscal/emitente'
 import { idDeRequisicaoValido } from '@/lib/idempotencia'
@@ -854,6 +854,13 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
 // ─── Action: detalhe de uma venda ─────────────────────────────────────────────
 
 export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaDetail | null; error?: string }> {
+  /* Antes não pedia nem login (auditoria de 07/10/2026): qualquer sessão lia
+   * custo e código de venda de qualquer loja pelo id. Agora: só a loja de quem
+   * pede, e custo/código só para admin, como já era na transferência. */
+  const perfil = await getProfile()
+  if (!perfil || !perfil.is_active) return { data: null, error: 'Não autenticado.' }
+  const escopo = lojaDoEscopo(perfil)
+  const veCusto = ehAdmin(perfil)
   const admin = createAdminClient()
 
   // Lote 1 — tudo que só depende do saleId vai em PARALELO (antes eram 6 idas
@@ -882,6 +889,8 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
   const sale = saleRes.data
   const saleErr = saleRes.error
   if (saleErr || !sale) return { data: null, error: saleErr?.message }
+  if (escopo && (sale as any).store_id !== escopo) return { data: null, error: 'Venda não encontrada.' }
+  const codigo = (c: string | undefined) => (veCusto ? c ?? '—' : '—')
 
   const rawItems = itemsRes.data
   const payments = paymentsRes.data
@@ -918,13 +927,13 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
       price_difference: exch.price_difference,
       returned_items:   returned.map((e: any) => ({
         product_name: e.products?.name ?? '—',
-        product_code: e.products?.code ?? '—',
+        product_code: codigo(e.products?.code),
         quantity:     e.quantity,
         unit_price:   e.unit_price,
       })),
       given_items:      given.map((e: any) => ({
         product_name: e.products?.name ?? '—',
-        product_code: e.products?.code ?? '—',
+        product_code: codigo(e.products?.code),
         quantity:     e.quantity,
         unit_price:   e.unit_price,
       })),
@@ -947,17 +956,17 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
       discount_pct:    Number(s.discount_pct),
       discount_amount: Number(s.discount_amount),
       total:           Number(s.total),
-      total_cost:      Number(s.total_cost),
+      total_cost:      veCusto ? Number(s.total_cost) : 0,
       payment_summary: s.payment_summary,
       status:          s.status,
       notes:           s.notes,
       items: (rawItems ?? []).map((i: any) => ({
         id:           i.id,
         product_name: i.products?.name ?? '—',
-        product_code: i.products?.code ?? '—',
+        product_code: codigo(i.products?.code),
         quantity:     i.quantity,
         unit_price:   Number(i.unit_price),
-        unit_cost:    Number(i.unit_cost),
+        unit_cost:    veCusto ? Number(i.unit_cost) : 0,
         subtotal:     Number(i.subtotal),
       })),
       payments: (payments ?? []).map((p: any) => ({
@@ -1069,7 +1078,19 @@ export async function deletarVenda(saleId: string): Promise<ActionResult> {
   const { userId, error: authErr } = await verifyUser()
   if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
 
+  /* Excluir é do admin, e só na loja dele. A tela já escondia o botão da
+   * operadora, mas a action aceitava qualquer sessão e qualquer loja (07/10). */
+  const perfil = await getProfile()
+  if (!perfil || !ehAdmin(perfil)) return { success: false, error: 'Só a administração pode excluir venda.' }
+
   const admin = createAdminClient()
+
+  const escopo = lojaDoEscopo(perfil)
+  if (escopo) {
+    const { data: alvo, error: alvoErr } = await admin.from('sales').select('store_id').eq('id', saleId).maybeSingle()
+    if (alvoErr) return { success: false, error: 'Não consegui conferir a venda. Nada foi alterado.' }
+    if (!alvo || alvo.store_id !== escopo) return { success: false, error: 'Venda não encontrada.' }
+  }
 
   /* `p_user_id`: quem excluiu, no rastro de `fv.stock_movements` — a
    * conferência de estoque lê de lá o que se mexeu durante a contagem. */
@@ -1135,6 +1156,12 @@ export interface EditSaleData {
 const VENDA_NAO_ENCONTRADA = 'Venda não encontrada.'
 
 export async function buscarVendaParaEdicao(saleId: string): Promise<{ data: EditSaleData | null; error?: string }> {
+  // Só a loja de quem pede; custo só para admin (o servidor recalcula o custo
+  // das peças ao salvar, então a tela não precisa dele). 07/10/2026.
+  const perfil = await getProfile()
+  if (!perfil || !perfil.is_active) return { data: null, error: VENDA_NAO_ENCONTRADA }
+  const escopo = lojaDoEscopo(perfil)
+  const veCusto = ehAdmin(perfil)
   const admin = createAdminClient()
 
   const { data: sale, error: saleErr } = await admin
@@ -1151,6 +1178,7 @@ export async function buscarVendaParaEdicao(saleId: string): Promise<{ data: Edi
   }
 
   const s = sale as any
+  if (escopo && s.store_id !== escopo) return { data: null, error: VENDA_NAO_ENCONTRADA }
 
   const bloqueio = await motivoParaNaoEditar(admin, saleId)
 
@@ -1207,7 +1235,8 @@ export async function buscarVendaParaEdicao(saleId: string): Promise<{ data: Edi
         productName:    i.products?.name ?? '—',
         quantity:       i.quantity,
         unitPrice:      Number(i.unit_price),
-        unitCost:       Number(i.unit_cost),
+        // Serviço guarda o custo declarado na tela (o servidor não recalcula).
+        unitCost:       veCusto || i.products?.is_service ? Number(i.unit_cost) : 0,
         stockAvailable: i.products?.quantity_in_stock ?? 0,
         isService:      !!i.products?.is_service,
       })),
@@ -1241,6 +1270,9 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
 
   const { data: existing, error: exErr } = await admin.from('sales').select('id, sale_date, store_id').eq('id', saleId).single()
   if (exErr || !existing) return { success: false, error: 'Venda não encontrada.' }
+  // Quem tem loja só edita venda da loja dele (antes editava e "mudava de loja"
+  // venda alheia pelo id). 07/10/2026.
+  if (userStoreId && existing.store_id !== userStoreId) return { success: false, error: 'Venda não encontrada.' }
 
   /* A tela de edição já não abre nesses casos; aqui é a garantia para quem
    * estava com ela aberta antes, ou chamou a ação por outro caminho. */

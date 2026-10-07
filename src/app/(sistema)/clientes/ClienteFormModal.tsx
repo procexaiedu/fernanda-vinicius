@@ -8,7 +8,7 @@ import { clientesComMesmoTelefone, createCustomer, updateCustomer, type ClienteC
 import type { CustomerWithStats, StoreOption } from './page'
 import { mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/telefone'
 import { mascararCep } from '@/lib/cep'
-import { maskDate, toDisplayDate, toISODate } from '@/lib/date'
+import { maskDiaMes, toDiaMes, diaMesToISO } from '@/lib/date'
 import { mascararCpf, validarCpf } from '@/lib/cpf'
 import { useCep } from '@/hooks/useCep'
 import styles from './ClienteFormModal.module.css'
@@ -67,8 +67,8 @@ export default function ClienteFormModal({
     notes:           customer?.notes    ?? '',
   })
 
-  // Estado separado para exibição da data (DD/MM/YYYY)
-  const [displayDate, setDisplayDate] = useState(toDisplayDate(customer?.birthday ?? ''))
+  // Estado separado para exibição do aniversário (DD/MM, sem ano desde 06/10)
+  const [displayDate, setDisplayDate] = useState(toDiaMes(customer?.birthday))
 
   const [errors, setErrors]     = useState<Partial<Record<keyof typeof form, string>>>({})
   const [saving, setSaving]     = useState(false)
@@ -120,9 +120,10 @@ export default function ClienteFormModal({
   })
 
   function handleDateChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const masked = maskDate(e.target.value)
+    const masked = maskDiaMes(e.target.value)
     setDisplayDate(masked)
-    set('birthday', toISODate(masked))
+    // Cliente antiga mantém o ano gravado; só dia/mês trocam.
+    set('birthday', diaMesToISO(masked, customer?.birthday))
   }
 
   function validate(): boolean {
@@ -299,15 +300,15 @@ export default function ClienteFormModal({
         {/* ── Outras informações ── */}
         <div className={styles.sectionTitle}>Outras informações</div>
         <div className={styles.grid2}>
-          <Field label="Data de nascimento">
+          <Field label="Aniversário">
             <input
               className={styles.input}
               type="text"
               inputMode="numeric"
-              placeholder="DD/MM/AAAA"
+              placeholder="DD/MM"
               value={displayDate}
               onChange={handleDateChange}
-              maxLength={10}
+              maxLength={5}
             />
           </Field>
           <Field label="Loja de origem *" error={errors.origin_store_id}>

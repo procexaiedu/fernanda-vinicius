@@ -49,7 +49,11 @@ interface SessaoCarregada {
 async function sessaoDaMinhaLoja(
   sessionId: string,
   loja: string | null,
+  isAdmin: boolean,
 ): Promise<{ sessao: SessaoCarregada } | { error: string }> {
+  // "Vê todas" é só da admin global. Operadora sem loja não tem loja própria:
+  // sem esta trava, mexia na conferência de qualquer loja (07/10).
+  if (!loja && !isAdmin) return { error: 'Seu usuário não está ligado a nenhuma loja.' }
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('inventory_sessions')
@@ -71,11 +75,11 @@ export async function abrirConferencia(dados: {
   scope_type: 'categoria' | 'loja'
   scope_value?: string | null
 }): Promise<ActionResult & { session_id?: string; em_escopo?: number }> {
-  const { id, loja: lojaDoPerfil } = await usuarioAtual()
+  const { id, isAdmin, loja: lojaDoPerfil } = await usuarioAtual()
 
   // Quem tem loja (ou o admin global que escolheu uma ao entrar) confere a
-  // dela; o que vem da tela só vale para quem ainda não está em loja nenhuma.
-  const loja = lojaDoPerfil ?? dados.store_id
+  // dela; o que vem da tela só vale para a admin global sem loja escolhida.
+  const loja = lojaDoPerfil ?? (isAdmin ? dados.store_id : undefined)
   if (!loja) return { success: false, error: 'Escolha a loja da conferência.' }
   if (dados.scope_type === 'categoria' && !dados.scope_value) {
     return { success: false, error: 'Escolha a categoria a conferir.' }
@@ -127,10 +131,10 @@ export async function registrarBipe(sessionId: string, barcode: string, bipeId?:
   /** Id do bipe gravado — é o que o "desfazer" apaga, e só ele. */
   bipe_id?: string
 }> {
-  const { loja } = await usuarioAtual()
+  const { isAdmin, loja } = await usuarioAtual()
   const admin = createAdminClient()
 
-  const carregada = await sessaoDaMinhaLoja(sessionId, loja)
+  const carregada = await sessaoDaMinhaLoja(sessionId, loja, isAdmin)
   if ('error' in carregada) return { success: false, error: carregada.error }
   const { sessao } = carregada
   if (sessao.status !== 'contando') return { success: false, error: 'Esta conferência já foi fechada.' }
@@ -231,7 +235,8 @@ export async function registrarBipe(sessionId: string, barcode: string, bipeId?:
     bipe_id: idGravado,
     produto: produto
       ? {
-          id: produto.id, name: produto.name, code: produto.code,
+          // Código carrega custo nas peças de fornecedor (FEF09110 = R$ 110): só admin.
+          id: produto.id, name: produto.name, code: isAdmin ? produto.code : '',
           category: produto.category, photo_url: produto.photo_url,
           preco, promo: emPromo,
         }
@@ -254,8 +259,8 @@ export async function registrarBipe(sessionId: string, barcode: string, bipeId?:
  * conhece.
  */
 export async function desfazerBipe(sessionId: string, bipeId: string): Promise<ActionResult> {
-  const { loja } = await usuarioAtual()
-  const carregada = await sessaoDaMinhaLoja(sessionId, loja)
+  const { isAdmin, loja } = await usuarioAtual()
+  const carregada = await sessaoDaMinhaLoja(sessionId, loja, isAdmin)
   if ('error' in carregada) return { success: false, error: carregada.error }
   if (carregada.sessao.status !== 'contando') {
     return { success: false, error: 'Esta conferência já foi fechada.' }
@@ -307,8 +312,8 @@ export async function carregarReconciliacao(sessionId: string): Promise<
 > {
   // A reconciliação traz o ESPERADO — o número mais sensível da conferência.
   // De outra loja, nem pensar.
-  const { loja } = await usuarioAtual()
-  const carregada = await sessaoDaMinhaLoja(sessionId, loja)
+  const { isAdmin, loja } = await usuarioAtual()
+  const carregada = await sessaoDaMinhaLoja(sessionId, loja, isAdmin)
   if ('error' in carregada) return { success: false, error: carregada.error }
   const admin = createAdminClient()
 
@@ -342,12 +347,15 @@ export async function carregarReconciliacao(sessionId: string): Promise<
   if (!json) return { success: false, error: 'A reconciliação não retornou dados.' }
   if (!json.success) return { success: false, error: json.error ?? 'Erro ao montar a reconciliação.' }
 
+  // Código só para admin (carrega custo). A conta não muda: casa por product_id.
+  const semCodigo = (l: LinhaReconciliacao[]) => (isAdmin ? l : l.map(x => ({ ...x, code: '' })))
+
   return {
     success: true,
     dados: {
-      bate: json.bate ?? [],
-      falta: json.falta ?? [],
-      sobra: json.sobra ?? [],
+      bate: semCodigo(json.bate ?? []),
+      falta: semCodigo(json.falta ?? []),
+      sobra: semCodigo(json.sobra ?? []),
       naoCadastrado: json.nao_cadastrado ?? [],
     },
   }
@@ -369,7 +377,7 @@ export async function reabrirConferencia(sessionId: string): Promise<ActionResul
   const { isAdmin, loja } = await usuarioAtual()
   if (!isAdmin) return { success: false, error: 'Apenas administradores podem reabrir uma conferência.' }
 
-  const carregada = await sessaoDaMinhaLoja(sessionId, loja)
+  const carregada = await sessaoDaMinhaLoja(sessionId, loja, isAdmin)
   if ('error' in carregada) return { success: false, error: carregada.error }
 
   const admin = createAdminClient()
@@ -441,10 +449,10 @@ export async function fecharConferencia(
   /** Peças que movimentaram durante a contagem e por isso NÃO foram ajustadas. */
   nao_ajustados?: PecaNaoAjustada[]
 }> {
-  const { id, loja } = await usuarioAtual()
+  const { id, isAdmin, loja } = await usuarioAtual()
   const admin = createAdminClient()
 
-  const carregada = await sessaoDaMinhaLoja(sessionId, loja)
+  const carregada = await sessaoDaMinhaLoja(sessionId, loja, isAdmin)
   if ('error' in carregada) return { success: false, error: carregada.error }
   const { sessao } = carregada
   if (sessao.status !== 'contando') return { success: false, error: 'Esta conferência já foi fechada.' }
@@ -515,8 +523,8 @@ export async function fecharConferencia(
 
 /** Cancela sem aplicar nada. Os bipes ficam registrados — a sessão vira histórico. */
 export async function cancelarConferencia(sessionId: string): Promise<ActionResult> {
-  const { loja } = await usuarioAtual()
-  const carregada = await sessaoDaMinhaLoja(sessionId, loja)
+  const { isAdmin, loja } = await usuarioAtual()
+  const carregada = await sessaoDaMinhaLoja(sessionId, loja, isAdmin)
   if ('error' in carregada) return { success: false, error: carregada.error }
 
   const admin = createAdminClient()

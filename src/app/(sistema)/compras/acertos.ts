@@ -2,7 +2,15 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getProfile, lojaDoEscopo } from '@/lib/auth'
+import { getProfile, ehAdmin, lojaDoEscopo } from '@/lib/auth'
+
+/* Acerto de consignação paga fornecedor e vira despesa; o detalhe traz custo.
+   Só admin (07/10/2026): antes bastava ser da loja, e a vendedora pagava
+   fornecedor pelo console. Quem não é admin cai em "não autenticado". */
+async function perfilAdmin() {
+  const p = await getProfile()
+  return p && p.is_active && ehAdmin(p) ? p : null
+}
 
 export interface Acerto {
   id: string
@@ -143,7 +151,7 @@ async function calcularDevolucoes(
  * despesa no financeiro da outra loja.
  */
 async function podeMexer(storeIdDoLote: string | null): Promise<boolean> {
-  const perfil = await getProfile()
+  const perfil = await perfilAdmin()
   if (!perfil) return false
   const escopo = lojaDoEscopo(perfil)
   return !escopo || escopo === storeIdDoLote
@@ -227,7 +235,7 @@ export async function registrarAcerto(dados: {
   formaPagamento: string
   observacao?: string
 }): Promise<ResultadoAcerto> {
-  const perfil = await getProfile()
+  const perfil = await perfilAdmin()
   if (!perfil) return { success: false, error: 'Não autenticado.' }
 
   const admin = createAdminClient()
@@ -299,7 +307,7 @@ export async function registrarAcerto(dados: {
 
 /** Remove um acerto e a despesa que ele gerou. */
 export async function removerAcerto(acertoId: string): Promise<ResultadoAcerto> {
-  const perfil = await getProfile()
+  const perfil = await perfilAdmin()
   if (!perfil) return { success: false, error: 'Não autenticado.' }
 
   const admin = createAdminClient()
@@ -504,7 +512,7 @@ export async function devolverPecas(
   itens: Array<{ productId: string; quantidade: number }>,
   observacao?: string,
 ): Promise<ResultadoDevolucao> {
-  const perfil = await getProfile()
+  const perfil = await perfilAdmin()
   if (!perfil) return { success: false, error: 'Não autenticado.' }
 
   const admin = createAdminClient()

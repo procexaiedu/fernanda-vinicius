@@ -2,7 +2,15 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getProfile, lojaDoEscopo } from '@/lib/auth'
+import { getProfile, ehAdmin, lojaDoEscopo } from '@/lib/auth'
+
+/* Balanço do ourives é financeiro: só admin lê ou lança (07/10/2026). Antes
+   bastava estar logado, e a vendedora lançava despesa pelo console. Quem não
+   é admin cai no mesmo caminho de "não autenticado". */
+async function perfilAdmin() {
+  const p = await getProfile()
+  return p && p.is_active && ehAdmin(p) ? p : null
+}
 import { CATEGORIA_OURIVES } from '@/lib/conserto'
 
 /**
@@ -133,7 +141,7 @@ async function gastoComOurives(
 }
 
 export async function buscarBalancoConserto(mes: string): Promise<BalancoConserto | null> {
-  const perfil = await getProfile()
+  const perfil = await perfilAdmin()
   if (!perfil) return null
 
   const loja = lojaDoEscopo(perfil)
@@ -170,7 +178,7 @@ export async function buscarBalancoConserto(mes: string): Promise<BalancoConsert
  * aparece.
  */
 export async function buscarConsertosDoMes(mes: string): Promise<ConsertoCobrado[]> {
-  const perfil = await getProfile()
+  const perfil = await perfilAdmin()
   if (!perfil) return []
 
   const loja = lojaDoEscopo(perfil)
@@ -223,7 +231,7 @@ export async function declararGastoOurives(dados: {
   valor: number
   observacao?: string
 }): Promise<ResultadoOurives> {
-  const perfil = await getProfile()
+  const perfil = await perfilAdmin()
   if (!perfil) return { success: false, error: 'Não autenticado.' }
 
   const valor = Number(dados.valor)
@@ -257,7 +265,7 @@ export async function declararGastoOurives(dados: {
 
 /** Remove um pagamento declarado — erro de digitação acontece. */
 export async function removerGastoOurives(id: string): Promise<ResultadoOurives> {
-  const perfil = await getProfile()
+  const perfil = await perfilAdmin()
   if (!perfil) return { success: false, error: 'Não autenticado.' }
 
   const admin = createAdminClient()

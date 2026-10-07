@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, lojaDoEscopo } from '@/lib/auth'
+import { exigirAdmin, lojaDoEscopo } from '@/lib/auth'
 
 /**
  * A loja que ESTA requisição pode ver — decidida pelo perfil, não pelo cliente.
@@ -18,8 +18,9 @@ import { getProfile, lojaDoEscopo } from '@/lib/auth'
  * (admin global) escolhe.
  */
 async function escopoDeLoja(filtroDaTela?: string | null): Promise<string | null> {
-  const profile = await getProfile()
-  if (!profile) return null
+  // Financeiro é do admin. A vendedora chamava `buscarPnl` pelo console e
+  // recebia o lucro da loja; sem perfil, `null` virava "todas" (07/10/2026).
+  const profile = await exigirAdmin()
   return lojaDoEscopo(profile, filtroDaTela)
 }
 
@@ -345,16 +346,21 @@ export interface ComissaoDetail {
 }
 
 export async function buscarDetalheComissao(transactionId: string): Promise<{ data: ComissaoDetail | null; error?: string }> {
+  // Custo e lucro das vendas do mês: só admin, e só comissão da loja dele.
+  const loja = await escopoDeLoja()
   const admin = createAdminClient()
 
   const { data: tx, error: txErr } = await admin
     .from('transactions')
-    .select('id, description, amount, transaction_date, user_id, users(full_name)')
+    .select('id, description, amount, transaction_date, user_id, store_id, users(full_name)')
     .eq('id', transactionId)
     .eq('reference_type', 'seller_commission')
     .single()
 
   if (txErr || !tx) return { data: null, error: 'Comissão não encontrada.' }
+  if (loja && (tx as any).store_id && (tx as any).store_id !== loja) {
+    return { data: null, error: 'Comissão de outra loja.' }
+  }
 
   const month = (tx.transaction_date as string).slice(0, 7) // "YYYY-MM"
   const dateFrom = `${month}-01`

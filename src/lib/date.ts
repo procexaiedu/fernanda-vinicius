@@ -80,3 +80,56 @@ export function toISODate(display: string): string {
 
   return `${ano}-${mes}-${dia}`
 }
+
+/* ── Aniversário: só dia e mês ───────────────────────────────────────────────
+ *
+ * Reunião de 06/10/2026: perguntar o ano de nascimento à cliente é indelicado.
+ * O cadastro passa a pedir só DD/MM.
+ *
+ * A coluna `customers.birthday` continua `date`: todo leitor (desconto de
+ * aniversário no PDV, filtro de aniversariantes, painel, disparos) olha só mês
+ * e dia, então nada muda para eles. Quem não tem ano conhecido grava com o ano
+ * 2000 de marcador. Bissexto de propósito: 29/02 existe nele.
+ *
+ * Cliente antiga com ano de verdade NÃO perde o ano: ao editar, o ano gravado
+ * é preservado e só dia/mês trocam.
+ */
+export const ANO_SEM_ANO = 2000
+
+/** "YYYY-MM-DD" → "DD/MM" para exibição. O ano nunca aparece. */
+export function toDiaMes(v: string | null | undefined): string {
+  if (!v) return ''
+  const [, m, d] = v.split('-')
+  if (!m || !d) return ''
+  return `${d.slice(0, 2)}/${m}`
+}
+
+/** Auto-insere a barra enquanto digita "DDMM". */
+export function maskDiaMes(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 4)
+  if (digits.length <= 2) return digits
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`
+}
+
+/**
+ * "DD/MM" → "YYYY-MM-DD". Devolve '' enquanto incompleto ou impossível.
+ *
+ * `anoGuardado` é o valor que já estava no banco: se ele tem ano de verdade,
+ * o ano é mantido (29/02 num ano não bissexto cai no marcador).
+ */
+export function diaMesToISO(display: string, anoGuardado?: string | null): string {
+  const digits = display.replace(/\D/g, '')
+  if (digits.length !== 4) return ''
+  const d = Number(digits.slice(0, 2)), m = Number(digits.slice(2, 4))
+  if (m < 1 || m > 12 || d < 1) return ''
+
+  const valido = (a: number) => {
+    const real = new Date(Date.UTC(a, m - 1, d))
+    return real.getUTCMonth() === m - 1 && real.getUTCDate() === d
+  }
+  if (!valido(ANO_SEM_ANO)) return ''
+
+  const anterior = Number(anoGuardado?.slice(0, 4))
+  const ano = anterior >= 1900 && valido(anterior) ? anterior : ANO_SEM_ANO
+  return `${ano}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`
+}
