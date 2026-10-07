@@ -5,7 +5,6 @@ import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { emitirNfce, consultarNfce, cancelarNfce, type AmbienteFiscal } from '@/lib/fiscal/focus'
-import { lojaEmiteNota } from '@/lib/fiscal/emitente'
 import {
   montarNfce, validarVenda, ratearDesconto, refDaVenda, prepararParaNota,
   type ItemVenda, type MetodoPagamento, type VendaParaNota,
@@ -95,20 +94,63 @@ async function daMinhaLoja(storeIdDaVenda: string | null): Promise<boolean> {
   return !escopo || escopo === storeIdDaVenda
 }
 
+export interface NotaDaVenda {
+  /** Mostrar o botão "Emitir nota fiscal". */
+  emite: boolean
+  /** Por que não há botão — a tela diz, em vez de sumir com o assunto. */
+  motivo?: string
+  /** A conferência falhou (rede): não é "não emite", é "não sei agora". */
+  falhou?: boolean
+}
+
+const MSG_NAO_CONFERI =
+  'Não consegui conferir a nota agora. A venda está gravada; dá para emitir depois em Vendas, no detalhe da venda.'
+
 /**
- * A loja desta venda emite nota?
+ * Esta venda pode ganhar nota? É o que decide o botão no fim da venda.
  *
- * O PDV pergunta antes de mostrar o botão. Vem por venda, e não por loja fixa,
- * porque a admin global pode estar operando qualquer uma das duas.
+ * Vem por venda, e não por loja fixa, porque a admin global pode estar
+ * operando qualquer uma das duas.
+ *
+ * Era `Promise<boolean>` com `data?.store_id ?? null`: uma falha de leitura
+ * virava "não emite" e o botão sumia calado, com a cliente no balcão e a
+ * janela de 5 minutos correndo. Agora falha é `falhou`, e a tela diz onde
+ * emitir depois.
+ *
+ * Venda SÓ de conserto não ganha botão: o conserto fica fora da NFC-e
+ * (`prepararParaNota`), então clicar só renderia "não há o que emitir".
  */
-export async function vendaEmiteNota(saleId: string): Promise<boolean> {
+export async function vendaEmiteNota(saleId: string): Promise<NotaDaVenda> {
   const { error } = await verificarUsuario()
-  if (error) return false
+  if (error) return { emite: false, falhou: true, motivo: MSG_NAO_CONFERI }
 
   const admin = createAdminClient()
-  const { data } = await admin.from('sales').select('store_id').eq('id', saleId).maybeSingle()
+  const [vendaRes, itensRes] = await Promise.all([
+    admin.from('sales').select('store_id').eq('id', saleId).maybeSingle(),
+    admin.from('sale_items').select('products(is_service)').eq('sale_id', saleId),
+  ])
+  if (vendaRes.error || itensRes.error || !itensRes.data) {
+    console.error('[fiscal] falha ao conferir se a venda emite nota', vendaRes.error ?? itensRes.error)
+    return { emite: false, falhou: true, motivo: MSG_NAO_CONFERI }
+  }
+  if (!vendaRes.data) return { emite: false, motivo: 'Venda não encontrada.' }
+  if (!(await daMinhaLoja(vendaRes.data.store_id))) return { emite: false, motivo: 'Esta venda é de outra loja.' }
 
-  return lojaEmiteNota(admin, data?.store_id ?? null)
+  const { data: emitente, error: erroEmitente } = await admin
+    .from('fiscal_emitentes').select('habilitado').eq('store_id', vendaRes.data.store_id).maybeSingle()
+  if (erroEmitente) {
+    console.error('[fiscal] falha ao ler o emitente da loja', erroEmitente)
+    return { emite: false, falhou: true, motivo: MSG_NAO_CONFERI }
+  }
+  if (!emitente?.habilitado) return { emite: false, motivo: 'Esta loja ainda não emite nota fiscal.' }
+
+  const soConserto = itensRes.data.length > 0 && itensRes.data.every(i => {
+    const p = (Array.isArray(i.products) ? i.products[0] : i.products) as { is_service: boolean } | null
+    return !!p?.is_service
+  })
+  if (soConserto) return { emite: false, motivo: 'Venda só de conserto: conserto não entra na nota fiscal.' }
+
+  return { emite: true }
 }
 
 // ─── Emitir ───────────────────────────────────────────────────────────────────

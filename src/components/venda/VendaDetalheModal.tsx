@@ -182,7 +182,12 @@ export default function VendaDetalheModal({ saleId, onClose, onDeleted, canDelet
                 cliente={venda.customer_name}
                 telefone={venda.customer_phone}
                 loja={venda.store_name}
-                podeEmitir={canDelete}
+                /* Emitir é de quem vende (a nota tem 5 minutos de janela e quem
+                   está no balcão é a operadora — ver verificarUsuario em
+                   fiscal.ts); cancelar segue só do admin. Era `podeEmitir={canDelete}`:
+                   a operadora via "sem nota" e não tinha como emitir depois. */
+                podeEmitir
+                podeCancelar={canDelete}
                 lojaEmite={venda.emiteNota}
                 onMudou={() => buscarDetalheVenda(saleId).then(r => r.data && setVenda(r.data))}
               />
@@ -278,7 +283,7 @@ const ROTULO_STATUS: Record<string, string> = {
  * a mesma clareza que mostra o sucesso — quem está no balcão precisa saber o
  * que fazer, não que "deu erro".
  */
-function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, lojaEmite, onMudou }: {
+function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, podeCancelar, lojaEmite, onMudou }: {
   saleId: string
   nfce: VendaDetail['nfce']
   cpf: string | null
@@ -286,6 +291,8 @@ function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, l
   telefone: string | null
   loja: string | null
   podeEmitir: boolean
+  /** Só admin: desfazer documento autorizado. O servidor barra de qualquer forma. */
+  podeCancelar: boolean
   /** A loja tem emitente ligado. Sem isto o botão de emitir só renderia um erro. */
   lojaEmite: boolean
   onMudou: () => void
@@ -380,7 +387,7 @@ function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, l
         <div className={styles.fiscalAcoes}>
           {!autorizada && status !== 'cancelada' && lojaEmite && (
             <Button size="sm" variant="outline" onClick={() => rodar('emitir')} loading={ocupado === 'emitir'}>
-              <FileText size={13} /> {status ? 'Tentar de novo' : 'Emitir nota'}
+              <FileText size={13} /> {status ? 'Tentar de novo' : 'Emitir nota fiscal'}
             </Button>
           )}
 
@@ -412,7 +419,7 @@ function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, l
             </a>
           )}
 
-          {autorizada && !pedindoJustificativa && (
+          {autorizada && podeCancelar && !pedindoJustificativa && (
             <Button size="sm" variant="ghost" onClick={() => setPedindoJustificativa(true)}>
               Cancelar nota
             </Button>

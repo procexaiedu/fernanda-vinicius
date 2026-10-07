@@ -1750,7 +1750,10 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     idDaVenda.current = null   // a próxima venda é outra (o PDV remonta o form de qualquer jeito)
     if (!isEditing && !rascunho?.pendente) apagarRascunho()
     if (onSaved) { onSaved(result.saleId ?? ''); return }   // PDV: fica na tela (o pai reseta o form)
-    router.push('/vendas')
+    /* Venda NOVA fora do PDV também termina com a escolha da nota: a lista
+     * abre o mesmo painel do PDV por `?nota=`. Edição não — a nota se emite
+     * pelo detalhe da venda. */
+    router.push(!isEditing && result.saleId ? `/vendas?nota=${result.saleId}` : '/vendas')
     router.refresh()
   }
 

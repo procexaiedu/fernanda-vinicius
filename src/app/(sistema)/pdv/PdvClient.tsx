@@ -1,15 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { ShoppingCart, Receipt, CheckCircle2, FileText, X, MessageCircle, Printer,
-} from 'lucide-react'
+import { useState } from 'react'
+import { ShoppingCart, Receipt } from 'lucide-react'
 import NovaVendaForm from '../vendas/nova/NovaVendaForm'
 import CaixaDoDia from './CaixaDoDia'
 import PageHeader from '@/components/ui/PageHeader'
 import { buscarCaixaDoDia, type CaixaDoDia as CaixaData } from './actions'
 import styles from './pdv.module.css'
-import { emitirNotaDaVenda, vendaEmiteNota } from '@/app/(sistema)/vendas/fiscal'
-import { linkDaNotaNoWhatsApp } from '@/lib/fiscal/enviarDanfe'
+import PainelNota from '@/components/venda/PainelNota'
 
 type FormProps = React.ComponentProps<typeof NovaVendaForm>
 
@@ -98,128 +96,6 @@ export default function PdvClient({
 
       {ultimaVenda && (
         <PainelNota key={ultimaVenda.id} saleId={ultimaVenda.id} aviso={ultimaVenda.aviso} onFechar={() => setUltimaVenda(null)} />
-      )}
-    </div>
-  )
-}
-
-// ─── Painel da venda recém-fechada ────────────────────────────────────────────
-
-/**
- * O que aparece depois de salvar: confirmação e o botão de nota.
- *
- * **A nota é sob demanda, não automática.** Decisão do dono em 02/09: nem toda
- * venda leva nota, então quem decide é quem está no balcão, quando a cliente
- * pede. Emitir sozinho geraria documento fiscal para venda que ninguém pediu.
- *
- * O painel FICA até fechar ou até a próxima venda — diferente do toast antigo,
- * que sumia em 2,2s. A NFC-e tem 5 minutos de janela: se a barra some antes de
- * a cliente pedir, a nota não sai mais na hora e vira problema do dia seguinte.
- */
-function PainelNota({ saleId, aviso, onFechar }: { saleId: string; aviso?: string; onFechar: () => void }) {
-  const [estado, setEstado] = useState<'pronta' | 'emitindo' | 'ok' | 'erro'>('pronta')
-  /*
-   * A loja desta venda emite nota?
-   *
-   * `null` enquanto a resposta não chega — e nesse tempo o botão NÃO aparece.
-   * O contrário (mostrar e depois sumir) pisca um botão na cara de quem está
-   * com a cliente na frente, e pior: alguém consegue clicar no piscar.
-   *
-   * Campinas não tem emitente cadastrado, então até 10/09 o botão aparecia em
-   * toda venda para devolver "Esta loja não tem emitente fiscal configurado".
-   */
-  const [emiteNota, setEmiteNota] = useState<boolean | null>(null)
-  const [mensagem, setMensagem] = useState<string | null>(null)
-  const [danfe, setDanfe] = useState<string | null>(null)
-  /* Link pronto ANTES do clique: abrir o WhatsApp depois de um `await` é o que
-   * o navegador barra como pop-up. */
-  const [linkWhats, setLinkWhats] = useState<string | null>(null)
-  /* O que ficou fora da nota sem impedir a emissão (o conserto). */
-  const [avisos, setAvisos] = useState<string[]>([])
-
-  useEffect(() => {
-    let vivo = true
-    vendaEmiteNota(saleId).then(r => { if (vivo) setEmiteNota(r) }).catch(() => { if (vivo) setEmiteNota(false) })
-    return () => { vivo = false }
-  }, [saleId])
-
-  async function emitir() {
-    setEstado('emitindo'); setMensagem(null)
-    const r = await emitirNotaDaVenda(saleId)
-    setAvisos(r.avisos ?? [])
-    if (r.success) {
-      setEstado('ok')
-      setDanfe(r.danfeUrl ?? null)
-      setLinkWhats(linkDaNotaNoWhatsApp({
-        telefone: r.telefone, danfeUrl: r.danfeUrl, nomeDaCliente: r.cliente, loja: r.loja,
-      }))
-    } else {
-      setEstado('erro')
-      /* As recusas da validação são mais úteis que a mensagem genérica: dizem
-       * QUAL campo e o que fazer. Se houver, elas ganham a tela. */
-      setMensagem(r.recusas?.length
-        ? r.recusas.map(x => `${x.campo}: ${x.motivo}`).join(' · ')
-        : (r.error ?? 'Não foi possível emitir.'))
-    }
-  }
-
-  return (
-    <div className={styles.painelVenda}>
-      <div className={styles.painelLinha}>
-        <CheckCircle2 size={18} />
-        <strong>Venda registrada</strong>
-
-        {estado === 'pronta' && emiteNota === true && (
-          <button className={styles.btnNota} onClick={emitir}>
-            <FileText size={14} /> Emitir nota
-          </button>
-        )}
-        {estado === 'emitindo' && <span className={styles.painelInfo}>Emitindo…</span>}
-        {estado === 'ok' && <span className={styles.painelOk}>Nota autorizada</span>}
-
-        {/* Fechar continua disponível em qualquer estado: a operadora não pode
-            ficar presa a este painel com a próxima cliente esperando. */}
-        <button className={styles.btnFechar} onClick={onFechar} aria-label="Fechar">
-          <X size={16} />
-        </button>
-      </div>
-
-      {estado === 'ok' && (
-        <div className={styles.painelLinks}>
-          {/* Cupom 80mm para a térmica; o PDF da Focus continua ao lado. */}
-          <a className={styles.painelDanfe} href={`/cupom/${saleId}`} target="_blank" rel="noopener noreferrer">
-            <Printer size={13} /> Imprimir cupom
-          </a>
-          {danfe && (
-            <a className={styles.painelDanfe} href={danfe} target="_blank" rel="noopener noreferrer">
-              Abrir DANFE (PDF)
-            </a>
-          )}
-          {/*
-            Só aparece se a venda tem cliente COM telefone. Venda avulsa não
-            tem para quem mandar, e um botão que abre o WhatsApp em branco no
-            meio do balcão é pior que botão nenhum.
-          */}
-          {linkWhats && (
-            <a className={styles.painelWhats} href={linkWhats} target="_blank" rel="noopener noreferrer">
-              <MessageCircle size={13} /> Mandar no WhatsApp
-            </a>
-          )}
-        </div>
-      )}
-
-      {/* Venda gravada com pendência: o mesmo quadro de erro do painel, sem o
-          "Tentar de novo" — não há o que repetir, e salvar de novo duplicaria. */}
-      {aviso && <div className={styles.painelErro}>{aviso}</div>}
-      {avisos.map((a, i) => <div key={i} className={styles.painelInfo}>{a}</div>)}
-
-      {estado === 'erro' && (
-        <div className={styles.painelErro}>
-          {mensagem}
-          {/* Falhar não pode ser o fim: quase toda recusa é corrigível e a
-              janela de 5 minutos ainda pode estar aberta. */}
-          <button className={styles.btnTentar} onClick={emitir}>Tentar de novo</button>
-        </div>
       )}
     </div>
   )
