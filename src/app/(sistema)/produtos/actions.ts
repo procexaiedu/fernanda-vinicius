@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { requireProfile } from '@/lib/auth'
+import { getProfile, lojaDoEscopo, requireProfile } from '@/lib/auth'
 import { generateCode } from '@/lib/productCode'
 import type { MotivoBaixa } from '@/lib/estoque/baixa'
 import { comprasDaPeca, recalcularTotaisDaCompra } from '@/lib/compras/totais'
@@ -370,6 +370,15 @@ export interface SaleHistoryItem {
 }
 
 export async function buscarHistoricoVendas(productId: string): Promise<SaleHistoryItem[]> {
+  /*
+   * Antes não pedia nem login (auditoria de 07/10/2026) e devolvia cliente e
+   * vendedora das duas lojas. Agora: só logado, e só as vendas da loja de quem
+   * pede. Não traz custo. Fica aberto à vendedora de propósito: o modal da
+   * peça também serve à consulta de balcão em /estoque.
+   */
+  const perfil = await getProfile()
+  if (!perfil || !perfil.is_active) throw new Error('Não autenticado.')
+  const escopo = lojaDoEscopo(perfil)
   const admin = createAdminClient()
 
   /*
@@ -397,7 +406,9 @@ export async function buscarHistoricoVendas(productId: string): Promise<SaleHist
     .in('id', saleIds)
   if (salesErr) throw new Error(`Não foi possível ler as vendas da peça: ${salesErr.message}`)
 
-  const salesMap = new Map((sales ?? []).map((s: any) => [s.id, s]))
+  const salesMap = new Map(
+    (sales ?? []).filter((s: any) => !escopo || s.store_id === escopo).map((s: any) => [s.id, s]),
+  )
 
   // Passo 3: resolve stores, customers e usuários em paralelo
   const storeIds    = [...new Set((sales ?? []).map((s: any) => s.store_id).filter(Boolean))]
@@ -417,7 +428,7 @@ export async function buscarHistoricoVendas(productId: string): Promise<SaleHist
   const customerMap = new Map((customersRes.data ?? []).map((c: any) => [c.id, c.name]))
   const userMap     = new Map((usersRes.data ?? []).map((u: any) => [u.id, u.full_name]))
 
-  return items.map((i: any) => {
+  return items.filter((i: any) => salesMap.has(i.sale_id)).map((i: any) => {
     const sale     = salesMap.get(i.sale_id)
     const sellerId = sale?.seller_id ?? sale?.user_id ?? null
     return {
