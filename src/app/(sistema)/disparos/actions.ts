@@ -3,7 +3,14 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, lojaDoEscopo } from '@/lib/auth'
+import { getProfile, ehAdmin, lojaDoEscopo } from '@/lib/auth'
+
+/* Disparo manda WhatsApp para a base inteira da loja: só admin (07/10/2026).
+   A tela já é só do admin, mas estas actions aceitavam qualquer sessão. */
+async function naoEhAdmin(): Promise<boolean> {
+  const p = await getProfile()
+  return !p || !p.is_active || !ehAdmin(p)
+}
 import { apiKey, wabaId, listTemplates } from '@/lib/ycloud'
 import { enviarLote } from '@/lib/disparo/enviarLote'
 
@@ -119,6 +126,7 @@ export async function criarDisparo(data: CriarDisparoData): Promise<CriarDisparo
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Não autenticado.' }
+  if (await naoEhAdmin()) return { success: false, error: 'Só a administração faz disparos.' }
 
   if (!data.titulo.trim()) return { success: false, error: 'Título é obrigatório.' }
   if (!data.store_id)       return { success: false, error: 'Selecione a loja.' }
@@ -156,6 +164,7 @@ export async function enviarDisparo(disparo_id: string): Promise<EnviarResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Não autenticado.' }
+  if (await naoEhAdmin()) return { success: false, error: 'Só a administração faz disparos.' }
 
   let enviados = 0, falhas = 0, restantes = 0
   for (let i = 0; i < 30; i++) {
@@ -174,6 +183,7 @@ export async function excluirDisparo(id: string): Promise<{ success: boolean; er
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Não autenticado.' }
+  if (await naoEhAdmin()) return { success: false, error: 'Só a administração faz disparos.' }
 
   const admin = createAdminClient()
   const { error } = await admin.from('disparos').delete().eq('id', id)
@@ -204,6 +214,7 @@ export async function atualizarDisparo(id: string, data: CriarDisparoData): Prom
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Não autenticado.' }
+  if (await naoEhAdmin()) return { success: false, error: 'Só a administração faz disparos.' }
   if (!data.titulo.trim()) return { success: false, error: 'Título é obrigatório.' }
 
   const admin = createAdminClient()
@@ -243,6 +254,7 @@ export async function duplicarDisparo(id: string): Promise<CriarDisparoResult> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Não autenticado.' }
+  if (await naoEhAdmin()) return { success: false, error: 'Só a administração faz disparos.' }
 
   const admin = createAdminClient()
   const { data: src, error: e0 } = await admin.from('disparos')

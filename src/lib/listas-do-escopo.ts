@@ -26,9 +26,15 @@ export function listasDoEscopo(admin: SupabaseClient<any, any, any>, escopo: str
      * produtos ativos — 31 ficavam invisíveis para o leitor.
      * Ver lib/supabase/fetch-all.
      */
+    /*
+     * SEM `cost_price` (07/10/2026). A lista vai inteira para o navegador do
+     * PDV, e a vendedora lia o custo de toda a loja no DevTools. O formulário
+     * não mostra custo, e o servidor relê o custo de cada peça no banco ao
+     * salvar (`conferirPecasDaLoja`), então a tela nunca precisou dele.
+     */
     produtos(de: number, ate: number) {
       let q = admin.from('products')
-        .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, cost_price, quantity_in_stock, is_service')
+        .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, quantity_in_stock, is_service')
         .eq('is_active', true)
       if (escopo) q = q.eq('store_id', escopo)
       return q.order('name').range(de, ate)
