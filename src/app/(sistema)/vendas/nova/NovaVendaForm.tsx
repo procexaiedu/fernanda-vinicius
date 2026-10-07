@@ -21,7 +21,7 @@ import { clientesComMesmoTelefone, buscarClienteCompleto, createCustomer, search
 import ClienteFormModal from '../../clientes/ClienteFormModal'
 import type { CustomerWithStats } from '../../clientes/page'
 import { matchText, normalize } from '@/lib/normalize'
-import { maskDate, toISODate, todaySP } from '@/lib/date'
+import { maskDiaMes, diaMesToISO, todaySP } from '@/lib/date'
 import { mascararCpf } from '@/lib/cpf'
 import styles from './NovaVendaForm.module.css'
 import { formatarTelefone, mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/telefone'
@@ -35,7 +35,8 @@ import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
 interface ProductOption {
   id: string; name: string; code: string; barcode_number: string; category: string; store_id: string
   sale_price: number; promotional_price: number | null; promotional_active: boolean
-  cost_price: number; quantity_in_stock: number; is_service: boolean
+  /** Não vem mais do servidor (07/10/2026): o custo é relido no banco ao salvar. */
+  cost_price?: number; quantity_in_stock: number; is_service: boolean
 }
 
 interface CustomerOption {
@@ -208,7 +209,7 @@ function rowDoProduto(p: ProductOption): SaleRow {
     productName: p.name,
     quantity: 1,
     unitPrice: precoDeCatalogo(p),
-    unitCost: p.cost_price,
+    unitCost: p.cost_price ?? 0,
     stockAvailable: p.quantity_in_stock,
     isService: p.is_service,
     isTroca: false,
@@ -331,7 +332,7 @@ function revalidarRascunho(d: VendaDraft, products: ProductOption[]) {
       return { ...base, productId: null, unitPrice: 0, unitCost: 0, stockAvailable: 0, isService: false, isTroca: false }
     }
     if (precoCatalogo != null && Math.abs(precoDeCatalogo(p) - precoCatalogo) > 0.009) mudaramPreco++
-    return { ...base, productName: p.name, unitCost: p.cost_price, stockAvailable: p.quantity_in_stock, isService: p.is_service }
+    return { ...base, productName: p.name, unitCost: p.cost_price ?? 0, stockAvailable: p.quantity_in_stock, isService: p.is_service }
   })
   return { rows: rows.length ? rows : [emptyRow()], sumiram, mudaramPreco }
 }
@@ -656,7 +657,7 @@ function CreateCustomerModal({ storeId, nomeInicial, onClose, onCreated }: {
   const [phone, setPhone]       = useState('')
   const [cpf, setCpf]           = useState('')
   const [birthday, setBirthday] = useState('')
-  /* O que ela vê (DD/MM/AAAA) anda separado do que vai para o banco
+  /* O que ela vê (DD/MM) anda separado do que vai para o banco
      (YYYY-MM-DD): enquanto a data está pela metade, o segundo fica vazio. */
   const [birthdayDisplay, setBirthdayDisplay] = useState('')
   const [email, setEmail]       = useState('')
@@ -757,24 +758,21 @@ function CreateCustomerModal({ storeId, nomeInicial, onClose, onCreated }: {
           <div className={styles.createField}>
             <label>Aniversário</label>
             {/*
-              Digitado, não calendário. Data de nascimento fica décadas atrás e
-              o calendário obrigava a voltar mês a mês — "imagina, eu vou tendo
-              que ir mês por mês até chegar no ano de 75" (15/09). As outras
-              datas desta tela continuam no DatePicker, porque miram perto de
-              hoje. Aceita "23/09/75".
+              Digitado, não calendário (15/09). Desde 06/10 só dia e mês:
+              perguntar o ano à cliente é indelicado. Ver src/lib/date.ts.
             */}
             <input
               className={styles.createInput}
               type="text"
               inputMode="numeric"
-              placeholder="DD/MM/AAAA"
+              placeholder="DD/MM"
               value={birthdayDisplay}
               onChange={e => {
-                const masked = maskDate(e.target.value)
+                const masked = maskDiaMes(e.target.value)
                 setBirthdayDisplay(masked)
-                setBirthday(toISODate(masked))
+                setBirthday(diaMesToISO(masked))
               }}
-              maxLength={10}
+              maxLength={5}
             />
           </div>
           <div className={styles.createField}>
@@ -1343,7 +1341,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       productId: prod.id,
       productName: prod.name,
       unitPrice: precoDeCatalogo(prod),
-      unitCost: prod.cost_price,
+      unitCost: prod.cost_price ?? 0,
       stockAvailable: prod.quantity_in_stock,
       isService: prod.is_service,
       vinculoAnterior: null,

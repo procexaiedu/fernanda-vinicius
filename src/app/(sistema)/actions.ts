@@ -2,7 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAll } from '@/lib/supabase/fetch-all'
-import { getProfile, lojaDoEscopo } from '@/lib/auth'
+import { exigirAdmin, lojaDoEscopo } from '@/lib/auth'
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -229,8 +229,9 @@ export async function lojaPadrao(lojas: StoreOption[]): Promise<string | null> {
  * O que vem do cliente é SUGESTÃO. Só vale para quem não tem loja própria.
  */
 async function escopoDeLoja(filtroDaTela: string | null): Promise<string | null> {
-  const perfil = await getProfile()
-  if (!perfil) return null
+  // Painel é do admin (KPI, custo, lucro, contas). Sem perfil ou sem ser admin
+  // NÃO pode cair em `null`, que aqui quer dizer "todas as lojas" (07/10/2026).
+  const perfil = await exigirAdmin()
   return lojaDoEscopo(perfil, filtroDaTela)
 }
 
@@ -1310,6 +1311,9 @@ export async function buscarProdutosDoEstoque(
  * seria pagar por 970 produtos o que só se usa em um.
  */
 export async function buscarProdutoParaDetalhe(id: string) {
+  // `select *` traz custo e fornecedor: só admin, e só da loja dele.
+  const perfil = await exigirAdmin()
+  const escopo = lojaDoEscopo(perfil)
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('products')
@@ -1317,6 +1321,7 @@ export async function buscarProdutoParaDetalhe(id: string) {
     .eq('id', id)
     .single()
   if (error) throw new Error(`Falha ao carregar o produto: ${error.message}`)
+  if (escopo && data.store_id !== escopo) throw new Error('Produto de outra loja.')
   return data
 }
 
@@ -1350,17 +1355,22 @@ export async function buscarVendasDaVendedora(
   month: number,
   year: number,
 ): Promise<VendaDaVendedora[]> {
+  // Traz `total_cost`: só admin, e só a loja dele. O id vai colado no `.or()`,
+  // então tem de ser um uuid de verdade, senão vira injeção de filtro.
+  const escopo = await escopoDeLoja(null)
+  if (!/^[0-9a-f-]{36}$/i.test(vendedoraId)) throw new Error('Vendedora inválida.')
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
-  const { data, error } = await admin
+  let q = admin
     .from('sales')
     .select('id, sale_date, total, total_cost, status, stores(name), sale_items(id)')
     .or(`seller_id.eq.${vendedoraId},and(seller_id.is.null,user_id.eq.${vendedoraId})`)
     .neq('status', 'cancelled')
     .gte('sale_date', dateFrom)
     .lte('sale_date', dateTo)
-    .order('sale_date', { ascending: false })
+  if (escopo) q = q.eq('store_id', escopo)
+  const { data, error } = await q.order('sale_date', { ascending: false })
 
   if (error) throw new Error(`Falha ao buscar as vendas da vendedora: ${error.message}`)
 

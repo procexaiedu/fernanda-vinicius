@@ -720,6 +720,9 @@ export interface PurchaseDetail {
 }
 
 export async function buscarDetalheCompra(purchaseId: string): Promise<{ data: PurchaseDetail | null; error?: string }> {
+  // Custo e pagamento a fornecedor: só admin (antes nem pedia login, 07/10/2026).
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) return { data: null, error: authErr }
   const admin = createAdminClient()
 
   const { data: purchase, error: purchErr } = await admin
@@ -1428,6 +1431,9 @@ export interface ItemParaEtiqueta {
 }
 
 export async function getItensCompraParaEtiquetas(purchaseId: string): Promise<ItemParaEtiqueta[]> {
+  // O código da peça embute o custo: só admin (antes nem pedia login).
+  const { error: authErr } = await verifyAdmin()
+  if (authErr) throw new Error(authErr)
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('purchase_items')

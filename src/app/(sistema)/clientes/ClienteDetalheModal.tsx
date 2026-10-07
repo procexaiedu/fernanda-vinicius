@@ -13,6 +13,7 @@ import type { CustomerWithStats } from './page'
 import styles from './ClienteDetalheModal.module.css'
 import { formatarTelefone } from '@/lib/telefone'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import { toDiaMes } from '@/lib/date'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,10 +79,9 @@ function formatDate(s: string) {
   return new Date(s).toLocaleDateString('pt-BR')
 }
 
-function formatBirthday(s: string): string {
-  const [y, m, d] = s.split('-')
-  return `${d}/${m}/${y}`
-}
+/* Só dia e mês (06/10/2026): o ano não é perguntado, e o das clientes antigas
+   continua gravado mas não aparece. */
+const formatBirthday = toDiaMes
 
 function isBirthdayThisMonth(birthday: string | null): boolean {
   if (!birthday) return false
@@ -239,7 +239,7 @@ export default function ClienteDetalheModal({ customer, inactiveDays, isAdmin = 
         {customer.birthday && (
           <InfoChip
             icon={<Calendar size={12} />}
-            value={`Nasc. ${formatBirthday(customer.birthday)}`}
+            value={`Aniversário ${formatBirthday(customer.birthday)}`}
             highlight={isBirthday}
           />
         )}

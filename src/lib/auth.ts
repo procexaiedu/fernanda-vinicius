@@ -270,3 +270,23 @@ export function podeConfigurarRede(p: UserProfile): boolean {
 export function ehOperadora(p: UserProfile): boolean {
   return p.role === 'operator'
 }
+
+export const MSG_SO_ADMIN = 'Sem permissão para esta informação.'
+
+/**
+ * Guarda de SERVER ACTION que devolve custo, lucro, financeiro ou dado de
+ * gestão. Admin (global ou de loja) passa; o resto recebe erro.
+ *
+ * Por que não basta esconder na tela (auditoria de 07/10/2026): server action é
+ * um endpoint público para qualquer pessoa logada. A vendedora não vê o menu
+ * Financeiro, mas chamando `buscarPnl` pelo console recebia o lucro da loja.
+ * O corte por página (`acessoOperadora.ts`) continua; isto é a segunda camada.
+ *
+ * Lança em vez de devolver vazio: lista vazia esconderia o bloqueio como se
+ * fosse "não tem nada", e o admin nunca cai aqui.
+ */
+export async function exigirAdmin(): Promise<UserProfile> {
+  const p = await getProfile()
+  if (!p || !p.is_active || !ehAdmin(p)) throw new Error(MSG_SO_ADMIN)
+  return p
+}
