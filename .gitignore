@@ -69,3 +69,8 @@ agent/dist/
 
 # lixo de crash do bash no Windows
 *.stackdump
+
+# Artefatos de teste dos agentes (screenshots, logs do Playwright, scripts de sessao)
+.tmp/
+.playwright-mcp/
+sessao-*.mjs
