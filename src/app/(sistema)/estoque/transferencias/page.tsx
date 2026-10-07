@@ -110,6 +110,11 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
    * não existe, e o destino é, por definição, a outra loja.
    */
   const escopo = lojaDoEscopo(profile)
+  /* Operadora sem loja não tem "a própria loja": sem esta trava, o filtro abaixo
+     não entrava e ela via os romaneios da rede inteira. */
+  if (!isAdmin && !escopo) {
+    throw new Error('Seu usuário não está ligado a nenhuma loja. Peça à administração para vincular você a uma.')
+  }
   if (escopo) {
     q = q.or(`from_store_id.eq.${escopo},to_store_id.eq.${escopo}`)
   }
