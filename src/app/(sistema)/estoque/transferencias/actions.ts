@@ -400,11 +400,16 @@ export async function identificarEtiqueta(
 ): Promise<{ id: string; name: string; code: string } | null> {
   const perfil = await requireProfile()
 
-  const { data: linhas } = await createAdminClient()
+  const { data: linhas, error } = await createAdminClient()
     .from('products')
     .select('id, name, code, store_id')
     .eq('barcode_number', barcode.trim())
     .limit(10)
+
+  /* Falha de leitura NÃO é "etiqueta não cadastrada": virava sobra sem produto,
+     que fica só na observação e não chega ao banco. Lançar faz a conferência
+     pedir para bipar de novo. */
+  if (error) throw new Error(error.message)
 
   const lista = (linhas ?? []) as Array<{ id: string; name: string; code: string; store_id: string | null }>
   const data = lista.find(p => p.store_id === lojaPreferida) ?? lista[0]
