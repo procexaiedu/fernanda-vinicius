@@ -4,6 +4,7 @@ import { usePersistedState } from '@/hooks/usePersistedState'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil, Plus, Monitor, Trash2,
 } from 'lucide-react'
@@ -11,6 +12,7 @@ import btn from '@/components/ui/Button.module.css'
 import Badge from '@/components/ui/Badge'
 import SeletorPeriodo from '@/components/ui/SeletorPeriodo'
 import VendaDetalheModal from '@/components/venda/VendaDetalheModal'
+import PainelNota from '@/components/venda/PainelNota'
 import { normalize } from '@/lib/normalize'
 import type { SaleRow, ClosingOption } from './page'
 import styles from './VendasClient.module.css'
@@ -26,6 +28,18 @@ const fmt = formatarDinheiro
 function fmtDate(s: string) {
   const [y, m, d] = s.slice(0, 10).split('-')
   return `${d}/${m}/${y}`
+}
+
+/**
+ * Selo da nota na lista. Sem nota é estado normal (a nota é opcional, por
+ * botão), por isso cinza, não vermelho.
+ */
+const SELO_NOTA: Record<string, { rotulo: string; variant: 'success' | 'warning' | 'danger' | 'muted' }> = {
+  autorizada: { rotulo: 'Com nota',       variant: 'success' },
+  pendente:   { rotulo: 'Nota pendente',  variant: 'warning' },
+  rejeitada:  { rotulo: 'Nota rejeitada', variant: 'danger' },
+  erro:       { rotulo: 'Nota com erro',  variant: 'danger' },
+  cancelada:  { rotulo: 'Nota cancelada', variant: 'muted' },
 }
 
 function todayStr() {
@@ -176,6 +190,24 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
   const [abrirExclusao, setAbrirExclusao] = useState(false)
   // Filtro por fechamento de caixa (transitório — não persiste entre acessos)
   const [filterClosing, setFilterClosing] = useState('')
+  /* Com nota = autorizada. Sem nota = todo o resto (nunca emitida, erro,
+   * cancelada, pendente): é a lista do "falta emitir". */
+  const [filterNota, setFilterNota] = useState('')
+
+  /*
+   * Venda lançada por /vendas/nova chega com `?nota=<id>`: abre o mesmo
+   * painel do PDV, com a escolha da nota. O parâmetro sai da URL logo em
+   * seguida, para um F5 não reabrir o painel de uma venda antiga.
+   */
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [vendaNova, setVendaNova] = useState<string | null>(() => searchParams.get('nota'))
+  /* `history.replaceState`, não `router.replace`: a navegação do router
+   * deixava sem resposta a server action do painel (`vendaEmiteNota`), e o
+   * botão de emitir nunca aparecia. Testado em 07/10. */
+  useEffect(() => {
+    if (searchParams.get('nota')) window.history.replaceState(null, '', '/vendas')
+  }, [searchParams])
 
   useEffect(() => { setSales(initial) }, [initial])
 
@@ -207,6 +239,8 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
       if (filterStatus === 'completed' && s.status !== 'completed') return false
       /* "Falta pagar" é o filtro de cobrança: quem levou a peça e ainda deve. */
       if (filterStatus === 'devendo'   && s.falta_pagar <= 0.009)   return false
+      if (filterNota === 'com' && s.nfce_status !== 'autorizada') return false
+      if (filterNota === 'sem' && s.nfce_status === 'autorizada') return false
       if (q && !(s.customer_name ?? '').toLowerCase().includes(q) && !s.payment_summary?.toLowerCase().includes(q)) return false
       return true
     })
@@ -221,7 +255,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
     })
 
     return list
-  }, [sales, search, dateFrom, dateTo, filterStore, filterSeller, filterStatus, sortKey, sortDir, closing])
+  }, [sales, search, dateFrom, dateTo, filterStore, filterSeller, filterStatus, filterNota, sortKey, sortDir, closing])
 
   // Stats refletem o período e filtros ativos
   const totalRevenue = filtered.reduce((s, v) => s + v.total, 0)
@@ -352,6 +386,17 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
               { value: 'exchange', label: 'Com troca' },
             ]}
           />
+          <span data-novidade="filtro-nota">
+            <FilterSelect
+              value={filterNota}
+              onChange={setFilterNota}
+              placeholder="Com e sem nota"
+              options={[
+                { value: 'com', label: 'Com nota fiscal' },
+                { value: 'sem', label: 'Sem nota fiscal' },
+              ]}
+            />
+          </span>
         </div>
       </div>
 
@@ -418,6 +463,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                 </th>
                 <th className="col-secondary">Pagamento</th>
                 <th>Status</th>
+                <th data-novidade="coluna-nota">Nota</th>
                 <th></th>
               </tr>
             </thead>
@@ -483,6 +529,12 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                       </Badge>
                     )}
                   </td>
+                  <td>
+                    {(() => {
+                      const selo = s.nfce_status ? SELO_NOTA[s.nfce_status] : null
+                      return <Badge variant={selo?.variant ?? 'muted'}>{selo?.rotulo ?? (s.nfce_status ? `Nota: ${s.nfce_status}` : 'Sem nota')}</Badge>
+                    })()}
+                  </td>
                   <td onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'inline-flex', gap: 4 }}>
                       <button className="icon-btn" onClick={() => setDetalheId(s.id)} title="Ver detalhe">
@@ -525,12 +577,22 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
           saleId={detalheId}
           abrirNaExclusao={abrirExclusao}
           canDelete={userRole === 'admin'}
-          onClose={() => { setDetalheId(null); setAbrirExclusao(false) }}
+          /* refresh: a nota pode ter sido emitida no detalhe, e o selo da
+           * lista tem de acompanhar. */
+          onClose={() => { setDetalheId(null); setAbrirExclusao(false); router.refresh() }}
           onDeleted={() => {
             setSales(prev => prev.filter(s => s.id !== detalheId))
             setDetalheId(null)
             setAbrirExclusao(false)
           }}
+        />
+      )}
+
+      {vendaNova && (
+        <PainelNota
+          key={vendaNova}
+          saleId={vendaNova}
+          onFechar={() => { setVendaNova(null); router.refresh() }}
         />
       )}
     </>

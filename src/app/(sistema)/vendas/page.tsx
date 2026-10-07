@@ -50,6 +50,8 @@ export interface SaleRow {
   valor_pago: number
   falta_pagar: number
   previsao_pagamento: string | null
+  /** `null` = venda sem nota (a nota é opcional, por botão). */
+  nfce_status: string | null
 }
 
 export default async function VendasPage() {
@@ -62,7 +64,7 @@ export default async function VendasPage() {
     .from('sales')
     .select(`
       id, sale_date, created_at, subtotal, discount_pct, discount_amount, total,
-      payment_summary, status, store_id, seller_id, previsao_pagamento,
+      payment_summary, status, store_id, seller_id, previsao_pagamento, nfce_status,
       customers(name, id),
       stores(name)
     `)
@@ -183,6 +185,7 @@ export default async function VendasPage() {
     valor_pago:      (resumo.get(s.id)?.pago ?? 0) + (resumo.get(s.id)?.creditoTroca ?? 0),
     falta_pagar:     faltaPagar(Number(s.total), resumo.get(s.id)),
     previsao_pagamento: s.previsao_pagamento ?? null,
+    nfce_status:     s.nfce_status ?? null,
   }))
 
   const stores = storesRes.data ?? []

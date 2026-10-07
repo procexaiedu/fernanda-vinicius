@@ -185,8 +185,16 @@ async function verifyUser(): Promise<{ userId: string | null; role: string | nul
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { userId: null, role: null, storeId: null, error: 'Não autenticado.' }
 
-  const { data: profile } = await supabase
-    .from('users').select('role, store_id').eq('id', user.id).single()
+  /* Era `const { data: profile }` sem olhar o erro: se a leitura falhasse,
+   * `storeId` vinha null e `salvarVenda` usava a loja mandada pelo navegador
+   * (`userStoreId ?? data.storeId`) — a operadora presa à loja dela lançava
+   * em qualquer outra. Falha aqui para, não vira "sem loja". */
+  const { data: profile, error: profileErr } = await lerComNovaTentativa<{ role: string | null; store_id: string | null }>('perfil da usuária', () => supabase
+    .from('users').select('role, store_id').eq('id', user.id).single())
+  if (profileErr || !profile) {
+    console.error('[vendas] falha ao ler o perfil da usuária', profileErr)
+    return { userId: null, role: null, storeId: null, error: 'Não consegui conferir seu usuário agora. Nada foi gravado — espere alguns segundos e tente de novo.' }
+  }
 
   return {
     userId: user.id,
@@ -286,6 +294,36 @@ function vinculoDoConserto(
 
 type Admin = ReturnType<typeof createAdminClient>
 
+/**
+ * Leitura de conferência com até duas novas tentativas.
+ *
+ * Em 06/10, com a dona na frente, salvar respondeu "Não consegui ler as
+ * configurações de desconto" e na hora seguinte a mesma consulta respondia em
+ * 250ms. A leitura de settings não tem nada de especial: é só a PRIMEIRA ida
+ * ao PostgREST com service_role no salvamento, então qualquer soluço do
+ * caminho (socket keep-alive fechado do outro lado, PostgREST reiniciando ou
+ * recarregando o schema, Kong) aparecia com o nome dela. Uma venda inteira
+ * perdida por um soluço de 1s é caro demais com a cliente no balcão.
+ *
+ * Só para LEITURA: repetir não tem efeito colateral (o mesmo argumento de
+ * src/lib/supabase/fetch-all.ts). A gravação (`salvar_venda`) NÃO passa por
+ * aqui; ela já tem a idempotência para isso.
+ */
+async function lerComNovaTentativa<T>(
+  onde: string,
+  consulta: () => PromiseLike<{ data: T | null; error: unknown }>,
+): Promise<{ data: T | null; error: unknown }> {
+  const esperas = [300, 900]
+  let r = await consulta()
+  for (const ms of esperas) {
+    if (!r.error && r.data) return r
+    console.warn(`[vendas] ${onde}: leitura falhou, tentando de novo em ${ms}ms`, r.error)
+    await new Promise(res => setTimeout(res, ms))
+    r = await consulta()
+  }
+  return r
+}
+
 /** Número que a conta aceita: finito, não NaN. `typeof` sozinho deixa NaN passar. */
 function numeroValido(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n)
@@ -345,13 +383,15 @@ function conferirValores(data: VendaFormData): string | null {
  * percentual, a venda gravava com o desconto velho sem ninguém saber.
  */
 async function lerPercentuais(admin: Admin): Promise<{ pixPct: number; birthdayPct: number } | { error: string }> {
-  const { data: settingsRows, error } = await admin
+  const { data: settingsRows, error } = await lerComNovaTentativa('settings de desconto', () => admin
     .from('settings')
     .select('key, value')
-    .in('key', ['pix_discount_pct', 'birthday_discount_pct'])
+    .in('key', ['pix_discount_pct', 'birthday_discount_pct']))
   if (error || !settingsRows) {
     console.error('[vendas] falha ao ler settings de desconto', error)
-    return { error: 'Não consegui ler as configurações de desconto. Nada foi gravado — tente de novo em instantes.' }
+    /* Não diz "configurações de desconto": a falha é de conexão com o banco,
+     * e o nome da configuração fazia parecer defeito do desconto. */
+    return { error: 'O sistema não conseguiu falar com o banco agora. Nada foi gravado — espere alguns segundos e salve de novo.' }
   }
   const settingsMap = new Map(settingsRows.map(s => [s.key, Number(s.value)]))
   return {
@@ -388,10 +428,10 @@ async function conferirPecasDaLoja(
   if (ids.some(id => !id)) return { error: 'Há uma linha sem peça escolhida do catálogo.' }
   if (!ids.length) return { custos: new Map() }
 
-  const { data: prods, error } = await admin
+  const { data: prods, error } = await lerComNovaTentativa('peças da venda', () => admin
     .from('products')
     .select('id, name, store_id, cost_price')
-    .in('id', ids)
+    .in('id', ids))
   if (error || !prods) {
     console.error('[vendas] falha ao conferir as peças da venda', error)
     return { error: 'Não consegui conferir as peças no cadastro. Nada foi gravado — tente de novo em instantes.' }
@@ -425,10 +465,10 @@ async function conferirConsertosDaCliente(
   if (!ids.length) return null
   if (!customerId) return 'O conserto escolhido pertence a uma cliente — selecione a cliente da venda.'
 
-  const { data: consertos, error } = await admin
+  const { data: consertos, error } = await lerComNovaTentativa('consertos da cliente', () => admin
     .from('consertos')
     .select('id, customer_id')
-    .in('id', ids)
+    .in('id', ids))
   if (error || !consertos) {
     console.error('[vendas] falha ao conferir consertos da venda', error)
     return 'Não consegui conferir o conserto escolhido. Nada foi gravado — tente de novo em instantes.'
