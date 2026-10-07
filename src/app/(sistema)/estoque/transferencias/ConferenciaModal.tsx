@@ -181,7 +181,7 @@ export default function ConferenciaModal({ romaneio, onClose }: {
          anotada e nada aparecia na tela. É só leitura — bipar de novo é seguro. */
       let achada: Awaited<ReturnType<typeof identificarEtiqueta>>
       try {
-        achada = await identificarEtiqueta(cod, romaneio.to_store_id)
+        achada = await identificarEtiqueta(cod, romaneio.id)
       } catch (e) {
         ultimaLeitura.current.delete(cod)
         setUltimo(null)
@@ -210,7 +210,7 @@ export default function ConferenciaModal({ romaneio, onClose }: {
       return novo
     })
     setUltimo(`${item.product_name} · ${cod}`)
-  }, [porEtiqueta, romaneio.to_store_id])
+  }, [porEtiqueta, romaneio.id])
 
   useBarcodeScanner({ onScan: registrar, ativo: !salvando })
 

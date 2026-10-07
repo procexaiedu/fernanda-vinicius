@@ -49,6 +49,21 @@ async function admin() {
   return { perfil: p, erro: null }
 }
 
+/**
+ * Quem confere a chegada: quem está na loja de DESTINO, admin ou não (a
+ * vendedora abre a caixa, então não pode exigir admin). Sem loja no escopo, só
+ * a admin global passa: operadora sem loja não tem "própria loja" e, sem esta
+ * trava, conferia caixa de qualquer loja.
+ */
+function travaDoDestino(
+  perfil: Awaited<ReturnType<typeof requireProfile>>,
+  destino: string,
+): string | null {
+  const escopo = lojaDoEscopo(perfil)
+  if (escopo) return escopo === destino ? null : 'Só a loja de destino confere esta transferência.'
+  return perfil.role === 'admin' ? null : 'Seu usuário não está ligado a nenhuma loja.'
+}
+
 function revalidarTudo() {
   revalidatePath('/estoque')
   revalidatePath('/estoque/transferencias')
@@ -170,9 +185,8 @@ export async function receberTransferencia(
   if (erroBusca) return { success: false, error: erroBusca.message }
   if (!transf)   return { success: false, error: 'Transferência não encontrada.' }
 
-  if (lojaDoEscopo(perfil) && lojaDoEscopo(perfil) !== transf.to_store_id) {
-    return { success: false, error: 'Só a loja de destino confere esta transferência.' }
-  }
+  const barrado = travaDoDestino(perfil, transf.to_store_id)
+  if (barrado) return { success: false, error: barrado }
 
   const { data, error } = await supa.rpc('receber_transferencia', {
     p_transfer_id: transferId,
@@ -392,18 +406,36 @@ export async function revalidarRascunho(
  *
  * Desde 16/09 a mesma etiqueta pode existir nas duas lojas (é a mesma peça,
  * transferida). Prefere a linha da loja que está conferindo; se não houver,
- * aceita qualquer uma — basta para dizer o nome da peça.
+ * aceita a da origem — basta para dizer o nome da peça.
+ *
+ * Escopo (07/10): recebe a TRANSFERÊNCIA, não uma loja. Só quem confere aquela
+ * caixa (loja de destino) pergunta, e só nas duas lojas dela. Antes, qualquer
+ * usuária logada consultava etiqueta de qualquer loja por esta action.
  */
 export async function identificarEtiqueta(
   barcode: string,
-  lojaPreferida?: string | null,
+  transferId: string,
 ): Promise<{ id: string; name: string; code: string } | null> {
   const perfil = await requireProfile()
+  const supa = createAdminClient()
 
-  const { data: linhas, error } = await createAdminClient()
+  const { data: transf, error: erroTransf } = await supa
+    .from('transfers')
+    .select('from_store_id, to_store_id')
+    .eq('id', transferId)
+    .maybeSingle()
+  if (erroTransf) throw new Error(erroTransf.message)
+  if (!transf) throw new Error('Transferência não encontrada.')
+
+  const barrado = travaDoDestino(perfil, transf.to_store_id)
+  if (barrado) throw new Error(barrado)
+  const lojaPreferida = transf.to_store_id
+
+  const { data: linhas, error } = await supa
     .from('products')
     .select('id, name, code, store_id')
     .eq('barcode_number', barcode.trim())
+    .in('store_id', [transf.from_store_id, transf.to_store_id])
     .limit(10)
 
   /* Falha de leitura NÃO é "etiqueta não cadastrada": virava sobra sem produto,
