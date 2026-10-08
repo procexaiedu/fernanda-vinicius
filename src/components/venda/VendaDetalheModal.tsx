@@ -9,6 +9,7 @@ import { buscarDetalheVenda, deletarVenda, type VendaDetail } from '@/app/(siste
 import styles from '@/app/(sistema)/vendas/VendasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { linkDaNotaNoWhatsApp } from '@/lib/fiscal/enviarDanfe'
+import { EMISSAO_NOTA_ATIVA, MSG_EMISSAO_EM_BREVE } from '@/lib/fiscal/emissaoAtiva'
 
 /* Dinheiro: um formatador só para o sistema — ver src/lib/dinheiro.ts */
 const fmt = formatarDinheiro
@@ -385,7 +386,18 @@ function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, p
 
       {podeEmitir && (
         <div className={styles.fiscalAcoes}>
-          {!autorizada && status !== 'cancelada' && lojaEmite && (
+          {/* Chave geral desligada (src/lib/fiscal/emissaoAtiva.ts): emitir e
+              consultar ficam apagados com "Em breve"; o servidor também recusa. */}
+          {!EMISSAO_NOTA_ATIVA && !autorizada && status !== 'cancelada' && lojaEmite && (
+            <>
+              <Button size="sm" variant="outline" disabled>
+                <FileText size={13} /> Em breve
+              </Button>
+              <span className={styles.fiscalVazio}>{MSG_EMISSAO_EM_BREVE}</span>
+            </>
+          )}
+
+          {EMISSAO_NOTA_ATIVA && !autorizada && status !== 'cancelada' && lojaEmite && (
             <Button size="sm" variant="outline" onClick={() => rodar('emitir')} loading={ocupado === 'emitir'}>
               <FileText size={13} /> {status ? 'Tentar de novo' : 'Emitir nota fiscal'}
             </Button>
@@ -393,7 +405,7 @@ function BlocoFiscal({ saleId, nfce, cpf, cliente, telefone, loja, podeEmitir, p
 
           {/* Só faz sentido reconsultar quando a emissão ficou no meio do
               caminho — é o caso "a rede caiu e não sei se a nota saiu". */}
-          {status === 'pendente' && (
+          {EMISSAO_NOTA_ATIVA && status === 'pendente' && (
             <Button size="sm" variant="ghost" onClick={() => rodar('sincronizar')} loading={ocupado === 'sincronizar'}>
               <RefreshCw size={13} /> Consultar na Receita
             </Button>

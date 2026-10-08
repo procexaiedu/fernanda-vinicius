@@ -43,6 +43,11 @@
   font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
 }
 .btnNota:hover { opacity: .9; }
+/* "Em breve": no lugar, mas claramente fora de uso. */
+.btnNota:disabled {
+  background: var(--bg-elevated); color: var(--text-muted);
+  cursor: not-allowed; opacity: 1; flex-shrink: 0;
+}
 
 .painelInfo { font-size: 13px; color: var(--text-muted); }
 .painelOk    { font-size: 13px; font-weight: 600; color: var(--success); }
