@@ -5,6 +5,7 @@ import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { emitirNfce, consultarNfce, cancelarNfce, type AmbienteFiscal } from '@/lib/fiscal/focus'
+import { EMISSAO_NOTA_ATIVA, MSG_EMISSAO_EM_BREVE } from '@/lib/fiscal/emissaoAtiva'
 import {
   montarNfce, validarVenda, ratearDesconto, refDaVenda, prepararParaNota,
   type ItemVenda, type MetodoPagamento, type VendaParaNota,
@@ -156,6 +157,10 @@ export async function vendaEmiteNota(saleId: string): Promise<NotaDaVenda> {
 // ─── Emitir ───────────────────────────────────────────────────────────────────
 
 export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal> {
+  /* Chave geral desligada: recusa antes de tocar em banco ou provedor. A tela
+   * já mostra "Em breve"; isto barra quem chamar a action direto. */
+  if (!EMISSAO_NOTA_ATIVA) return { success: false, error: MSG_EMISSAO_EM_BREVE }
+
   const { error: authErr } = await verificarUsuario()
   if (authErr) return { success: false, error: authErr }
 
@@ -435,6 +440,8 @@ async function gravarResultado(
  * o que diz a verdade, e a `ref` é o que torna a pergunta possível.
  */
 export async function sincronizarNota(saleId: string): Promise<ResultadoFiscal> {
+  if (!EMISSAO_NOTA_ATIVA) return { success: false, error: MSG_EMISSAO_EM_BREVE }
+
   const { error: authErr } = await verificarUsuario()
   if (authErr) return { success: false, error: authErr }
 

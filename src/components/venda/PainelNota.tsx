@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { CheckCircle2, FileText, X, MessageCircle, Printer } from 'lucide-react'
 import { emitirNotaDaVenda, vendaEmiteNota, type NotaDaVenda } from '@/app/(sistema)/vendas/fiscal'
 import { linkDaNotaNoWhatsApp } from '@/lib/fiscal/enviarDanfe'
+import { EMISSAO_NOTA_ATIVA, MSG_EMISSAO_EM_BREVE } from '@/lib/fiscal/emissaoAtiva'
 import styles from './PainelNota.module.css'
 
 /**
@@ -88,7 +89,17 @@ export default function PainelNota({ saleId, aviso, onFechar }: { saleId: string
         </button>
       </div>
 
-      {estado === 'pronta' && nota?.emite && (
+      {/* Chave geral desligada (src/lib/fiscal/emissaoAtiva.ts): o botão fica no
+          lugar, apagado, para a vendedora saber que vem aí e não procurar. */}
+      {estado === 'pronta' && nota?.emite && !EMISSAO_NOTA_ATIVA && (
+        <div className={styles.painelEscolha}>
+          <span className={styles.painelInfo}>{MSG_EMISSAO_EM_BREVE}</span>
+          <button className={styles.btnNota} disabled aria-disabled="true" data-novidade="emitir-nota-fiscal">
+            <FileText size={14} /> Em breve
+          </button>
+        </div>
+      )}
+      {estado === 'pronta' && nota?.emite && EMISSAO_NOTA_ATIVA && (
         <div className={styles.painelEscolha}>
           <span className={styles.painelInfo}>A cliente quer nota?</span>
           <button className={styles.btnNota} onClick={emitir} data-novidade="emitir-nota-fiscal">
