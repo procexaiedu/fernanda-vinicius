@@ -5,8 +5,9 @@
  * autorizou, não o que o sistema acha que mandou. Se a nota saiu sem o
  * conserto, com o pagamento reduzido na proporção ou com o texto de
  * homologação no primeiro item, é isso que está no XML — e é isso que o
- * papel precisa dizer. O XML é o que a Focus devolve (`caminho_xml_nota_fiscal`)
- * e que `gravarResultado` guarda em `sales.nfce_xml`.
+ * papel precisa dizer. O XML é o que o emissor devolve (`caminho_xml_nota_fiscal`,
+ * ou `xml_nota_fiscal` na consulta completa) e que `gravarResultado` guarda em
+ * `sales.nfce_xml`. Mesmo formato na Focus e na procex-fiscal (nfeProc).
  *
  * Função pura, sem dependência: dá para testar com um XML de exemplo
  * (src/lib/fiscal/cupom.test.ts). Leitura por expressão regular de propósito —

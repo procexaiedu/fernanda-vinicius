@@ -10,9 +10,10 @@ import { normalizePhoneBR } from '@/lib/ycloud'
  * comprar no balcão: `wa.me` abre o WhatsApp com o texto pronto e quem aperta
  * "enviar" é uma pessoa. Sem template, sem aprovação, sem fila.
  *
- * O QUE VAI NO LINK é o DANFE hospedado pela Focus — documento fiscal de
- * verdade, com a chave de acesso e o QR code da SEFAZ. Conferido em 04/09 numa
- * aba sem cookie nenhum: **abre sem login**, que é a condição para poder mandar.
+ * O QUE VAI NO LINK é o DANFE hospedado pelo emissor (procex-fiscal desde
+ * 08/10; antes, a Focus): documento fiscal de verdade, com a chave de acesso e
+ * o QR code da SEFAZ. É link assinado (HMAC no caminho): **abre sem login**, que
+ * é a condição para poder mandar, e não dá para adivinhar o de outra nota.
  * Por isso não construímos página nossa aqui, como foi feito no comprovante do
  * SM Imports: lá o documento era nosso, aqui ele é da Receita.
  *
