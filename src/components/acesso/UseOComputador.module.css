@@ -1,0 +1,42 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg-base);
+  background-image: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(var(--accent-rgb), 0.06) 0%, transparent 60%);
+}
+
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 36px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.icone { color: var(--accent); }
+.titulo { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+.texto { font-size: 15px; line-height: 1.5; color: var(--text-secondary); }
+.sub { font-size: 13px; color: var(--text-muted); }
+
+.botao {
+  margin-top: 8px;
+  height: 44px;
+  padding: 0 28px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.botao:hover { border-color: var(--accent); color: var(--accent); }

@@ -291,3 +291,27 @@
   .saveBtn, .resetBtn { width: 36px; height: 36px; }
   .actionsCol { width: 84px; }
 }
+
+/* ── Meta da loja (06/10) ─────────────────────────────────────────────── */
+.configBox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.configField { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.configField .input { width: 140px; }
+.configField .inputSmall { width: 80px; }
+.erro { font-size: 12px; color: var(--danger); }
+
+.metaMes { display: flex; align-items: center; gap: 8px; }
+.metaMesLabel { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+.metaMes .input { width: 120px; }
+
+.navBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.footLabel { font-weight: 600; }
+.table tfoot td { padding: var(--table-cell-py) var(--table-cell-px); border-top: 1px solid var(--border); }

@@ -136,7 +136,7 @@ export default function Romaneio({ r, onFechar, recemEnviado = false }: {
                   {i.barcode_number}
                   {i.reetiquetar && <span className={styles.tagReetiquetar}>nova no destino</span>}
                 </td>
-                <td>{i.product_name}</td>
+                <td className={styles.nomePeca} title={i.product_name}>{i.product_name}</td>
                 <td className={`${styles.num} col-num`}>{i.quantity_sent}</td>
                 {/* "—" nos itens anteriores a 15/09: o preço do dia não foi guardado. */}
                 <td className={`${styles.num} col-num`}>

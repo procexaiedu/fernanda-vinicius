@@ -8,6 +8,8 @@ import PageHeader from '@/components/ui/PageHeader'
 import { buscarCaixaDoDia, type CaixaDoDia as CaixaData } from './actions'
 import styles from './pdv.module.css'
 import PainelNota from '@/components/venda/PainelNota'
+import MetaLojaCard from '@/components/metas/MetaLojaCard'
+import type { PainelMeta } from '@/lib/metas/loja'
 
 type FormProps = React.ComponentProps<typeof NovaVendaForm>
 
@@ -21,10 +23,12 @@ interface Props {
   initialCaixa: CaixaData
   caixaStoreId: string
   date: string
+  painelMeta: PainelMeta
+  nomeLoja: string | null
 }
 
 export default function PdvClient({
-  stores, products, customers, settings, userProfile, users, initialCaixa, caixaStoreId, date,
+  stores, products, customers, settings, userProfile, users, initialCaixa, caixaStoreId, date, painelMeta, nomeLoja,
 }: Props) {
   const [tab, setTab]         = useState<'venda' | 'caixa'>('venda')
   const [saleKey, setSaleKey] = useState(0)      // bump p/ remontar (resetar) o form
@@ -58,6 +62,8 @@ export default function PdvClient({
         PDV e não do sistema.
       */}
       <PageHeader title="PDV" subtitle="Registro rápido de venda e caixa do dia" />
+
+      <MetaLojaCard progresso={painelMeta.progresso} erro={painelMeta.erro} nomeLoja={nomeLoja} />
 
       <nav className={styles.tabs}>
         <button className={`${styles.tab} ${tab === 'venda' ? styles.tabOn : ''}`} onClick={() => setTab('venda')}>

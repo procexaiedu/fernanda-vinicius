@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import styles from './login.module.css'
+import { MSG_USE_O_COMPUTADOR } from '@/lib/acessoCelular'
 
 export default function LoginForm() {
   const searchParams = useSearchParams()
   const hasError = searchParams.get('error') === 'invalid'
   const isInactive = searchParams.get('error') === 'inactive'
+  const soComputador = searchParams.get('error') === 'celular'
   const [mostrarSenha, setMostrarSenha] = useState(false)
 
   return (
@@ -54,6 +56,11 @@ export default function LoginForm() {
       {isInactive && (
         <div className={styles.errorBox} role="alert">
           Sua conta foi desativada. Fale com a administração.
+        </div>
+      )}
+      {soComputador && (
+        <div className={styles.errorBox} role="alert">
+          {MSG_USE_O_COMPUTADOR}
         </div>
       )}
       {hasError && !isInactive && (

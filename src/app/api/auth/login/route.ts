@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { publicUrl } from '@/lib/request-url'
+import { bloqueiaNoCelular, ehCelular } from '@/lib/acessoCelular'
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData()
@@ -16,6 +17,8 @@ export async function POST(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // fv: o perfil (papel) é lido logo abaixo, para barrar vendedora no celular.
+      db: { schema: 'fv' },
       cookies: {
         getAll: () => request.cookies.getAll(),
         // Cookies de sessão escritos diretamente na response de redirect
@@ -25,13 +28,29 @@ export async function POST(request: NextRequest) {
     }
   )
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { data: entrada, error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
     return NextResponse.redirect(
       publicUrl(request, '/login?error=invalid'),
       { status: 303 }
     )
+  }
+
+  /*
+   * Vendedora no celular não entra (reunião de 06/10/2026): só a gerência usa
+   * o sistema fora do computador da loja. Barrar AQUI, e não só no layout,
+   * evita deixar a sessão aberta no aparelho dela. Sem perfil legível, deixa
+   * entrar: o layout barra de novo, e um soluço do banco não tranca a loja.
+   */
+  if (ehCelular(request.headers.get('user-agent'), request.headers.get('sec-ch-ua-mobile'))) {
+    const { data: perfil } = await supabase
+      .from('users').select('role').eq('id', entrada.user.id).maybeSingle()
+    if (perfil && bloqueiaNoCelular(perfil.role as 'admin' | 'operator')) {
+      await supabase.auth.signOut()
+      // Resposta nova, sem os cookies da sessão que acabou de ser criada.
+      return NextResponse.redirect(publicUrl(request, '/login?error=celular'), { status: 303 })
+    }
   }
 
   return response

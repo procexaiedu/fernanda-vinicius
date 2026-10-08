@@ -2,12 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-import {
-  isValidMonthKey, monthKeyToFirstDay, monthBounds, monthLabel, computeProgress,
-} from '@/lib/metas/compute'
-import { resolveGoal } from '@/lib/metas/server'
-import { getProfile, podeConfigurarRede } from '@/lib/auth'
+import { getProfile, ehAdmin, lojaDoEscopo } from '@/lib/auth'
+import { chaveMetaLoja, isMesValido, type ConfigMetaLoja } from '@/lib/metas/loja'
+import { apurarLoja, lerConfigDaLoja } from '@/lib/metas/lojaServer'
+import { monthLabel } from '@/lib/metas/compute'
 
 export interface MetaActionResult {
   success: boolean
@@ -15,157 +13,151 @@ export interface MetaActionResult {
 }
 
 /*
- * SÓ O ADMIN GLOBAL.
+ * ADMIN, DENTRO DA LOJA DELA.
  *
- * Conferia `role === 'admin'`, e admin de loja TAMBÉM é admin — a Eleandra, de
- * Brasília, passava. Meta e comissão de vendedora atravessam as duas lojas —
- * a tabela não separa por loja, e a admin de uma mexeria na meta da outra.
- *
- * A tela já redirecionava quem não é global, mas redirecionar não é trava:
- * server action é chamável direto, e estas leem com service_role. Pedido do
- * dono em 10/09 — "pense como 2 sistemas totalmente distintos".
+ * Até 08/10 a meta era por vendedora numa tabela sem loja, e por isso só o
+ * admin global mexia (10/09: "pense como 2 sistemas totalmente distintos").
+ * Agora a meta é da LOJA e cada uma guarda a sua: a Eleandra ajusta a de
+ * Brasília e não alcança a de Campinas, porque a loja vem do escopo da sessão
+ * (lojaDoEscopo), nunca de um parâmetro que o navegador manda.
  */
-async function verifyAdmin(): Promise<{ userId: string | null; error: string | null }> {
+async function lojaDaAdmin(): Promise<{ loja: string } | { erro: string }> {
   const perfil = await getProfile()
-  if (!perfil) return { userId: null, error: 'Não autenticado.' }
-  if (!podeConfigurarRede(perfil)) {
-    return { userId: null, error: 'Só a administradora geral muda esta configuração.' }
+  if (!perfil || !perfil.is_active) return { erro: 'Não autenticado.' }
+  if (!ehAdmin(perfil)) return { erro: 'Só a administração muda a meta da loja.' }
+  const loja = lojaDoEscopo(perfil)
+  if (!loja) return { erro: 'Escolha a loja antes de mexer na meta.' }
+  return { loja }
+}
+
+async function gravarConfig(loja: string, cfg: ConfigMetaLoja): Promise<MetaActionResult> {
+  const admin = createAdminClient()
+  const { error } = await admin.from('settings').upsert({
+    key: chaveMetaLoja(loja),
+    value: cfg,
+    description: 'Meta mensal da loja e faixas de comissão (bateu / não bateu)',
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'key' })
+  if (error) return { success: false, error: `Não foi possível salvar a meta: ${error.message}` }
+  revalidatePath('/configuracoes/metas')
+  revalidatePath('/pdv')
+  revalidatePath('/')
+  return { success: true }
+}
+
+function valorOk(n: number, max: number): boolean {
+  return Number.isFinite(n) && n >= 0 && n <= max
+}
+
+/** Meta padrão do mês e as duas faixas de comissão da loja. */
+export async function salvarMetaDaLoja(meta: number, pctBateu: number, pctNaoBateu: number): Promise<MetaActionResult> {
+  const r = await lojaDaAdmin()
+  if ('erro' in r) return { success: false, error: r.erro }
+  if (!valorOk(meta, 1e9)) return { success: false, error: 'Meta inválida.' }
+  if (!valorOk(pctBateu, 100) || !valorOk(pctNaoBateu, 100)) return { success: false, error: 'Percentual inválido (0 a 100).' }
+  try {
+    const atual = await lerConfigDaLoja(createAdminClient(), r.loja)
+    return await gravarConfig(r.loja, { ...atual, meta, pctBateu, pctNaoBateu })
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
   }
-  return { userId: perfil.id, error: null }
 }
 
-function lastDayOfMonth(monthKey: string): string {
-  const [y, m] = monthKey.split('-').map(Number)
-  const d = new Date(y, m, 0).getDate()
-  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-}
-
-function firstDayNextMonth(monthKey: string): string {
-  const [y, m] = monthKey.split('-').map(Number)
-  const d = new Date(y, m, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
-
-/** Cria/atualiza a meta padrão recorrente (month NULL) de uma vendedora. */
-export async function upsertMetaPadrao(userId: string, targetAmount: number, commissionPct: number): Promise<MetaActionResult> {
-  const { error } = await verifyAdmin()
-  if (error) return { success: false, error }
-  const admin = createAdminClient()
-  const payload = { target_amount: targetAmount, commission_pct: commissionPct, updated_at: new Date().toISOString() }
-
-  const { data: existing } = await admin
-    .from('seller_goals').select('id').eq('user_id', userId).is('month', null).maybeSingle()
-
-  const res = existing
-    ? await admin.from('seller_goals').update(payload).eq('id', existing.id)
-    : await admin.from('seller_goals').insert({ user_id: userId, month: null, ...payload })
-
-  if (res.error) return { success: false, error: res.error.message }
-  revalidatePath('/configuracoes/metas')
-  revalidatePath('/configuracoes/usuarios')
-  return { success: true }
-}
-
-/** Cria/atualiza o override de meta de um mês específico. */
-export async function upsertMetaMes(userId: string, monthKey: string, targetAmount: number, commissionPct: number): Promise<MetaActionResult> {
-  const { error } = await verifyAdmin()
-  if (error) return { success: false, error }
-  if (!isValidMonthKey(monthKey)) return { success: false, error: 'Mês inválido.' }
-  const admin = createAdminClient()
-  const month = monthKeyToFirstDay(monthKey)
-  const payload = { target_amount: targetAmount, commission_pct: commissionPct, updated_at: new Date().toISOString() }
-
-  const { data: existing } = await admin
-    .from('seller_goals').select('id').eq('user_id', userId).eq('month', month).maybeSingle()
-
-  const res = existing
-    ? await admin.from('seller_goals').update(payload).eq('id', existing.id)
-    : await admin.from('seller_goals').insert({ user_id: userId, month, ...payload })
-
-  if (res.error) return { success: false, error: res.error.message }
-  revalidatePath('/configuracoes/metas')
-  revalidatePath('/configuracoes/usuarios')
-  return { success: true }
-}
-
-/** Remove o override do mês (volta a valer a meta padrão). */
-export async function removeMetaMes(userId: string, monthKey: string): Promise<MetaActionResult> {
-  const { error } = await verifyAdmin()
-  if (error) return { success: false, error }
-  if (!isValidMonthKey(monthKey)) return { success: false, error: 'Mês inválido.' }
-  const admin = createAdminClient()
-  const month = monthKeyToFirstDay(monthKey)
-  const res = await admin.from('seller_goals').delete().eq('user_id', userId).eq('month', month)
-  if (res.error) return { success: false, error: res.error.message }
-  revalidatePath('/configuracoes/metas')
-  return { success: true }
+/** Meta própria de um mês (ex.: dezembro). `null` volta a valer a padrão. */
+export async function salvarMetaDoMes(mes: string, valor: number | null): Promise<MetaActionResult> {
+  const r = await lojaDaAdmin()
+  if ('erro' in r) return { success: false, error: r.erro }
+  if (!isMesValido(mes)) return { success: false, error: 'Mês inválido.' }
+  if (valor !== null && !valorOk(valor, 1e9)) return { success: false, error: 'Meta inválida.' }
+  try {
+    const atual = await lerConfigDaLoja(createAdminClient(), r.loja)
+    const porMes = { ...atual.porMes }
+    if (valor === null) delete porMes[mes]
+    else porMes[mes] = valor
+    return await gravarConfig(r.loja, { ...atual, porMes })
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
 }
 
 export interface GerarComissoesResult extends MetaActionResult {
   created?: number
   updated?: number
   removed?: number
+  /** Já pagas: ficaram como estavam. */
+  jaPagas?: number
   total?: number
 }
 
+function ultimoDia(mes: string): string {
+  const [y, m] = mes.split('-').map(Number)
+  return `${mes}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`
+}
+
+function primeiroDiaSeguinte(mes: string): string {
+  const [y, m] = mes.split('-').map(Number)
+  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+}
+
 /**
- * Gera/reconcilia as despesas de comissão do mês no Financeiro (idempotente).
- * Para cada vendedora que atingiu a meta, cria/atualiza uma transação de despesa;
- * remove as de quem deixou de qualificar (ex.: vendas alteradas).
+ * Lança (ou reconcilia) a comissão do mês no Financeiro, uma despesa por
+ * vendedora, DA LOJA DA SESSÃO. Idempotente: rodar de novo atualiza o valor.
+ *
+ * Regra de 06/10: a loja bateu a meta → 4% para todas; não bateu → 3%; sobre
+ * a base de cada uma (sem conserto, troca pela diferença). A regra antiga
+ * exigia meta individual e somava conserto e troca cheios: o valor no
+ * Financeiro não batia com o da tela.
+ *
+ * Por loja porque a mesma pessoa pode vender nas duas: cada loja paga a parte
+ * dela, numa transação com `store_id` próprio.
  */
-export async function gerarComissoesDoMes(monthKey: string): Promise<GerarComissoesResult> {
-  const { error: authErr } = await verifyAdmin()
-  if (authErr) return { success: false, error: authErr }
-  if (!isValidMonthKey(monthKey)) return { success: false, error: 'Mês inválido.' }
+export async function gerarComissoesDoMes(mes: string): Promise<GerarComissoesResult> {
+  const r = await lojaDaAdmin()
+  if ('erro' in r) return { success: false, error: r.erro }
+  if (!isMesValido(mes)) return { success: false, error: 'Mês inválido.' }
 
   const admin = createAdminClient()
-  const { start, end } = monthBounds(monthKey)
-  const monthFirstDay = monthKeyToFirstDay(monthKey)
-  const txDate = lastDayOfMonth(monthKey)
-  const dueDate = firstDayNextMonth(monthKey)
+  const txDate = ultimoDia(mes)
+  const dueDate = primeiroDiaSeguinte(mes)
 
-  const [goalsRes, salesRes, usersRes, existingRes] = await Promise.all([
-    admin.from('seller_goals').select('id, user_id, month, target_amount, commission_pct'),
-    admin.from('sales').select('seller_id, total').gte('sale_date', start).lt('sale_date', end).neq('status', 'cancelled'),
-    admin.from('users').select('id, full_name, store_id'),
-    admin.from('transactions').select('id, user_id').eq('reference_type', 'seller_commission').eq('transaction_date', txDate),
+  let apuracao: Awaited<ReturnType<typeof apurarLoja>>
+  try {
+    apuracao = await apurarLoja(r.loja, mes)
+  } catch (e) {
+    return { success: false, error: (e as Error).message }
+  }
+
+  const [usersRes, existingRes] = await Promise.all([
+    admin.from('users').select('id, full_name'),
+    admin.from('transactions').select('id, user_id, status')
+      .eq('reference_type', 'seller_commission').eq('transaction_date', txDate).eq('store_id', r.loja),
   ])
+  if (usersRes.error) return { success: false, error: `Não foi possível ler as vendedoras: ${usersRes.error.message}` }
+  if (existingRes.error) return { success: false, error: `Não foi possível ler as comissões já lançadas: ${existingRes.error.message}` }
 
-  const goals = (goalsRes.data ?? []) as { id: string; user_id: string; month: string | null; target_amount: number | string; commission_pct: number | string }[]
-  const usersById = new Map((usersRes.data ?? []).map((u: { id: string; full_name: string; store_id: string | null }) => [u.id, u]))
-  const existingByUser = new Map((existingRes.data ?? []).map((t: { id: string; user_id: string | null }) => [t.user_id, t.id]))
+  const nomes = new Map((usersRes.data ?? []).map(u => [u.id as string, u.full_name as string]))
+  const existentes = new Map((existingRes.data ?? []).map(t => [t.user_id as string | null, t.id as string]))
+  /* Comissão já PAGA (status completed) não muda nem some: o dinheiro saiu.
+     Se a conta mudou depois, quem acerta é a admin, à mão, no Financeiro. */
+  const pagas = new Set((existingRes.data ?? []).filter(t => t.status === 'completed').map(t => t.id as string))
+  let jaPagas = 0
 
-  const realized = new Map<string, { realized: number; count: number }>()
-  for (const s of (salesRes.data ?? []) as { seller_id: string | null; total: number | string }[]) {
-    if (!s.seller_id) continue
-    const p = realized.get(s.seller_id) ?? { realized: 0, count: 0 }
-    realized.set(s.seller_id, { realized: p.realized + Number(s.total), count: p.count + 1 })
-  }
-
-  const qualifying = new Map<string, number>()
-  const userIds = new Set<string>([...goals.map(g => g.user_id), ...realized.keys()])
-  for (const uid of userIds) {
-    const { target, pct } = resolveGoal(goals, uid, monthFirstDay)
-    const r = realized.get(uid) ?? { realized: 0, count: 0 }
-    const prog = computeProgress(target, pct, r.realized, r.count)
-    if (prog.reached && prog.commission > 0) qualifying.set(uid, prog.commission)
-  }
-
+  const devidas = apuracao.porVendedora.filter(c => c.comissao > 0)
   let created = 0, updated = 0, removed = 0
-  for (const [uid, commission] of qualifying) {
-    const u = usersById.get(uid)
-    const desc = `Comissão ${u?.full_name ?? 'vendedora'} — ${monthLabel(monthKey)}`
-    const amount = Math.round(commission * 100) / 100
-    const existingId = existingByUser.get(uid)
-    if (existingId) {
-      const { error } = await admin.from('transactions').update({ amount, description: desc, store_id: u?.store_id ?? null }).eq('id', existingId)
+
+  for (const c of devidas) {
+    const desc = `Comissão ${nomes.get(c.sellerId) ?? 'vendedora'} (${String(c.pct).replace('.', ',')}%) · ${monthLabel(mes)}`
+    const idExistente = existentes.get(c.sellerId)
+    if (idExistente && pagas.has(idExistente)) { jaPagas++; continue }
+    if (idExistente) {
+      const { error } = await admin.from('transactions').update({ amount: c.comissao, description: desc }).eq('id', idExistente)
       if (error) return { success: false, error: `Erro ao atualizar comissão: ${error.message}` }
       updated++
     } else {
       const { error } = await admin.from('transactions').insert({
-        type: 'expense', cost_type: 'variable', category: 'Comissão', amount,
+        type: 'expense', cost_type: 'variable', category: 'Comissão', amount: c.comissao,
         description: desc, reference_type: 'seller_commission', reference_id: null,
-        user_id: uid, store_id: u?.store_id ?? null,
+        user_id: c.sellerId, store_id: r.loja,
         transaction_date: txDate, due_date: dueDate, status: 'pending',
       })
       if (error) return { success: false, error: `Erro ao criar comissão: ${error.message}` }
@@ -173,15 +165,16 @@ export async function gerarComissoesDoMes(monthKey: string): Promise<GerarComiss
     }
   }
 
-  for (const [uid, txId] of existingByUser) {
-    if (!qualifying.has(uid as string)) {
-      const { error } = await admin.from('transactions').delete().eq('id', txId)
-      if (error) return { success: false, error: `Erro ao remover comissão: ${error.message}` }
-      removed++
-    }
+  const devidasIds = new Set(devidas.map(c => c.sellerId))
+  for (const [uid, txId] of existentes) {
+    if (uid && devidasIds.has(uid)) continue
+    if (pagas.has(txId)) { jaPagas++; continue }
+    const { error } = await admin.from('transactions').delete().eq('id', txId)
+    if (error) return { success: false, error: `Erro ao remover comissão: ${error.message}` }
+    removed++
   }
 
   revalidatePath('/configuracoes/metas')
   revalidatePath('/financeiro')
-  return { success: true, created, updated, removed, total: qualifying.size }
+  return { success: true, created, updated, removed, jaPagas, total: devidas.length }
 }

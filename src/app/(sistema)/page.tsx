@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation'
 import { ehAdminGlobal, lojaDoEscopo, podeFiltrarPorLoja, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import DashboardClient from './DashboardClient'
+import MetaLojaCard from '@/components/metas/MetaLojaCard'
+import { painelMetaDaLoja } from '@/lib/metas/lojaServer'
 import {
   buscarLojas, lojaPadrao, buscarDashboardSettings,
   buscarKpis, buscarEstoque, buscarGrafico,
@@ -63,11 +65,13 @@ export default async function DashboardPage() {
   const reservePctP  = settingsP.then(s => s.purchaseReservePct)
 
   const [
-    lojas, settings,
+    lojas, settings, painelMeta,
     kpis, estoque, grafico, topVendedoras, pecasParadas, contasVencer, cobrancas, aniversariantes, categorias, evolucao,
   ] = await Promise.all([
     lojasP,
     settingsP,
+    // Meta da loja (06/10): o painel que a admin vê ao entrar.
+    painelMetaDaLoja(storeId),
     buscarKpis(storeId, month, year, reservePctP),
     buscarEstoque(storeId, staleDaysP),
     buscarGrafico(storeId, 6),
@@ -80,8 +84,11 @@ export default async function DashboardPage() {
     buscarEvolucaoVendas(storeId, 6),
   ])
 
+  const nomeLoja = lojas.find(l => l.id === storeId)?.name ?? null
+
   return (
     <DashboardClient
+      painelMeta={<MetaLojaCard progresso={painelMeta.progresso} erro={painelMeta.erro} nomeLoja={nomeLoja} />}
       isAdmin={isAdmin}
       podeTrocarLoja={podeFiltrarPorLoja(profile)}
       initialStoreId={storeId}

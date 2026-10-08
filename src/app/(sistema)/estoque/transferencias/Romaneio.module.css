@@ -210,13 +210,41 @@
     width: 100%;
     padding: 0;
     border-radius: 0;
-    font-size: 11px;
+    font-size: 10px;
+    line-height: 1.3;
   }
+
+  /*
+   * Densidade (08/10, tarefa das 107 folhas). Reproduzido com 250 peças: a
+   * cópia sai isolada e pagina certo, mas a ~28 peças por folha, com o nome
+   * quebrando em duas ou três linhas. A remessa de alinhamento do estoque, com
+   * milhares de peças, vira centenas de folhas e o Chrome desiste ("Falha ao
+   * imprimir"). Uma linha por peça e respiro menor: o dobro por folha.
+   */
+  .tabela th { padding: 3px 4px; font-size: 8.5px; }
+  .tabela td { padding: 2px 4px; }
+  .nomePeca {
+    max-width: 0;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cabecalho { padding-bottom: 8px; }
+  .resumo { margin: 8px 0; }
+  .assinaturas { margin-top: 28px; }
+  .quadrado { width: 10px; height: 10px; }
 
   /* Linha de peça não pode ser partida entre duas folhas, e o cabeçalho da
      tabela se repete em cada uma. */
   .tabela tr { break-inside: avoid; }
   .tabela thead { display: table-header-group; }
+}
+
+/* Margem menor que a padrão do navegador: sobrava quase 2 cm de papel por lado. */
+@page {
+  size: A4;
+  margin: 10mm 9mm;
 }
 
 /* Desfecho impresso: o que voltou (recebido) e o que ficou (faltou). Aparece só

@@ -3,274 +3,238 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Check, RotateCcw, Coins, Loader2 } from 'lucide-react'
-import { monthLabel, currentMonthKey } from '@/lib/metas/compute'
-import { upsertMetaPadrao, upsertMetaMes, removeMetaMes, gerarComissoesDoMes } from './actions'
+import { monthLabel } from '@/lib/metas/compute'
+import type { ConfigMetaLoja } from '@/lib/metas/loja'
+import { salvarMetaDaLoja, salvarMetaDoMes, gerarComissoesDoMes } from './actions'
 import styles from './MetasClient.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
-export interface MetaRow {
-  userId: string
-  name: string
-  storeName: string | null
-  target: number
-  commissionPct: number
-  hasOverride: boolean
-  defaultTarget: number
-  realized: number
-  salesCount: number
+export interface LinhaComissao {
+  sellerId: string
+  nome: string
+  vendas: number
+  /** Base da comissão: vendas sem conserto, troca pela diferença. */
+  base: number
   pct: number
-  reached: boolean
-  commission: number
-  commissionGenerated: boolean
+  comissao: number
+  /** Já lançada no Financeiro neste mês, e se já foi paga. */
+  lancada: { valor: number; paga: boolean } | null
 }
 
 interface Props {
-  mode: 'default' | 'month'
-  monthKey: string // 'padrao' no modo default
-  rows: MetaRow[]
+  mes: string
+  mesAtual: string
+  config: ConfigMetaLoja
+  metaDoMes: number
+  temMetaPropria: boolean
+  linhas: LinhaComissao[]
+  semVendedora: number
+  bateu: boolean
 }
 
-function shiftMonth(monthKey: string, delta: number): string {
-  const [y, m] = monthKey.split('-').map(Number)
-  const d = new Date(y, m - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+function deslocarMes(mes: string, delta: number): string {
+  const [y, m] = mes.split('-').map(Number)
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1))
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
-/* Dinheiro: um formatador so para o sistema - ver src/lib/dinheiro.ts */
 const fmtBRL = formatarDinheiro
+const fmtPct = (n: number) => `${String(n).replace('.', ',')}%`
 
-export default function MetasClient({ mode, monthKey, rows }: Props) {
+export default function MetasClient({ mes, mesAtual, config, metaDoMes, temMetaPropria, linhas, semVendedora, bateu }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
-  const [generating, setGenerating] = useState(false)
-  const [genMsg, setGenMsg] = useState<string | null>(null)
+  const [gerando, setGerando] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
 
-  const isDefault = mode === 'default'
-
-  function goTo(month: string) {
-    startTransition(() => router.push(`/configuracoes/metas?month=${month}`))
+  function irPara(m: string) {
+    startTransition(() => router.push(`/configuracoes/metas?month=${m}`))
   }
 
-  async function handleGerar() {
-    setGenerating(true)
-    setGenMsg(null)
-    const res = await gerarComissoesDoMes(monthKey)
-    setGenerating(false)
-    if (!res.success) { setGenMsg(`Erro: ${res.error}`); return }
-    setGenMsg(`${res.total} comissão(ões): ${res.created} criada(s), ${res.updated} atualizada(s), ${res.removed} removida(s).`)
-    router.refresh()
+  async function gerar() {
+    setGerando(true)
+    setMsg(null)
+    try {
+      const res = await gerarComissoesDoMes(mes)
+      if (!res.success) { setMsg(`Erro: ${res.error}`); return }
+      setMsg(`${res.total} comissão(ões): ${res.created} lançada(s), ${res.updated} atualizada(s), ${res.removed} removida(s)`
+        + (res.jaPagas ? `, ${res.jaPagas} já paga(s) ficou(aram) como estava(m).` : '.'))
+      router.refresh()
+    } catch (e) {
+      setMsg(mensagemDeErroAoSalvar(e))
+    } finally {
+      setGerando(false)
+    }
   }
+
+  const totalComissao = linhas.reduce((s, l) => s + l.comissao, 0)
 
   return (
     <div className={styles.container}>
-      {/* Seletor de contexto: Padrão vs Mês */}
+      <ConfigLoja config={config} onSalvo={() => router.refresh()} />
+
       <div className={styles.contextBar}>
-        <div className={styles.modeToggle}>
-          <button
-            type="button"
-            className={`${styles.modeBtn} ${isDefault ? styles.modeActive : ''}`}
-            onClick={() => goTo('padrao')}
-          >
-            Meta padrão
+        <div className={styles.monthNav}>
+          <button className={styles.navBtn} onClick={() => irPara(deslocarMes(mes, -1))} title="Mês anterior">
+            <ChevronLeft size={16} />
           </button>
-          <button
-            type="button"
-            className={`${styles.modeBtn} ${!isDefault ? styles.modeActive : ''}`}
-            onClick={() => goTo(currentMonthKey(new Date()))}
-          >
-            Por mês
+          <span className={styles.monthLabel}>{monthLabel(mes)}</span>
+          <button className={styles.navBtn} onClick={() => irPara(deslocarMes(mes, 1))} title="Próximo mês" disabled={mes >= mesAtual}>
+            <ChevronRight size={16} />
           </button>
         </div>
 
-        {!isDefault && (
-          <div className={styles.monthNav}>
-            <button className={styles.navBtn} onClick={() => goTo(shiftMonth(monthKey, -1))} title="Mês anterior">
-              <ChevronLeft size={16} />
-            </button>
-            <span className={styles.monthLabel}>{monthLabel(monthKey)}</span>
-            <button className={styles.navBtn} onClick={() => goTo(shiftMonth(monthKey, 1))} title="Próximo mês">
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        )}
+        <MetaDoMes key={`${mes}:${metaDoMes}`} mes={mes} valor={metaDoMes} propria={temMetaPropria} padrao={config.meta} onSalvo={() => router.refresh()} />
 
-        {!isDefault && (
-          <button className={styles.gerarBtn} onClick={handleGerar} disabled={generating}>
-            {generating ? <Loader2 size={15} className={styles.spin} /> : <Coins size={15} />}
-            {generating ? 'Gerando…' : 'Gerar comissões do mês'}
-          </button>
-        )}
+        <button className={styles.gerarBtn} onClick={gerar} disabled={gerando || linhas.length === 0}>
+          {gerando ? <Loader2 size={15} className={styles.spin} /> : <Coins size={15} />}
+          {gerando ? 'Lançando…' : 'Lançar comissões no Financeiro'}
+        </button>
       </div>
 
-      {isDefault ? (
-        <p className={styles.hint}>
-          A meta padrão vale para todos os meses. Em <strong>Por mês</strong>, você pode sobrescrever um mês específico (ex.: dezembro).
-        </p>
-      ) : (
-        <p className={styles.hint}>
-          Mostrando a meta vigente de <strong>{monthLabel(monthKey)}</strong>. Editar aqui cria um override só deste mês (a padrão continua valendo nos demais).
-        </p>
-      )}
+      <p className={styles.hint}>
+        Base da comissão: vendas do mês <strong>sem conserto</strong>, e na <strong>troca só a diferença</strong>.
+        {' '}A loja {bateu ? <strong>bateu</strong> : <>ainda <strong>não bateu</strong></>} a meta de {monthLabel(mes)}:
+        {' '}comissão de <strong>{fmtPct(bateu ? config.pctBateu : config.pctNaoBateu)}</strong> para todas.
+        {mes === mesAtual && !bateu && <> Se bater até o fim do mês, sobe para {fmtPct(config.pctBateu)} sobre o mês inteiro.</>}
+      </p>
 
-      {genMsg && <div className={styles.genMsg}>{genMsg}</div>}
+      {msg && <div className={styles.genMsg}>{msg}</div>}
 
       <div className={styles.tableWrapper}>
         <table className={styles.table}>
           <thead>
             <tr>
               <th>Vendedora</th>
-              {!isDefault && <th className={`${styles.numCol} col-num`}>Realizado</th>}
-              {!isDefault && <th className={styles.progressCol}>Progresso</th>}
-              <th className={`${styles.numCol} col-num`}>Meta (R$)</th>
-              <th className={`${styles.numCol} col-num`}>Comissão (%)</th>
-              {!isDefault && <th className={`${styles.numCol} col-num`}>Comissão</th>}
-              <th className={styles.actionsCol}></th>
+              <th className={`${styles.numCol} col-num`}>Vendas</th>
+              <th className={`${styles.numCol} col-num`}>Base</th>
+              <th className={`${styles.numCol} col-num`}>%</th>
+              <th className={`${styles.numCol} col-num`}>Comissão</th>
+              <th className={`${styles.numCol} col-num`}>No Financeiro</th>
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
-              <tr><td colSpan={isDefault ? 4 : 7} className={styles.empty}>Nenhuma vendedora ativa.</td></tr>
-            ) : rows.map(row => (
-              <MetaRowEditor key={row.userId} row={row} isDefault={isDefault} monthKey={monthKey} onSaved={() => router.refresh()} />
+            {linhas.length === 0 ? (
+              <tr><td colSpan={6} className={styles.empty}>Nenhuma venda com vendedora neste mês.</td></tr>
+            ) : linhas.map(l => (
+              <tr key={l.sellerId}>
+                <td><span className={styles.sellerName}>{l.nome}</span></td>
+                <td className={`${styles.numCol} col-num`}>{l.vendas}</td>
+                <td className={`${styles.numCol} col-num`}><span className={styles.realized}>{fmtBRL(l.base)}</span></td>
+                <td className={`${styles.numCol} col-num`}>{fmtPct(l.pct)}</td>
+                <td className={`${styles.numCol} col-num`}><span className={styles.commission}>{fmtBRL(l.comissao)}</span></td>
+                <td className={`${styles.numCol} col-num`}>
+                  {l.lancada
+                    ? <span className={`${styles.commission} ${styles.commissionPaid}`}>
+                        {fmtBRL(l.lancada.valor)}{l.lancada.paga ? ' (paga)' : ''}
+                        {Math.abs(l.lancada.valor - l.comissao) < 0.01 && <Check size={12} />}
+                      </span>
+                    : <span className={styles.noGoal}>não lançada</span>}
+                </td>
+              </tr>
             ))}
           </tbody>
+          {linhas.length > 0 && (
+            <tfoot>
+              <tr>
+                <td colSpan={4} className={styles.footLabel}>
+                  Total{semVendedora > 0 && <span className={styles.salesCount}> · {fmtBRL(semVendedora)} em vendas sem vendedora (contam na meta, sem comissão)</span>}
+                </td>
+                <td className={`${styles.numCol} col-num`}><span className={styles.commission}>{fmtBRL(totalComissao)}</span></td>
+                <td />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
   )
 }
 
-function MetaRowEditor({ row, isDefault, monthKey, onSaved }: {
-  row: MetaRow; isDefault: boolean; monthKey: string; onSaved: () => void
-}) {
-  const [target, setTarget] = useState(String(row.target || ''))
-  const [pct, setPct] = useState(String(row.commissionPct || ''))
-  const [saving, setSaving] = useState(false)
+/** Meta padrão e as duas faixas. Vale para todo mês sem meta própria. */
+function ConfigLoja({ config, onSalvo }: { config: ConfigMetaLoja; onSalvo: () => void }) {
+  const [meta, setMeta] = useState(String(config.meta))
+  const [pctBateu, setPctBateu] = useState(String(config.pctBateu))
+  const [pctNao, setPctNao] = useState(String(config.pctNaoBateu))
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
 
-  const dirty = Number(target || 0) !== row.target || Number(pct || 0) !== row.commissionPct
+  const sujo = Number(meta) !== config.meta || Number(pctBateu) !== config.pctBateu || Number(pctNao) !== config.pctNaoBateu
 
-  async function save() {
-    setSaving(true)
-    const t = Number(target || 0)
-    const p = Number(pct || 0)
-    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
-     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
-    let res: Awaited<ReturnType<typeof upsertMetaPadrao>>
+  async function salvar() {
+    setSalvando(true)
+    setErro(null)
     try {
-      res = isDefault
-        ? await upsertMetaPadrao(row.userId, t, p)
-        : await upsertMetaMes(row.userId, monthKey, t, p)
+      const res = await salvarMetaDaLoja(Number(meta || 0), Number(pctBateu || 0), Number(pctNao || 0))
+      if (res.success) onSalvo()
+      else setErro(res.error ?? 'Não foi possível salvar.')
     } catch (e) {
-      alert(mensagemDeErroAoSalvar(e))
-      return
+      setErro(mensagemDeErroAoSalvar(e))
     } finally {
-      setSaving(false)
+      setSalvando(false)
     }
-
-    if (res.success) onSaved()
-    else alert(res.error)
   }
-
-  async function usarPadrao() {
-    setSaving(true)
-    /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
-     * botão girando para sempre e sem mensagem. Ver src/lib/erroDeSalvar.ts. */
-    let res: Awaited<ReturnType<typeof removeMetaMes>>
-    try {
-      res = await removeMetaMes(row.userId, monthKey)
-    } catch (e) {
-      alert(mensagemDeErroAoSalvar(e))
-      return
-    } finally {
-      setSaving(false)
-    }
-
-    if (res.success) onSaved()
-    else alert(res.error)
-  }
-
-  const pctValue = row.target > 0 ? Math.min(row.pct, 100) : 0
 
   return (
-    <tr>
-      <td>
-        <div className={styles.sellerCell}>
-          <span className={styles.sellerName}>{row.name}</span>
-          {row.storeName && <span className={styles.sellerStore}>{row.storeName}</span>}
-          {!isDefault && row.hasOverride && <span className={styles.overrideBadge}>override</span>}
-        </div>
-      </td>
-
-      {!isDefault && (
-        <td className={`${styles.numCol} col-num`}>
-          <span className={styles.realized}>{fmtBRL(row.realized)}</span>
-          <span className={styles.salesCount}>{row.salesCount} venda{row.salesCount !== 1 ? 's' : ''}</span>
-        </td>
+    <div className={styles.configBox}>
+      <label className={styles.configField}>
+        <span>Meta mensal da loja (R$)</span>
+        <input type="number" min={0} step={1000} className={styles.input} value={meta} onChange={e => setMeta(e.target.value)} />
+      </label>
+      <label className={styles.configField}>
+        <span>Comissão se bater (%)</span>
+        <input type="number" min={0} max={100} step={0.5} className={`${styles.input} ${styles.inputSmall}`} value={pctBateu} onChange={e => setPctBateu(e.target.value)} />
+      </label>
+      <label className={styles.configField}>
+        <span>Se não bater (%)</span>
+        <input type="number" min={0} max={100} step={0.5} className={`${styles.input} ${styles.inputSmall}`} value={pctNao} onChange={e => setPctNao(e.target.value)} />
+      </label>
+      {sujo && (
+        <button className={styles.saveBtn} onClick={salvar} disabled={salvando} title="Salvar">
+          {salvando ? <Loader2 size={14} className={styles.spin} /> : <Check size={14} />}
+        </button>
       )}
+      {erro && <span className={styles.erro}>{erro}</span>}
+    </div>
+  )
+}
 
-      {!isDefault && (
-        <td className={styles.progressCol}>
-          {row.target > 0 ? (
-            <div className={styles.progressWrap}>
-              <div className={styles.progressTrack}>
-                <div
-                  className={`${styles.progressFill} ${row.reached ? styles.progressReached : ''}`}
-                  style={{ width: `${pctValue}%` }}
-                />
-              </div>
-              <span className={`${styles.progressPct} ${row.reached ? styles.pctReached : ''}`}>
-                {Math.round(row.pct)}%
-              </span>
-            </div>
-          ) : <span className={styles.noGoal}>sem meta</span>}
-        </td>
+/** Meta própria de um mês (ex.: dezembro). Desfazer volta para a padrão. */
+function MetaDoMes({ mes, valor, propria, padrao, onSalvo }: {
+  mes: string; valor: number; propria: boolean; padrao: number; onSalvo: () => void
+}) {
+  const [v, setV] = useState(String(valor))
+  const [salvando, setSalvando] = useState(false)
+
+  async function salvar(novo: number | null) {
+    setSalvando(true)
+    try {
+      const res = await salvarMetaDoMes(mes, novo)
+      if (res.success) onSalvo()
+      else alert(res.error)
+    } catch (e) {
+      alert(mensagemDeErroAoSalvar(e))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className={styles.metaMes}>
+      <span className={styles.metaMesLabel}>Meta de {monthLabel(mes)}</span>
+      <input type="number" min={0} step={1000} className={styles.input} value={v} onChange={e => setV(e.target.value)} />
+      {propria && <span className={styles.overrideBadge}>só deste mês</span>}
+      {Number(v) !== valor && (
+        <button className={styles.saveBtn} onClick={() => salvar(Number(v || 0))} disabled={salvando} title="Usar este valor só neste mês">
+          {salvando ? <Loader2 size={14} className={styles.spin} /> : <Check size={14} />}
+        </button>
       )}
-
-      <td className={`${styles.numCol} col-num`}>
-        <input
-          type="number" min={0} step={50}
-          className={styles.input}
-          value={target}
-          placeholder="0"
-          onChange={e => setTarget(e.target.value)}
-        />
-      </td>
-
-      <td className={`${styles.numCol} col-num`}>
-        <input
-          type="number" min={0} max={100} step={0.5}
-          className={`${styles.input} ${styles.inputSmall}`}
-          value={pct}
-          placeholder="0"
-          onChange={e => setPct(e.target.value)}
-        />
-      </td>
-
-      {!isDefault && (
-        <td className={`${styles.numCol} col-num`}>
-          {row.reached
-            ? <span className={`${styles.commission} ${row.commissionGenerated ? styles.commissionPaid : ''}`}>
-                {fmtBRL(row.commission)}{row.commissionGenerated && <Check size={12} />}
-              </span>
-            : <span className={styles.noGoal}>—</span>}
-        </td>
+      {propria && (
+        <button className={styles.resetBtn} onClick={() => salvar(null)} disabled={salvando} title={`Voltar para a meta padrão (${formatarDinheiro(padrao)})`}>
+          <RotateCcw size={14} />
+        </button>
       )}
-
-      <td className={styles.actionsCol}>
-        <div className={styles.rowActions}>
-          {dirty && (
-            <button className={styles.saveBtn} onClick={save} disabled={saving} title="Salvar">
-              {saving ? <Loader2 size={14} className={styles.spin} /> : <Check size={14} />}
-            </button>
-          )}
-          {!isDefault && row.hasOverride && (
-            <button className={styles.resetBtn} onClick={usarPadrao} disabled={saving} title="Usar meta padrão (remover override)">
-              <RotateCcw size={14} />
-            </button>
-          )}
-        </div>
-      </td>
-    </tr>
+    </div>
   )
 }
