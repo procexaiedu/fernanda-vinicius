@@ -59,12 +59,14 @@ interface Props {
   categoryLabelMap: Record<string, 'A' | 'B'>
   defaultMarkupPct: number
   filters: Filters
+  /** Loja da sessão: o bipe só acha etiqueta dela (a mesma etiqueta existe nas duas). */
+  lojaDoBipe: string | null
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export default function ProdutosClient({
-  products, total, page, perPage, isAdmin, stores, suppliers, categories, materials, categoryLabelMap, defaultMarkupPct, staleDays, filters,
+  products, total, page, perPage, isAdmin, stores, suppliers, categories, materials, categoryLabelMap, defaultMarkupPct, staleDays, filters, lojaDoBipe,
 }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -157,12 +159,14 @@ export default function ProdutosClient({
    */
   const aoBiparParaReetiqueta = useCallback(async (codigo: string) => {
     const supabase = createBrowserClient()
-    const { data, error } = await supabase
+    /* Era só `limit(1)`: a mesma etiqueta existe nas duas lojas e vinha a da
+     * outra, com custo junto (08/10/2026). */
+    let q = supabase
       .from('products')
       .select('*, suppliers(id, name, initials), stores(id, name)')
       .eq('barcode_number', codigo)
-      .limit(1)
-      .maybeSingle()
+    if (lojaDoBipe) q = q.eq('store_id', lojaDoBipe)
+    const { data, error } = await q.limit(1).maybeSingle()
     if (error || !data) {
       setBipInfo({ ok: false, msg: `Nenhuma peça com a etiqueta ${codigo}.` })
       return
@@ -170,7 +174,7 @@ export default function ProdutosClient({
     const prod = data as ProductWithRelations
     setSelectedProducts(prev => new Map(prev).set(prod.id, prod))
     setBipInfo({ ok: true, msg: `${prod.name} · etiqueta ${prod.barcode_number} — selecionada` })
-  }, [])
+  }, [lojaDoBipe])
 
   // Só captura o bipe quando nenhum modal está aberto (senão atrapalha cadastro/impressão).
   useBarcodeScanner({

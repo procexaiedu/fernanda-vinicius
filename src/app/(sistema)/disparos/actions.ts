@@ -13,6 +13,35 @@ async function naoEhAdmin(): Promise<boolean> {
 }
 import { apiKey, wabaId, listTemplates } from '@/lib/ycloud'
 import { enviarLote } from '@/lib/disparo/enviarLote'
+import { emLotes } from '@/lib/supabase/em-lotes'
+
+/* Campanha é da loja (08/10/2026): a ação confere a loja do disparo contra a
+ * loja da sessão, não só o papel. Antes a admin de Brasília excluía, enviava
+ * ou editava disparo de Campinas pelo id, e criava um em Campinas mandando
+ * outro `store_id` pelo navegador. `null` = sem corte (admin global sem loja). */
+async function lojaDaSessao(): Promise<string | null> {
+  const p = await getProfile()
+  return p ? lojaDoEscopo(p) : null
+}
+
+async function disparoForaDaLoja(
+  admin: ReturnType<typeof createAdminClient>, id: string, loja: string | null,
+): Promise<string | null> {
+  if (!loja) return null
+  const { data, error } = await admin.from('disparos').select('store_id').eq('id', id).maybeSingle()
+  if (error) return `Não foi possível conferir o disparo: ${error.message}`
+  if (!data || data.store_id !== loja) return 'Disparo não encontrado.'
+  return null
+}
+
+/* Destinatária escolhida à mão também tem que ser da loja. */
+async function soClientesDaLoja(
+  admin: ReturnType<typeof createAdminClient>, ids: string[], loja: string,
+): Promise<string[]> {
+  const achadas = await emLotes(ids, lote =>
+    admin.from('customers').select('id').in('id', lote).eq('origin_store_id', loja), 'as clientes do disparo')
+  return achadas.map(c => c.id as string)
+}
 
 export interface CriarDisparoData {
   titulo: string
@@ -60,7 +89,9 @@ export async function listarClientes(store_id: string): Promise<ClienteOption[]>
 // IDs dos clientes que já estão num disparo (para pré-marcar no seletor ao editar).
 export async function listarDestinatarios(disparo_id: string): Promise<string[]> {
   if (!disparo_id) return []
+  if (await naoEhAdmin()) return []
   const admin = createAdminClient()
+  if (await disparoForaDaLoja(admin, disparo_id, await lojaDaSessao())) return []
   const { data } = await admin
     .from('disparo_destinatarios')
     .select('customer_id')
@@ -129,20 +160,26 @@ export async function criarDisparo(data: CriarDisparoData): Promise<CriarDisparo
   if (await naoEhAdmin()) return { success: false, error: 'Só a administração faz disparos.' }
 
   if (!data.titulo.trim()) return { success: false, error: 'Título é obrigatório.' }
-  if (!data.store_id)       return { success: false, error: 'Selecione a loja.' }
+  const sessao = await getProfile()
+  const loja = sessao ? lojaDoEscopo(sessao, data.store_id) : null
+  if (!loja)                return { success: false, error: 'Selecione a loja.' }
   if (!data.param2.trim())  return { success: false, error: 'O assunto ({{2}}) é obrigatório.' }
 
   const admin = createAdminClient()
+  const escolhidas = data.customer_ids && data.customer_ids.length
+    ? await soClientesDaLoja(admin, data.customer_ids, loja)
+    : null
+  if (escolhidas && escolhidas.length === 0) return { success: false, error: 'Nenhuma das clientes escolhidas é desta loja.' }
   const { data: rows, error } = await admin.rpc('criar_disparo', {
     p_titulo:            data.titulo.trim(),
-    p_store_id:          data.store_id,
+    p_store_id:          loja,
     p_template_name:     data.template_name,
     p_template_language: data.template_language,
     p_param2:            data.param2.trim(),
     p_param3:            data.param3.trim() || '.',
     p_created_by:        user.id,
     p_image_url:         data.image_url || null,
-    p_customer_ids:      (data.customer_ids && data.customer_ids.length) ? data.customer_ids : null,
+    p_customer_ids:      escolhidas,
   })
 
   if (error) return { success: false, error: error.message }
@@ -165,6 +202,8 @@ export async function enviarDisparo(disparo_id: string): Promise<EnviarResult> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { success: false, error: 'Não autenticado.' }
   if (await naoEhAdmin()) return { success: false, error: 'Só a administração faz disparos.' }
+  const fora = await disparoForaDaLoja(createAdminClient(), disparo_id, await lojaDaSessao())
+  if (fora) return { success: false, error: fora }
 
   let enviados = 0, falhas = 0, restantes = 0
   for (let i = 0; i < 30; i++) {
@@ -186,6 +225,8 @@ export async function excluirDisparo(id: string): Promise<{ success: boolean; er
   if (await naoEhAdmin()) return { success: false, error: 'Só a administração faz disparos.' }
 
   const admin = createAdminClient()
+  const fora = await disparoForaDaLoja(admin, id, await lojaDaSessao())
+  if (fora) return { success: false, error: fora }
   const { error } = await admin.from('disparos').delete().eq('id', id)
   if (error) return { success: false, error: error.message }
   revalidatePath('/disparos')
@@ -218,6 +259,9 @@ export async function atualizarDisparo(id: string, data: CriarDisparoData): Prom
   if (!data.titulo.trim()) return { success: false, error: 'Título é obrigatório.' }
 
   const admin = createAdminClient()
+  const loja = await lojaDaSessao()
+  const fora = await disparoForaDaLoja(admin, id, loja)
+  if (fora) return { success: false, error: fora }
   const p2 = data.param2.trim()
   const p3 = data.param3.trim() || '.'
 
@@ -232,9 +276,11 @@ export async function atualizarDisparo(id: string, data: CriarDisparoData): Prom
   if (e1) return { success: false, error: e1.message }
 
   if (data.customer_ids && data.customer_ids.length) {
+    const escolhidas = loja ? await soClientesDaLoja(admin, data.customer_ids, loja) : data.customer_ids
+    if (escolhidas.length === 0) return { success: false, error: 'Nenhuma das clientes escolhidas é desta loja.' }
     // Re-monta os destinatários com a nova seleção (e aplica os params atualizados)
     const { error: e2 } = await admin.rpc('set_disparo_recipients', {
-      p_disparo_id: id, p_param2: p2, p_param3: p3, p_customer_ids: data.customer_ids,
+      p_disparo_id: id, p_param2: p2, p_param3: p3, p_customer_ids: escolhidas,
     })
     if (e2) return { success: false, error: e2.message }
   } else {
@@ -261,6 +307,8 @@ export async function duplicarDisparo(id: string): Promise<CriarDisparoResult> {
     .select('titulo, store_id, template_name, template_language, param2_default, param3_default, image_url')
     .eq('id', id).single()
   if (e0 || !src) return { success: false, error: 'Disparo não encontrado.' }
+  const loja = await lojaDaSessao()
+  if (loja && src.store_id !== loja) return { success: false, error: 'Disparo não encontrado.' }
 
   const { data: rows, error } = await admin.rpc('criar_disparo', {
     p_titulo:            (src.titulo + ' (cópia)').slice(0, 120),

@@ -196,10 +196,24 @@ async function verifyUser(): Promise<{ userId: string | null; role: string | nul
     return { userId: null, role: null, storeId: null, error: 'Não consegui conferir seu usuário agora. Nada foi gravado — espere alguns segundos e tente de novo.' }
   }
 
+  /* Admin global: a loja escolhida no login também prende (08/10/2026). Antes
+   * só `store_id` contava, e a Fernanda "em Brasília" gravava ou editava venda
+   * na loja que o navegador mandasse. */
+  let storeId = profile.store_id ?? null
+  if (!storeId) {
+    try {
+      const sessao = await getProfile()
+      storeId = sessao ? lojaDoEscopo(sessao) : null
+    } catch (err) {
+      console.error('[vendas] falha ao ler a loja da sessão', err)
+      return { userId: null, role: null, storeId: null, error: 'Não consegui conferir seu usuário agora. Nada foi gravado — espere alguns segundos e tente de novo.' }
+    }
+  }
+
   return {
     userId: user.id,
-    role: profile?.role ?? null,
-    storeId: profile?.store_id ?? null,
+    role: profile.role ?? null,
+    storeId,
     error: null,
   }
 }

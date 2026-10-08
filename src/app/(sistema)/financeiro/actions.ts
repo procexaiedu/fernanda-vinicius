@@ -38,6 +38,33 @@ async function verifyAdmin(): Promise<{ userId: string | null; error: string | n
   return { userId: user.id, error: null }
 }
 
+/*
+ * Escrita também fica na loja da sessão (08/10/2026). Antes estas ações olhavam
+ * só o papel: a admin de Brasília marcava como paga, editava ou apagava conta
+ * de Campinas pelo id, e lançava despesa em Campinas mandando outro `store_id`
+ * pelo navegador. `loja: null` = admin global sem loja escolhida (sem corte).
+ */
+async function lojaParaEscrever(): Promise<{ loja: string | null } | { erro: string }> {
+  try {
+    return { loja: await escopoDeLoja() }
+  } catch {
+    return { erro: 'Acesso negado.' }
+  }
+}
+
+async function foraDaLoja(
+  admin: ReturnType<typeof createAdminClient>,
+  tabela: 'transactions' | 'recurring_expenses',
+  id: string,
+  loja: string | null,
+): Promise<string | null> {
+  if (!loja) return null
+  const { data, error } = await admin.from(tabela).select('store_id').eq('id', id).maybeSingle()
+  if (error) return `Não foi possível conferir o lançamento: ${error.message}`
+  if (!data || data.store_id !== loja) return 'Lançamento não encontrado.'
+  return null
+}
+
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export interface TransactionFilters {
@@ -214,6 +241,11 @@ export async function marcarComoPago(transactionId: string): Promise<ActionResul
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
+
+  const escopoW = await lojaParaEscrever()
+  if ('erro' in escopoW) return { success: false, error: escopoW.erro }
+  const foraW = await foraDaLoja(admin, 'transactions', transactionId, escopoW.loja)
+  if (foraW) return { success: false, error: foraW }
   const nowIso = new Date().toISOString()
 
   // Buscar a transação antes: se ela espelha um pagamento de compra, precisamos
@@ -254,10 +286,12 @@ export async function criarDespesaManual(data: DespesaManualData): Promise<Actio
   if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
 
   const admin = createAdminClient()
+  const escopoW = await lojaParaEscrever()
+  if ('erro' in escopoW) return { success: false, error: escopoW.erro }
   const paidAt = data.status === 'completed' ? new Date().toISOString() : null
 
   const { error } = await admin.from('transactions').insert({
-    store_id: data.store_id,
+    store_id: escopoW.loja ?? data.store_id,
     type: 'expense',
     amount: data.amount,
     category: data.category,
@@ -283,6 +317,11 @@ export async function editarDespesaManual(id: string, data: DespesaManualData): 
 
   const admin = createAdminClient()
 
+  const escopoW = await lojaParaEscrever()
+  if ('erro' in escopoW) return { success: false, error: escopoW.erro }
+  const foraW = await foraDaLoja(admin, 'transactions', id, escopoW.loja)
+  if (foraW) return { success: false, error: foraW }
+
   // Só edita se for manual
   const { data: tx } = await admin.from('transactions').select('reference_type').eq('id', id).single()
   if (tx?.reference_type !== 'manual') return { success: false, error: 'Só é possível editar despesas manuais.' }
@@ -290,7 +329,7 @@ export async function editarDespesaManual(id: string, data: DespesaManualData): 
   const paidAt = data.status === 'completed' ? new Date().toISOString() : null
 
   const { error } = await admin.from('transactions').update({
-    store_id: data.store_id,
+    store_id: escopoW.loja ?? data.store_id,
     amount: data.amount,
     category: data.category,
     description: data.description,
@@ -312,6 +351,11 @@ export async function deletarDespesaManual(id: string): Promise<ActionResult> {
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
+
+  const escopoW = await lojaParaEscrever()
+  if ('erro' in escopoW) return { success: false, error: escopoW.erro }
+  const foraW = await foraDaLoja(admin, 'transactions', id, escopoW.loja)
+  if (foraW) return { success: false, error: foraW }
   const { data: tx } = await admin.from('transactions').select('reference_type').eq('id', id).single()
   if (tx?.reference_type !== 'manual') return { success: false, error: 'Só é possível deletar despesas manuais.' }
 
@@ -358,7 +402,9 @@ export async function buscarDetalheComissao(transactionId: string): Promise<{ da
     .single()
 
   if (txErr || !tx) return { data: null, error: 'Comissão não encontrada.' }
-  if (loja && (tx as any).store_id && (tx as any).store_id !== loja) {
+  /* Sem loja na comissão também não passa: a lista da loja não a mostra, e o
+     detalhe abria as vendas da rede inteira (08/10/2026). */
+  if (loja && (tx as any).store_id !== loja) {
     return { data: null, error: 'Comissão de outra loja.' }
   }
 
@@ -370,14 +416,17 @@ export async function buscarDetalheComissao(transactionId: string): Promise<{ da
   /* Era `client_id, clients(name)`: a tabela é `customers`. O PostgREST
      recusava a consulta e, sem checar o erro, o detalhe da comissão abria
      sempre sem nenhuma venda. */
-  const { data: salesRaw, error: salesErr } = await admin
+  /* Só as vendas da loja da sessão: a mesma vendedora (a Fernanda) vende nas
+     duas, e o detalhe somava Campinas na comissão de Brasília. */
+  let salesQuery = admin
     .from('sales')
     .select('id, sale_date, total, total_cost, customer_id, store_id, customers(name), stores(name), status')
     .eq('user_id', (tx as any).user_id)
     .gte('sale_date', dateFrom)
     .lte('sale_date', dateTo)
     .eq('status', 'completed')
-    .order('sale_date', { ascending: true })
+  if (loja) salesQuery = salesQuery.eq('store_id', loja)
+  const { data: salesRaw, error: salesErr } = await salesQuery.order('sale_date', { ascending: true })
 
   if (salesErr) {
     console.error('[comissão] falha ao ler as vendas do mês:', salesErr.message)
@@ -417,6 +466,11 @@ export async function deletarComissao(transactionId: string): Promise<ActionResu
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
+
+  const escopoW = await lojaParaEscrever()
+  if ('erro' in escopoW) return { success: false, error: escopoW.erro }
+  const foraW = await foraDaLoja(admin, 'transactions', transactionId, escopoW.loja)
+  if (foraW) return { success: false, error: foraW }
   const { data: tx } = await admin
     .from('transactions')
     .select('reference_type')
@@ -568,8 +622,10 @@ export async function criarRecorrente(data: RecurrenteData): Promise<ActionResul
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
+  const escopoW = await lojaParaEscrever()
+  if ('erro' in escopoW) return { success: false, error: escopoW.erro }
   const { error } = await admin.from('recurring_expenses').insert({
-    store_id: data.store_id,
+    store_id: escopoW.loja ?? data.store_id,
     description: data.description,
     amount: data.amount,
     category: data.category,
@@ -589,8 +645,13 @@ export async function editarRecorrente(id: string, data: RecurrenteData): Promis
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
+
+  const escopoW = await lojaParaEscrever()
+  if ('erro' in escopoW) return { success: false, error: escopoW.erro }
+  const foraW = await foraDaLoja(admin, 'recurring_expenses', id, escopoW.loja)
+  if (foraW) return { success: false, error: foraW }
   const { error } = await admin.from('recurring_expenses').update({
-    store_id: data.store_id,
+    store_id: escopoW.loja ?? data.store_id,
     description: data.description,
     amount: data.amount,
     category: data.category,
@@ -610,6 +671,11 @@ export async function toggleRecorrente(id: string, isActive: boolean): Promise<A
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
+
+  const escopoW = await lojaParaEscrever()
+  if ('erro' in escopoW) return { success: false, error: escopoW.erro }
+  const foraW = await foraDaLoja(admin, 'recurring_expenses', id, escopoW.loja)
+  if (foraW) return { success: false, error: foraW }
   const { error } = await admin.from('recurring_expenses').update({ is_active: isActive }).eq('id', id)
   if (error) return { success: false, error: error.message }
   revalidatePath('/financeiro')
@@ -621,6 +687,11 @@ export async function deletarRecorrente(id: string): Promise<ActionResult> {
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
+
+  const escopoW = await lojaParaEscrever()
+  if ('erro' in escopoW) return { success: false, error: escopoW.erro }
+  const foraW = await foraDaLoja(admin, 'recurring_expenses', id, escopoW.loja)
+  if (foraW) return { success: false, error: foraW }
   // Deslinkar transações antes de deletar
   await admin.from('transactions').update({ recurring_expense_id: null }).eq('recurring_expense_id', id)
   const { error } = await admin.from('recurring_expenses').delete().eq('id', id)

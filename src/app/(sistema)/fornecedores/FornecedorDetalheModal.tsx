@@ -8,8 +8,7 @@ import {
 } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
-import { createClient } from '@/lib/supabase/client'
-import { deletarFornecedor } from './actions'
+import { deletarFornecedor, buscarDadosDoFornecedor } from './actions'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 import type { SupplierWithCount } from './page'
 import styles from './FornecedorDetalheModal.module.css'
@@ -130,68 +129,13 @@ export default function FornecedorDetalheModal({ supplier, onClose, onEdit, onDe
   useEffect(() => {
     setLoading(true)
     setData(null)
-    const supabase = createClient()
-
-    Promise.all([
-      supabase
-        .from('products')
-        .select('id, code, name, category, store_id, sale_price, quantity_in_stock, ownership_type, is_active, stores(name)')
-        .eq('supplier_id', supplier.id).eq('is_active', true)
-        .order('created_at', { ascending: false }).limit(20),
-      supabase.from('products').select('id', { count: 'exact', head: true })
-        .eq('supplier_id', supplier.id).eq('is_active', true),
-      supabase.from('products').select('id', { count: 'exact', head: true })
-        .eq('supplier_id', supplier.id).eq('is_active', true).eq('ownership_type', 'consignment'),
-      supabase
-        .from('purchases')
-        .select('id, purchase_date, total_cost, total_items, payment_summary, nf_number, notes, stores(name)')
-        .eq('supplier_id', supplier.id)
-        .order('purchase_date', { ascending: false }),
-    ]).then(async ([productsRes, totalRes, consignedRes, purchasesRes]) => {
-      const products = (productsRes.data ?? []).map((p: Record<string, unknown>) => ({
-        id: p.id as string, code: p.code as string, name: p.name as string,
-        category: p.category as string, store_id: p.store_id as string,
-        store_name: (p.stores as { name: string } | null)?.name ?? '—',
-        sale_price: Number(p.sale_price), quantity_in_stock: Number(p.quantity_in_stock),
-        ownership_type: p.ownership_type as string, is_active: p.is_active as boolean,
-      }))
-
-      const purchases: PurchaseRow[] = (purchasesRes.data ?? []).map((p: Record<string, unknown>) => ({
-        id: p.id as string, purchase_date: p.purchase_date as string,
-        total_cost: Number(p.total_cost), total_items: Number(p.total_items),
-        payment_summary: p.payment_summary as string | null,
-        nf_number: p.nf_number as string | null, notes: p.notes as string | null,
-        store_name: (p.stores as { name: string } | null)?.name ?? '—',
-      }))
-
-      const purchaseIds = purchases.map(p => p.id)
-      let pendingPayments: PendingPayment[] = []
-
-      if (purchaseIds.length > 0) {
-        const ppRes = await supabase
-          .from('purchase_payments')
-          .select('id, purchase_id, amount, due_date, installment_number, payment_method')
-          .eq('status', 'pending').in('purchase_id', purchaseIds)
-          .order('due_date', { ascending: true })
-        pendingPayments = (ppRes.data ?? []).map((pp: Record<string, unknown>) => ({
-          id: pp.id as string, purchase_id: pp.purchase_id as string,
-          amount: Number(pp.amount), due_date: pp.due_date as string | null,
-          installment_number: pp.installment_number as number | null,
-          payment_method: pp.payment_method as string,
-        }))
-      }
-
-      setData({
-        products,
-        totalProducts:  totalRes.count ?? 0,
-        consignedCount: consignedRes.count ?? 0,
-        totalInvested:  purchases.reduce((s, p) => s + p.total_cost, 0),
-        pendingAmount:  pendingPayments.reduce((s, p) => s + p.amount, 0),
-        purchases,
-        pendingPayments,
+    /* Pelo servidor, com a loja da sessão. Ver buscarDadosDoFornecedor. */
+    buscarDadosDoFornecedor(supplier.id)
+      .then(d => { setData(d); setLoading(false) })
+      .catch(err => {
+        console.error('[fornecedor] falha ao carregar o detalhe:', err)
+        setLoading(false)
       })
-      setLoading(false)
-    })
   }, [supplier.id])
 
   const avatarColor = getAvatarColor(supplier.id)

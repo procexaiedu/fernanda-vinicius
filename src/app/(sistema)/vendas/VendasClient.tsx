@@ -233,7 +233,9 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
         if (dateFrom && saleDay < dateFrom) return false
         if (dateTo   && saleDay > dateTo)   return false
       }
-      if (filterStore  && s.store_id  !== filterStore)  return false
+      /* Filtro guardado de antes da escolha de loja não vale mais quando o
+         seletor não aparece: só esconderia tudo, sem jeito de desfazer. */
+      if (podeTrocarLoja && filterStore && s.store_id !== filterStore) return false
       if (filterSeller && s.seller_id !== filterSeller) return false
       if (filterStatus === 'exchange'  && !s.has_exchange)       return false
       if (filterStatus === 'completed' && s.status !== 'completed') return false
@@ -255,7 +257,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
     })
 
     return list
-  }, [sales, search, dateFrom, dateTo, filterStore, filterSeller, filterStatus, filterNota, sortKey, sortDir, closing])
+  }, [sales, search, dateFrom, dateTo, filterStore, podeTrocarLoja, filterSeller, filterStatus, filterNota, sortKey, sortDir, closing])
 
   // Stats refletem o período e filtros ativos
   const totalRevenue = filtered.reduce((s, v) => s + v.total, 0)

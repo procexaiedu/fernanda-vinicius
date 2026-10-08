@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
-import { createClient } from '@/lib/supabase/client'
+import { buscarComprasDaCliente } from './actions'
 import type { CustomerWithStats } from './page'
 import styles from './ClienteDetalheModal.module.css'
 import { formatarTelefone } from '@/lib/telefone'
@@ -142,49 +142,10 @@ export default function ClienteDetalheModal({ customer, inactiveDays, isAdmin = 
 
   useEffect(() => {
     setLoading(true)
-    const supabase = createClient()
 
-    supabase
-      .from('sales')
-      .select(`
-        id, sale_date, total, subtotal, total_cost, discount_type, discount_amount, discount_pct,
-        payment_summary, status,
-        stores(name),
-        sale_items(
-          id, quantity, unit_price, unit_cost, subtotal,
-          products(name, code, category)
-        )
-      `)
-      .eq('customer_id', customer.id)
-      .order('sale_date', { ascending: false })
-      .limit(15)
-      .then(({ data: raw }) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const sales: Sale[] = (raw ?? []).map((s: any) => ({
-          id:              s.id,
-          sale_date:       s.sale_date,
-          total:           Number(s.total),
-          subtotal:        Number(s.subtotal),
-          total_cost:      Number(s.total_cost ?? 0),
-          discount_type:   s.discount_type,
-          discount_amount: Number(s.discount_amount ?? 0),
-          discount_pct:    s.discount_pct ? Number(s.discount_pct) : null,
-          payment_summary: s.payment_summary,
-          status:          s.status,
-          store_name:      (s.stores as { name: string } | null)?.name ?? '—',
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          items: (s.sale_items ?? []).map((item: any) => ({
-            id:               item.id,
-            quantity:         item.quantity,
-            unit_price:       Number(item.unit_price),
-            unit_cost:        Number(item.unit_cost ?? 0),
-            subtotal:         Number(item.subtotal),
-            product_name:     (item.products as { name: string; code: string; category: string } | null)?.name     ?? '—',
-            product_code:     (item.products as { name: string; code: string; category: string } | null)?.code     ?? '—',
-            product_category: (item.products as { name: string; code: string; category: string } | null)?.category ?? '—',
-          })),
-        }))
-
+    /* Pelo servidor, com a loja da sessão. Ver buscarComprasDaCliente. */
+    buscarComprasDaCliente(customer.id)
+      .then((sales: Sale[]) => {
         const completedSales = sales.filter(s => s.status === 'completed')
         const totalSpent     = completedSales.reduce((acc, s) => acc + s.total, 0)
 
@@ -194,6 +155,10 @@ export default function ClienteDetalheModal({ customer, inactiveDays, isAdmin = 
           lastSaleDate: sales[0]?.sale_date ?? null,
           sales,
         })
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error('[cliente] falha ao carregar as compras:', err)
         setLoading(false)
       })
   }, [customer.id])

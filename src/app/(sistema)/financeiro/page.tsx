@@ -31,7 +31,12 @@ export default async function FinanceiroPage() {
   const [storesRes, usersRes, categoriesRes, txInitial] = await Promise.all([
     admin.from('stores').select('id, name').eq('is_active', true).order('name'),
     carregarUsuarios(),
-    admin.from('transactions').select('category').order('category'),
+    (() => {
+      // Categoria que só a outra loja usa também é dado dela.
+      let q = admin.from('transactions').select('category')
+      if (escopoP) q = q.eq('store_id', escopoP)
+      return q.order('category')
+    })(),
     buscarTransacoes({ dateFrom, dateTo }),
   ])
 

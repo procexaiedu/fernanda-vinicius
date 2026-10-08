@@ -945,12 +945,14 @@ export async function buscarAniversariantes(storeId: string | null): Promise<Ale
   const ids = aniversariantes.map((c: any) => c.id)
   let lastSaleMap: Map<string, string> = new Map()
   if (ids.length > 0) {
-    const { data: sales } = await admin
+    // Última compra NESTA loja: a da outra é dado da outra (08/10/2026).
+    let qVendas = admin
       .from('sales')
       .select('customer_id, sale_date')
       .in('customer_id', ids)
       .neq('status', 'cancelled')
-      .order('sale_date', { ascending: false })
+    if (storeId) qVendas = qVendas.eq('store_id', storeId)
+    const { data: sales } = await qVendas.order('sale_date', { ascending: false })
     for (const s of sales ?? []) {
       if (!lastSaleMap.has(s.customer_id as string)) {
         lastSaleMap.set(s.customer_id as string, (s.sale_date as string).slice(0, 10))

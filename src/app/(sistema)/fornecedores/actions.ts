@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, podeConfigurarRede } from '@/lib/auth'
+import { getProfile, podeConfigurarRede, ehAdmin, lojaDoEscopo } from '@/lib/auth'
 import { normalizarNomeFornecedor } from '@/lib/nomeFornecedor'
 import { formatarNomeProprio } from '@/lib/nomeProprio'
 
@@ -381,4 +381,143 @@ export async function mesclarFornecedores(
   revalidatePath('/produtos')
   revalidatePath('/compras')
   return { success: true, movidos }
+}
+
+// ─── Detalhe do fornecedor, com os números da loja da sessão ─────────────────
+
+export interface FornecedorProduto {
+  id: string; code: string; name: string; category: string
+  store_id: string; store_name: string; sale_price: number
+  quantity_in_stock: number; ownership_type: string; is_active: boolean
+}
+export interface FornecedorCompra {
+  id: string; purchase_date: string; total_cost: number; total_items: number
+  payment_summary: string | null; nf_number: string | null
+  notes: string | null; store_name: string
+}
+export interface FornecedorPendencia {
+  id: string; purchase_id: string; amount: number
+  due_date: string | null; installment_number: number | null; payment_method: string
+}
+export interface DadosDoFornecedor {
+  products:        FornecedorProduto[]
+  totalProducts:   number
+  consignedCount:  number
+  totalInvested:   number
+  pendingAmount:   number
+  purchases:       FornecedorCompra[]
+  pendingPayments: FornecedorPendencia[]
+}
+
+/**
+ * Peças, compras e pendências do fornecedor — da LOJA DA SESSÃO.
+ *
+ * O fornecedor é da rede; os números dele, não (mesma regra de
+ * fornecedores/page.tsx). Era uma consulta do NAVEGADOR filtrando só por
+ * fornecedor: a lista já vinha cortada e o detalhe mostrava o total investido
+ * e o pendente das duas lojas (08/10/2026).
+ *
+ * A compra entra pela loja das PEÇAS (`compra_rateio_loja`); numa compra que
+ * leva peça para as duas, valor e pendência entram pela fatia desta loja.
+ */
+export async function buscarDadosDoFornecedor(supplierId: string): Promise<DadosDoFornecedor> {
+  const perfil = await getProfile()
+  if (!perfil || !perfil.is_active || !ehAdmin(perfil)) throw new Error('Sem permissão para esta informação.')
+  const loja = lojaDoEscopo(perfil)
+  const admin = createAdminClient()
+
+  const produtos = () => {
+    let q = admin.from('products')
+      .select('id, code, name, category, store_id, sale_price, quantity_in_stock, ownership_type, is_active, stores(name)')
+      .eq('supplier_id', supplierId).eq('is_active', true)
+    if (loja) q = q.eq('store_id', loja)
+    return q.order('created_at', { ascending: false }).limit(20)
+  }
+  const contar = (soConsignado: boolean) => {
+    let q = admin.from('products').select('id', { count: 'exact', head: true })
+      .eq('supplier_id', supplierId).eq('is_active', true)
+    if (soConsignado) q = q.eq('ownership_type', 'consignment')
+    if (loja) q = q.eq('store_id', loja)
+    return q
+  }
+
+  const [productsRes, totalRes, consignedRes, purchasesRes] = await Promise.all([
+    produtos(), contar(false), contar(true),
+    admin.from('purchases')
+      .select('id, purchase_date, total_cost, total_items, payment_summary, nf_number, notes, stores(name)')
+      .eq('supplier_id', supplierId)
+      .order('purchase_date', { ascending: false }),
+  ])
+  for (const [rotulo, r] of [['as peças', productsRes], ['a contagem', totalRes], ['a contagem', consignedRes], ['as compras', purchasesRes]] as const) {
+    if (r.error) throw new Error(`Não foi possível carregar ${rotulo} do fornecedor: ${r.error.message}`)
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let compras = (purchasesRes.data ?? []) as any[]
+  const fatia = new Map<string, number>()
+  const pecasDaLoja = new Map<string, number>()
+  if (loja && compras.length > 0) {
+    const ids = compras.map(c => c.id as string)
+    const { data: rateio, error } = await admin.from('compra_rateio_loja')
+      .select('purchase_id, proporcao').eq('store_id', loja).in('purchase_id', ids)
+    if (error || !rateio) throw new Error(`Não foi possível conferir a loja das compras: ${error?.message ?? 'sem resposta'}`)
+    for (const r of rateio) fatia.set(r.purchase_id as string, r.proporcao == null ? 1 : Number(r.proporcao))
+    compras = compras.filter(c => fatia.has(c.id))
+
+    const mistas = compras.filter(c => (fatia.get(c.id) ?? 1) < 0.9999).map(c => c.id as string)
+    if (mistas.length > 0) {
+      const { data: itens, error: itErr } = await admin.from('purchase_items')
+        .select('purchase_id, quantity, products!inner(store_id)')
+        .in('purchase_id', mistas).eq('products.store_id', loja)
+      if (itErr || !itens) throw new Error(`Não foi possível contar as peças da loja: ${itErr?.message ?? 'sem resposta'}`)
+      for (const it of itens as Array<{ purchase_id: string; quantity: number }>) {
+        pecasDaLoja.set(it.purchase_id, (pecasDaLoja.get(it.purchase_id) ?? 0) + Number(it.quantity))
+      }
+    }
+  }
+  const fatiaDe = (id: string) => fatia.get(id) ?? 1
+  const mista = (id: string) => loja != null && fatiaDe(id) < 0.9999
+
+  const purchases: FornecedorCompra[] = compras.map(c => ({
+    id: c.id, purchase_date: c.purchase_date,
+    total_cost: mista(c.id) ? Math.round(Number(c.total_cost) * fatiaDe(c.id) * 100) / 100 : Number(c.total_cost),
+    total_items: mista(c.id) ? (pecasDaLoja.get(c.id) ?? 0) : Number(c.total_items),
+    payment_summary: c.payment_summary ?? null,
+    nf_number: c.nf_number ?? null, notes: c.notes ?? null,
+    store_name: c.stores?.name ?? '—',
+  }))
+
+  let pendingPayments: FornecedorPendencia[] = []
+  if (purchases.length > 0) {
+    const { data: pp, error } = await admin.from('purchase_payments')
+      .select('id, purchase_id, amount, due_date, installment_number, payment_method')
+      .eq('status', 'pending').in('purchase_id', purchases.map(p => p.id))
+      .order('due_date', { ascending: true })
+    if (error || !pp) throw new Error(`Não foi possível carregar as pendências: ${error?.message ?? 'sem resposta'}`)
+    pendingPayments = pp.map(x => ({
+      id: x.id as string, purchase_id: x.purchase_id as string,
+      amount: mista(x.purchase_id as string)
+        ? Math.round(Number(x.amount) * fatiaDe(x.purchase_id as string) * 100) / 100
+        : Number(x.amount),
+      due_date: (x.due_date as string | null) ?? null,
+      installment_number: (x.installment_number as number | null) ?? null,
+      payment_method: x.payment_method as string,
+    }))
+  }
+
+  return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    products: (productsRes.data ?? []).map((p: any) => ({
+      id: p.id, code: p.code, name: p.name, category: p.category, store_id: p.store_id,
+      store_name: p.stores?.name ?? '—',
+      sale_price: Number(p.sale_price), quantity_in_stock: Number(p.quantity_in_stock),
+      ownership_type: p.ownership_type, is_active: p.is_active,
+    })),
+    totalProducts:  totalRes.count ?? 0,
+    consignedCount: consignedRes.count ?? 0,
+    totalInvested:  purchases.reduce((s, p) => s + p.total_cost, 0),
+    pendingAmount:  pendingPayments.reduce((s, p) => s + p.amount, 0),
+    purchases,
+    pendingPayments,
+  }
 }

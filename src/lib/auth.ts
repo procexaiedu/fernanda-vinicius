@@ -180,25 +180,8 @@ export function ehAdminDeLoja(p: UserProfile): boolean {
   return p.role === 'admin' && p.store_id !== null
 }
 
-/**
- * A loja desta requisição; `null` significa "vê todas".
- *
- * Três origens, nesta ordem:
- *
- *   1. `store_id` — quem tem loja está PRESO a ela, admin ou não.
- *   2. `lojaSelecionada` — a que o admin global escolheu ao entrar (09/09).
- *   3. `filtroDaUrl` — o seletor da tela, que sobrou de antes.
- *
- * A escolha da sessão vence o filtro da tela de propósito. Enquanto os dois
- * competiam, dava para estar numa loja e ver dado da outra sem perceber, que é
- * exatamente o que a dona pediu para acabar.
- *
- * Para quem tem loja fixa o filtro é ignorado desde 01/09 — senão bastaria
- * editar a URL para ver a outra, e o escopo viraria enfeite.
- */
-export function lojaDoEscopo(p: UserProfile, filtroDaUrl?: string | null): string | null {
-  return p.store_id ?? p.lojaSelecionada ?? (filtroDaUrl || null)
-}
+/** A loja desta requisição; `null` = vê todas. Explicação em src/lib/escopo.ts. */
+export { lojaDoEscopo } from '@/lib/escopo'
 
 /**
  * Quem esta pessoa pode gerenciar em Usuários, e dentro de qual loja.

@@ -22,10 +22,17 @@ export default async function ComprasPage() {
    * `fv.compra_rateio_loja` responde quais compras têm peça daquela loja — a
    * mesma view que faz a despesa aparecer por loja no painel.
    */
-  const idsDaLoja = escopo
-    ? ((await admin.from('compra_rateio_loja').select('purchase_id').eq('store_id', escopo)).data ?? [])
-        .map((r: any) => r.purchase_id as string)
-    : null
+  let rateioDaLoja: Array<{ purchase_id: string; proporcao: number | null }> | null = null
+  if (escopo) {
+    const { data, error } = await admin.from('compra_rateio_loja').select('purchase_id, proporcao').eq('store_id', escopo)
+    if (error || !data) throw new Error(`Não foi possível carregar as compras da loja: ${error?.message ?? 'sem resposta'}`)
+    rateioDaLoja = data as Array<{ purchase_id: string; proporcao: number | null }>
+  }
+  const idsDaLoja = rateioDaLoja ? rateioDaLoja.map(r => r.purchase_id) : null
+  /* Fatia da loja em cada compra: 1 na compra só dela, menos de 1 na que leva
+   * peça para as duas. O total da lista é o desta loja, não o da compra inteira
+   * (08/10/2026). */
+  const fatiaDaLoja = new Map((rateioDaLoja ?? []).map(r => [r.purchase_id, r.proporcao == null ? 1 : Number(r.proporcao)]))
 
   const carregarCompras = () => {
     let q = admin.from('purchases')
@@ -42,8 +49,11 @@ export default async function ComprasPage() {
 
   const [purchasesRes, paymentsRes, consignmentsRes, storesRes] = await Promise.all([
     carregarCompras(),
-    admin.from('purchase_payments')
-      .select('purchase_id, status, amount'),
+    (() => {
+      let q = admin.from('purchase_payments').select('purchase_id, status, amount')
+      if (idsDaLoja) q = q.in('purchase_id', idsDaLoja)
+      return q
+    })(),
     /*
      * Todos os lotes, sem o filtro de loja: o status do lote (ativo/acertado)
      * é o que diz se a COMPRA ligada a ele é uma "consignação ativa", e a
@@ -67,8 +77,23 @@ export default async function ComprasPage() {
         .from('products')
         .select('purchase_id, suppliers!supplier_id(name, initials), stores!store_id(name)')
         .in('purchase_id', purchases.map(p => p.id))
-        .not('purchase_id', 'is', null)).data ?? []
+        .not('purchase_id', 'is', null)
+        .match(escopo ? { store_id: escopo } : {})).data ?? []
     : []
+
+  /* Peças desta loja nas compras que levam peça para as duas. */
+  const mistas = escopo ? purchases.filter(p => (fatiaDaLoja.get(p.id) ?? 1) < 0.9999).map(p => p.id) : []
+  const pecasDaLoja = new Map<string, number>()
+  if (escopo && mistas.length > 0) {
+    const { data, error } = await admin.from('purchase_items')
+      .select('purchase_id, quantity, products!inner(store_id)')
+      .in('purchase_id', mistas)
+      .eq('products.store_id', escopo)
+    if (error || !data) throw new Error(`Não foi possível contar as peças da loja: ${error?.message ?? 'sem resposta'}`)
+    for (const it of data as Array<{ purchase_id: string; quantity: number }>) {
+      pecasDaLoja.set(it.purchase_id, (pecasDaLoja.get(it.purchase_id) ?? 0) + Number(it.quantity))
+    }
+  }
 
   type ProductRow = {
     purchase_id: string
@@ -100,6 +125,10 @@ export default async function ComprasPage() {
 
   const purchasesWithMeta = purchases.map(p => ({
     ...p,
+    ...(escopo && (fatiaDaLoja.get(p.id) ?? 1) < 0.9999 ? {
+      total_cost:  Math.round(Number(p.total_cost) * (fatiaDaLoja.get(p.id) ?? 1) * 100) / 100,
+      total_items: pecasDaLoja.get(p.id) ?? 0,
+    } : {}),
     /* Status do lote quando a compra é uma consignação (desde 07/09 todo lote
        vira compra); é ele que alimenta o filtro e o card de consignações. */
     consignmentStatus: (p.consignment_id ? statusDoLote.get(p.consignment_id) ?? null : null) as
