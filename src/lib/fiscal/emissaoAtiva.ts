@@ -2,8 +2,9 @@
  * A CHAVE ÚNICA da emissão de nota pelo sistema.
  *
  * Desligada por padrão (08/10): a emissão apontava para a Focus, cujo teste
- * acabou, e a troca para a procex-fiscal (fiscal.procexai.tech) ainda não
- * entrou. Enquanto isso a tela mostra "Em breve" no lugar de "Emitir nota
+ * acabou. O código já fala com a procex-fiscal (src/lib/fiscal/procexFiscal.ts,
+ * testado em homologação em 08/10), mas produção só liga quando a FV estiver
+ * cadastrada no painel de produção (fiscal.procexai.tech) com token e webhook. Enquanto isso a tela mostra "Em breve" no lugar de "Emitir nota
  * fiscal" e o servidor recusa emitir e consultar, mesmo que alguém chame a
  * server action direto.
  *

@@ -1,15 +1,16 @@
 /**
  * Monta o JSON da NFC-e a partir de uma venda nossa.
  *
- * Fica separado do cliente HTTP (`focus.ts`) de propósito: esta é a parte que
+ * Fica separado do cliente HTTP (`procexFiscal.ts`) de propósito: esta é a parte que
  * tem regra fiscal e que dá para testar **sem token e sem rede**. Erro de
  * montagem é o que mais custa numa integração fiscal — o SEFAZ recusa com
  * códigos como "rejeição 610" e cabe a alguém descobrir qual campo era.
  *
- * Doc dos campos: https://doc.focusnfe.com.br/reference/emitir_nfce.md
+ * Doc dos campos: https://doc.focusnfe.com.br/reference/emitir_nfce.md (a
+ * procex-fiscal usa os mesmos nomes; contrato em /v2/openapi.json de lá).
  */
 
-import type { AmbienteFiscal } from './focus'
+import type { AmbienteFiscal } from './procexFiscal'
 
 // ─── Entrada: o que o nosso banco tem ─────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export interface PagamentoVenda {
 }
 
 export interface VendaParaNota {
-  /** Id da venda — vira a `ref` idempotente na Focus. */
+  /** Id da venda: vira a `ref` idempotente no emissor. */
   id: string
   /** ISO. A NFC-e aceita no máximo 5 min de defasagem. */
   data: string
@@ -410,7 +411,7 @@ const q4 = (n: number) => n.toFixed(4)
 export function montarNfce(venda: VendaParaNota, emitente: EmitenteFiscal) {
   return {
     cnpj_emitente: emitente.cnpj.replace(/\D/g, ''),
-    /* Sem `numero`: a Focus atribui pela série, e é ela quem tem o controle da
+    /* Sem `numero`: o emissor atribui pela série, e é ela quem tem o controle da
      * sequência. Mandar o número daqui abre espaço para duplicidade quando duas
      * vendas fecham ao mesmo tempo. */
     serie: emitente.serie_nfce,
@@ -467,10 +468,15 @@ export function montarNfce(venda: VendaParaNota, emitente: EmitenteFiscal) {
         ...(tPag === '99' ? { descricao_pagamento: DESCRICAO_99[p.metodo] ?? 'Outros' } : {}),
         /* Cartão exige o grupo `card` (rejeição 391 sem ele). A maquininha
          * não fala com o sistema: `tpIntegra = 2` (não integrado), que
-         * dispensa o CNPJ da credenciadora e o número de autorização. */
+         * dispensa o CNPJ da credenciadora e o número de autorização.
+         *
+         * PIX (17) também: a SVRS recusa PIX sem o grupo card ("Nao
+         * informados os dados do cartao"). A procex-fiscal já põe o grupo
+         * sozinha; mandar explícito deixa a regra aqui, à vista, e vale para
+         * qualquer emissor. Bandeira não se aplica ao PIX. */
         ...(tPag === '03' || tPag === '04'
           ? { tipo_integracao: 2, ...(bandeira ? { bandeira_operadora: bandeira } : {}) }
-          : {}),
+          : tPag === '17' ? { tipo_integracao: 2 } : {}),
       }
     }),
 
@@ -484,7 +490,7 @@ export function montarNfce(venda: VendaParaNota, emitente: EmitenteFiscal) {
  * A referência idempotente da nota.
  *
  * É o id da venda, e é o que garante que clicar duas vezes em "emitir" não
- * gera duas notas: a Focus devolve a existente para a mesma `ref`.
+ * gera duas notas: o emissor devolve a existente para a mesma `ref`.
  */
 export function refDaVenda(saleId: string): string {
   return `venda-${saleId}`

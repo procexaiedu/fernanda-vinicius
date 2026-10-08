@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { emitirNfce, consultarNfce, cancelarNfce, type AmbienteFiscal } from '@/lib/fiscal/focus'
+import { emitirNfce, consultarNfce, cancelarNfce, cnpjDaLoja, type AmbienteFiscal } from '@/lib/fiscal/procexFiscal'
+import { gravarResultado } from '@/lib/fiscal/gravarNota'
 import { EMISSAO_NOTA_ATIVA, MSG_EMISSAO_EM_BREVE } from '@/lib/fiscal/emissaoAtiva'
 import {
   montarNfce, validarVenda, ratearDesconto, refDaVenda, prepararParaNota,
@@ -37,7 +38,7 @@ export interface ResultadoFiscal {
   danfeUrl?: string
   /** Mensagem pronta para a tela — já explica o que fazer, quando dá. */
   error?: string
-  /** Recusas da nossa validação, antes de falar com a Focus. */
+  /** Recusas da nossa validação, antes de falar com o emissor. */
   recusas?: { campo: string; motivo: string }[]
   /** O que ficou fora da nota sem impedir a emissão (o conserto). */
   avisos?: string[]
@@ -181,7 +182,7 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
   /*
    * Já tem nota autorizada: para aqui.
    *
-   * A `ref` idempotente da Focus já protege contra nota dupla, mas parar antes
+   * A `ref` idempotente do emissor já protege contra nota dupla, mas parar antes
    * evita a viagem e, mais importante, evita a tela dizer "emitido!" de novo
    * como se algo tivesse acontecido.
    */
@@ -342,19 +343,23 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
   const ref = refDaVenda(saleId)
   await admin.from('sales').update({ nfce_status: 'pendente', nfce_ref: ref }).eq('id', saleId)
 
-  const resp = await emitirNfce(emitenteFiscal.ambiente, ref, montarNfce(vendaParaNota, emitenteFiscal))
+  const resp = await emitirNfce(ref, montarNfce(vendaParaNota, emitenteFiscal))
 
   /*
-   * Timeout ou rede: a nota PODE ter saído. Fica `pendente` de propósito, com o
-   * motivo escrito — quem resolve é `sincronizarNota`, consultando pela ref.
+   * Timeout, rede ou SEFAZ lenta (202): a nota PODE ter saído. Fica `pendente`
+   * de propósito, com o motivo escrito. Quem resolve é o webhook da
+   * procex-fiscal (/api/procex-fiscal-webhook) ou `sincronizarNota`, pela ref.
    * Marcar como erro aqui levaria alguém a reemitir e duplicar.
    */
   if (resp.status === 'processando_autorizacao') {
-    await admin.from('sales').update({ nfce_motivo_rejeicao: resp.mensagem ?? null }).eq('id', saleId)
-    return { success: false, status: 'pendente', error: resp.mensagem }
+    await gravarResultado(saleId, resp, ref)
+    return {
+      success: false, status: 'pendente',
+      error: resp.mensagem ?? 'A SEFAZ ainda está processando a nota. Em instantes, use "Consultar na Receita".',
+    }
   }
 
-  await gravarResultado(saleId, resp, emitenteFiscal.ambiente, ref)
+  await gravarResultado(saleId, resp, ref)
   revalidatePath('/vendas')
 
   const daCliente = {
@@ -368,72 +373,10 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
     : { success: false, status: resp.status, error: resp.mensagem ?? 'A nota não foi autorizada.', avisos }
 }
 
-// ─── Gravação do resultado ────────────────────────────────────────────────────
-
-/**
- * Grava o que voltou, incluindo o XML.
- *
- * O XML é baixado e guardado no NOSSO banco, não só referenciado por link. São
- * duas razões, e estão na migration: a lei exige guarda de 5 anos mais o ano
- * corrente, e é o que permite trocar de provedor sem migração — sem isso o
- * histórico fiscal fica preso a quem contratamos.
- *
- * Se o download do XML falhar, a nota **continua autorizada**. Só o arquivo
- * fica para depois; nunca o contrário.
- */
-async function gravarResultado(
-  saleId: string,
-  resp: Awaited<ReturnType<typeof emitirNfce>>,
-  ambiente: AmbienteFiscal,
-  ref: string,
-) {
-  const admin = createAdminClient()
-
-  const statusBanco =
-    resp.status === 'autorizado' ? 'autorizada'
-    : resp.status === 'cancelado' ? 'cancelada'
-    : resp.status === 'denegado' ? 'rejeitada'
-    : resp.status === 'erro_autorizacao' ? 'rejeitada'
-    : 'erro'
-
-  let xml: string | null = null
-  if (resp.ok && resp.xmlUrl) {
-    try {
-      const r = await fetch(resp.xmlUrl, { signal: AbortSignal.timeout(15_000) })
-      if (r.ok) xml = await r.text()
-    } catch { /* nota vale, arquivo fica para depois */ }
-  }
-
-  await admin.from('sales').update({
-    nfce_status:          statusBanco,
-    nfce_ref:             ref,
-    nfce_chave:           resp.chave ?? null,
-    nfce_numero:          resp.numero ? Number(resp.numero) : null,
-    nfce_serie:           resp.serie ? Number(resp.serie) : null,
-    nfce_danfe_url:       resp.danfeUrl ?? null,
-    /* O cupom 80mm (/cupom/[id]) usa estes dois quando o XML não foi baixado. */
-    nfce_qrcode_url:      resp.qrcodeUrl ?? null,
-    nfce_protocolo:       resp.protocolo ?? null,
-    nfce_xml:             xml,
-    nfce_motivo_rejeicao: resp.ok ? null : (resp.mensagem ?? null),
-    nfce_emitida_em:      resp.ok ? new Date().toISOString() : null,
-  }).eq('id', saleId)
-
-  // Avança a numeração da loja só quando a nota REALMENTE saiu.
-  if (resp.ok && resp.numero) {
-    const { data: v } = await admin.from('sales').select('store_id').eq('id', saleId).single()
-    if (v?.store_id) {
-      await admin.from('fiscal_emitentes')
-        .update({ proximo_numero_nfce: Number(resp.numero) + 1, updated_at: new Date().toISOString() })
-        .eq('store_id', v.store_id)
-    }
-  }
-}
-
 // ─── Sincronizar ──────────────────────────────────────────────────────────────
 
 /**
- * Pergunta à Focus o que aconteceu com uma nota, pela nossa referência.
+ * Pergunta ao emissor o que aconteceu com uma nota, pela nossa referência.
  *
  * É a saída para o caso "a rede caiu no meio": a nota pode ter sido autorizada
  * sem a resposta ter chegado. Reemitir seria o instinto errado — a consulta é
@@ -447,27 +390,26 @@ export async function sincronizarNota(saleId: string): Promise<ResultadoFiscal> 
 
   const admin = createAdminClient()
   const { data: venda } = await admin
-    .from('sales').select('id, store_id, nfce_ref').eq('id', saleId).single()
+    .from('sales').select('id, store_id, nfce_ref, nfce_status, stores(cnpj)').eq('id', saleId).single()
 
   if (!(await daMinhaLoja(venda?.store_id ?? null))) return { success: false, error: 'Esta venda é de outra loja.' }
   if (!venda?.nfce_ref) return { success: false, error: 'Esta venda nunca teve emissão iniciada.' }
 
-  const { data: emitente } = await admin
-    .from('fiscal_emitentes').select('ambiente').eq('store_id', venda.store_id).single()
-
-  const ambiente = (emitente?.ambiente ?? 'homologacao') as AmbienteFiscal
-  const resp = await consultarNfce(ambiente, venda.nfce_ref, true)
+  const cnpj = cnpjDaLoja(venda.stores)
+  const resp = await consultarNfce(venda.nfce_ref, true, cnpj)
 
   if (resp.status === 'nao_encontrado') {
     // Nunca chegou lá: dá para emitir de novo com segurança.
-    await admin.from('sales').update({
-      nfce_status: 'erro',
-      nfce_motivo_rejeicao: 'A Focus não conhece esta referência — a emissão não chegou. Pode emitir de novo.',
-    }).eq('id', saleId)
-    return { success: false, error: 'A emissão não chegou à Focus. Pode emitir de novo.' }
+    if (venda.nfce_status !== 'autorizada' && venda.nfce_status !== 'cancelada') {
+      await admin.from('sales').update({
+        nfce_status: 'erro',
+        nfce_motivo_rejeicao: 'O emissor fiscal não conhece esta referência: a emissão não chegou. Pode emitir de novo.',
+      }).eq('id', saleId)
+    }
+    return { success: false, error: 'A emissão não chegou ao emissor fiscal. Pode emitir de novo.' }
   }
 
-  await gravarResultado(saleId, resp, ambiente, venda.nfce_ref)
+  await gravarResultado(saleId, resp, venda.nfce_ref)
   revalidatePath('/vendas')
 
   return resp.ok
@@ -493,7 +435,7 @@ export async function cancelarNotaDaVenda(saleId: string, justificativa: string)
 
   const admin = createAdminClient()
   const { data: venda } = await admin
-    .from('sales').select('id, store_id, nfce_ref, nfce_status').eq('id', saleId).single()
+    .from('sales').select('id, store_id, nfce_ref, nfce_status, stores(cnpj)').eq('id', saleId).single()
 
   if (!(await daMinhaLoja(venda?.store_id ?? null))) return { success: false, error: 'Esta venda é de outra loja.' }
   if (!venda?.nfce_ref) return { success: false, error: 'Esta venda não tem nota.' }
@@ -501,16 +443,13 @@ export async function cancelarNotaDaVenda(saleId: string, justificativa: string)
     return { success: false, error: `Só nota autorizada pode ser cancelada (esta está "${venda.nfce_status}").` }
   }
 
-  const { data: emitente } = await admin
-    .from('fiscal_emitentes').select('ambiente').eq('store_id', venda.store_id).single()
-
   const resp = await cancelarNfce(
-    (emitente?.ambiente ?? 'homologacao') as AmbienteFiscal,
     venda.nfce_ref,
     justificativa,
+    cnpjDaLoja(venda.stores),
   )
 
-  if (resp.ok || resp.status === 'cancelado') {
+  if (resp.status === 'cancelado') {
     await admin.from('sales').update({
       nfce_status: 'cancelada',
       nfce_motivo_rejeicao: justificativa.trim(),
