@@ -145,6 +145,7 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
         categoryLabelMap={categoryLabelMap}
         defaultMarkupPct={defaultMarkupPct}
         staleDays={staleDays}
+        lojaDoBipe={effectiveStoreId}
         filters={{
           q: params.q ?? '',
           store_id: params.store_id ?? '',

@@ -163,16 +163,21 @@ export async function updateCustomer(id: string, data: CustomerFormData): Promis
  * aniversário). Os campos de estatística vêm zerados — o formulário não os usa.
  */
 export async function buscarClienteCompleto(id: string): Promise<CustomerWithStats | null> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const perfil = await getProfile()
+  if (!perfil || !perfil.is_active) return null
+
+  /* Cliente é da loja (04/09). Era só "está logada?": qualquer pessoa, a
+   * operadora inclusive, lia CPF e endereço de cliente da outra loja pelo id
+   * (08/10/2026). */
+  const escopo = lojaDoEscopo(perfil)
 
   const admin = createAdminClient()
-  const { data, error } = await admin
+  let q = admin
     .from('customers')
     .select('id, name, phone, cpf, email, birthday, address, city, state, zip_code, origin_store_id, notes, created_at, updated_at, stores:origin_store_id(name)')
     .eq('id', id)
-    .maybeSingle()
+  if (escopo) q = q.eq('origin_store_id', escopo)
+  const { data, error } = await q.maybeSingle()
 
   if (error || !data) return null
   const d = data as Record<string, unknown> & { stores?: { name?: string } | null }
@@ -319,7 +324,10 @@ export async function clientesComMesmoTelefone(
   telefone: string,
   ignorarId?: string,
 ): Promise<ClienteComMesmoTelefone[]> {
-  await requireProfile()
+  const perfil = await requireProfile()
+  /* Cliente é da loja: o aviso de "telefone já cadastrado" não pode mostrar o
+   * nome de quem é da outra loja (08/10/2026). */
+  const escopo = lojaDoEscopo(perfil)
 
   const canonico = normalizarTelefone(telefone)
   // Menos que isso não é telefone ainda — evita consultar a cada tecla.
@@ -332,10 +340,12 @@ export async function clientesComMesmoTelefone(
    * também não passa calado: lista vazia aqui quer dizer "não deu para
    * conferir", e o log do servidor é quem registra isso.
    */
-  const { data, error } = await admin
+  let qClientes = admin
     .from('customers')
     .select('id, name')
     .eq('phone', canonico)
+  if (escopo) qClientes = qClientes.eq('origin_store_id', escopo)
+  const { data, error } = await qClientes
   if (error) {
     console.error('clientesComMesmoTelefone: falha ao ler clientes:', error.message)
     return []
@@ -366,5 +376,87 @@ export async function clientesComMesmoTelefone(
     id: c.id as string,
     name: c.name as string,
     vendas: porCliente.get(c.id as string) ?? 0,
+  }))
+}
+
+/** Uma compra da cliente, como o detalhe em /clientes mostra. */
+export interface CompraDaCliente {
+  id: string
+  sale_date: string
+  total: number
+  subtotal: number
+  total_cost: number
+  discount_type: string | null
+  discount_amount: number
+  discount_pct: number | null
+  payment_summary: string | null
+  status: string
+  store_name: string
+  items: Array<{
+    id: string
+    quantity: number
+    unit_price: number
+    unit_cost: number
+    subtotal: number
+    product_name: string
+    product_code: string
+    product_category: string
+  }>
+}
+
+/**
+ * As últimas compras da cliente, só da loja da sessão.
+ *
+ * Era uma consulta do NAVEGADOR (RLS com `fv.is_admin()`, que deixa todo admin
+ * ver tudo) filtrando só por `customer_id`: a Eleandra e a Fernanda "em
+ * Brasília" viam as compras de Campinas, com custo (08/10/2026). Aqui o corte é
+ * `lojaDoEscopo`, e custo só sai para admin.
+ */
+export async function buscarComprasDaCliente(customerId: string): Promise<CompraDaCliente[]> {
+  const perfil = await requireProfile()
+  if (!ehAdmin(perfil)) throw new Error('Sem permissão para esta informação.')
+  const escopo = lojaDoEscopo(perfil)
+
+  const admin = createAdminClient()
+  let q = admin
+    .from('sales')
+    .select(`
+      id, sale_date, total, subtotal, total_cost, discount_type, discount_amount, discount_pct,
+      payment_summary, status,
+      stores(name),
+      sale_items(
+        id, quantity, unit_price, unit_cost, subtotal,
+        products(name, code, category)
+      )
+    `)
+    .eq('customer_id', customerId)
+  if (escopo) q = q.eq('store_id', escopo)
+  const { data, error } = await q.order('sale_date', { ascending: false }).limit(15)
+  if (error) throw new Error(`Não foi possível carregar as compras: ${error.message}`)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((s: any) => ({
+    id:              s.id,
+    sale_date:       s.sale_date,
+    total:           Number(s.total),
+    subtotal:        Number(s.subtotal),
+    total_cost:      Number(s.total_cost ?? 0),
+    discount_type:   s.discount_type,
+    discount_amount: Number(s.discount_amount ?? 0),
+    discount_pct:    s.discount_pct ? Number(s.discount_pct) : null,
+    payment_summary: s.payment_summary,
+    status:          s.status,
+    store_name:      s.stores?.name ?? '—',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    items: (s.sale_items ?? []).map((item: any) => ({
+      id:               item.id,
+      quantity:         item.quantity,
+      unit_price:       Number(item.unit_price),
+      unit_cost:        Number(item.unit_cost ?? 0),
+      subtotal:         Number(item.subtotal),
+      product_name:     item.products?.name ?? '—',
+      product_code:     item.products?.code ?? '—',
+      product_category: item.products?.category ?? '—',
+    })),
   }))
 }

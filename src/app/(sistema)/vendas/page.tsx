@@ -1,4 +1,6 @@
-import { ehAdminGlobal, podeFiltrarPorLoja, requireProfile } from '@/lib/auth'
+import { lojaDoEscopo, podeFiltrarPorLoja, requireProfile } from '@/lib/auth'
+import { escopoDaListaDeVendas } from '@/lib/escopo'
+import { todaySP } from '@/lib/date'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { emLotes } from '@/lib/supabase/em-lotes'
 import { faltaPagar, resumirVendas } from '@/lib/vendas/lista'
@@ -71,31 +73,23 @@ export default async function VendasPage() {
     .order('sale_date', { ascending: false })
     .limit(200)
 
-  /* Quem tem loja está preso a ela — admin de loja inclusive, não só operadora. */
-  if (profile.store_id) {
-    salesQuery = salesQuery.eq('store_id', profile.store_id)
-  }
-
   /*
-   * Operadora vê só as vendas de HOJE.
-   *
-   * Não é sigilo — é o que ela precisa. O papel dela é atender e fechar o
-   * caixa do dia; histórico de meses é conversa de gestão. E limitar aqui, no
-   * servidor, é o que impede que mudar o filtro na tela revele o resto.
+   * Loja da SESSÃO, não `profile.store_id`. Era `if (profile.store_id)`: o admin
+   * global tem store_id NULL mesmo depois de escolher a loja ao entrar, então a
+   * Fernanda "em Brasília" recebia as vendas da Rosi de Campinas (08/10/2026).
+   * Operadora: só hoje. Ver escopoDaListaDeVendas.
    */
-  if (profile.role === 'operator') {
-    const hoje = new Date().toISOString().slice(0, 10)
-    salesQuery = salesQuery.gte('sale_date', hoje).lte('sale_date', hoje)
-  }
+  const loja = lojaDoEscopo(profile)
+  salesQuery = escopoDaListaDeVendas(salesQuery, profile, todaySP())
 
-  // Fechamentos de caixa (para o filtro) — operadora vê os da própria loja
+  // Fechamentos de caixa (para o filtro) — da loja da sessão
   let closingsQuery = admin
     .from('cash_closings')
     .select('id, closing_date, created_at, period_start, store_id, user_id, sales_count, total_sales, counted_cash, cash_difference')
     .order('created_at', { ascending: false })
     .limit(60)
-  if (profile.store_id) {
-    closingsQuery = closingsQuery.eq('store_id', profile.store_id)
+  if (loja) {
+    closingsQuery = closingsQuery.eq('store_id', loja)
   }
 
   // Lote 1 — vendas + listas de filtro (lojas/vendedoras/fechamentos não dependem das vendas)
@@ -106,12 +100,12 @@ export default async function VendasPage() {
        que nunca devolve nada e parece defeito. */
     (() => {
       let q = admin.from('stores').select('id, name').eq('is_active', true)
-      if (profile.store_id) q = q.eq('id', profile.store_id)
+      if (loja) q = q.eq('id', loja)
       return q.order('name')
     })(),
     (() => {
       let q = admin.from('users').select('id, full_name').eq('is_active', true)
-      if (profile.store_id) q = q.eq('store_id', profile.store_id)
+      if (loja) q = q.eq('store_id', loja)
       return q.order('full_name')
     })(),
     closingsQuery,

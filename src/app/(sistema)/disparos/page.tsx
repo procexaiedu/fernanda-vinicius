@@ -53,9 +53,17 @@ export default async function DisparosPage() {
     return q
   }
 
+  /* As LINHAS da tela vêm daqui, não de `disparos`: sem o corte, a campanha da
+   * outra loja aparecia com loja "—" (08/10/2026). */
+  const carregarMetricas = () => {
+    let q = admin.from('v_disparo_metrics').select('*')
+    if (escopo) q = q.eq('store_id', escopo)
+    return q.order('created_at', { ascending: false })
+  }
+
   const [storesRes, metricsRes, disparosRes] = await Promise.all([
     carregarLojas(),
-    admin.from('v_disparo_metrics').select('*').order('created_at', { ascending: false }),
+    carregarMetricas(),
     carregarDisparos(),
   ])
 
@@ -96,7 +104,7 @@ export default async function DisparosPage() {
         disparos={disparos}
         stores={stores}
         currentUserRole={profile?.role ?? 'operator'}
-        currentUserStoreId={profile?.store_id ?? null}
+        currentUserStoreId={escopo}
       />
     </div>
   )

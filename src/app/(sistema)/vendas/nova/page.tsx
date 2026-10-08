@@ -31,8 +31,8 @@ export default async function NovaVendaPage({ searchParams }: PageProps) {
       'max_installments_above_3k',
       'installment_threshold',
     ]),
-    profile.store_id
-      ? admin.from('stores').select('id, name').eq('id', profile.store_id).single()
+    escopo
+      ? admin.from('stores').select('id, name').eq('id', escopo).single()
       : Promise.resolve({ data: null }),
     listas.usuarios(),
   ])
@@ -53,7 +53,7 @@ export default async function NovaVendaPage({ searchParams }: PageProps) {
 
   const userProfile = {
     role:      profile.role as 'admin' | 'operator',
-    storeId:   profile.store_id ?? null,
+    storeId:   escopo,  // loja da sessão (admin global com loja escolhida inclusive)
     storeName: (userStoreRes as any).data?.name ?? null,
     fullName:  profile.full_name ?? '',
     userId:    profile.id,

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getProfile, lojaDoEscopo } from '@/lib/auth'
 import { generateCode } from '@/lib/productCode'
 import { validatePaymentGroups } from '@/lib/compras/validate-payments'
 import { formatarNomeProprio } from '@/lib/nomeProprio'
@@ -123,6 +124,33 @@ async function verifyAdmin(): Promise<{ userId: string | null; error: string | n
 
   if (profile?.role !== 'admin') return { userId: null, error: 'Acesso negado.' }
   return { userId: user.id, error: null }
+}
+
+/*
+ * Loja da sessão e lojas que têm peça nesta compra (08/10/2026).
+ *
+ * A compra pertence à loja pelas PEÇAS (`fv.compra_rateio_loja`), não pelo
+ * cabeçalho: `purchases.store_id` é nulo, porque a ida a São Paulo abastece as
+ * duas. Sem isto, a admin de Brasília abria pelo id qualquer compra, com custo,
+ * itens e pagamentos de Campinas.
+ */
+async function escopoDaCompra(
+  admin: ReturnType<typeof createAdminClient>,
+  purchaseId: string,
+): Promise<{ loja: string | null; lojas: string[]; podeAlterarMista: boolean } | { erro: string }> {
+  const perfil = await getProfile()
+  if (!perfil) return { erro: 'Não autenticado.' }
+  /* A compra com linhas para a outra loja existe DE PROPÓSITO (remessa do
+   * fornecedor, 05/10): quem a lança é a admin global, e só ela a altera
+   * inteira. Quem tem loja fixa não mexe em compra que tem peça da outra. */
+  const podeAlterarMista = perfil.store_id === null
+  const loja = lojaDoEscopo(perfil)
+  if (!loja) return { loja: null, lojas: [], podeAlterarMista }
+  const { data, error } = await admin.from('compra_rateio_loja').select('store_id').eq('purchase_id', purchaseId)
+  if (error || !data) return { erro: `Não foi possível conferir a loja da compra: ${error?.message ?? 'sem resposta'}` }
+  const lojas = [...new Set(data.map(r => r.store_id as string))]
+  if (!lojas.includes(loja)) return { erro: 'Compra não encontrada.' }
+  return { loja, lojas, podeAlterarMista }
 }
 
 // ─── Transação no banco (RPC) ────────────────────────────────────────────────
@@ -725,6 +753,9 @@ export async function buscarDetalheCompra(purchaseId: string): Promise<{ data: P
   if (authErr) return { data: null, error: authErr }
   const admin = createAdminClient()
 
+  const escopo = await escopoDaCompra(admin, purchaseId)
+  if ('erro' in escopo) return { data: null, error: escopo.erro }
+
   const { data: purchase, error: purchErr } = await admin
     .from('purchases')
     .select('id, purchase_date, nf_number, nf_url, notes, total_cost, total_items, consignment_id')
@@ -738,10 +769,13 @@ export async function buscarDetalheCompra(purchaseId: string): Promise<{ data: P
    * mostrava a compra sem peças e sem pagamentos — e a folha de conferência
    * impressa dali dizia à fornecedora que não havia nada. Ver CLAUDE.md.
    */
-  const { data: rawItems, error: itemsErr } = await admin
+  // Só as peças da loja da sessão: numa compra das duas, a outra metade é da outra loja.
+  let qItens = admin
     .from('purchase_items')
-    .select('id, quantity, unit_cost, subtotal, label_format, products(name, code, barcode_number, category, material, sale_price, suppliers(name), stores(name))')
+    .select('id, quantity, unit_cost, subtotal, label_format, products!inner(name, code, barcode_number, category, material, sale_price, store_id, suppliers(name), stores(name))')
     .eq('purchase_id', purchaseId)
+  if (escopo.loja) qItens = qItens.eq('products.store_id', escopo.loja)
+  const { data: rawItems, error: itemsErr } = await qItens
 
   if (itemsErr || !rawItems) {
     return { data: null, error: `Não foi possível ler as peças da compra: ${itemsErr?.message ?? 'sem resposta'}` }
@@ -773,9 +807,15 @@ export async function buscarDetalheCompra(purchaseId: string): Promise<{ data: P
     barcode_number: item.products?.barcode_number ?? null,
   }))
 
+  /* Compra das duas lojas vista de uma: total e peças são só os desta loja. */
+  const mista = escopo.lojas.length > 1
   return {
     data: {
       ...purchase,
+      ...(mista ? {
+        total_cost:  items.reduce((s: number, i: { subtotal: number }) => s + Number(i.subtotal), 0),
+        total_items: items.reduce((s: number, i: { quantity: number }) => s + Number(i.quantity), 0),
+      } : {}),
       items,
       payments,
     }
@@ -789,6 +829,14 @@ export async function deletarCompra(purchaseId: string): Promise<ActionResult> {
   if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
 
   const admin = createAdminClient()
+
+  /* Só compra que é inteira desta loja (08/10/2026): excluir ou editar uma
+   * compra das duas de dentro de uma loja mexeria nas peças da outra. */
+  const escopo = await escopoDaCompra(admin, purchaseId)
+  if ('erro' in escopo) return { success: false, error: escopo.erro }
+  if (escopo.lojas.length > 1 && !escopo.podeAlterarMista) {
+    return { success: false, error: 'Esta compra tem peças das duas lojas: só a administração da rede pode alterá-la.' }
+  }
 
   /*
    * TUDO OU NADA, desde 01/10 (`fv.excluir_compra`).
@@ -931,6 +979,15 @@ export async function buscarCompraParaEdicao(
 
   const admin = createAdminClient()
 
+  /* A edição mostra a compra INTEIRA (salvar com metade das peças apagaria a
+   * outra metade), então compra das duas lojas só abre para a admin global. */
+  const escopo = await escopoDaCompra(admin, purchaseId)
+  if ('erro' in escopo) return { data: null, error: escopo.erro }
+  const mista = escopo.lojas.length > 1
+  if (mista && !escopo.podeAlterarMista) {
+    return { data: null, error: 'Esta compra tem peças das duas lojas: só a administração da rede pode editá-la.' }
+  }
+
   const { data: purchase } = await admin
     .from('purchases')
     .select('id, purchase_date, notes, nf_number')
@@ -984,7 +1041,11 @@ export async function buscarCompraParaEdicao(
     .order('due_date', { ascending: true })
 
   const [storesRes, suppliersRes] = await Promise.all([
-    admin.from('stores').select('id, name, city').eq('is_active', true),
+    (() => {
+      let q = admin.from('stores').select('id, name, city').eq('is_active', true)
+      if (escopo.loja && !mista) q = q.eq('id', escopo.loja)
+      return q
+    })(),
     admin.from('suppliers').select('id, name, initials').eq('is_active', true).order('name'),
   ])
 
@@ -1066,6 +1127,14 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
   if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
 
   const admin = createAdminClient()
+
+  /* Só compra que é inteira desta loja (08/10/2026): excluir ou editar uma
+   * compra das duas de dentro de uma loja mexeria nas peças da outra. */
+  const escopo = await escopoDaCompra(admin, payload.purchaseId)
+  if ('erro' in escopo) return { success: false, error: escopo.erro }
+  if (escopo.lojas.length > 1 && !escopo.podeAlterarMista) {
+    return { success: false, error: 'Esta compra tem peças das duas lojas: só a administração da rede pode alterá-la.' }
+  }
 
   /*
    * TS CONFERE, O BANCO GRAVA NUMA TRANSAÇÃO SÓ (desde 01/10).
@@ -1435,7 +1504,9 @@ export async function getItensCompraParaEtiquetas(purchaseId: string): Promise<I
   const { error: authErr } = await verifyAdmin()
   if (authErr) throw new Error(authErr)
   const admin = createAdminClient()
-  const { data, error } = await admin
+  const escopo = await escopoDaCompra(admin, purchaseId)
+  if ('erro' in escopo) throw new Error(escopo.erro)
+  let q = admin
     .from('purchase_items')
     .select(`
       quantity,
@@ -1449,10 +1520,13 @@ export async function getItensCompraParaEtiquetas(purchaseId: string): Promise<I
         promotional_active,
         barcode_number,
         label_format,
-        category
+        category,
+        store_id
       )
     `)
     .eq('purchase_id', purchaseId)
+  if (escopo.loja) q = q.eq('products.store_id', escopo.loja)
+  const { data, error } = await q
 
   if (error || !data) return []
 
