@@ -17,6 +17,8 @@ export async function POST(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // fv: o perfil (papel) é lido logo abaixo, para barrar vendedora no celular.
+      db: { schema: 'fv' },
       cookies: {
         getAll: () => request.cookies.getAll(),
         // Cookies de sessão escritos diretamente na response de redirect

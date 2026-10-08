@@ -85,7 +85,7 @@ export default function MetasClient({ mes, mesAtual, config, metaDoMes, temMetaP
           </button>
         </div>
 
-        <MetaDoMes key={mes} mes={mes} valor={metaDoMes} propria={temMetaPropria} padrao={config.meta} onSalvo={() => router.refresh()} />
+        <MetaDoMes key={`${mes}:${metaDoMes}`} mes={mes} valor={metaDoMes} propria={temMetaPropria} padrao={config.meta} onSalvo={() => router.refresh()} />
 
         <button className={styles.gerarBtn} onClick={gerar} disabled={gerando || linhas.length === 0}>
           {gerando ? <Loader2 size={15} className={styles.spin} /> : <Coins size={15} />}
