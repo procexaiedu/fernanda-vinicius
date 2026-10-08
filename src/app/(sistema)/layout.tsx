@@ -4,6 +4,9 @@ import { requireProfile, ehOperadora, podeConfigurarRede, precisaEscolherLoja } 
 import { CABECALHO_CAMINHO } from '@/lib/auth-header'
 import { operadoraPodeVer } from '@/lib/acessoOperadora'
 import SistemaLayoutClient from './layout-client'
+import { bloqueiaNoCelular, ehCelular } from '@/lib/acessoCelular'
+import UseOComputador from '@/components/acesso/UseOComputador'
+import BloqueioCelular from '@/components/acesso/BloqueioCelular'
 
 /*
  * O que a operadora alcança (lista do que PODE) mora em src/lib/acessoOperadora.ts.
@@ -33,7 +36,19 @@ export default async function SistemaLayout({ children }: { children: React.Reac
    */
   if (precisaEscolherLoja(profile)) redirect('/escolher-loja')
 
-  const caminhoAtual = (await headers()).get(CABECALHO_CAMINHO) ?? ''
+  const cabecalhos = await headers()
+  const caminhoAtual = cabecalhos.get(CABECALHO_CAMINHO) ?? ''
+
+  /*
+   * VENDEDORA SÓ NO COMPUTADOR DA LOJA (reunião de 06/10/2026). Admin de loja
+   * e admin global passam no celular. A regra por perfil mora em
+   * src/lib/acessoCelular.ts. Aqui o servidor barra pelo User-Agent; o
+   * BloqueioCelular, mais abaixo, pega o tablet que se diz computador.
+   */
+  const soComputador = bloqueiaNoCelular(profile.role)
+  if (soComputador && ehCelular(cabecalhos.get('user-agent'), cabecalhos.get('sec-ch-ua-mobile'))) {
+    return <UseOComputador nome={profile.full_name} />
+  }
 
   if (ehOperadora(profile)) {
     /*
@@ -49,7 +64,7 @@ export default async function SistemaLayout({ children }: { children: React.Reac
     if (caminhoAtual && !operadoraPodeVer(caminhoAtual)) redirect('/pdv')
   }
 
-  return (
+  const sistema = (
     <SistemaLayoutClient
       userName={profile.full_name}
       userRole={profile.role}
@@ -62,4 +77,8 @@ export default async function SistemaLayout({ children }: { children: React.Reac
       {children}
     </SistemaLayoutClient>
   )
+
+  return soComputador
+    ? <BloqueioCelular nome={profile.full_name}>{sistema}</BloqueioCelular>
+    : sistema
 }

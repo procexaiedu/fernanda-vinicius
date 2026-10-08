@@ -421,7 +421,9 @@ export async function buscarDetalheComissao(transactionId: string): Promise<{ da
   let salesQuery = admin
     .from('sales')
     .select('id, sale_date, total, total_cost, customer_id, store_id, customers(name), stores(name), status')
-    .eq('user_id', (tx as any).user_id)
+    /* seller_id, não user_id: user_id é quem DIGITOU a venda (a admin lança
+       em nome da vendedora). A comissão é de quem vendeu. */
+    .eq('seller_id', (tx as any).user_id)
     .gte('sale_date', dateFrom)
     .lte('sale_date', dateTo)
     .eq('status', 'completed')

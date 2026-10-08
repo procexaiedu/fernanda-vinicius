@@ -9,7 +9,8 @@ import styles from './ConfigNavTabs.module.css'
 const tabs = [
   { label: 'Lojas',     href: '/configuracoes/lojas',     daRede: true },
   { label: 'Usuários',  href: '/configuracoes/usuarios',  daRede: false },
-  { label: 'Metas',     href: '/configuracoes/metas',     daRede: true },
+  // Meta é da LOJA desde 06/10: a admin de loja cuida da dela.
+  { label: 'Metas',     href: '/configuracoes/metas',     daRede: false },
   { label: 'Negócio',   href: '/configuracoes/negocio',   daRede: true },
   { label: 'Impressão', href: '/configuracoes/impressao', daRede: false },
 ]

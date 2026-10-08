@@ -5,9 +5,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { emLotes } from '@/lib/supabase/em-lotes'
 import { faltaPagar, resumirVendas } from '@/lib/vendas/lista'
 import VendasClient from './VendasClient'
-import MinhaMetaCard from './MinhaMetaCard'
-import { getUserProgress } from '@/lib/metas/server'
-import { currentMonthKey, monthLabel, type MetaProgress } from '@/lib/metas/compute'
 
 /** Fechamento de caixa — usado como filtro na tela de Vendas. */
 export interface ClosingOption {
@@ -202,16 +199,12 @@ export default async function VendasPage() {
     cash_difference: c.cash_difference != null ? Number(c.cash_difference) : null,
   }))
 
-  // Operadora vê a própria meta do mês
-  const monthKey = currentMonthKey(new Date())
-  let minhaMeta: MetaProgress | null = null
-  if (profile.role === 'operator') {
-    minhaMeta = await getUserProgress(profile.id, monthKey)
-  }
+  /* O cartão "Sua meta" (meta individual) saiu em 08/10: a meta passou a ser
+     da LOJA (ata de 06/10) e o painel dela fica no PDV, a tela inicial da
+     vendedora. Ver src/components/metas/MetaLojaCard.tsx. */
 
   return (
     <div>
-      {minhaMeta && <MinhaMetaCard progress={minhaMeta} monthLabel={monthLabel(monthKey)} />}
       <VendasClient sales={sales} stores={stores} sellers={sellers} closings={closings} userRole={profile.role} podeTrocarLoja={podeFiltrarPorLoja(profile)} />
     </div>
   )

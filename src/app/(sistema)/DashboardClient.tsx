@@ -180,6 +180,8 @@ interface Props {
   initialEvolucao: EvolucaoChartData[]
   initialMonth: number
   initialYear: number
+  /** Painel "Meta da loja" (06/10), já montado no servidor para initialStoreId. */
+  painelMeta?: React.ReactNode
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -190,7 +192,7 @@ export default function DashboardClient({
   initialTopVendedoras,
   initialPecasParadas, initialContasVencer, initialCobrancas, initialAniversariantes,
   initialCategorias, initialEvolucao,
-  initialMonth, initialYear,
+  initialMonth, initialYear, painelMeta,
 }: Props) {
   const [storeId, setStoreId]       = useState<string | null>(initialStoreId)
   const [month, setMonth]           = useState(initialMonth)
@@ -400,6 +402,10 @@ export default function DashboardClient({
           </div>
         </>}
       />
+
+      {/* A meta é do mês corrente da loja da entrada; trocada a loja no
+          seletor, o painel some em vez de mostrar a meta da outra. */}
+      {storeId === initialStoreId && painelMeta}
 
       {/*
         ── Seção 1: resultado do mês + indicadores ──────────────────────────

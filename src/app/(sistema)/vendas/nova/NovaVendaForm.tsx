@@ -1933,6 +1933,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             <thead>
               <tr>
                 <th className={styles.thNum}>#</th>
+                {/* Remover fica colado no número da linha (ata 06/10): na última
+                    coluna, longe da peça, a Eleandra não achava a lixeira. */}
+                <th className={styles.thDel}><span className="sr-only">Remover</span></th>
                 <th className={`${styles.thProd} col-esq`}>Produto</th>
                 <th className={styles.thTroca}>Conserto</th>
                 <th className={styles.thTroca}>Troca</th>
@@ -1942,7 +1945,6 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                     mesma tela querendo dizer coisas diferentes — o da LINHA e o
                     da VENDA. A dona disse duas vezes que a tela confundia. */}
                 <th className={`${styles.thSub} col-num`}>Total do item</th>
-                <th className={styles.thDel}></th>
               </tr>
             </thead>
             <tbody>
@@ -1957,6 +1959,19 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                 return (
                   <tr key={i} className={styles.row}>
                     <td className={styles.tdNum}>{i + 1}</td>
+
+                    <td className={styles.tdDel}>
+                      <button
+                        type="button"
+                        className={styles.delBtn}
+                        onClick={() => removeRow(i)}
+                        disabled={rows.length === 1}
+                        aria-label={`Remover o item ${i + 1}`}
+                        title="Remover este item da venda"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
 
                     <td className={`${styles.tdProd} col-esq`}>
                       {row.isConserto ? (
@@ -2108,17 +2123,6 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                           ? (row.isTroca ? `crédito ${fmt(rowSubtotal)}` : fmt(rowSubtotal))
                           : '—'}
                       </span>
-                    </td>
-
-                    <td className={styles.tdDel}>
-                      <button
-                        type="button"
-                        className={styles.delBtn}
-                        onClick={() => removeRow(i)}
-                        disabled={rows.length === 1}
-                      >
-                        <Trash2 size={13} />
-                      </button>
                     </td>
                   </tr>
                 )

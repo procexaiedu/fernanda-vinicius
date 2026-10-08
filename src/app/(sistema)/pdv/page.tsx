@@ -5,6 +5,7 @@ import { fetchAll } from '@/lib/supabase/fetch-all'
 import PdvClient from './PdvClient'
 import { buscarCaixaDoDia } from './actions'
 import { todaySP } from '@/lib/date'
+import { painelMetaDaLoja } from '@/lib/metas/lojaServer'
 
 export default async function PdvPage() {
   const profile = await requireProfile()
@@ -21,6 +22,10 @@ export default async function PdvPage() {
    */
   const escopo = lojaDoEscopo(profile)
   const listas = listasDoEscopo(admin, escopo)
+
+  // Meta da loja (06/10): parte em t=0, junto com o resto. O PDV é a tela
+  // inicial da vendedora, então o painel mora aqui.
+  const painelMetaP = painelMetaDaLoja(escopo)
 
   const [storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
     listas.lojas(),
@@ -67,7 +72,7 @@ export default async function PdvPage() {
     ?? stores[0]?.id ?? ''
   const caixaStoreId = escopo ?? defaultStore
   const date = todaySP()
-  const initialCaixa = await buscarCaixaDoDia(caixaStoreId, date)
+  const [initialCaixa, painelMeta] = await Promise.all([buscarCaixaDoDia(caixaStoreId, date), painelMetaP])
 
   return (
     <PdvClient
@@ -80,6 +85,8 @@ export default async function PdvPage() {
       initialCaixa={initialCaixa}
       caixaStoreId={caixaStoreId}
       date={date}
+      painelMeta={painelMeta}
+      nomeLoja={userProfile.storeName}
     />
   )
 }

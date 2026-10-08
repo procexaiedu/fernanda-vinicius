@@ -364,7 +364,7 @@
 .thQty   { width: 70px; }
 .thPrice { width: 110px; }
 .thSub   { width: 110px; }
-.thDel   { width: 36px; }
+.thDel   { width: 48px; }
 
 .tdNum {
   text-align: center;
@@ -377,7 +377,7 @@
 .tdQty  { padding: 4px; }
 .tdPrice { padding: 4px; }
 .tdSub { padding: 4px 8px; }
-.tdDel { padding: 4px; text-align: center; }
+.tdDel { padding: 4px 2px; text-align: center; }
 
 /* ── Células grid ───────────────────────────────────────────────────────── */
 
@@ -451,27 +451,35 @@
 
 /* ── Deletar ────────────────────────────────────────────────────────────── */
 
+/*
+ * Ao lado do número da linha, com alvo de 36px e contorno sempre visível
+ * (ata 06/10). Escondida no fim da linha e só com o ícone, a Eleandra não a
+ * encontrava. O vermelho fica para o hover: em repouso não grita na tela.
+ */
 .delBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: transparent;
-  border: none;
+  width: 36px;
+  height: 36px;
+  margin: 0 auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
-.delBtn:hover:not(:disabled) {
-  background: rgba(224, 82, 82, 0.1);
+.delBtn:hover:not(:disabled),
+.delBtn:focus-visible {
+  background: rgba(224, 82, 82, 0.12);
+  border-color: rgba(224, 82, 82, 0.5);
   color: var(--danger);
 }
 
 .delBtn:disabled {
-  opacity: 0.2;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
