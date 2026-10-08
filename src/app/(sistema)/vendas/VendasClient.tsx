@@ -172,9 +172,14 @@ interface Props {
   userRole: string
   /** Vê mais de uma loja. Só o admin global — admin de loja está preso à dele. */
   podeTrocarLoja: boolean
+  /**
+   * A lista veio cortada: há vendas mais antigas que as `limite` carregadas.
+   * `proximo` = o limite do "Carregar mais" (null = já no teto).
+   */
+  corte: { limite: number; proximo: number | null } | null
 }
 
-export default function VendasClient({ sales: initial, stores, sellers, closings, userRole, podeTrocarLoja }: Props) {
+export default function VendasClient({ sales: initial, stores, sellers, closings, userRole, podeTrocarLoja, corte }: Props) {
   const today = todayStr()
 
   const [sales, setSales]             = useState(initial)
@@ -258,6 +263,15 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
 
     return list
   }, [sales, search, dateFrom, dateTo, filterStore, podeTrocarLoja, filterSeller, filterStatus, filterNota, sortKey, sortDir, closing])
+
+  /*
+   * O período começa antes da venda mais antiga que veio do servidor? Então a
+   * lista (e os totais) podem estar faltando venda. Só nesse caso o aviso
+   * aparece; em "hoje" ou "7 dias" o corte não atinge nada e seria ruído.
+   */
+  const vendaMaisAntiga = sales.reduce<string | null>(
+    (min, s) => (min === null || s.sale_date.slice(0, 10) < min ? s.sale_date.slice(0, 10) : min), null)
+  const periodoPassaDoCorte = !!corte && !closing && (!dateFrom || (vendaMaisAntiga !== null && dateFrom < vendaMaisAntiga))
 
   // Stats refletem o período e filtros ativos
   const totalRevenue = filtered.reduce((s, v) => s + v.total, 0)
@@ -431,6 +445,24 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
           >
             Limpar fechamento
           </button>
+        </div>
+      )}
+
+      {/* Aviso de lista cortada — antes o corte em 200 era silencioso */}
+      {periodoPassaDoCorte && corte && (
+        <div className={styles.avisoCorte} role="status">
+          <span>
+            Mostrando as <strong>{corte.limite.toLocaleString('pt-BR')}</strong> vendas mais recentes
+            {vendaMaisAntiga && <> (desde {fmtDate(vendaMaisAntiga)})</>}. Vendas anteriores a isso
+            não aparecem na lista nem nos totais acima.
+          </span>
+          {corte.proximo ? (
+            <Link href={`/vendas?limite=${corte.proximo}`} scroll={false} className={`${btn.btn} ${btn.outline} ${btn.sm}`}>
+              <span className={btn.label}>Carregar mais</span>
+            </Link>
+          ) : (
+            <span className={styles.avisoCorteTeto}>Encurte o período para ver vendas mais antigas.</span>
+          )}
         </div>
       )}
 

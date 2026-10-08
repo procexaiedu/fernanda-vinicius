@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { exigirAdmin, lojaDoEscopo } from '@/lib/auth'
+import { ehAdminGlobal, exigirAdmin, lojaDoEscopo } from '@/lib/auth'
 
 /**
  * A loja que ESTA requisição pode ver — decidida pelo perfil, não pelo cliente.
@@ -704,8 +704,26 @@ export async function gerarRecorrentesManual(): Promise<ActionResult> {
   const { error: authErr } = await verifyAdmin()
   if (authErr) return { success: false, error: authErr }
 
+  /*
+   * Só a loja da sessão (08/10/2026). Era generate_monthly_recurring_expenses(),
+   * que lança as recorrentes de TODAS as lojas: a admin de Brasília apertava o
+   * botão e criava as contas de Campinas. As da rede (store_id NULL) só entram
+   * para o admin global, o único que as enxerga.
+   */
+  let perfil: Awaited<ReturnType<typeof exigirAdmin>>
+  try {
+    perfil = await exigirAdmin()
+  } catch {
+    return { success: false, error: 'Acesso negado.' }
+  }
+  const loja = lojaDoEscopo(perfil)
+  if (!loja) return { success: false, error: 'Escolha a loja antes de gerar as recorrentes.' }
+
   const admin = createAdminClient()
-  const { error } = await admin.rpc('generate_monthly_recurring_expenses' as any)
+  const { error } = await admin.rpc('gerar_recorrentes_da_loja' as any, {
+    p_store_id: loja,
+    p_incluir_rede: ehAdminGlobal(perfil),
+  })
   if (error) return { success: false, error: error.message }
   revalidatePath('/financeiro')
   return { success: true }

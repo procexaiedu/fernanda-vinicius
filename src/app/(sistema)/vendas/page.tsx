@@ -56,22 +56,29 @@ export interface SaleRow {
   nfce_status: string | null
 }
 
-export default async function VendasPage() {
+/*
+ * Quantas vendas a lista traz de uma vez. Era um `.limit(200)` calado: num
+ * período longo a venda mais antiga simplesmente não aparecia, nem entrava nos
+ * totais, e nada avisava. Agora a tela sabe quando há mais e oferece
+ * "Carregar mais" (?limite=), dobrando até o teto.
+ */
+const LIMITE_INICIAL = 200
+const LIMITE_MAXIMO = 6400
+/* PGRST_DB_MAX_ROWS corta cada resposta (1.000 no Cloud, 5.000 no self-hosted)
+   sem erro; por isso a busca anda em páginas menores que isso. */
+const PAGINA = 1000
+
+function lerLimite(valor: string | undefined): number {
+  const n = Number(valor)
+  if (!Number.isFinite(n) || n <= LIMITE_INICIAL) return LIMITE_INICIAL
+  return Math.min(Math.floor(n), LIMITE_MAXIMO)
+}
+
+export default async function VendasPage({ searchParams }: { searchParams: Promise<{ limite?: string }> }) {
   const profile = await requireProfile()
+  const limite = lerLimite((await searchParams).limite)
 
   const admin = createAdminClient()
-
-  // Buscar vendas com joins
-  let salesQuery = admin
-    .from('sales')
-    .select(`
-      id, sale_date, created_at, subtotal, discount_pct, discount_amount, total,
-      payment_summary, status, store_id, seller_id, previsao_pagamento, nfce_status,
-      customers(name, id),
-      stores(name)
-    `)
-    .order('sale_date', { ascending: false })
-    .limit(200)
 
   /*
    * Loja da SESSÃO, não `profile.store_id`. Era `if (profile.store_id)`: o admin
@@ -80,7 +87,35 @@ export default async function VendasPage() {
    * Operadora: só hoje. Ver escopoDaListaDeVendas.
    */
   const loja = lojaDoEscopo(profile)
-  salesQuery = escopoDaListaDeVendas(salesQuery, profile, todaySP())
+
+  // Vendas com joins, em páginas, até `limite + 1` (a sobra diz se há mais).
+  async function buscarVendas() {
+    const linhas: any[] = []
+    for (let de = 0; de <= limite; de += PAGINA) {
+      const ate = Math.min(de + PAGINA - 1, limite)
+      // `any`: o tipo do builder com o select embutido estoura o limite de
+      // instanciação do TS (TS2589) ao passar pelo genérico do escopo.
+      const consulta = escopoDaListaDeVendas<any>(
+        (admin as any)
+          .from('sales')
+          .select(`
+            id, sale_date, created_at, subtotal, discount_pct, discount_amount, total,
+            payment_summary, status, store_id, seller_id, previsao_pagamento, nfce_status,
+            customers(name, id),
+            stores(name)
+          `)
+          .order('sale_date', { ascending: false })
+          .order('id', { ascending: false }),
+        profile,
+        todaySP(),
+      ).range(de, ate)
+      const res = await consulta
+      if (res.error) return { data: null, error: res.error }
+      linhas.push(...(res.data ?? []))
+      if ((res.data ?? []).length < ate - de + 1) break
+    }
+    return { data: linhas, error: null }
+  }
 
   // Fechamentos de caixa (para o filtro) — da loja da sessão
   let closingsQuery = admin
@@ -94,7 +129,7 @@ export default async function VendasPage() {
 
   // Lote 1 — vendas + listas de filtro (lojas/vendedoras/fechamentos não dependem das vendas)
   const [salesRes, storesRes, usersRes, closingsRes] = await Promise.all([
-    salesQuery,
+    buscarVendas(),
     /* Os filtros seguem o mesmo corte das vendas logo acima. Sem isto a tela
        oferece "vendedora: Rayane" para quem só tem venda de Campinas — filtro
        que nunca devolve nada e parece defeito. */
@@ -125,7 +160,8 @@ export default async function VendasPage() {
     }
   }
 
-  const rawSales = salesRes.data ?? []
+  const temMais = (salesRes.data ?? []).length > limite
+  const rawSales = (salesRes.data ?? []).slice(0, limite)
   const saleIds: string[] = rawSales.map((s: any) => s.id)
   const sellerIds = [...new Set(rawSales.map((s: any) => s.seller_id).filter(Boolean))] as string[]
 
@@ -212,7 +248,8 @@ export default async function VendasPage() {
   return (
     <div>
       {minhaMeta && <MinhaMetaCard progress={minhaMeta} monthLabel={monthLabel(monthKey)} />}
-      <VendasClient sales={sales} stores={stores} sellers={sellers} closings={closings} userRole={profile.role} podeTrocarLoja={podeFiltrarPorLoja(profile)} />
+      <VendasClient sales={sales} stores={stores} sellers={sellers} closings={closings} userRole={profile.role} podeTrocarLoja={podeFiltrarPorLoja(profile)}
+        corte={temMais ? { limite, proximo: limite < LIMITE_MAXIMO ? Math.min(limite * 2, LIMITE_MAXIMO) : null } : null} />
     </div>
   )
 }
