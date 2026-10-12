@@ -96,6 +96,7 @@ export interface TransactionRow {
   user_id: string | null
   user_name: string | null
   recurring_expense_id: string | null
+  notes: string | null
 }
 
 export interface PnlData {
@@ -132,6 +133,9 @@ export interface DespesaManualData {
   status: 'completed' | 'pending'
   cost_type: 'fixed' | 'variable'
   payment_method?: string
+  /** Dia em que foi paga (AAAA-MM-DD), só quando status = completed. Vazio = hoje. */
+  paid_at?: string | null
+  notes?: string | null
 }
 
 export interface RecurrenteData {
@@ -153,7 +157,7 @@ export async function buscarTransacoes(filters: TransactionFilters): Promise<{ d
 
   let q = admin
     .from('transactions')
-    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, recurring_expense_id, stores(name), users(full_name)')
+    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, recurring_expense_id, notes, stores(name), users(full_name)')
     .order('transaction_date', { ascending: false })
     .order('created_at', { ascending: false })
 
@@ -188,6 +192,7 @@ export async function buscarTransacoes(filters: TransactionFilters): Promise<{ d
     user_id: t.user_id,
     user_name: t.users?.full_name ?? null,
     recurring_expense_id: t.recurring_expense_id,
+    notes: t.notes ?? null,
   }))
 
   return { data: rows }
@@ -201,7 +206,7 @@ export async function buscarPendencias(): Promise<{ data: TransactionRow[]; erro
 
   let pendQ = admin
     .from('transactions')
-    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, recurring_expense_id, stores(name), users(full_name)')
+    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, recurring_expense_id, notes, stores(name), users(full_name)')
     .eq('type', 'expense')
     .eq('status', 'pending')
     .order('due_date', { ascending: true, nullsFirst: false })
@@ -231,12 +236,21 @@ export async function buscarPendencias(): Promise<{ data: TransactionRow[]; erro
     user_id: t.user_id,
     user_name: t.users?.full_name ?? null,
     recurring_expense_id: t.recurring_expense_id,
+    notes: t.notes ?? null,
   }))
 
   return { data: rows }
 }
 
-export async function marcarComoPago(transactionId: string): Promise<ActionResult> {
+/*
+ * "Pago em" chega como dia (AAAA-MM-DD). Grava ao meio-dia de Brasília: meia-noite
+ * UTC mostraria o dia anterior na tela. Sem dia = agora.
+ */
+function pagoEm(dia?: string | null): string {
+  return dia && /^\d{4}-\d{2}-\d{2}$/.test(dia) ? `${dia}T12:00:00-03:00` : new Date().toISOString()
+}
+
+export async function marcarComoPago(transactionId: string, dia?: string | null): Promise<ActionResult> {
   const { error: authErr } = await verifyAdmin()
   if (authErr) return { success: false, error: authErr }
 
@@ -246,7 +260,7 @@ export async function marcarComoPago(transactionId: string): Promise<ActionResul
   if ('erro' in escopoW) return { success: false, error: escopoW.erro }
   const foraW = await foraDaLoja(admin, 'transactions', transactionId, escopoW.loja)
   if (foraW) return { success: false, error: foraW }
-  const nowIso = new Date().toISOString()
+  const nowIso = pagoEm(dia)
 
   // Buscar a transação antes: se ela espelha um pagamento de compra, precisamos
   // sincronizar o purchase_payment correspondente (a tela de Compras lê o status de lá).
@@ -288,7 +302,7 @@ export async function criarDespesaManual(data: DespesaManualData): Promise<Actio
   const admin = createAdminClient()
   const escopoW = await lojaParaEscrever()
   if ('erro' in escopoW) return { success: false, error: escopoW.erro }
-  const paidAt = data.status === 'completed' ? new Date().toISOString() : null
+  const paidAt = data.status === 'completed' ? pagoEm(data.paid_at) : null
 
   const { error } = await admin.from('transactions').insert({
     store_id: escopoW.loja ?? data.store_id,
@@ -303,6 +317,7 @@ export async function criarDespesaManual(data: DespesaManualData): Promise<Actio
     status: data.status,
     paid_at: paidAt,
     cost_type: data.cost_type,
+    notes: data.notes?.trim() || null,
     user_id: userId,
   })
 
@@ -323,10 +338,21 @@ export async function editarDespesaManual(id: string, data: DespesaManualData): 
   if (foraW) return { success: false, error: foraW }
 
   // Só edita se for manual
-  const { data: tx } = await admin.from('transactions').select('reference_type').eq('id', id).single()
+  const { data: tx } = await admin.from('transactions').select('reference_type, status, paid_at').eq('id', id).single()
   if (tx?.reference_type !== 'manual') return { success: false, error: 'Só é possível editar despesas manuais.' }
 
-  const paidAt = data.status === 'completed' ? new Date().toISOString() : null
+  /*
+   * Editar uma despesa paga gravava "pago agora" por cima da data real. Se o dia
+   * de pagamento não mudou, mantém o paid_at que já estava.
+   */
+  const diaAntigo = tx.paid_at
+    ? new Date(tx.paid_at).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+    : null
+  const paidAt = data.status !== 'completed'
+    ? null
+    : tx.status === 'completed' && tx.paid_at && (!data.paid_at || data.paid_at === diaAntigo)
+      ? tx.paid_at
+      : pagoEm(data.paid_at)
 
   const { error } = await admin.from('transactions').update({
     store_id: escopoW.loja ?? data.store_id,
@@ -339,6 +365,7 @@ export async function editarDespesaManual(id: string, data: DespesaManualData): 
     status: data.status,
     paid_at: paidAt,
     cost_type: data.cost_type,
+    notes: data.notes?.trim() || null,
   }).eq('id', id)
 
   if (error) return { success: false, error: error.message }
@@ -580,6 +607,16 @@ export async function buscarPnl(storeIdDaTela: string | null, month: number, yea
 
 // ─── Recorrentes ─────────────────────────────────────────────────────────────
 
+/*
+ * Recorrente mensal ativa já vira a conta do mês na hora (12/10/2026). Antes só
+ * nascia no dia 1º ou no "Gerar agora", e quem cadastrava no meio do mês não via
+ * a pendência. A função não duplica com o cron (trava por recorrente + mês).
+ */
+async function lancarDoMes(admin: ReturnType<typeof createAdminClient>, id: string): Promise<string | null> {
+  const { error } = await admin.rpc('gerar_ocorrencia_recorrente' as any, { p_id: id })
+  return error ? `Recorrente salva, mas a conta do mês não foi lançada: ${error.message}` : null
+}
+
 export async function buscarRecorrentes(): Promise<{ data: RecurrenteRow[] }> {
   const admin = createAdminClient()
   const loja  = await escopoDeLoja()
@@ -626,7 +663,7 @@ export async function criarRecorrente(data: RecurrenteData): Promise<ActionResul
   const admin = createAdminClient()
   const escopoW = await lojaParaEscrever()
   if ('erro' in escopoW) return { success: false, error: escopoW.erro }
-  const { error } = await admin.from('recurring_expenses').insert({
+  const { data: criada, error } = await admin.from('recurring_expenses').insert({
     store_id: escopoW.loja ?? data.store_id,
     description: data.description,
     amount: data.amount,
@@ -635,10 +672,14 @@ export async function criarRecorrente(data: RecurrenteData): Promise<ActionResul
     recurrence: data.recurrence,
     day_of_month: data.day_of_month,
     is_active: data.is_active,
-  })
+  }).select('id').single()
 
   if (error) return { success: false, error: error.message }
   revalidatePath('/financeiro')
+  if (data.is_active) {
+    const erroMes = await lancarDoMes(admin, criada.id)
+    if (erroMes) return { success: false, error: erroMes }
+  }
   return { success: true }
 }
 
@@ -665,6 +706,10 @@ export async function editarRecorrente(id: string, data: RecurrenteData): Promis
 
   if (error) return { success: false, error: error.message }
   revalidatePath('/financeiro')
+  if (data.is_active) {
+    const erroMes = await lancarDoMes(admin, id)
+    if (erroMes) return { success: false, error: erroMes }
+  }
   return { success: true }
 }
 
@@ -681,6 +726,10 @@ export async function toggleRecorrente(id: string, isActive: boolean): Promise<A
   const { error } = await admin.from('recurring_expenses').update({ is_active: isActive }).eq('id', id)
   if (error) return { success: false, error: error.message }
   revalidatePath('/financeiro')
+  if (isActive) {
+    const erroMes = await lancarDoMes(admin, id)
+    if (erroMes) return { success: false, error: erroMes }
+  }
   return { success: true }
 }
 

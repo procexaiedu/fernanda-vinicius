@@ -408,10 +408,20 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
     setLoading(false)
   }
 
-  async function handleMarkPaid(id: string) {
-    await marcarComoPago(id)
-    setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: 'completed', paid_at: new Date().toISOString() } : t))
+  // "Marcar como pago" pergunta o dia (vem com hoje): a conta paga ontem não vira paga hoje.
+  const [pagandoId, setPagandoId] = useState<string | null>(null)
+
+  function handleMarkPaid(id: string) {
+    setPagandoId(id)
+  }
+
+  async function confirmarPago(id: string, dia: string): Promise<string | null> {
+    const res = await marcarComoPago(id, dia)
+    if (!res.success) return res.error ?? 'Erro ao marcar como pago.'
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: 'completed', paid_at: `${dia}T12:00:00-03:00` } : t))
     setPendencias(prev => prev.filter(t => t.id !== id))
+    setPagandoId(null)
+    return null
   }
 
   async function handleDelete(id: string) {
@@ -618,6 +628,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                 <td>
                   <div style={{ fontWeight: 500 }}>{tx.description}</div>
                   {tx.user_name && <div className={styles.muted}>{tx.user_name}</div>}
+                  {tx.notes && <div className={styles.muted} data-novidade="obs-despesa">{tx.notes}</div>}
                 </td>
                 <td className="col-tertiary"><span className={styles.categoryBadge}>{tx.category}</span></td>
                 <td className={`${styles.muted} col-secondary`}>{tx.store_name ?? 'Geral'}</td>
@@ -749,6 +760,13 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
           onMarkPaid={handleMarkPaid}
         />
       )}
+
+      {pagandoId && (
+        <PagoEmModal
+          onClose={() => setPagandoId(null)}
+          onConfirm={dia => confirmarPago(pagandoId, dia)}
+        />
+      )}
     </div>
   )
 }
@@ -845,6 +863,55 @@ function PendenciasModal({
   )
 }
 
+// ─── Modal "Pago em" (marcar como pago) ──────────────────────────────────────
+
+function PagoEmModal({ onClose, onConfirm }: {
+  onClose: () => void
+  onConfirm: (dia: string) => Promise<string | null>
+}) {
+  const [dia, setDia] = useState(today())
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function confirmar() {
+    if (!dia) { setError('Informe o dia do pagamento.'); return }
+    setSaving(true)
+    setError('')
+    try {
+      const erro = await onConfirm(dia)
+      if (erro) setError(erro)
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className={styles.modal} style={{ maxWidth: 360 }}>
+        <div className={styles.modalHeader}>
+          <span className={styles.modalTitle}>Marcar como pago</span>
+          <button className={styles.closeBtn} onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className={styles.modalBody}>
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Pago em</label>
+            <DatePicker value={dia} onChange={setDia} />
+          </div>
+          {error && <p className={styles.errorMsg}>{error}</p>}
+        </div>
+        <div className={styles.modalFooter}>
+          <button className={styles.btnSecondary} onClick={onClose}>Cancelar</button>
+          <button className={styles.btnPrimary} onClick={confirmar} disabled={saving}>
+            {saving ? 'Salvando...' : 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Modal Nova/Editar Despesa ────────────────────────────────────────────────
 
 function DespesaModal({
@@ -865,6 +932,11 @@ function DespesaModal({
   const [status,      setStatus]      = useState<'completed'|'pending'>(tx?.status ?? 'completed')
   const [costType,    setCostType]    = useState<'fixed'|'variable'>((tx?.cost_type as any) ?? 'variable')
   const [method,      setMethod]      = useState(tx?.payment_method ?? '')
+  // Dia em que foi paga, no fuso de Brasília (paid_at é timestamp).
+  const [paidDay,     setPaidDay]     = useState(
+    tx?.paid_at ? new Date(tx.paid_at).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : today()
+  )
+  const [notes,       setNotes]       = useState(tx?.notes ?? '')
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState('')
 
@@ -886,6 +958,8 @@ function DespesaModal({
       status,
       cost_type: costType,
       payment_method: method || undefined,
+      paid_at: status === 'completed' ? paidDay || null : null,
+      notes: notes.trim() || null,
     }
 
     /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
@@ -920,13 +994,18 @@ function DespesaModal({
       transaction_date: data.transaction_date,
       due_date: data.due_date,
       status: data.status,
-      paid_at: data.status === 'completed' ? new Date().toISOString() : null,
+      paid_at: data.status === 'completed'
+        ? (tx?.paid_at && tx.status === 'completed' && paidDay === new Date(tx.paid_at).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+            ? tx.paid_at
+            : `${paidDay}T12:00:00-03:00`)
+        : null,
       cost_type: data.cost_type,
       store_id: data.store_id,
       store_name: stores.find(s => s.id === data.store_id)?.name ?? null,
       user_id: null,
       user_name: null,
-      recurring_expense_id: null,
+      recurring_expense_id: tx?.recurring_expense_id ?? null,
+      notes: data.notes ?? null,
     }
 
     onSaved(saved)
@@ -1011,10 +1090,15 @@ function DespesaModal({
               <label className={styles.label}>Data *</label>
               <DatePicker value={date} onChange={setDate} />
             </div>
-            {status === 'pending' && (
+            {status === 'pending' ? (
               <div className={styles.formGroup}>
                 <label className={styles.label}>Vencimento</label>
                 <DatePicker value={dueDate} onChange={setDueDate} />
+              </div>
+            ) : (
+              <div className={styles.formGroup} data-novidade="pago-em">
+                <label className={styles.label}>Pago em</label>
+                <DatePicker value={paidDay} onChange={setPaidDay} />
               </div>
             )}
           </div>
@@ -1049,6 +1133,18 @@ function DespesaModal({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className={styles.formGroup} data-novidade="obs-despesa-campo">
+            <label className={styles.label}>Observação</label>
+            <textarea
+              className={styles.input}
+              rows={2}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Opcional"
+              style={{ resize: 'vertical', fontFamily: 'inherit' }}
+            />
           </div>
 
           {error && <p className={styles.errorMsg}>{error}</p>}
