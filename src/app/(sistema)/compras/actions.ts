@@ -96,12 +96,12 @@ export interface CompraFormData {
    */
   clientRequestId?: string | null
   /**
-   * Loja de onde as peças SAEM fisicamente (05/10/2026). Linhas de OUTRA loja
-   * não entram direto: viram remessa em trânsito ("lote do fornecedor") e só
-   * entram no estoque quando a loja de destino conferir. Vazio = as peças já
-   * estão na loja de destino (como antes).
+   * Desde 12/10/2026 a compra NÃO entra direto no estoque: cada loja de
+   * destino recebe uma remessa ("lote do fornecedor") em Transferências e as
+   * peças só entram quando a loja conferir. `true` = a admin marcou que as
+   * peças já estão na loja (a Fernanda trouxe na mão): entra direto, como antes.
    */
-  remessaDe?: string | null
+  entraDireto?: boolean
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -574,16 +574,19 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   }
 
   /*
-   * Com remessa: `salvar_compra_com_remessa` grava a compra e abre a remessa na
-   * MESMA transação (migration 20261005_transferencia_duas_pontas). Só se
-   * alguma linha é de outra loja; senão, o caminho de sempre.
+   * `salvar_compra_conferida` grava a compra e, na MESMA transação, abre uma
+   * remessa por loja de destino: as peças só entram no estoque quando a loja
+   * conferir em Estoque > Transferências (migration
+   * 20261012_compra_entra_na_conferencia). Sem fallback para `salvar_compra`:
+   * se a função não existir, gravar pelo caminho antigo poria a compra direto
+   * no estoque, que é exatamente o que a loja pediu para não acontecer.
    */
-  const remessaDe = data.remessaDe && data.rows.some(r => r.storeId !== data.remessaDe) ? data.remessaDe : null
-  const gravar = () => remessaDe
-    ? admin.rpc('salvar_compra_com_remessa', { p: payload, p_remessa_de: remessaDe })
-    : admin.rpc('salvar_compra', { p: payload })
+  const gravar = () => admin.rpc('salvar_compra_conferida', { p: payload, p_entra_direto: !!data.entraDireto })
 
   let { data: resp, error: rpcErr } = await gravar()
+  if (rpcErr?.code === 'PGRST202') {
+    return { success: false, error: 'O banco ainda não tem a conferência de compras (migration 20261012). Nada foi gravado. Avise o suporte.' }
+  }
 
   /* Índice único do `client_request_id` disparou: outro envio desta MESMA
    * compra passou na frente. A função trava pelo id (advisory lock), então é
@@ -639,6 +642,7 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
   revalidatePath('/compras')
   revalidatePath('/produtos')
   revalidatePath('/estoque')
+  revalidatePath('/estoque/transferencias')
   return { success: true, purchaseId: r.purchase_id }
 }
 
@@ -854,7 +858,11 @@ export async function deletarCompra(purchaseId: string): Promise<ActionResult> {
    * Cada peça estornada deixa rastro em `stock_movements` (quem excluiu):
    * sem isso a conferência de estoque não enxergaria a saída.
    */
-  const { data: resp, error: rpcErr } = await admin.rpc('excluir_compra', {
+  /* `excluir_compra_conferida` (12/10/2026): o estorno é só do que ENTROU no
+   * estoque. Peça ainda em trânsito ou que faltou na conferência nunca entrou,
+   * e estornar a quantidade cheia tirava estoque real de peça reaproveitada.
+   * As remessas pendentes da compra são encerradas junto. */
+  const { data: resp, error: rpcErr } = await admin.rpc('excluir_compra_conferida', {
     p_purchase_id: purchaseId,
     p_user_id:     userId,
   })
@@ -888,6 +896,7 @@ export async function deletarCompra(purchaseId: string): Promise<ActionResult> {
   revalidatePath('/compras')
   revalidatePath('/produtos')
   revalidatePath('/estoque')
+  revalidatePath('/estoque/transferencias')
   revalidatePath('/financeiro')
   return { success: true }
 }
@@ -1152,7 +1161,7 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
 
   // ── 1. Leituras ─────────────────────────────────────────────────────────
   const { data: compra, error: compraErr } = await admin
-    .from('purchases').select('id, consignment_id').eq('id', payload.purchaseId).maybeSingle()
+    .from('purchases').select('id, consignment_id, desconto_falta').eq('id', payload.purchaseId).maybeSingle()
   if (compraErr) return { success: false, error: `Não foi possível ler a compra: ${compraErr.message}` }
   if (!compra) return { success: false, error: 'Compra não encontrada.' }
 
@@ -1204,10 +1213,13 @@ export async function editarCompra(payload: EditCompraPayload): Promise<ActionRe
     // checagem é sobre o total da compra, e não por fornecedor: nesta tela os
     // pagamentos são editados em lista única.
     const custoItens = payload.items.reduce((s, it) => s + it.costPrice * (it.quantity || 1), 0)
+    /* Peça que faltou na conferência e foi descontada (12/10/2026) já saiu das
+     * parcelas: os pagamentos fecham contra itens − desconto. */
+    const descontoFalta = Number((compra as { desconto_falta?: number | null }).desconto_falta ?? 0)
     const payErr = validatePaymentGroups([
       {
         label: 'pagamentos da compra',
-        subtotal: custoItens,
+        subtotal: custoItens - descontoFalta,
         payments: payload.payments.map(p => ({ amount: p.amount, status: p.status })),
       },
     ])

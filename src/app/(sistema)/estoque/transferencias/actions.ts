@@ -435,7 +435,9 @@ export async function identificarEtiqueta(
     .from('products')
     .select('id, name, code, store_id')
     .eq('barcode_number', barcode.trim())
-    .in('store_id', [transf.from_store_id, transf.to_store_id])
+    /* Lote do fornecedor nascido da compra não tem loja de origem (12/10/2026):
+       nulo dentro do `in` viraria o texto "null" e o PostgREST recusa o uuid. */
+    .in('store_id', [transf.from_store_id, transf.to_store_id].filter(Boolean) as string[])
     .limit(10)
 
   /* Falha de leitura NÃO é "etiqueta não cadastrada": virava sobra sem produto,
@@ -508,4 +510,71 @@ export async function acertoConsignacao(
 
   if (confirmar) { revalidarTudo(); revalidatePath('/financeiro') }
   return { success: true, acerto: { resumo: r.resumo!, itens: r.itens ?? [] } }
+}
+
+export interface FaltaDoLote {
+  valor: number
+  pecas: number
+  consignacao: boolean
+  loja: string
+  itens: Array<{ etiqueta: string; peca: string; fornecedor: string; faltou: number; unitario: number; valor: number }>
+  fornecedoras: Array<{ fornecedor: string; valor: number; abate: number; credito: number }>
+}
+
+/**
+ * Falta na conferência de uma remessa de COMPRA (12/10/2026): a admin decide
+ * se desconta o valor das peças que não chegaram. Prévia (confirmar=false) ou
+ * decisão. Onde o desconto cai está em `fv.decidir_falta_do_lote`: parcelas
+ * pendentes da fornecedora (o já pago vira crédito a receber) ou, na
+ * consignação, o valor do lote. Só admin (mostra custo), e a admin de loja só
+ * decide a remessa que chegou na loja dela.
+ */
+export async function decidirFaltaDoLote(
+  transferId: string,
+  confirmar: boolean,
+  descontar = false,
+): Promise<ActionResult & { falta?: FaltaDoLote; decisao?: string }> {
+  const { perfil, erro } = await admin()
+  if (!perfil) return { success: false, error: erro! }
+
+  const supa = createAdminClient()
+  const { data: t, error: e } = await supa
+    .from('transfers').select('to_store_id').eq('id', transferId).maybeSingle()
+  if (e) return { success: false, error: e.message }
+  if (!t) return { success: false, error: 'Remessa não encontrada.' }
+  const escopo = lojaDoEscopo(perfil)
+  if (escopo && t.to_store_id !== escopo) {
+    return { success: false, error: 'Esta remessa não é da sua loja.' }
+  }
+
+  const { data, error } = await supa.rpc('decidir_falta_do_lote', {
+    p_transfer_id: transferId,
+    p_user_id:     perfil.id,
+    p_descontar:   descontar,
+    p_confirmar:   confirmar,
+  })
+  if (error) return { success: false, error: error.message }
+
+  const r = data as { success: boolean; error?: string; decisao?: string } & Partial<FaltaDoLote>
+  if (!r.success) return { success: false, error: r.error ?? 'Erro ao decidir a falta.' }
+
+  if (confirmar) {
+    revalidarTudo()
+    revalidatePath('/compras')
+    revalidatePath('/financeiro')
+    return { success: true, decisao: r.decisao }
+  }
+  return {
+    success: true,
+    falta: {
+      valor:        Number(r.valor ?? 0),
+      pecas:        Number(r.pecas ?? 0),
+      consignacao:  !!r.consignacao,
+      loja:         r.loja ?? '',
+      itens:        (r.itens ?? []).map(i => ({ ...i, unitario: Number(i.unitario), valor: Number(i.valor) })),
+      fornecedoras: (r.fornecedoras ?? []).map(f => ({
+        ...f, valor: Number(f.valor), abate: Number(f.abate), credito: Number(f.credito),
+      })),
+    },
+  }
 }

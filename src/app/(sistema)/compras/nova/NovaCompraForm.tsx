@@ -604,7 +604,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
    * estoque de lá quando a loja conferir. '' = já estão na loja de destino.
    * Só aparece com mais de uma loja na tela (admin de loja só vê a dela).
    */
-  const [remessaDe, setRemessaDe] = useState(defaultStoreId)
+  const [entraDireto, setEntraDireto] = useState(false)
   const [returnDeadline, setReturnDeadline] = useState('')
   const [minPurchasePct, setMinPurchasePct] = useState('')
 
@@ -788,6 +788,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
     setPurchaseDate(today())
     setNotes('')
     setIsConsignment(false)
+    setEntraDireto(false)
     setReturnDeadline('')
     setMinPurchasePct('')
     setRows([emptyRow(defaultStoreId)])
@@ -1145,7 +1146,7 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
         returnDeadline,
         minPurchasePct: minPurchasePct ? parseFloat(minPurchasePct) : null,
         clientRequestId: idDaCompraAtual(),
-        remessaDe: stores.length > 1 ? (remessaDe || null) : null,
+        entraDireto,
       })
     } catch (e) {
       // Rascunho INTACTO de propósito: o `clearDraft()` só roda no sucesso, lá
@@ -1289,20 +1290,21 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
             </>
           )}
 
-          {stores.length > 1 && (
-            <div className={styles.field}>
-              <label className={styles.label}>Peças saem de</label>
-              <select className={styles.input} value={remessaDe} onChange={e => setRemessaDe(e.target.value)}>
-                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                <option value="">Já estão na loja de destino</option>
-              </select>
-              {remessaDe && validRows.some(r => r.storeId && r.storeId !== remessaDe) && (
-                <span className={styles.remessaDica}>
-                  Peças de outra loja ficam em trânsito e só entram no estoque quando a loja conferir a chegada.
-                </span>
-              )}
-            </div>
-          )}
+          {/* Desde 12/10/2026 a compra vira remessa em Transferências e só
+              entra no estoque quando a loja confere. Marcado = as peças já
+              estão na loja (trazidas na mão): entram direto, como antes. */}
+          <div className={styles.field} style={{ gridColumn: isConsignment ? 'auto' : '2 / -1' }}>
+            <label className={styles.label}>Entrada no estoque</label>
+            <label className={styles.entraDireto}>
+              <input type="checkbox" checked={entraDireto} onChange={e => setEntraDireto(e.target.checked)} />
+              Peças já estão na loja (entram direto)
+            </label>
+            <span className={styles.remessaDica}>
+              {entraDireto
+                ? 'As peças entram no estoque ao salvar, sem conferência.'
+                : 'Vai para Estoque › Transferências: entra no estoque quando a loja conferir a chegada.'}
+            </span>
+          </div>
 
           <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
             <label className={styles.label}>Observações</label>
