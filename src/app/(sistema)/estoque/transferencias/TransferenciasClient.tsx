@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ClipboardCheck, FileText, HandCoins, Plus, XCircle } from 'lucide-react'
+import { BadgePercent, ClipboardCheck, FileText, HandCoins, Plus, XCircle } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
@@ -13,6 +13,7 @@ import ConferenciaModal from './ConferenciaModal'
 import Romaneio from './Romaneio'
 import { cancelarTransferencia } from './actions'
 import AcertoConsignacaoModal from './AcertoConsignacaoModal'
+import FaltaLoteModal from './FaltaLoteModal'
 import type { ConsignacaoAberta, LojaOption, Romaneio as RomaneioT } from './page'
 import { ROTULO_TIPO } from '@/lib/consignacaoEntreLojas'
 import styles from './TransferenciasClient.module.css'
@@ -63,6 +64,7 @@ export default function TransferenciasClient({
   const [recemEnviado, setRecemEnviado] = useState<string | null>(null)
   const [cancelando, setCancelando] = useState<RomaneioT | null>(null)
   const [acertando, setAcertando] = useState<RomaneioT | null>(null)
+  const [decidindoFalta, setDecidindoFalta] = useState<RomaneioT | null>(null)
   const [motivo, setMotivo] = useState('')
   const [erroCancel, setErroCancel] = useState<string | null>(null)
   const [salvandoCancel, setSalvandoCancel] = useState(false)
@@ -121,6 +123,16 @@ export default function TransferenciasClient({
    */
   const podeAcertar = (r: RomaneioT) =>
     isAdmin && r.kind === 'consignacao' && (r.status === 'recebida' || r.status === 'divergente') && !r.acerto_at
+
+  /*
+   * Remessa de COMPRA conferida com falta (12/10/2026): a admin decide se o
+   * valor das peças que não chegaram é descontado da compra. Uma vez só, e só
+   * a admin da loja que recebeu (ou a da rede).
+   */
+  const temFalta = (r: RomaneioT) => r.itens.some(i => i.divergence_type === 'falta')
+  const podeDecidirFalta = (r: RomaneioT) =>
+    isAdmin && r.kind === 'lote_fornecedor' && r.status === 'divergente' && !r.falta_decisao && temFalta(r)
+    && (!minhaLoja || r.to_store_id === minhaLoja)
 
   /*
    * Fechou a remessa, o romaneio abre sozinho para imprimir e ir na caixa
@@ -211,6 +223,13 @@ export default function TransferenciasClient({
                       {isAdmin && r.kind === 'consignacao' && r.acerto_at && (
                         <span className={styles.obs}>acertada</span>
                       )}
+                      {isAdmin && r.kind === 'lote_fornecedor' && r.status === 'divergente' && temFalta(r) && (
+                        <span className={styles.obs}>
+                          {r.falta_decisao === 'descontada'
+                            ? `falta descontada (${formatarDinheiro(r.falta_valor ?? 0)})`
+                            : r.falta_decisao === 'mantida' ? 'falta sem desconto' : 'desconto da falta a decidir'}
+                        </span>
+                      )}
                       {r.status === 'divergente' && (
                         <span className={styles.divergencia}>
                           {faltas > 0 && `${faltas} falta${faltas > 1 ? 's' : ''}`}
@@ -237,6 +256,12 @@ export default function TransferenciasClient({
                         <button className={styles.acao} onClick={() => setAcertando(r)}
                           title="Acerto da consignação (o que ficou vira conta a pagar)">
                           <HandCoins size={14} />
+                        </button>
+                      )}
+                      {podeDecidirFalta(r) && (
+                        <button className={styles.acao} onClick={() => setDecidindoFalta(r)}
+                          title="Faltaram peças: descontar o valor da compra?">
+                          <BadgePercent size={14} />
                         </button>
                       )}
                       {podeCancelar(r) && (
@@ -286,7 +311,16 @@ export default function TransferenciasClient({
       )}
 
       {conferindo && (
-        <ConferenciaModal romaneio={conferindo} onClose={() => setConferindo(null)} />
+        <ConferenciaModal
+          romaneio={conferindo}
+          onClose={() => setConferindo(null)}
+          /* Admin conferiu remessa de compra com falta: já pergunta do desconto. */
+          onConferido={status => {
+            if (status === 'divergente' && isAdmin && conferindo.kind === 'lote_fornecedor') {
+              setDecidindoFalta(conferindo)
+            }
+          }}
+        />
       )}
 
       {vendoRomaneio && (
@@ -306,6 +340,14 @@ export default function TransferenciasClient({
           romaneio={acertando}
           onClose={() => setAcertando(null)}
           onAcertado={() => { setAcertando(null); router.refresh() }}
+        />
+      )}
+
+      {decidindoFalta && (
+        <FaltaLoteModal
+          romaneio={decidindoFalta}
+          onClose={() => setDecidindoFalta(null)}
+          onDecidido={() => { setDecidindoFalta(null); router.refresh() }}
         />
       )}
 

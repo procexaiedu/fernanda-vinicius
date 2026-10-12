@@ -643,7 +643,7 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
                     {transfers.map(t => (
                       <tr key={t.id}>
                         <td>{fmtDate(t.created_at)}</td>
-                        <td>{t.from_store?.name ?? '—'} → {t.to_store?.name ?? '—'}</td>
+                        <td>{t.from_store?.name ?? 'Fornecedor'} → {t.to_store?.name ?? '—'}</td>
                         <td>{t.quantity}</td>
                         <td>{t.users?.full_name ?? '—'}</td>
                         <td>{t.notes ?? '—'}</td>

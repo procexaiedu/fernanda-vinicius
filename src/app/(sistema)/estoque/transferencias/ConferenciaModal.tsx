@@ -72,9 +72,11 @@ function apagarRascunho(transferId: string) {
  * saldo dela volta para a loja de origem. Por isso o botão de confirmar mostra
  * o que vai ser registrado como falta antes de aplicar.
  */
-export default function ConferenciaModal({ romaneio, onClose }: {
+export default function ConferenciaModal({ romaneio, onClose, onConferido }: {
   romaneio: Romaneio
   onClose: () => void
+  /** Chamado com o status gravado (recebida | divergente), antes de fechar. */
+  onConferido?: (status: string | undefined) => void
 }) {
   const router = useRouter()
 
@@ -287,6 +289,7 @@ export default function ConferenciaModal({ romaneio, onClose }: {
     // Só aqui o rascunho morre: a chegada está gravada no banco.
     apagarRascunho(romaneio.id)
     router.refresh()
+    onConferido?.(r.status)
     onClose()
   }
 
@@ -405,8 +408,8 @@ export default function ConferenciaModal({ romaneio, onClose }: {
             <span>
               <strong>{pecasFaltando} peça{pecasFaltando > 1 ? 's não foram bipadas' : ' não foi bipada'}.</strong>{' '}
               {romaneio.kind === 'lote_fornecedor'
-                ? <>Ao confirmar, elas ficam registradas como falta e não entram no estoque. A admin
-                  resolve com a fornecedora.</>
+                ? <>Ao confirmar, elas ficam registradas como falta e não entram no estoque. A
+                  administração decide se o valor delas é descontado da compra.</>
                 : <>Ao confirmar, o saldo delas volta para {romaneio.de} — é a hipótese mais provável
                   (não foi embalada) e mantém o total fechado. Se sumiu mesmo, a conferência de estoque
                   de {romaneio.de} vai acusar.</>}

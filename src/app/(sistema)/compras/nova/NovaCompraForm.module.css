@@ -968,3 +968,17 @@
   color: var(--text-muted);
   line-height: 1.4;
 }
+
+/* "Peças já estão na loja" (12/10/2026): sem marcar, a compra vai para a conferência. */
+.entraDireto {
+  text-transform: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.entraDireto input { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }

@@ -26,7 +26,9 @@ export interface ItemRomaneio {
 
 export interface Romaneio {
   id: string
-  from_store_id: string
+  /* Nulo só no lote do fornecedor nascido da compra (desde 12/10/2026): a
+   * origem é o fornecedor, não uma loja. */
+  from_store_id: string | null
   to_store_id: string
   status: 'enviada' | 'recebida' | 'divergente' | 'cancelada'
   sent_at: string
@@ -46,6 +48,10 @@ export interface Romaneio {
   consignacao_id: string | null
   /* Acerto da consignação entre lojas. Só vem para admin. */
   acerto_at: string | null
+  /* Lote do fornecedor com falta: a admin decide se desconta da compra
+   * (12/10/2026). Só vem para admin: o valor sai do custo. */
+  falta_decisao: 'descontada' | 'mantida' | null
+  falta_valor: number | null
   de: string
   para: string
   enviou: string
@@ -89,7 +95,7 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
     .from('transfers')
     .select(
       'id, from_store_id, to_store_id, status, sent_at, received_at, notes, receipt_notes, totals, ' +
-      'kind, consignacao_id, acerto_at, ' +
+      'kind, consignacao_id, acerto_at, falta_decisao, falta_valor, ' +
       'origem:stores!from_store_id(name), destino:stores!to_store_id(name), ' +
       'quem_enviou:users!sent_by(full_name), quem_recebeu:users!received_by(full_name), ' +
       'transfer_items(id, product_id, product_code, product_name, barcode_number, ' +
@@ -164,7 +170,7 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
     const r = t as unknown as Record<string, unknown>
     return {
       id:            r.id as string,
-      from_store_id: r.from_store_id as string,
+      from_store_id: (r.from_store_id ?? null) as string | null,
       to_store_id:   r.to_store_id as string,
       status:        r.status as Romaneio['status'],
       sent_at:       r.sent_at as string,
@@ -175,7 +181,10 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
       kind:          tipoRomaneio(r.kind),
       consignacao_id:(r.consignacao_id ?? null) as string | null,
       acerto_at:     isAdmin ? (r.acerto_at ?? null) as string | null : null,
-      de:     (primeiro(r.origem)  as { name: string } | null)?.name ?? '—',
+      falta_decisao: isAdmin ? (r.falta_decisao ?? null) as Romaneio['falta_decisao'] : null,
+      falta_valor:   isAdmin && r.falta_valor != null ? Number(r.falta_valor) : null,
+      de:     (primeiro(r.origem)  as { name: string } | null)?.name
+                ?? (r.kind === 'lote_fornecedor' ? 'Fornecedor' : '—'),
       para:   (primeiro(r.destino) as { name: string } | null)?.name ?? '—',
       enviou: (primeiro(r.quem_enviou)  as { full_name: string } | null)?.full_name ?? '—',
       recebeu:(primeiro(r.quem_recebeu) as { full_name: string } | null)?.full_name ?? null,
