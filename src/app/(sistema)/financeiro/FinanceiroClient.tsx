@@ -1371,6 +1371,7 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [genMsg, setGenMsg]       = useState('')
+  const [avisoSalvo, setAvisoSalvo] = useState('')
 
   async function load() {
     setLoading(true)
@@ -1411,6 +1412,7 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
           {generating ? 'Gerando...' : 'Gerar agora'}
         </button>
         {genMsg && <span style={{ fontSize: 13, color: genMsg.includes('sucesso') ? '#4CAF7D' : 'var(--danger)' }}>{genMsg}</span>}
+        {avisoSalvo && <span style={{ fontSize: 13, color: '#4CAF7D' }} role="status">{avisoSalvo}</span>}
         <div className={styles.toolbarRight}>
           <button className={styles.btnPrimary} onClick={() => { setEditing(null); setShowModal(true) }}>
             <Plus size={14} />
@@ -1423,14 +1425,16 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Descrição</th>
-              <th>Categoria</th>
-              <th>Loja</th>
+              {/* Mesma classe no <th> e no <td> de cada coluna: com ela só de um
+                  lado, título e valor desalinhavam (12/10/2026). */}
+              <th className="col-esq">Descrição</th>
+              <th className="col-center">Categoria</th>
+              <th className="col-center">Loja</th>
               <th className="col-num">Valor</th>
-              <th>Vence dia</th>
-              <th>Recorrência</th>
-              <th>Ativo</th>
-              <th></th>
+              <th className="col-center">Vence dia</th>
+              <th className="col-center">Recorrência</th>
+              <th className="col-center">Ativo</th>
+              <th className="col-acoes"></th>
             </tr>
           </thead>
           <tbody>
@@ -1442,20 +1446,20 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
             )}
             {items.map(r => (
               <tr key={r.id} className={styles.row}>
-                <td style={{ fontWeight: 500 }}>{r.description}</td>
-                <td><span className={styles.categoryBadge}>{r.category}</span></td>
-                <td className={styles.muted}>{r.store_name ?? 'Geral'}</td>
-                <td style={{ fontWeight: 700, color: '#E05252' }}>{fmt(r.amount)}</td>
-                <td className={styles.muted}>{r.day_of_month ? `Dia ${r.day_of_month}` : '—'}</td>
-                <td><span className={styles.categoryBadge}>{RECURRENCE_LABELS[r.recurrence] ?? r.recurrence}</span></td>
-                <td>
+                <td className="col-esq" style={{ fontWeight: 500 }}>{r.description}</td>
+                <td className="col-center"><span className={styles.categoryBadge}>{r.category}</span></td>
+                <td className={`${styles.muted} col-center`}>{r.store_name ?? 'Geral'}</td>
+                <td className="col-num" style={{ fontWeight: 700, color: '#E05252' }}>{fmt(r.amount)}</td>
+                <td className={`${styles.muted} col-center`}>{r.day_of_month ? `Dia ${r.day_of_month}` : '—'}</td>
+                <td className="col-center"><span className={styles.categoryBadge}>{RECURRENCE_LABELS[r.recurrence] ?? r.recurrence}</span></td>
+                <td className="col-center">
                   <button
                     className={`${styles.toggle} ${r.is_active ? styles.toggleActive : ''}`}
                     onClick={() => handleToggle(r.id, r.is_active)}
                     title={r.is_active ? 'Desativar' : 'Ativar'}
                   />
                 </td>
-                <td>
+                <td className="col-acoes">
                   <div className={styles.actionsCell}>
                     <button
                       className="icon-btn"
@@ -1495,8 +1499,17 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
               setItems(prev => prev.map(r => r.id === saved.id ? saved : r))
             } else {
               setItems(prev => [...prev, saved])
+              // A conta do mês nasce junto (gerar_ocorrencia_recorrente): avisa onde ela está.
+              const mes = new Date().toLocaleDateString('pt-BR', { month: 'long', timeZone: 'America/Sao_Paulo' })
+              setAvisoSalvo(saved.is_active && saved.recurrence === 'monthly'
+                ? `Recorrente criada. A conta de ${mes} já está em Contas a pagar.`
+                : 'Recorrente criada.')
+              setTimeout(() => setAvisoSalvo(''), 8000)
             }
             setShowModal(false)
+            // A loja é decidida no servidor (admin de loja grava na dela): relê a lista
+            // para não mostrar "Geral" no lugar da loja gravada.
+            load()
           }}
         />
       )}
