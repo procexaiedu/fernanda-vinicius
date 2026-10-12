@@ -101,7 +101,7 @@ export default function PanoramaFinanceiro({ transactions }: Props) {
             <div key={e.rotulo} className={styles.etapa}>
               <span className={styles.etapaRotulo}>
                 {e.rotulo}
-                {'pendente' in e && <span className={styles.etapaAviso}> ainda não pago</span>}
+                {'pendente' in e && <span className={styles.etapaAviso}>ainda não pago</span>}
               </span>
               <div className={styles.etapaTrilho}>
                 <div

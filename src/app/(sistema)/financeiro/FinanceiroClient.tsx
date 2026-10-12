@@ -408,10 +408,20 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
     setLoading(false)
   }
 
-  async function handleMarkPaid(id: string) {
-    await marcarComoPago(id)
-    setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: 'completed', paid_at: new Date().toISOString() } : t))
+  // "Marcar como pago" pergunta o dia (vem com hoje): a conta paga ontem não vira paga hoje.
+  const [pagandoId, setPagandoId] = useState<string | null>(null)
+
+  function handleMarkPaid(id: string) {
+    setPagandoId(id)
+  }
+
+  async function confirmarPago(id: string, dia: string): Promise<string | null> {
+    const res = await marcarComoPago(id, dia)
+    if (!res.success) return res.error ?? 'Erro ao marcar como pago.'
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: 'completed', paid_at: `${dia}T12:00:00-03:00` } : t))
     setPendencias(prev => prev.filter(t => t.id !== id))
+    setPagandoId(null)
+    return null
   }
 
   async function handleDelete(id: string) {
@@ -618,6 +628,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                 <td>
                   <div style={{ fontWeight: 500 }}>{tx.description}</div>
                   {tx.user_name && <div className={styles.muted}>{tx.user_name}</div>}
+                  {tx.notes && <div className={styles.muted} data-novidade="obs-despesa">{tx.notes}</div>}
                 </td>
                 <td className="col-tertiary"><span className={styles.categoryBadge}>{tx.category}</span></td>
                 <td className={`${styles.muted} col-secondary`}>{tx.store_name ?? 'Geral'}</td>
@@ -749,6 +760,13 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
           onMarkPaid={handleMarkPaid}
         />
       )}
+
+      {pagandoId && (
+        <PagoEmModal
+          onClose={() => setPagandoId(null)}
+          onConfirm={dia => confirmarPago(pagandoId, dia)}
+        />
+      )}
     </div>
   )
 }
@@ -845,6 +863,55 @@ function PendenciasModal({
   )
 }
 
+// ─── Modal "Pago em" (marcar como pago) ──────────────────────────────────────
+
+function PagoEmModal({ onClose, onConfirm }: {
+  onClose: () => void
+  onConfirm: (dia: string) => Promise<string | null>
+}) {
+  const [dia, setDia] = useState(today())
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function confirmar() {
+    if (!dia) { setError('Informe o dia do pagamento.'); return }
+    setSaving(true)
+    setError('')
+    try {
+      const erro = await onConfirm(dia)
+      if (erro) setError(erro)
+    } catch (e) {
+      setError(mensagemDeErroAoSalvar(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className={styles.modal} style={{ maxWidth: 360 }}>
+        <div className={styles.modalHeader}>
+          <span className={styles.modalTitle}>Marcar como pago</span>
+          <button className={styles.closeBtn} onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className={styles.modalBody}>
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Pago em</label>
+            <DatePicker value={dia} onChange={setDia} />
+          </div>
+          {error && <p className={styles.errorMsg}>{error}</p>}
+        </div>
+        <div className={styles.modalFooter}>
+          <button className={styles.btnSecondary} onClick={onClose}>Cancelar</button>
+          <button className={styles.btnPrimary} onClick={confirmar} disabled={saving}>
+            {saving ? 'Salvando...' : 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Modal Nova/Editar Despesa ────────────────────────────────────────────────
 
 function DespesaModal({
@@ -865,6 +932,11 @@ function DespesaModal({
   const [status,      setStatus]      = useState<'completed'|'pending'>(tx?.status ?? 'completed')
   const [costType,    setCostType]    = useState<'fixed'|'variable'>((tx?.cost_type as any) ?? 'variable')
   const [method,      setMethod]      = useState(tx?.payment_method ?? '')
+  // Dia em que foi paga, no fuso de Brasília (paid_at é timestamp).
+  const [paidDay,     setPaidDay]     = useState(
+    tx?.paid_at ? new Date(tx.paid_at).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : today()
+  )
+  const [notes,       setNotes]       = useState(tx?.notes ?? '')
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState('')
 
@@ -886,6 +958,8 @@ function DespesaModal({
       status,
       cost_type: costType,
       payment_method: method || undefined,
+      paid_at: status === 'completed' ? paidDay || null : null,
+      notes: notes.trim() || null,
     }
 
     /* try/finally: sem ele, uma falha de rede ou um deploy no meio deixa o
@@ -920,13 +994,18 @@ function DespesaModal({
       transaction_date: data.transaction_date,
       due_date: data.due_date,
       status: data.status,
-      paid_at: data.status === 'completed' ? new Date().toISOString() : null,
+      paid_at: data.status === 'completed'
+        ? (tx?.paid_at && tx.status === 'completed' && paidDay === new Date(tx.paid_at).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+            ? tx.paid_at
+            : `${paidDay}T12:00:00-03:00`)
+        : null,
       cost_type: data.cost_type,
       store_id: data.store_id,
       store_name: stores.find(s => s.id === data.store_id)?.name ?? null,
       user_id: null,
       user_name: null,
-      recurring_expense_id: null,
+      recurring_expense_id: tx?.recurring_expense_id ?? null,
+      notes: data.notes ?? null,
     }
 
     onSaved(saved)
@@ -1011,10 +1090,15 @@ function DespesaModal({
               <label className={styles.label}>Data *</label>
               <DatePicker value={date} onChange={setDate} />
             </div>
-            {status === 'pending' && (
+            {status === 'pending' ? (
               <div className={styles.formGroup}>
                 <label className={styles.label}>Vencimento</label>
                 <DatePicker value={dueDate} onChange={setDueDate} />
+              </div>
+            ) : (
+              <div className={styles.formGroup} data-novidade="pago-em">
+                <label className={styles.label}>Pago em</label>
+                <DatePicker value={paidDay} onChange={setPaidDay} />
               </div>
             )}
           </div>
@@ -1049,6 +1133,18 @@ function DespesaModal({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className={styles.formGroup} data-novidade="obs-despesa-campo">
+            <label className={styles.label}>Observação</label>
+            <textarea
+              className={styles.input}
+              rows={2}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Opcional"
+              style={{ resize: 'vertical', fontFamily: 'inherit' }}
+            />
           </div>
 
           {error && <p className={styles.errorMsg}>{error}</p>}
@@ -1275,6 +1371,7 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [genMsg, setGenMsg]       = useState('')
+  const [avisoSalvo, setAvisoSalvo] = useState('')
 
   async function load() {
     setLoading(true)
@@ -1315,6 +1412,7 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
           {generating ? 'Gerando...' : 'Gerar agora'}
         </button>
         {genMsg && <span style={{ fontSize: 13, color: genMsg.includes('sucesso') ? '#4CAF7D' : 'var(--danger)' }}>{genMsg}</span>}
+        {avisoSalvo && <span style={{ fontSize: 13, color: '#4CAF7D' }} role="status">{avisoSalvo}</span>}
         <div className={styles.toolbarRight}>
           <button className={styles.btnPrimary} onClick={() => { setEditing(null); setShowModal(true) }}>
             <Plus size={14} />
@@ -1327,14 +1425,16 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Descrição</th>
-              <th>Categoria</th>
-              <th>Loja</th>
+              {/* Mesma classe no <th> e no <td> de cada coluna: com ela só de um
+                  lado, título e valor desalinhavam (12/10/2026). */}
+              <th className="col-esq">Descrição</th>
+              <th className="col-center">Categoria</th>
+              <th className="col-center">Loja</th>
               <th className="col-num">Valor</th>
-              <th>Vence dia</th>
-              <th>Recorrência</th>
-              <th>Ativo</th>
-              <th></th>
+              <th className="col-center">Vence dia</th>
+              <th className="col-center">Recorrência</th>
+              <th className="col-center">Ativo</th>
+              <th className="col-acoes"></th>
             </tr>
           </thead>
           <tbody>
@@ -1346,20 +1446,20 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
             )}
             {items.map(r => (
               <tr key={r.id} className={styles.row}>
-                <td style={{ fontWeight: 500 }}>{r.description}</td>
-                <td><span className={styles.categoryBadge}>{r.category}</span></td>
-                <td className={styles.muted}>{r.store_name ?? 'Geral'}</td>
-                <td style={{ fontWeight: 700, color: '#E05252' }}>{fmt(r.amount)}</td>
-                <td className={styles.muted}>{r.day_of_month ? `Dia ${r.day_of_month}` : '—'}</td>
-                <td><span className={styles.categoryBadge}>{RECURRENCE_LABELS[r.recurrence] ?? r.recurrence}</span></td>
-                <td>
+                <td className="col-esq" style={{ fontWeight: 500 }}>{r.description}</td>
+                <td className="col-center"><span className={styles.categoryBadge}>{r.category}</span></td>
+                <td className={`${styles.muted} col-center`}>{r.store_name ?? 'Geral'}</td>
+                <td className="col-num" style={{ fontWeight: 700, color: '#E05252' }}>{fmt(r.amount)}</td>
+                <td className={`${styles.muted} col-center`}>{r.day_of_month ? `Dia ${r.day_of_month}` : '—'}</td>
+                <td className="col-center"><span className={styles.categoryBadge}>{RECURRENCE_LABELS[r.recurrence] ?? r.recurrence}</span></td>
+                <td className="col-center">
                   <button
                     className={`${styles.toggle} ${r.is_active ? styles.toggleActive : ''}`}
                     onClick={() => handleToggle(r.id, r.is_active)}
                     title={r.is_active ? 'Desativar' : 'Ativar'}
                   />
                 </td>
-                <td>
+                <td className="col-acoes">
                   <div className={styles.actionsCell}>
                     <button
                       className="icon-btn"
@@ -1399,8 +1499,17 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
               setItems(prev => prev.map(r => r.id === saved.id ? saved : r))
             } else {
               setItems(prev => [...prev, saved])
+              // A conta do mês nasce junto (gerar_ocorrencia_recorrente): avisa onde ela está.
+              const mes = new Date().toLocaleDateString('pt-BR', { month: 'long', timeZone: 'America/Sao_Paulo' })
+              setAvisoSalvo(saved.is_active && saved.recurrence === 'monthly'
+                ? `Recorrente criada. A conta de ${mes} já está em Contas a pagar.`
+                : 'Recorrente criada.')
+              setTimeout(() => setAvisoSalvo(''), 8000)
             }
             setShowModal(false)
+            // A loja é decidida no servidor (admin de loja grava na dela): relê a lista
+            // para não mostrar "Geral" no lugar da loja gravada.
+            load()
           }}
         />
       )}

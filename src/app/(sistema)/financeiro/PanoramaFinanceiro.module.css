@@ -66,9 +66,18 @@
   white-space: nowrap;
 }
 
+.etapaRotulo {
+  min-width: 0;
+}
+
+/* Embaixo do rótulo, em linha própria: ao lado ele não cabia nos 92px e era
+ * cortado pela barra ("ainda nã..."). */
 .etapaAviso {
+  display: block;
   font-size: 10px;
+  line-height: 1.2;
   color: var(--text-disabled);
+  white-space: normal;
 }
 
 .etapaTrilho {
