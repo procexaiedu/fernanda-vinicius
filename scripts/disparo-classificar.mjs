@@ -13,8 +13,11 @@
  *   lugar                nome com palavra forte de estabelecimento (ltda, farmácia,
  *                        pizzaria...) e que NÃO comprou na loja
  *
- * Vão para revisar: estrangeiro (+351, +49...), telefone fixo, palavra fraca de
- * lugar ("Maria Salão"), lugar que já comprou, nome que começa por inicial solta.
+ *   fixo_sem_whatsapp    telefone fixo (decisão do dono, 13/10/2026)
+ *   estrangeiro          número de fora do Brasil (o envio só aceita +55)
+ *
+ * Vão para revisar: palavra fraca de lugar ("Maria Salão"), lugar que já
+ * comprou, nome que começa por inicial solta.
  *
  * Roda com Node 23.6+ (importa o .ts direto, sem build).
  */
@@ -65,13 +68,15 @@ export function classificar(nome, telefone, comprou = false) {
 
   // número que não é celular BR
   if (bruto.startsWith('+') && !d.startsWith('55') && d.length >= 10) {
-    return { acao: 'revisar', motivo: 'invalido', detalhe: `número estrangeiro (+${d.slice(0, 3)}...); o envio só aceita Brasil` }
+    return { acao: 'excluir', motivo: 'estrangeiro', detalhe: `número estrangeiro (+${d.slice(0, 3)}...); o envio só aceita Brasil` }
   }
   if (local.length < 10) return { acao: 'excluir', motivo: 'invalido', detalhe: `número curto (${local.length} dígitos), não é celular` }
   if (local.length > 11) return { acao: 'excluir', motivo: 'invalido', detalhe: `número malformado (${local.length} dígitos)` }
   if (local[0] === '0' || local[1] === '0') return { acao: 'excluir', motivo: 'invalido', detalhe: 'DDD inválido' }
   if (local.length === 11 && local[2] !== '9') return { acao: 'excluir', motivo: 'invalido', detalhe: 'número malformado (11 dígitos sem o 9 de celular)' }
-  const fixo = local.length === 10 && /[2-5]/.test(local[2])
+  if (local.length === 10 && /[2-5]/.test(local[2])) {
+    return { acao: 'excluir', motivo: 'fixo_sem_whatsapp', detalhe: 'telefone fixo' }
+  }
 
   // (c) sem primeiro nome utilizável: decide a mesma função que monta o {{1}}
   const n = (nome ?? '').trim()
@@ -95,7 +100,5 @@ export function classificar(nome, telefone, comprou = false) {
     return { acao: 'revisar', motivo: 'sem_nome_utilizavel', detalhe: `começa com inicial; sairia "Oi ${primeiro}"` }
   }
 
-  // Fixo pode ter WhatsApp Business: sem prova de que não tem, só revisa.
-  if (fixo) return { acao: 'revisar', motivo: 'invalido', detalhe: 'telefone fixo (pode não ter WhatsApp)' }
   return { acao: 'manter', primeiro }
 }

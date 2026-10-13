@@ -8,7 +8,8 @@
  *    131026 -> invalido, 130403 -> bloqueio, 131050 -> opt_out.
  *    Saldo/taxa/131049 não excluem. Sem YCLOUD_API_KEY, pula esta parte.
  * 2. LIMPEZA (--limpeza): regras de scripts/disparo-classificar.mjs sobre os
- *    clientes de cada loja (lugar, emergência, número inválido, sem primeiro nome).
+ *    clientes de cada loja (lugar, emergência, número inválido, fixo, estrangeiro,
+ *    sem primeiro nome).
  *    Duvidosos NÃO entram: vão para o CSV "revisar".
  *
  * Sem --aplicar não grava nada: só conta e, com --csv=<pasta>, gera
@@ -38,6 +39,7 @@ const MOTIVO_YCLOUD = { '131026': 'invalido', '130403': 'bloqueio', '131050': 'o
 const ROTULO = {
   invalido: 'Número inválido / sem WhatsApp', bloqueio: 'Bloqueado', opt_out: 'Pediu para não receber',
   lugar: 'Número de lugar/empresa', emergencia: 'Emergência/serviço', sem_nome_utilizavel: 'Sem primeiro nome utilizável',
+  fixo_sem_whatsapp: 'Telefone fixo (sem WhatsApp)', estrangeiro: 'Número estrangeiro',
 }
 const h = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Accept-Profile': 'fv', 'Content-Profile': 'fv' }
 

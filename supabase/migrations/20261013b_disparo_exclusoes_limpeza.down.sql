@@ -3,7 +3,7 @@
 -- pessoas voltam a poder receber. Rode de novo a 20261013b para restaurar.
 
 delete from fv.disparo_exclusoes
- where motivo in ('lugar', 'emergencia', 'sem_nome_utilizavel') or origem = 'limpeza';
+ where motivo in ('lugar', 'emergencia', 'sem_nome_utilizavel', 'fixo_sem_whatsapp', 'estrangeiro') or origem = 'limpeza';
 
 alter table fv.disparo_exclusoes drop constraint if exists disparo_exclusoes_motivo_check;
 alter table fv.disparo_exclusoes add constraint disparo_exclusoes_motivo_check

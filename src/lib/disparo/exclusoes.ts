@@ -14,7 +14,7 @@ import { normalizePhoneBR } from '@/lib/ycloud'
  * lugar só: `fv.disparo_excluido` (e o filtro por loja de `exclusoesAtivas`).
  */
 
-export type MotivoExclusao = 'invalido' | 'bloqueio' | 'opt_out' | 'manual' | 'lugar' | 'emergencia' | 'sem_nome_utilizavel'
+export type MotivoExclusao = 'invalido' | 'bloqueio' | 'opt_out' | 'manual' | 'lugar' | 'emergencia' | 'sem_nome_utilizavel' | 'fixo_sem_whatsapp' | 'estrangeiro'
 export type OrigemExclusao = 'webhook' | 'resposta' | 'manual' | 'historico' | 'limpeza'
 
 export const MOTIVO_LABEL: Record<MotivoExclusao, string> = {
@@ -25,6 +25,8 @@ export const MOTIVO_LABEL: Record<MotivoExclusao, string> = {
   lugar:    'Número de lugar/empresa',
   emergencia: 'Emergência/serviço',
   sem_nome_utilizavel: 'Sem primeiro nome utilizável',
+  fixo_sem_whatsapp: 'Telefone fixo',
+  estrangeiro: 'Número estrangeiro',
 }
 
 /**
