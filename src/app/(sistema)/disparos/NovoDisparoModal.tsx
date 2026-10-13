@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ChevronDown, Check, Info, ImagePlus, Loader2, X, Search } from 'lucide-react'
+import { ChevronDown, Check, Info, ImagePlus, Loader2, X } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
-import { criarDisparo, atualizarDisparo, enviarDisparo, listarClientes, listarDestinatarios, listarTemplates, type TemplateMeta, type ClienteOption } from './actions'
+import { criarDisparo, atualizarDisparo, enviarDisparo, listarCandidatos, listarDestinatarios, listarTemplates, infoEnvio, type TemplateMeta, type Candidato } from './actions'
+import DestinatariosPicker, { FILTROS_PADRAO, dddDe, type Filtros } from './DestinatariosPicker'
 import { renderPreview } from './templates'
 import type { StoreOption, DisparoRow } from './page'
 import styles from './NovoDisparoModal.module.css'
-import { formatarTelefone } from '@/lib/telefone'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 
 interface Props {
@@ -42,12 +42,11 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
     param3: (editDisparo?.param3 && editDisparo.param3 !== '.') ? editDisparo.param3 : '',
     image_url: (editDisparo?.image_url ?? '') as string,
   })
-  const [clientes, setClientes] = useState<ClienteOption[] | null>(null)
+  const [clientes, setClientes] = useState<Candidato[] | null>(null)
+  const [clientesErro, setClientesErro] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  /** DDDs escolhidos no filtro. Vazio = todos. */
-  const [dddFiltro, setDddFiltro] = useState<string[]>([])
-  const [dddDigitando, setDddDigitando] = useState('')
-  const [clienteSearch, setClienteSearch] = useState('')
+  const [filtros, setFiltros] = useState<Filtros>(FILTROS_PADRAO)
+  const [envio, setEnvio] = useState<{ limiteDia: number | null; saldoUsd: number | null; custoMsgUsd: number }>({ limiteDia: null, saldoUsd: null, custoMsgUsd: 0.0625 })
   const [saving, setSaving]     = useState(false)
   const [sending, setSending]   = useState(false)
   const [serverErr, setServerErr] = useState<string | null>(null)
@@ -69,130 +68,63 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
   const tpl = templates?.find(t => t.name === form.template_name) ?? null
   const needsImage = tpl?.headerFormat === 'IMAGE'
 
-  /**
-   * DDD do cliente: só dígitos, sem o `55` do internacional, os 2 primeiros.
-   * A base tem formato misto (`(61) 98111-8248` e `+556181227155`) — sem tirar
-   * o 55, o DDD sairia "55" para metade dos cadastros.
-   */
-  function dddDe(phone: string): string {
-    const d = (phone || '').replace(/\D/g, '').replace(/^55/, '')
-    return d.length >= 10 ? d.slice(0, 2) : '—'
-  }
-
   /*
-   * DDDs presentes, do mais comum para o menos.
+   * Carrega as candidatas da loja (com histórico de compra e exclusão).
    *
-   * Só serve de sugestão, e sugestão curta: a lista completa da loja de
-   * Brasília tem mais de 50 entradas, várias delas DDD inválido vindo de
-   * telefone malformado (04, 00, 43). Mostrar tudo virou uma parede.
-   */
-  const ddds = useMemo(() => {
-    const m = new Map<string, number>()
-    for (const c of clientes ?? []) m.set(dddDe(c.phone), (m.get(dddDe(c.phone)) ?? 0) + 1)
-    return [...m.entries()]
-      .filter(([d]) => d !== '—')
-      .map(([ddd, qtd]) => ({ ddd, qtd }))
-      .sort((a, b) => b.qtd - a.qtd)
-  }, [clientes])
-
-  function addDdd(v: string) {
-    const d = v.replace(/\D/g, '').slice(0, 2)
-    if (d.length !== 2) return
-    setDddFiltro(p => (p.includes(d) ? p : [...p, d]))
-    setDddDigitando('')
-  }
-  function removeDdd(d: string) {
-    setDddFiltro(p => p.filter(x => x !== d))
-  }
-
-  /*
-   * Carrega os clientes da loja.
+   * Novo disparo: o filtro começa em "já comprou" + DDD dominante da loja, e a
+   * seleção é quem passa nele e não está excluída. Brasília tem centenas de
+   * contatos de agenda importada; mandar para eles foi o que bloqueou a conta
+   * em 16/09.
    *
-   * Novo disparo: pré-seleciona só o DDD dominante da loja, não todos. Depois
-   * da importação da agenda, Brasília ficou com 2.793 clientes mas só 2.376 com
-   * DDD 61 — os outros 417 são de Campinas, SP e Goiânia, salvos no celular de
-   * lá. Marcar todos mandaria mensagem para eles sem ninguém perceber.
-   *
-   * Os outros DDDs não somem: o campo mostra o filtro ativo, as sugestões
-   * trazem os maiores de volta com um clique, e o rodapé conta quantos ficaram
-   * de fora. A exclusão é visível, não silenciosa — que era o problema.
-   *
-   * Edição: respeita os destinatários já gravados no disparo.
+   * Edição: respeita os destinatários já gravados, menos os excluídos depois.
    */
   useEffect(() => {
     let alive = true
     const sid = form.store_id
     if (!sid) return
-    setClientes(null)
-    setDddFiltro([])
-    setDddDigitando('')
+    infoEnvio(sid).then(r => { if (alive) setEnvio(r) })
     Promise.all([
-      listarClientes(sid),
+      listarCandidatos(sid),
       (isEdit && editDisparo) ? listarDestinatarios(editDisparo.disparo_id) : Promise.resolve<string[] | null>(null),
-    ]).then(([cs, sel]) => {
+    ]).then(([res, sel]) => {
       if (!alive) return
+      if (!res.ok) { setClientesErro(res.error ?? 'Erro ao carregar clientes'); setClientes([]); return }
+      const cs = res.candidatos ?? []
       setClientes(cs)
-      if (sel) { setSelectedIds(new Set(sel)); return }
+      const excl = new Set(cs.filter(c => c.excluido).map(c => c.id))
+      if (sel) { setFiltros({ ...FILTROS_PADRAO, publico: 'todos', minCompras: 0 }); setSelectedIds(new Set(sel.filter(id => !excl.has(id)))); return }
 
+      const compradoras = cs.filter(c => c.compras > 0)
       const contagem = new Map<string, number>()
-      for (const c of cs) contagem.set(dddDe(c.phone), (contagem.get(dddDe(c.phone)) ?? 0) + 1)
-      const dominante = [...contagem.entries()]
-        .filter(([d]) => d !== '—')
-        .sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+      for (const c of compradoras) contagem.set(dddDe(c.phone), (contagem.get(dddDe(c.phone)) ?? 0) + 1)
+      const dominante = [...contagem.entries()].filter(([d]) => d !== '—').sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
-      setDddFiltro(dominante ? [dominante] : [])
-      setSelectedIds(new Set(
-        cs.filter(c => !dominante || dddDe(c.phone) === dominante).map(c => c.id)
-      ))
+      setFiltros({ ...FILTROS_PADRAO, ddds: dominante ? [dominante] : [] })
+      setSelectedIds(new Set(compradoras.filter(c => !c.excluido && (!dominante || dddDe(c.phone) === dominante)).map(c => c.id)))
     })
     return () => { alive = false }
   }, [form.store_id, isEdit, editDisparo])
-
-  const filteredClientes = useMemo(() => {
-    let list = clientes ?? []
-    if (dddFiltro.length) list = list.filter(c => dddFiltro.includes(dddDe(c.phone)))
-    const q = clienteSearch.trim().toLowerCase()
-    if (!q) return list
-    const qd = q.replace(/\D/g, '')
-    return list.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      (qd && (c.phone || '').replace(/\D/g, '').includes(qd))
-    )
-  }, [clientes, clienteSearch, dddFiltro])
-
-  /* Selecionados que estão FORA do DDD ativo — para a conta no rodapé não
-     mentir quando a pessoa filtra depois de já ter marcado gente. */
-  const selecionadosForaDoFiltro = useMemo(() => {
-    if (!dddFiltro.length) return 0
-    return (clientes ?? []).filter(c => selectedIds.has(c.id) && !dddFiltro.includes(dddDe(c.phone))).length
-  }, [clientes, selectedIds, dddFiltro])
-
-  function toggleCliente(id: string) {
-    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-    setErrors(e => ({ ...e, destinatarios: undefined }))
-  }
-  function selectAll()  { setSelectedIds(new Set((clientes ?? []).map(c => c.id))) }
-  function selectNone() { setSelectedIds(new Set()) }
-  function selectFiltrados() { setSelectedIds(prev => { const n = new Set(prev); filteredClientes.forEach(c => n.add(c.id)); return n }) }
 
   function set<K extends keyof typeof form>(k: K, v: string) {
     setForm(f => ({ ...f, [k]: v }))
     if (k in errors) setErrors(e => ({ ...e, [k]: undefined }))
   }
 
-  function validate(): boolean {
+  function validate(disparar = false): boolean {
     const e: typeof errors = {}
     if (!form.titulo.trim()) e.titulo = 'Título é obrigatório'
     if (!tpl) e.template = 'Selecione um template'
     if (tpl && tpl.bodyVarCount >= 2 && !form.param2.trim()) e.param2 = 'O texto da campanha é obrigatório'
     if (needsImage && !form.image_url) e.image = 'Este template exige uma imagem'
     if (selectedIds.size === 0) e.destinatarios = 'Selecione ao menos 1 cliente'
+    else if (disparar && envio.limiteDia != null && selectedIds.size > envio.limiteDia)
+      e.destinatarios = `O número só envia ${envio.limiteDia} por dia. Reduza a seleção para enviar (rascunho pode salvar).`
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
   async function salvar(disparar: boolean) {
-    if (!validate()) return
+    if (!validate(disparar)) return
     setServerErr(null)
     if (disparar) setSending(true); else setSaving(true)
 
@@ -241,7 +173,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
   const busy = saving || sending
 
   return (
-    <Modal isOpen onClose={onClose} title={isEdit ? 'Editar disparo' : 'Novo disparo'} size="lg">
+    <Modal isOpen onClose={onClose} title={isEdit ? 'Editar disparo' : 'Novo disparo'} size="xl2">
       <div className={styles.body}>
         {/* Formulário */}
         <div className={styles.formCol}>
@@ -267,7 +199,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
               ? 'A loja não muda na edição. Pra trocar, duplique ou crie um novo.'
               : 'Trocar a loja recarrega a lista de clientes e refaz a seleção.'}>
             {isAdmin && !isEdit ? (
-              <StoreSelect stores={stores} value={form.store_id} onChange={v => set('store_id', v)} />
+              <StoreSelect stores={stores} value={form.store_id} onChange={v => { setClientes(null); setClientesErro(null); set('store_id', v) }} />
             ) : (
               <input className={styles.input} value={storeName} disabled style={{ opacity: .7, cursor: 'not-allowed' }} />
             )}
@@ -318,128 +250,31 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
             </Field>
           )}
 
-          {(
-            <Field
-              label={`Destinatários — ${selectedIds.size} selecionado(s)`}
-              error={errors.destinatarios}
-              hint="Marque quem vai receber. Busque por nome ou telefone. O nome de cada um entra no {{1}}.">
-              {clientes === null ? (
-                <div className={styles.input} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: .7 }}>
-                  <Loader2 size={14} className={styles.spin} /> Carregando clientes…
-                </div>
-              ) : clientes.length === 0 ? (
-                <div className={styles.input} style={{ opacity: .8, fontSize: 12 }}>Nenhum cliente elegível nesta loja.</div>
-              ) : (
-                <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', gap: 6, padding: 8, borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
-                      <Search size={14} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-muted)' }} />
-                      <input className={styles.input} style={{ height: 36, paddingLeft: 30 }}
-                        placeholder="Buscar nome ou telefone…" value={clienteSearch}
-                        onChange={e => setClienteSearch(e.target.value)} />
-                    </div>
-                    <button type="button" onClick={selectAll} style={miniBtn}>Todos</button>
-                    <button type="button" onClick={selectNone} style={miniBtn}>Nenhum</button>
-                  </div>
-
-                  {/* DDD digitado, não listado. A loja de Brasília tem mais de
-                      50 DDDs distintos — vários inválidos, vindos de telefone
-                      malformado. A sugestão mostra só os três maiores. */}
-                  {ddds.length > 1 && (
-                    <div className={styles.dddBar}>
-                      <span className={styles.dddLabel}>DDD</span>
-
-                      <div className={styles.dddCampo}>
-                        {dddFiltro.map(d => (
-                          <span key={d} className={styles.dddChip}>
-                            {d}
-                            <button type="button" className={styles.dddChipX}
-                              onClick={() => removeDdd(d)} aria-label={`Remover DDD ${d}`}>
-                              <X size={11} />
-                            </button>
-                          </span>
-                        ))}
-                        <input
-                          className={styles.dddInput}
-                          inputMode="numeric"
-                          value={dddDigitando}
-                          placeholder={dddFiltro.length ? 'mais um…' : 'todos — digite p/ filtrar'}
-                          onChange={e => {
-                            const v = e.target.value.replace(/\D/g, '').slice(0, 2)
-                            // 2 dígitos já é um DDD: vira chip sozinho, sem exigir Enter
-                            if (v.length === 2) addDdd(v); else setDddDigitando(v)
-                          }}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') { e.preventDefault(); addDdd(dddDigitando) }
-                            // apagar com o campo vazio tira o último chip
-                            if (e.key === 'Backspace' && !dddDigitando && dddFiltro.length) {
-                              removeDdd(dddFiltro[dddFiltro.length - 1])
-                            }
-                          }}
-                        />
-                      </div>
-
-                      <div className={styles.dddSugestoes}>
-                        {ddds.filter(d => !dddFiltro.includes(d.ddd)).slice(0, 3).map(d => (
-                          <button key={d.ddd} type="button" className={styles.dddSugestao}
-                            onClick={() => addDdd(d.ddd)}>
-                            + {d.ddd} <span style={{ opacity: .65 }}>{d.qtd}</span>
-                          </button>
-                        ))}
-                        {dddFiltro.length > 0 && (
-                          <button type="button" className={styles.dddSugestao}
-                            onClick={() => setDddFiltro([])}>
-                            limpar
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {(clienteSearch || dddFiltro.length > 0) && filteredClientes.length > 0 && (
-                    <button type="button" onClick={selectFiltrados}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', height: 40, border: 'none', borderBottom: '1px solid var(--border)', background: 'var(--accent)', color: 'var(--accent-fg)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-                      <Check size={16} /> Adicionar os {filteredClientes.length} mostrados à seleção
-                    </button>
-                  )}
-
-                  <div style={{ maxHeight: 340, overflowY: 'auto' }}>
-                    {filteredClientes.map(c => {
-                      const on = selectedIds.has(c.id)
-                      return (
-                        <label key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 12px', cursor: 'pointer', fontSize: 14, borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,.04))', background: on ? 'var(--accent-subtle)' : 'transparent' }}>
-                          <input type="checkbox" checked={on} onChange={() => toggleCliente(c.id)} style={{ width: 17, height: 17, flexShrink: 0, cursor: 'pointer' }} />
-                          <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: on ? 600 : 400 }} className="nome-cliente">{c.name}</span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>{formatarTelefone(c.phone)}</span>
-                        </label>
-                      )
-                    })}
-                    {filteredClientes.length === 0 && (
-                      <div style={{ padding: 16, fontSize: 13, color: 'var(--text-muted)', textAlign: 'center' }}>Nenhum resultado.</div>
-                    )}
-                  </div>
-
-                  <div style={{ padding: '7px 12px', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                    <span>
-                      {filteredClientes.length} mostrado(s)
-                      {dddFiltro.length ? ` · DDD ${dddFiltro.join(', ')}` : ''}
-                      {clienteSearch ? ' · busca' : ''}
-                    </span>
-                    <span>
-                      {/* Sem isto o total mente: filtrar por DDD depois de já ter
-                          marcado gente esconde quem ficou selecionado fora dele. */}
-                      {selecionadosForaDoFiltro > 0 && (
-                        <span style={{ color: 'var(--warning, var(--accent))', marginRight: 10 }}>
-                          +{selecionadosForaDoFiltro} de outro DDD
-                        </span>
-                      )}
-                      <strong style={{ color: 'var(--accent)' }}>{selectedIds.size}</strong> selecionado(s)
-                    </span>
-                  </div>
-                </div>
-              )}
-            </Field>
-          )}
+          <Field
+            label={`Destinatários — ${selectedIds.size} selecionado(s)`}
+            error={errors.destinatarios}
+            hint="Comece por quem já comprou na loja. Quem está na lista de exclusão aparece apagada e não recebe.">
+            {clientes === null ? (
+              <div className={styles.input} style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: .7 }}>
+                <Loader2 size={14} className={styles.spin} /> Carregando clientes…
+              </div>
+            ) : clientesErro ? (
+              <div className={styles.serverError}>{clientesErro}</div>
+            ) : clientes.length === 0 ? (
+              <div className={styles.input} style={{ opacity: .8, fontSize: 12 }}>Nenhum cliente elegível nesta loja.</div>
+            ) : (
+              <DestinatariosPicker
+                candidatos={clientes}
+                selecionados={selectedIds}
+                onChange={s => { setSelectedIds(s); setErrors(e => ({ ...e, destinatarios: undefined })) }}
+                filtros={filtros}
+                onFiltros={setFiltros}
+                limiteDia={envio.limiteDia}
+                saldoUsd={envio.saldoUsd}
+                custoMsgUsd={envio.custoMsgUsd}
+              />
+            )}
+          </Field>
 
           {serverErr && <div className={styles.serverError}>{serverErr}</div>}
 
