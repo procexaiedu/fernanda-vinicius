@@ -23,7 +23,16 @@ export function wabaId() {
 
 /** Chave da API. Sem ela nada envia — é o único segredo que este módulo exige. */
 export function apiKey(): string | null {
-  return process.env.YCLOUD_API_KEY || null
+  return process.env.YCLOUD_API_KEY || (modoSeco() ? 'seco' : null)
+}
+
+/**
+ * Modo seco (YCLOUD_DRY_RUN=1): nada sai para a YCloud. O envio devolve id falso
+ * e a lista de templates é fixa. Serve para prévia local e teste: a tela de
+ * disparo envia de verdade, então prévia nunca roda com a chave real sem isto.
+ */
+export function modoSeco(): boolean {
+  return process.env.YCLOUD_DRY_RUN === '1'
 }
 
 /** Normaliza telefone BR -> E.164 (+55...). O cadastro vem como "(DD) 9XXXX-XXXX". */
@@ -103,7 +112,14 @@ function parseTemplate(t: TemplateApi): TemplateMeta {
   }
 }
 
+const TEMPLATE_SECO: TemplateMeta = {
+  name: 'fevinicius_template_disparo', language: 'pt_BR', category: 'MARKETING', status: 'APPROVED',
+  headerFormat: 'NONE', bodyText: 'Oi {{1}}! {{2}} {{3}}', bodyVarCount: 3, bodyExample: [],
+  footer: 'Modo seco: nada é enviado',
+}
+
 export async function listTemplates(chave: string, waba: string): Promise<TemplateMeta[]> {
+  if (modoSeco()) return [TEMPLATE_SECO]
   const url = `${YCLOUD_TPL}?filter.wabaId=${encodeURIComponent(waba)}&limit=100&includeTotal=false`
   const res = await fetch(url, { headers: { 'X-API-Key': chave }, cache: 'no-store' })
   if (!res.ok) throw new Error(`YCloud templates HTTP ${res.status}`)
@@ -114,6 +130,7 @@ export async function listTemplates(chave: string, waba: string): Promise<Templa
 export async function getTemplateMeta(
   chave: string, waba: string, name: string, language: string,
 ): Promise<TemplateMeta | null> {
+  if (modoSeco()) return TEMPLATE_SECO
   const url = `${YCLOUD_TPL}?filter.wabaId=${encodeURIComponent(waba)}`
             + `&filter.name=${encodeURIComponent(name)}&limit=100`
   const res = await fetch(url, { headers: { 'X-API-Key': chave }, cache: 'no-store' })
@@ -146,6 +163,7 @@ export interface SendResult {
 }
 
 export async function sendTemplate(i: SendTemplateInput): Promise<SendResult> {
+  if (modoSeco()) return { ok: true, messageId: 'seco-' + crypto.randomUUID() }
   const components: unknown[] = []
   if (i.imageUrl) {
     components.push({ type: 'header', parameters: [{ type: 'image', image: { link: i.imageUrl } }] })

@@ -11,7 +11,8 @@ async function naoEhAdmin(): Promise<boolean> {
   const p = await getProfile()
   return !p || !p.is_active || !ehAdmin(p)
 }
-import { apiKey, wabaId, listTemplates } from '@/lib/ycloud'
+import { apiKey, wabaId, listTemplates, modoSeco, normalizePhoneBR } from '@/lib/ycloud'
+import { exclusoesAtivas, excluirTelefone, type ExclusaoAtiva, type MotivoExclusao } from '@/lib/disparo/exclusoes'
 import { enviarLote } from '@/lib/disparo/enviarLote'
 import { emLotes } from '@/lib/supabase/em-lotes'
 
@@ -84,6 +85,182 @@ export async function listarClientes(store_id: string): Promise<ClienteOption[]>
     .not('phone', 'is', null)
     .order('name')
   return (data ?? []) as ClienteOption[]
+}
+
+export interface Candidato extends ClienteOption {
+  birthday: string | null
+  compras: number
+  gasto: number
+  ultima_compra: string | null
+  /** Motivo da exclusão ativa; null = pode receber. */
+  excluido: MotivoExclusao | null
+}
+
+/*
+ * Candidatas de uma loja com o histórico de compra NA LOJA (lojas isoladas: a
+ * venda de Brasília não conta para Campinas). Quem está na lista de exclusão
+ * vem marcado, para a tela mostrar e não deixar marcar; o banco barra de novo
+ * no snapshot e no lote.
+ *
+ * Erro de leitura sobe em vez de virar lista vazia: lista vazia aqui seria
+ * "ninguém comprou" e a tela mostraria todo mundo como cliente fria.
+ */
+export async function listarCandidatos(store_id: string): Promise<{ ok: boolean; error?: string; candidatos?: Candidato[] }> {
+  if (await naoEhAdmin()) return { ok: false, error: 'Só a administração faz disparos.' }
+  const perfil = await getProfile()
+  const loja = perfil ? lojaDoEscopo(perfil, store_id) : null
+  if (!loja) return { ok: false, error: 'Selecione a loja.' }
+
+  const admin = createAdminClient()
+  try {
+    const clientes: (ClienteOption & { birthday: string | null })[] = []
+    for (let de = 0; ; de += 1000) {
+      const { data, error } = await admin.from('customers')
+        .select('id, name, phone, birthday')
+        .eq('origin_store_id', loja).eq('whatsapp_opt_out', false).not('phone', 'is', null)
+        .order('name').range(de, de + 999)
+      if (error) throw new Error('clientes: ' + error.message)
+      clientes.push(...(data as typeof clientes))
+      if (data.length < 1000) break
+    }
+
+    const porCliente = new Map<string, { compras: number; gasto: number; ultima: string }>()
+    for (let de = 0; ; de += 1000) {
+      const { data, error } = await admin.from('sales')
+        .select('customer_id, total, sale_date')
+        .eq('store_id', loja).eq('status', 'completed').not('customer_id', 'is', null)
+        .order('id').range(de, de + 999)
+      if (error) throw new Error('vendas: ' + error.message)
+      for (const v of data) {
+        const a = porCliente.get(v.customer_id) ?? { compras: 0, gasto: 0, ultima: '' }
+        a.compras++
+        a.gasto += Number(v.total ?? 0)
+        if (v.sale_date > a.ultima) a.ultima = v.sale_date
+        porCliente.set(v.customer_id, a)
+      }
+      if (data.length < 1000) break
+    }
+
+    const excl = new Map((await exclusoesAtivas(admin, loja)).map(e => [e.telefone_e164, e.motivo]))
+
+    return {
+      ok: true,
+      candidatos: clientes.map(c => {
+        const h = porCliente.get(c.id)
+        const tel = normalizePhoneBR(c.phone)
+        return {
+          ...c,
+          compras: h?.compras ?? 0,
+          gasto: Math.round((h?.gasto ?? 0) * 100) / 100,
+          ultima_compra: h?.ultima || null,
+          excluido: tel ? excl.get(tel) ?? null : null,
+        }
+      }),
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/*
+ * Limite diário e saldo, para o contador da tela. Só leitura na YCloud. Se a
+ * leitura falhar, volta null e a tela diz "não consegui ler", sem inventar.
+ */
+export async function infoEnvio(store_id: string): Promise<{ limiteDia: number | null; saldoUsd: number | null; custoMsgUsd: number }> {
+  // Marketing no Brasil, tabela Meta 2026 (estimativa; a cobrança real vem da YCloud).
+  const custoMsgUsd = 0.0625
+  if (await naoEhAdmin()) return { limiteDia: null, saldoUsd: null, custoMsgUsd }
+  if (modoSeco()) return { limiteDia: 250, saldoUsd: 8.49, custoMsgUsd }
+  const chave = apiKey()
+  if (!chave) return { limiteDia: null, saldoUsd: null, custoMsgUsd }
+
+  const perfil = await getProfile()
+  const loja = perfil ? lojaDoEscopo(perfil, store_id) : null
+  const admin = createAdminClient()
+  const { data: st } = loja
+    ? await admin.from('stores').select('whatsapp_phone').eq('id', loja).maybeSingle()
+    : { data: null }
+
+  const [saldo, numeros] = await Promise.all([
+    fetch('https://api.ycloud.com/v2/balance', { headers: { 'X-API-Key': chave }, cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch('https://api.ycloud.com/v2/whatsapp/phoneNumbers?limit=100', { headers: { 'X-API-Key': chave }, cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null).catch(() => null),
+  ])
+  const num = (numeros?.items ?? []).find((n: { phoneNumber?: string }) => n.phoneNumber === st?.whatsapp_phone)
+  const tier = String(num?.messagingLimit ?? '')
+  const m = tier.match(/TIER_(\d+)(K)?/)
+  const limiteDia = m ? Number(m[1]) * (m[2] ? 1000 : 1) : null
+  return { limiteDia, saldoUsd: typeof saldo?.amount === 'number' ? saldo.amount : null, custoMsgUsd }
+}
+
+export interface ExclusaoRow extends ExclusaoAtiva {
+  nome: string | null
+}
+
+export async function listarExclusoes(store_id: string): Promise<{ ok: boolean; error?: string; itens?: ExclusaoRow[] }> {
+  if (await naoEhAdmin()) return { ok: false, error: 'Só a administração faz disparos.' }
+  const perfil = await getProfile()
+  const loja = perfil ? lojaDoEscopo(perfil, store_id) : null
+  if (!loja) return { ok: false, error: 'Selecione a loja.' }
+  const admin = createAdminClient()
+  try {
+    const itens = await exclusoesAtivas(admin, loja)
+    const ids = [...new Set(itens.map(i => i.customer_id).filter(Boolean))] as string[]
+    const nomes = new Map<string, string>()
+    if (ids.length) {
+      const cs = await emLotes(ids, lote => admin.from('customers').select('id, name').in('id', lote), 'os nomes das excluídas')
+      cs.forEach(c => nomes.set(c.id as string, c.name as string))
+    }
+    return { ok: true, itens: itens.map(i => ({ ...i, nome: i.customer_id ? nomes.get(i.customer_id) ?? null : null })) }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/** Inclui à mão: pela cliente (da loja) ou por um telefone avulso. */
+export async function incluirExclusao(input: { store_id: string; customer_id?: string; telefone?: string; detalhe?: string }): Promise<{ success: boolean; error?: string }> {
+  if (await naoEhAdmin()) return { success: false, error: 'Só a administração faz disparos.' }
+  const perfil = await getProfile()
+  const loja = perfil ? lojaDoEscopo(perfil, input.store_id) : null
+  if (!loja) return { success: false, error: 'Selecione a loja.' }
+  const admin = createAdminClient()
+
+  let telefone = input.telefone ?? ''
+  let customer_id: string | null = null
+  if (input.customer_id) {
+    const { data, error } = await admin.from('customers').select('id, phone')
+      .eq('id', input.customer_id).eq('origin_store_id', loja).maybeSingle()
+    if (error) return { success: false, error: error.message }
+    if (!data) return { success: false, error: 'Cliente não encontrada nesta loja.' }
+    telefone = data.phone ?? ''
+    customer_id = data.id
+  }
+  const r = await excluirTelefone(admin, {
+    store_id: loja, telefone, customer_id, motivo: 'manual', origem: 'manual',
+    detalhe: input.detalhe?.trim() || null, criado_por: perfil?.id ?? null,
+  })
+  if (!r.ok) return { success: false, error: r.error }
+  revalidatePath('/disparos')
+  return { success: true }
+}
+
+/** Retira da lista (a pessoa volta a poder receber). Soft: o histórico fica. */
+export async function retirarExclusao(id: string, motivo: string): Promise<{ success: boolean; error?: string }> {
+  if (await naoEhAdmin()) return { success: false, error: 'Só a administração faz disparos.' }
+  if (!motivo.trim()) return { success: false, error: 'Diga por que está retirando.' }
+  const perfil = await getProfile()
+  const loja = perfil ? lojaDoEscopo(perfil) : null
+  const admin = createAdminClient()
+  let q = admin.from('disparo_exclusoes')
+    .update({ removido_em: new Date().toISOString(), removido_por: perfil?.id ?? null, removido_motivo: motivo.trim() })
+    .eq('id', id).is('removido_em', null)
+  if (loja) q = q.eq('store_id', loja)
+  const { data, error } = await q.select('id')
+  if (error) return { success: false, error: error.message }
+  if (!data?.length) return { success: false, error: 'Exclusão não encontrada.' }
+  revalidatePath('/disparos')
+  return { success: true }
 }
 
 // IDs dos clientes que já estão num disparo (para pré-marcar no seletor ao editar).
