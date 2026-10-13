@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { normalizePhoneBR } from '@/lib/ycloud'
+import { normalizePhoneBR, recebidaNoFv } from '@/lib/ycloud'
 import { excluirTelefone, motivoDaFalha, pedeOptOut } from '@/lib/disparo/exclusoes'
 
 /**
@@ -109,7 +109,9 @@ export async function POST(req: NextRequest) {
  * Com o número em coexistência (app + API), a YCloud só manda este evento se a
  * assinatura `whatsapp.inbound_message.received` estiver ligada no webhook.
  */
-async function respostaRecebida(m: { from?: string; type?: string; text?: { body?: string }; button?: { text?: string } }) {
+async function respostaRecebida(m: { from?: string; to?: string; wabaId?: string; type?: string; text?: { body?: string }; button?: { text?: string } }) {
+  // Evento de outro número da conta (Joana, iPrado...): reconhece e ignora.
+  if (!recebidaNoFv(m)) return
   const tel = normalizePhoneBR(m.from ?? '')
   if (!tel) return
   const db = createAdminClient()

@@ -21,6 +21,28 @@ export function wabaId() {
   return process.env.FV_WABA_ID || WABA_ID_PADRAO
 }
 
+/** Número do FV (+5511983040007). Sobrescrevível por FV_WHATSAPP_PHONE. */
+export const FV_PHONE_PADRAO = '+5511983040007'
+
+export function fvPhone(): string {
+  return normalizePhoneBR(process.env.FV_WHATSAPP_PHONE || '') ?? FV_PHONE_PADRAO
+}
+
+/**
+ * A YCloud entrega eventos de TODOS os números da conta. Esta função diz se a
+ * mensagem recebida foi escrita para o número do FV. Confere `to` (número de
+ * destino) e `wabaId`: o que vier no payload tem que bater, e ao menos um dos
+ * dois tem que vir. Sem nenhum dos dois, na dúvida, não é do FV.
+ */
+export function recebidaNoFv(m: { to?: string; wabaId?: string }): boolean {
+  const to = m.to ? normalizePhoneBR(m.to) : null
+  const waba = m.wabaId ? String(m.wabaId) : null
+  if (!to && !waba) return false
+  if (m.to && to !== fvPhone()) return false
+  if (waba && waba !== wabaId()) return false
+  return true
+}
+
 /** Chave da API. Sem ela nada envia — é o único segredo que este módulo exige. */
 export function apiKey(): string | null {
   return process.env.YCLOUD_API_KEY || (modoSeco() ? 'seco' : null)
