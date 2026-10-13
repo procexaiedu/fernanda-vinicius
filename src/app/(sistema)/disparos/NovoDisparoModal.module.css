@@ -10,8 +10,8 @@
  * Falso positivo em varredura de design system: está certo assim.
  */
 .body { display: flex; gap: 24px; }
-.formCol { flex: 1.1; min-width: 0; }
-.previewCol { flex: .9; min-width: 0; }
+.formCol { flex: 1.7; min-width: 0; }
+.previewCol { flex: .8; min-width: 0; }
 
 /* Campos */
 .field { margin-bottom: 14px; }

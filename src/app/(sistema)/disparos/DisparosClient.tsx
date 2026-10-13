@@ -3,11 +3,12 @@
 import { usePersistedState } from '@/hooks/usePersistedState'
 
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, Search, Send, Megaphone, Loader2, Eye, Pencil, Copy } from 'lucide-react'
+import { Plus, Trash2, Search, Send, Megaphone, Loader2, Eye, Pencil, Copy, Ban } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import NovoDisparoModal from './NovoDisparoModal'
 import DisparoDetalheModal from './DisparoDetalheModal'
+import ExclusoesModal from './ExclusoesModal'
 import { enviarDisparo, excluirDisparo, duplicarDisparo } from './actions'
 import type { DisparoRow, StoreOption } from './page'
 import styles from './DisparosClient.module.css'
@@ -40,6 +41,7 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
   const [search, setSearch]   = useState('')
   const [filter, setFilter]   = usePersistedState<FilterType>('fv-filtros-disparos-filter', 'todos')
   const [formOpen, setFormOpen] = useState(false)
+  const [exclusoesOpen, setExclusoesOpen] = useState(false)
   const [editDisparo, setEditDisparo] = useState<DisparoRow | null>(null)
   const [detalhe, setDetalhe]   = useState<DisparoRow | null>(null)
   const [sendingId, setSendingId]   = useState<string | null>(null)
@@ -133,9 +135,14 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
             </button>
           </div>
         </div>
-        <Button size="sm" onClick={openNovo}>
-          <Plus size={14} /> Novo disparo
-        </Button>
+        <div className={styles.toolbarRight}>
+          <Button size="sm" variant="outline" onClick={() => setExclusoesOpen(true)}>
+            <Ban size={14} /> Lista de exclusão
+          </Button>
+          <Button size="sm" onClick={openNovo}>
+            <Plus size={14} /> Novo disparo
+          </Button>
+        </div>
       </div>
 
       {/* Tabela */}
@@ -256,6 +263,14 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
           currentUserStoreId={currentUserStoreId}
           editDisparo={editDisparo}
           onClose={() => { setFormOpen(false); setEditDisparo(null) }}
+        />
+      )}
+
+      {exclusoesOpen && (
+        <ExclusoesModal
+          stores={stores}
+          storeId={currentUserStoreId ?? stores[0]?.id ?? ''}
+          onClose={() => setExclusoesOpen(false)}
         />
       )}
 
