@@ -41,6 +41,7 @@ export function dddDe(phone: string): string {
 
 const MOTIVO: Record<string, string> = {
   invalido: 'sem WhatsApp', bloqueio: 'bloqueada', opt_out: 'pediu p/ sair', manual: 'excluída',
+  lugar: 'lugar/empresa', emergencia: 'emergência/serviço', sem_nome_utilizavel: 'sem nome p/ saudar',
 }
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })

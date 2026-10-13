@@ -98,6 +98,8 @@ export function formatarNomeProprio(bruto: string | null | undefined): string {
 const NAO_E_NOME = new Set([
   'sem nome', 'sem', 'oi', 'ola', 'teste', 'test', 'cliente',
   'nome', 'na', 'desconhecido', 'contato',
+  // Marcador de agenda, não pessoa (regra do dono, 13/10/2026).
+  'whatsapp', 'zap', 'novo', 'nova',
   // Tratamento não é nome: "Dra. Juliana" saudava "Oi Dra".
   'dr', 'dra', 'sr', 'sra', 'srta', 'exma', 'prof', 'profa',
 ])

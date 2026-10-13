@@ -16,9 +16,10 @@ import styles from './ExclusoesModal.module.css'
 
 const MOTIVO: Record<string, string> = {
   invalido: 'Sem WhatsApp / inválido', bloqueio: 'Bloqueada', opt_out: 'Pediu para sair', manual: 'Excluída à mão',
+  lugar: 'Lugar/empresa', emergencia: 'Emergência/serviço', sem_nome_utilizavel: 'Sem primeiro nome',
 }
 const ORIGEM: Record<string, string> = {
-  webhook: 'automático (falha do WhatsApp)', resposta: 'automático (resposta)', manual: 'manual', historico: 'histórico de envios',
+  webhook: 'automático (falha do WhatsApp)', resposta: 'automático (resposta)', manual: 'manual', historico: 'histórico de envios', limpeza: 'limpeza da lista',
 }
 
 interface Props {

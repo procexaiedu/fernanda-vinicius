@@ -14,14 +14,17 @@ import { normalizePhoneBR } from '@/lib/ycloud'
  * lugar só: `fv.disparo_excluido` (e o filtro por loja de `exclusoesAtivas`).
  */
 
-export type MotivoExclusao = 'invalido' | 'bloqueio' | 'opt_out' | 'manual'
-export type OrigemExclusao = 'webhook' | 'resposta' | 'manual' | 'historico'
+export type MotivoExclusao = 'invalido' | 'bloqueio' | 'opt_out' | 'manual' | 'lugar' | 'emergencia' | 'sem_nome_utilizavel'
+export type OrigemExclusao = 'webhook' | 'resposta' | 'manual' | 'historico' | 'limpeza'
 
 export const MOTIVO_LABEL: Record<MotivoExclusao, string> = {
   invalido: 'Número inválido / sem WhatsApp',
   bloqueio: 'Bloqueado',
   opt_out:  'Pediu para não receber',
   manual:   'Retirado à mão',
+  lugar:    'Número de lugar/empresa',
+  emergencia: 'Emergência/serviço',
+  sem_nome_utilizavel: 'Sem primeiro nome utilizável',
 }
 
 /**
