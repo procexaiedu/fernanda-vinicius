@@ -162,6 +162,45 @@ export async function listarCandidatos(store_id: string): Promise<{ ok: boolean;
   }
 }
 
+export interface ListaSalva {
+  id: string
+  nome: string
+  descricao: string | null
+  customer_ids: string[]
+}
+
+/*
+ * Listas salvas da loja (14/10/2026), para o campo "Lista salva" do seletor.
+ * Só da loja da sessão (lojas isoladas). A lista não fura a exclusão: a tela
+ * só marca quem não está excluída, e o banco barra de novo no envio.
+ */
+export async function listarListas(store_id: string): Promise<{ ok: boolean; error?: string; listas?: ListaSalva[] }> {
+  if (await naoEhAdmin()) return { ok: false, error: 'Só a administração faz disparos.' }
+  const perfil = await getProfile()
+  const loja = perfil ? lojaDoEscopo(perfil, store_id) : null
+  if (!loja) return { ok: false, error: 'Selecione a loja.' }
+
+  const admin = createAdminClient()
+  const { data: ls, error } = await admin.from('disparo_listas')
+    .select('id, nome, descricao').eq('store_id', loja).eq('ativa', true).order('criado_em', { ascending: false })
+  if (error) return { ok: false, error: 'Não consegui ler as listas salvas: ' + error.message }
+  if (!ls.length) return { ok: true, listas: [] }
+
+  const itens: { lista_id: string; customer_id: string }[] = []
+  for (let de = 0; ; de += 1000) {
+    const { data, error: e } = await admin.from('disparo_lista_itens')
+      .select('lista_id, customer_id').in('lista_id', ls.map(l => l.id))
+      .order('lista_id').order('customer_id').range(de, de + 999)
+    if (e) return { ok: false, error: 'Não consegui ler as listas salvas: ' + e.message }
+    itens.push(...data)
+    if (data.length < 1000) break
+  }
+  return {
+    ok: true,
+    listas: ls.map(l => ({ ...l, customer_ids: itens.filter(i => i.lista_id === l.id).map(i => i.customer_id) })),
+  }
+}
+
 /*
  * Limite diário e saldo, para o contador da tela. Só leitura na YCloud. Se a
  * leitura falhar, volta null e a tela diz "não consegui ler", sem inventar.
