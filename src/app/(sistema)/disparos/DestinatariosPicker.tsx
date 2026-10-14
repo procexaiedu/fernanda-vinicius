@@ -43,7 +43,7 @@ export function dddDe(phone: string): string {
   return d.length >= 10 ? d.slice(0, 2) : '—'
 }
 
-const MOTIVO: Record<string, string> = {
+export const MOTIVO: Record<string, string> = {
   invalido: 'sem WhatsApp', bloqueio: 'bloqueada', opt_out: 'pediu p/ sair', manual: 'excluída',
   lugar: 'lugar/empresa', emergencia: 'emergência/serviço', sem_nome_utilizavel: 'sem nome p/ saudar', fixo_sem_whatsapp: 'fixo', estrangeiro: 'estrangeiro',
 }
@@ -55,7 +55,7 @@ const dataCurta = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { d
 export const recebeuHaPouco = (c: Candidato, dias: number | null) =>
   dias != null && !!c.ultimo_envio && Date.now() - new Date(c.ultimo_envio).getTime() < dias * 86_400_000
 
-function aplicar(cs: Candidato[], f: Filtros, membros: Set<string> | null): Candidato[] {
+export function aplicar(cs: Candidato[], f: Filtros, membros: Set<string> | null): Candidato[] {
   const mes = new Date().getMonth() + 1
   const q = f.busca.trim().toLowerCase()
   const qd = q.replace(/\D/g, '')

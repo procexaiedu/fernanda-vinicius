@@ -42,7 +42,8 @@
   font-size: 12px; color: var(--danger);
 }
 
-.actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.actions { display: flex; gap: 10px; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.actionsGap { flex: 1; }
 .note { font-size: 11px; color: var(--text-muted); margin-top: 8px; text-align: right; }
 
 /* Select (loja) */
@@ -189,3 +190,95 @@
   white-space: nowrap;
 }
 .dddSugestao:hover { border-style: solid; border-color: var(--accent); color: var(--accent); }
+
+/* ── Etapas (14/10/2026) ─────────────────────────────────────────────────────
+   1 Mensagem → 2 Público → 3 Revisar e enviar. Cada etapa é clicável; avançar
+   valida a anterior. */
+.stepper {
+  list-style: none; margin: 0 0 20px; padding: 0;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.step {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--radius-md);
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em; cursor: pointer; text-align: left;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.step:hover { color: var(--text-primary); border-color: var(--border-light); }
+.stepNum {
+  flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--border); color: var(--text-secondary); font-size: 12px; font-variant-numeric: tabular-nums;
+}
+.stepNome { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stepConta {
+  flex: none; min-width: 22px; height: 20px; padding: 0 6px; border-radius: var(--radius-pill);
+  display: grid; place-items: center; background: var(--accent-subtle); color: var(--accent); font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.stepOn { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
+.stepOn .stepNum { background: var(--accent); color: var(--accent-fg); }
+.stepDone .stepNum { background: var(--success-subtle, var(--accent-subtle)); color: var(--success); }
+
+.previewOculta { display: none; }
+
+/* Revisão */
+.revisao { display: flex; flex-direction: column; gap: 16px; }
+.resumoGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.resumoCard {
+  position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 4px;
+  padding: 14px; border-radius: var(--radius-lg); background: var(--bg-elevated); border: 1px solid var(--border);
+}
+.resumoCard::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.resumoCard > svg { margin-bottom: 4px; }
+.resumoOk::before { background: var(--gem-esmeralda); }
+.resumoOk > svg { color: var(--success); }
+.resumoExcl::before { background: var(--gem-rubi); }
+.resumoExcl > svg { color: var(--danger); }
+.resumoCusto::before { background: var(--gem-safira); }
+.resumoCusto > svg { color: var(--accent); }
+.resumoRot { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+.resumoNum { font-size: 26px; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-title); }
+.resumoSub { font-size: 11px; color: var(--text-muted); }
+.ruim { color: var(--danger); }
+
+.porque { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.porqueTit {
+  padding: 10px 14px; background: var(--bg-elevated); border-bottom: 1px solid var(--border);
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted);
+}
+.porqueVazio { padding: 14px; font-size: 13px; color: var(--text-muted); }
+.porqueLista { list-style: none; margin: 0; padding: 0; }
+.porqueLista li {
+  display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; font-size: 13px;
+  color: var(--text-secondary); border-bottom: 1px solid var(--border);
+}
+.porqueLista li:last-child { border-bottom: none; }
+.porqueLista b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+.ficha { margin: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 16px; }
+.ficha dt { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+.ficha dd { margin: 0; font-size: 13px; color: var(--text-primary); overflow-wrap: anywhere; }
+
+.aviso {
+  display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-md);
+  background: var(--warning-subtle, var(--danger-subtle)); border: 1px solid var(--warning, var(--danger));
+  color: var(--text-secondary); font-size: 12px; line-height: 1.5;
+}
+.aviso svg { color: var(--warning, var(--danger)); flex: none; margin-top: 1px; }
+
+@media (max-width: 600px) {
+  .stepper { gap: 6px; }
+  .step { flex-direction: column; gap: 4px; padding: 8px 4px; text-align: center; font-size: 10px; }
+  .stepNome { white-space: normal; }
+  .stepConta { display: none; }
+  .resumoGrid { grid-template-columns: 1fr; }
+  .resumoCard { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 10px; }
+  .resumoCard > svg { margin: 0; }
+  .resumoNum { font-size: 20px; grid-column: 3; grid-row: 1; }
+  .resumoSub { grid-column: 2; grid-row: 2; }
+  .ficha { grid-template-columns: 1fr; }
+  .actions > * { flex: 1 1 auto; }
+  .actionsGap { display: none; }
+}
