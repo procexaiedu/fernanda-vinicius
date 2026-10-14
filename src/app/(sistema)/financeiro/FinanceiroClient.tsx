@@ -28,6 +28,7 @@ import {
 import { formatarDinheiro, formatarDinheiroComSinal } from '@/lib/dinheiro'
 import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
 import ConsertoTab from './ConsertoTab'
+import FluxoCaixaTab from './FluxoCaixaTab'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -306,7 +307,7 @@ interface Props {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function FinanceiroClient({ stores, podeTrocarLoja, users, categories: dbCategories, initialTransactions }: Props) {
-  const [activeTab, setActiveTab] = useState<'transactions' | 'pnl' | 'recorrentes' | 'conserto'>('transactions')
+  const [activeTab, setActiveTab] = useState<'transactions' | 'pnl' | 'recorrentes' | 'conserto' | 'fluxo'>('transactions')
   const categories = useMemo(() => mergeCategories(dbCategories), [dbCategories])
 
   return (
@@ -320,6 +321,8 @@ export default function FinanceiroClient({ stores, podeTrocarLoja, users, catego
              cliente pagou contra o que saiu para o Ourives. Diluído nas
              transações, os dois lados nunca se encontram. */
           ['conserto', 'Conserto'],
+          /* Quando o dinheiro CAI: cartão parcela a parcela, já sem a taxa. */
+          ['fluxo', 'Fluxo de caixa'],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -341,6 +344,7 @@ export default function FinanceiroClient({ stores, podeTrocarLoja, users, catego
         <RecorrentesTab stores={stores} categories={categories} />
       )}
       {activeTab === 'conserto' && <ConsertoTab />}
+      {activeTab === 'fluxo' && <FluxoCaixaTab />}
     </div>
   )
 }

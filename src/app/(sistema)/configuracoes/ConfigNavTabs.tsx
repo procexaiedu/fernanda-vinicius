@@ -13,6 +13,8 @@ const tabs = [
   { label: 'Metas',     href: '/configuracoes/metas',     daRede: false },
   { label: 'Negócio',   href: '/configuracoes/negocio',   daRede: true },
   { label: 'Impressão', href: '/configuracoes/impressao', daRede: false },
+  // Uma maquininha para as duas lojas: taxa é da rede.
+  { label: 'Taxas de cartão', href: '/configuracoes/taxas', daRede: true },
 ]
 
 export default function ConfigNavTabs({ daRede = false }: { daRede?: boolean }) {
