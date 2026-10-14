@@ -188,7 +188,7 @@ export default function ConfiguracoesNegocioClient({ settings, storeId }: Props)
     }
 
     setSaving(prev => { const n = new Set(prev); n.delete(section.id); return n })
-  }, [numericValues])
+  }, [numericValues, storeId])
 
   return (
     <div className={styles.sections}>
