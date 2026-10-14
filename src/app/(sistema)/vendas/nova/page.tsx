@@ -1,4 +1,5 @@
 import { requireProfile, lojaDoEscopo } from '@/lib/auth'
+import { lojaDaConfig } from '@/lib/configDaLoja'
 import { listasDoEscopo } from '@/lib/listas-do-escopo'
 import PageHeader from '@/components/ui/PageHeader'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -19,12 +20,14 @@ export default async function NovaVendaPage({ searchParams }: PageProps) {
   // Quem tem loja está preso a ela — admin de loja inclusive. Ver lib/listas-do-escopo.
   const escopo = lojaDoEscopo(profile)
   const listas = listasDoEscopo(admin, escopo)
+  const lojaCfg = await lojaDaConfig(escopo)
 
   const [storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
     listas.lojas(),
     fetchAll((de, ate) => listas.produtos(de, ate)),
     listas.clientes(),
-    admin.from('settings').select('key, value').in('key', [
+    // Config é da LOJA (16/10): a do escopo da operação.
+    admin.from('settings').select('key, value').eq('store_id', lojaCfg).in('key', [
       'pix_discount_pct',
       'birthday_discount_pct',
       'max_installments_default',

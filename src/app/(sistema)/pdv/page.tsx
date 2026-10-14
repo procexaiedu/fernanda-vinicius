@@ -1,4 +1,5 @@
 import { requireProfile, lojaDoEscopo } from '@/lib/auth'
+import { lojaDaConfig } from '@/lib/configDaLoja'
 import { listasDoEscopo } from '@/lib/listas-do-escopo'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAll } from '@/lib/supabase/fetch-all'
@@ -26,12 +27,14 @@ export default async function PdvPage() {
   // Meta da loja (06/10): parte em t=0, junto com o resto. O PDV é a tela
   // inicial da vendedora, então o painel mora aqui.
   const painelMetaP = painelMetaDaLoja(escopo)
+  const lojaCfg = await lojaDaConfig(escopo)
 
   const [storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
     listas.lojas(),
     fetchAll((de, ate) => listas.produtos(de, ate)),
     listas.clientes(),
-    admin.from('settings').select('key, value').in('key', [
+    // Config é da LOJA (16/10): a do escopo da operação.
+    admin.from('settings').select('key, value').eq('store_id', lojaCfg).in('key', [
       'pix_discount_pct',
       'birthday_discount_pct',
       'max_installments_default',

@@ -33,11 +33,12 @@ async function lojaDaAdmin(): Promise<{ loja: string } | { erro: string }> {
 async function gravarConfig(loja: string, cfg: ConfigMetaLoja): Promise<MetaActionResult> {
   const admin = createAdminClient()
   const { error } = await admin.from('settings').upsert({
+    store_id: loja,
     key: chaveMetaLoja(loja),
     value: cfg,
     description: 'Meta mensal da loja e faixas de comissão (bateu / não bateu)',
     updated_at: new Date().toISOString(),
-  }, { onConflict: 'key' })
+  }, { onConflict: 'store_id,key' })
   if (error) return { success: false, error: `Não foi possível salvar a meta: ${error.message}` }
   revalidatePath('/configuracoes/metas')
   revalidatePath('/pdv')

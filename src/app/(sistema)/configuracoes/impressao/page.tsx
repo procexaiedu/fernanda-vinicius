@@ -1,4 +1,6 @@
-import { podeConfigurarRede, requireProfile } from '@/lib/auth'
+import { requireProfile } from '@/lib/auth'
+import { lojaDaConfiguracao } from '@/lib/lojasQueAdministra'
+import SeletorLojaConfig from '@/components/ui/SeletorLojaConfig'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ImpressaoClient from './ImpressaoClient'
 import CategoryMappingPanel from './CategoryMappingPanel'
@@ -6,27 +8,28 @@ import type { CategoryMapping } from './actions'
 import styles from './page.module.css'
 import PageHeader from '@/components/ui/PageHeader'
 
-export default async function ImpressaoConfigPage() {
+export default async function ImpressaoConfigPage({ searchParams }: { searchParams: Promise<{ loja?: string }> }) {
   const profile = await requireProfile()
 
 
   /*
-   * O painel de categoria x etiqueta é da REDE — `category_label_mapping` não
-   * tem coluna de loja. Era `role === 'admin'`, e a admin de Brasília mudaria a
-   * etiqueta que sai em Campinas. O agente de impressão local (acima) segue
-   * disponível para qualquer admin: aquele é o computador dela.
+   * O painel de categoria x etiqueta é da LOJA desde 16/10/2026. Admin de loja
+   * mexe só na dela; a dona escolhe a loja. Operadora não vê o painel. O
+   * agente de impressão local (acima) segue disponível: é o computador dela.
    */
-  const isAdmin = podeConfigurarRede(profile)
+  const cfg = await lojaDaConfiguracao(profile, (await searchParams).loja)
 
   let mappings: CategoryMapping[] = []
-  if (isAdmin) {
+  if (cfg) {
     const admin = createAdminClient()
-    const { data } = await admin
+    const { data, error } = await admin
       .from('category_label_mapping')
       .select('category, label_format')
+      .eq('store_id', cfg.loja.id)
       .eq('is_active', true)
       .order('category')
-    mappings = (data ?? []) as CategoryMapping[]
+    if (error || !data) throw new Error('Não consegui ler as etiquetas por categoria.')
+    mappings = data as CategoryMapping[]
   }
 
   return (
@@ -37,7 +40,12 @@ export default async function ImpressaoConfigPage() {
       />
       <div className={styles.grid}>
         <ImpressaoClient />
-        {isAdmin && <CategoryMappingPanel initialMappings={mappings} />}
+        {cfg && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <SeletorLojaConfig lojas={cfg.lojas} lojaId={cfg.loja.id} href="/configuracoes/impressao" />
+            <CategoryMappingPanel key={cfg.loja.id} initialMappings={mappings} storeId={cfg.loja.id} />
+          </div>
+        )}
       </div>
     </div>
   )

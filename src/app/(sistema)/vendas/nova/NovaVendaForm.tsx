@@ -127,6 +127,16 @@ const CARD_BRANDS = [
   { value: 'elo',       label: 'Elo',    color: '#EFB700' },
   { value: 'amex',      label: 'Amex',   color: '#2E9BD6' },
   { value: 'hipercard', label: 'Hiper',  color: '#E2544C' },
+  // As demais da planilha da Laranjinha (14/10). O código é o mesmo de
+  // fv.card_fees.brand: é por ele que o gatilho acha a taxa da venda.
+  { value: 'credz',     label: 'Credz',     color: '#7C3AED' },
+  { value: 'jcb',       label: 'JCB',       color: '#0E7C3A' },
+  { value: 'banescard', label: 'Banescard', color: '#1D4ED8' },
+  { value: 'cup',       label: 'CUP',       color: '#C81E1E' },
+  { value: 'sorocred',  label: 'Sorocred',  color: '#16A34A' },
+  { value: 'sicredi',   label: 'Sicredi',   color: '#65A30D' },
+  { value: 'diners',    label: 'Diners',    color: '#64748B' },
+  { value: 'cabal',     label: 'Cabal',     color: '#0369A1' },
 ] as const
 
 interface Props {

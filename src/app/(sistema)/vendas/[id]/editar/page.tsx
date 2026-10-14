@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { lojaDaConfig } from '@/lib/configDaLoja'
 import { AlertTriangle } from 'lucide-react'
 import PageHeader from '@/components/ui/PageHeader'
 import { requireProfile, lojaDoEscopo } from '@/lib/auth'
@@ -20,13 +21,15 @@ export default async function EditarVendaPage({ params }: { params: Promise<{ id
   // Quem tem loja está preso a ela — admin de loja inclusive. Ver lib/listas-do-escopo.
   const escopo = lojaDoEscopo(profile)
   const listas = listasDoEscopo(admin, escopo)
+  const lojaCfg = await lojaDaConfig(escopo)
 
   const [saleRes, storesRes, productsRes, customersRes, settingsRes, userStoreRes, usersRes] = await Promise.all([
     buscarVendaParaEdicao(id),
     listas.lojas(),
     fetchAll((de, ate) => listas.produtos(de, ate)),
     listas.clientes(),
-    admin.from('settings').select('key, value').in('key', [
+    // Config é da LOJA (16/10): a do escopo da operação.
+    admin.from('settings').select('key, value').eq('store_id', lojaCfg).in('key', [
       'pix_discount_pct',
       'birthday_discount_pct',
       'max_installments_default',

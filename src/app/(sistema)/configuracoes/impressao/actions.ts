@@ -1,9 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getProfile, podeConfigurarRede } from '@/lib/auth'
+import { getProfile } from '@/lib/auth'
+import { podeConfigurarLoja } from '@/lib/lojasQueAdministra'
 
 export type LabelFormat = 'A' | 'B'
 
@@ -18,34 +18,29 @@ export interface ActionResult {
 }
 
 /*
- * SÓ O ADMIN GLOBAL.
- *
- * Conferia `role === 'admin'`, e admin de loja TAMBÉM é admin — a Eleandra, de
- * Brasília, passava. `category_label_mapping` NÃO tem coluna de loja: categoria e formato
- * de etiqueta são da rede, então Brasília mudaria a etiqueta de Campinas.
- *
- * A tela já redirecionava quem não é global, mas redirecionar não é trava:
- * server action é chamável direto, e estas leem com service_role. Pedido do
- * dono em 10/09 — "pense como 2 sistemas totalmente distintos".
+ * Etiqueta por categoria é da LOJA desde 16/10/2026 (regra do dev: Campinas e
+ * Brasília não compartilham nada). Antes era da rede e só o admin global
+ * mexia. Agora a Eleandra muda a de Brasília; a dona escolhe a loja. A loja que
+ * chega é conferida aqui (podeConfigurarLoja): server action é chamável direto.
  */
-async function verifyAdmin() {
+async function verifyAdmin(storeId: string) {
   const perfil = await getProfile()
   if (!perfil) return { error: 'Não autenticado.' }
-  if (!podeConfigurarRede(perfil)) {
-    return { error: 'Só a administradora geral muda esta configuração.' }
+  if (!(await podeConfigurarLoja(perfil, storeId))) {
+    return { error: 'Sem permissão para a configuração desta loja.' }
   }
   return { error: null }
 }
 
-export async function upsertCategoryMapping(category: string, label_format: LabelFormat): Promise<ActionResult> {
-  const { error: authError } = await verifyAdmin()
+export async function upsertCategoryMapping(storeId: string, category: string, label_format: LabelFormat): Promise<ActionResult> {
+  const { error: authError } = await verifyAdmin(storeId)
   if (authError) return { success: false, error: authError }
 
   const admin = createAdminClient()
   // is_active: true reativa categorias que tenham sido excluídas (soft-delete)
   const { error } = await admin
     .from('category_label_mapping')
-    .upsert({ category: category.trim(), label_format, is_active: true }, { onConflict: 'category' })
+    .upsert({ store_id: storeId, category: category.trim(), label_format, is_active: true }, { onConflict: 'store_id,category' })
 
   if (error) return { success: false, error: error.message }
 
@@ -56,18 +51,19 @@ export async function upsertCategoryMapping(category: string, label_format: Labe
 }
 
 export async function renameCategoryMapping(
+  storeId: string,
   oldCategory: string,
   newCategory: string,
   label_format: LabelFormat,
 ): Promise<ActionResult> {
-  const { error: authError } = await verifyAdmin()
+  const { error: authError } = await verifyAdmin(storeId)
   if (authError) return { success: false, error: authError }
 
   const admin = createAdminClient()
-  await admin.from('category_label_mapping').delete().eq('category', oldCategory)
+  await admin.from('category_label_mapping').delete().eq('store_id', storeId).eq('category', oldCategory)
   const { error } = await admin
     .from('category_label_mapping')
-    .insert({ category: newCategory.trim(), label_format })
+    .insert({ store_id: storeId, category: newCategory.trim(), label_format })
 
   if (error) return { success: false, error: error.message }
 
@@ -76,8 +72,8 @@ export async function renameCategoryMapping(
   return { success: true }
 }
 
-export async function deleteCategoryMapping(category: string): Promise<ActionResult> {
-  const { error: authError } = await verifyAdmin()
+export async function deleteCategoryMapping(storeId: string, category: string): Promise<ActionResult> {
+  const { error: authError } = await verifyAdmin(storeId)
   if (authError) return { success: false, error: authError }
 
   const admin = createAdminClient()
@@ -85,6 +81,7 @@ export async function deleteCategoryMapping(category: string): Promise<ActionRes
   const { error } = await admin
     .from('category_label_mapping')
     .update({ is_active: false })
+    .eq('store_id', storeId)
     .eq('category', category)
 
   if (error) return { success: false, error: error.message }

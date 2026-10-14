@@ -1,9 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getProfile, podeConfigurarRede } from '@/lib/auth'
+import { getProfile } from '@/lib/auth'
+import { podeConfigurarLoja } from '@/lib/lojasQueAdministra'
 
 export interface ActionResult {
   success: boolean
@@ -11,34 +11,24 @@ export interface ActionResult {
 }
 
 /*
- * SÓ O ADMIN GLOBAL.
- *
- * Conferia `role === 'admin'`, e admin de loja TAMBÉM é admin — a Eleandra, de
- * Brasília, passava. Desconto, reserva de compra e prazos valem para a REDE:
- * um admin de loja mudando aqui muda a outra loja junto.
- *
- * A tela já redirecionava quem não é global, mas redirecionar não é trava:
- * server action é chamável direto, e estas leem com service_role. Pedido do
- * dono em 10/09 — "pense como 2 sistemas totalmente distintos".
+ * Regra do negócio é da LOJA (16/10/2026; regra do dev: na FV nada é global).
+ * Eleandra muda só Brasília; a dona escolhe a loja. A loja que chega é
+ * conferida aqui (podeConfigurarLoja): server action é chamável direto.
  */
-async function verifyAdmin(): Promise<{ error: string | null }> {
+export async function updateSetting(storeId: string, key: string, value: number): Promise<ActionResult> {
   const perfil = await getProfile()
-  if (!perfil) return { error: 'Não autenticado.' }
-  if (!podeConfigurarRede(perfil)) {
-    return { error: 'Só a administradora geral muda esta configuração.' }
+  if (!perfil) return { success: false, error: 'Não autenticado.' }
+  if (!(await podeConfigurarLoja(perfil, storeId))) {
+    return { success: false, error: 'Sem permissão para a configuração desta loja.' }
   }
-  return { error: null }
-}
-
-export async function updateSetting(key: string, value: number): Promise<ActionResult> {
-  const { error: authErr } = await verifyAdmin()
-  if (authErr) return { success: false, error: authErr }
+  if (typeof key !== 'string' || key.startsWith('meta_loja:') || !Number.isFinite(value)) {
+    return { success: false, error: 'Configuração inválida.' }
+  }
 
   const admin = createAdminClient()
   const { error } = await admin
     .from('settings')
-    .update({ value, updated_at: new Date().toISOString() })
-    .eq('key', key)
+    .upsert({ store_id: storeId, key, value, updated_at: new Date().toISOString() }, { onConflict: 'store_id,key' })
 
   if (error) return { success: false, error: error.message }
 

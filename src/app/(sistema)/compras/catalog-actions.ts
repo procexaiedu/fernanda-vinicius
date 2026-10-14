@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getProfile, lojaDoEscopo } from '@/lib/auth'
+import { lojaDaConfig } from '@/lib/configDaLoja'
 
 // ─── Quick-create de itens de catálogo a partir do grid de compra ─────────────
 // Cadastro leve de fornecedor / categoria / material direto da tela Nova Compra,
@@ -36,6 +38,12 @@ async function verifyAdmin(): Promise<{ error: string | null }> {
 
   if (profile?.role !== 'admin') return { error: 'Acesso negado.' }
   return { error: null }
+}
+
+/** Categoria é da LOJA (16/10): a da compra, que é a do escopo da sessão. */
+async function lojaDaCategoria(): Promise<string> {
+  const perfil = await getProfile()
+  return lojaDaConfig(perfil ? lojaDoEscopo(perfil) : null)
 }
 
 /**
@@ -103,7 +111,7 @@ export async function criarCategoriaRapida(
   // is_active: true reativa caso a categoria tenha sido excluída (soft-delete) antes
   const { error } = await admin
     .from('category_label_mapping')
-    .upsert({ category: cleanName, label_format: labelFormat, is_active: true }, { onConflict: 'category' })
+    .upsert({ store_id: await lojaDaCategoria(), category: cleanName, label_format: labelFormat, is_active: true }, { onConflict: 'store_id,category' })
 
   if (error) return { success: false, error: error.message }
 
@@ -179,6 +187,7 @@ export async function excluirCategoriaRapida(name: string): Promise<DeleteResult
   const { error } = await admin
     .from('category_label_mapping')
     .update({ is_active: false })
+    .eq('store_id', await lojaDaCategoria())
     .eq('category', name)
 
   if (error) return { success: false, error: error.message }

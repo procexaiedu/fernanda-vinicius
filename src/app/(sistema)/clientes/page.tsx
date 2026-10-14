@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { lojaDaConfig } from '@/lib/configDaLoja'
 import { requireProfile, ehOperadora, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ClientesClient from './ClientesClient'
@@ -78,11 +79,12 @@ export default async function ClientesPage() {
     return q.order('name')
   }
 
+  const lojaCfg = await lojaDaConfig(escopo)
   const [customersRes, storesRes, salesRes, settingRes] = await Promise.all([
     carregarClientes(),
     carregarLojas(),
     carregarVendas(),
-    admin.from('settings').select('value').eq('key', 'inactive_customer_days').maybeSingle(),
+    admin.from('settings').select('value').eq('store_id', lojaCfg).eq('key', 'inactive_customer_days').maybeSingle(),
   ])
 
   const customers   = customersRes.data ?? []

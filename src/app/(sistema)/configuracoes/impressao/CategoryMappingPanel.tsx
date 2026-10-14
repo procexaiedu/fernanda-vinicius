@@ -13,6 +13,7 @@ import styles from './CategoryMappingPanel.module.css'
 
 interface Props {
   initialMappings: CategoryMapping[]
+  storeId: string
 }
 
 interface EditState {
@@ -21,7 +22,7 @@ interface EditState {
   format: LabelFormat
 }
 
-export default function CategoryMappingPanel({ initialMappings }: Props) {
+export default function CategoryMappingPanel({ initialMappings, storeId }: Props) {
   const [mappings, setMappings] = useState<CategoryMapping[]>(initialMappings)
   const [editState, setEditState] = useState<EditState | null>(null)
   const [, startTransition] = useTransition()
@@ -52,11 +53,11 @@ export default function CategoryMappingPanel({ initialMappings }: Props) {
     startTransition(async () => {
       let result
       if (editState.originalCategory === null) {
-        result = await upsertCategoryMapping(cat, editState.format)
+        result = await upsertCategoryMapping(storeId, cat, editState.format)
       } else if (editState.originalCategory !== cat) {
-        result = await renameCategoryMapping(editState.originalCategory, cat, editState.format)
+        result = await renameCategoryMapping(storeId, editState.originalCategory, cat, editState.format)
       } else {
-        result = await upsertCategoryMapping(cat, editState.format)
+        result = await upsertCategoryMapping(storeId, cat, editState.format)
       }
 
       if (!result.success) {
@@ -85,7 +86,7 @@ export default function CategoryMappingPanel({ initialMappings }: Props) {
   function handleDelete(category: string) {
     setErrorMsg(null)
     startTransition(async () => {
-      const result = await deleteCategoryMapping(category)
+      const result = await deleteCategoryMapping(storeId, category)
       if (!result.success) {
         setErrorMsg(result.error ?? 'Erro ao excluir.')
         return
