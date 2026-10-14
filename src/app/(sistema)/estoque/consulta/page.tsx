@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import PageHeader from '@/components/ui/PageHeader'
 import { requireProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -16,7 +17,8 @@ const LIMITE = 50
  * `select('*')` nesta página.
  *
  * A loja vem de `lojaDoEscopo`: a operadora está presa à dela (Campinas não vê
- * Brasília). Nenhum parâmetro de loja é lido da URL.
+ * Brasília). Nenhum parâmetro de loja é lido da URL. Admin global sem loja
+ * escolhida vai escolher: nunca as duas lojas juntas (regra do dono, 14/10).
  *
  * Sem termo, mostra o que tem saldo; com termo, mostra também o que zerou,
  * porque "não tem mais" é resposta que ela precisa dar à cliente.
@@ -26,13 +28,14 @@ export default async function ConsultaEstoquePage({ searchParams }: {
 }) {
   const profile = await requireProfile()
   const loja = lojaDoEscopo(profile)
+  if (!loja) redirect('/escolher-loja')
   const q = (await searchParams).q?.trim() ?? ''
 
   const admin = createAdminClient()
   const consulta = aplicarFiltrosProdutos(
     admin
       .from('products')
-      .select('id, code, name, sale_price, quantity_in_stock, stores(name)', { count: 'exact' })
+      .select('id, code, name, sale_price, quantity_in_stock', { count: 'exact' })
       .eq('is_service', false),
     'estoque',
     { q: q || undefined, qty_zero: q ? 'true' : undefined },
@@ -48,16 +51,15 @@ export default async function ConsultaEstoquePage({ searchParams }: {
 
   const pecas = (data ?? []) as unknown as {
     id: string; code: string; name: string; sale_price: number | null
-    quantity_in_stock: number; stores: { name: string } | null
+    quantity_in_stock: number
   }[]
   const total = count ?? pecas.length
-  const mostraLoja = !loja
 
   return (
     <div>
       <PageHeader
         title="Consulta de estoque"
-        subtitle={profile.store_name ? `Peças da loja ${profile.store_name}.` : 'Peças das lojas.'}
+        subtitle={`Peças da loja ${profile.store_name ?? profile.lojaSelecionadaNome ?? ''}.`}
       />
 
       <form className={styles.busca} method="get">
@@ -86,7 +88,6 @@ export default async function ConsultaEstoquePage({ searchParams }: {
             <tr>
               <th>Código</th>
               <th>Descrição</th>
-              {mostraLoja && <th>Loja</th>}
               <th className={styles.num}>Qtd.</th>
               <th className={styles.num}>Preço</th>
             </tr>
@@ -96,7 +97,6 @@ export default async function ConsultaEstoquePage({ searchParams }: {
               <tr key={p.id}>
                 <td className={styles.codigo}>{p.code}</td>
                 <td>{p.name}</td>
-                {mostraLoja && <td>{p.stores?.name ?? '—'}</td>}
                 <td className={`${styles.num} ${p.quantity_in_stock <= 0 ? styles.zerado : ''}`}>
                   {p.quantity_in_stock}
                 </td>

@@ -76,3 +76,5 @@ agent/dist/
 sessao-*.mjs
 
 .evid/
+evid/
+.evidencias/

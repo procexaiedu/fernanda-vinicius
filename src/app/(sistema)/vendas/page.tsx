@@ -1,4 +1,4 @@
-import { lojaDoEscopo, podeFiltrarPorLoja, requireProfile } from '@/lib/auth'
+import { lojaDoEscopo, requireProfile } from '@/lib/auth'
 import { escopoDaListaDeVendas } from '@/lib/escopo'
 import { todaySP } from '@/lib/date'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -241,7 +241,7 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
 
   return (
     <div>
-      <VendasClient sales={sales} stores={stores} sellers={sellers} closings={closings} userRole={profile.role} podeTrocarLoja={podeFiltrarPorLoja(profile)}
+      <VendasClient sales={sales} stores={stores} sellers={sellers} closings={closings} userRole={profile.role}
         corte={temMais ? { limite, proximo: limite < LIMITE_MAXIMO ? Math.min(limite * 2, LIMITE_MAXIMO) : null } : null} />
     </div>
   )

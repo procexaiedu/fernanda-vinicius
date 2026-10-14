@@ -1,23 +1,16 @@
-import { redirect } from 'next/navigation'
 import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import PageHeader from '@/components/ui/PageHeader'
 import TaxasClient from './TaxasClient'
 import PrazosClient from './PrazosClient'
-import { lojasQueAdministra } from '@/lib/lojasQueAdministra'
+import { lojaDaConfiguracao } from '@/lib/lojasQueAdministra'
 import { MAQUINA, type TaxaCelula, type PrazoLinha } from '@/lib/taxasCartao'
 
-export default async function TaxasCartaoPage({ searchParams }: { searchParams: Promise<{ loja?: string }> }) {
+export default async function TaxasCartaoPage() {
   const profile = await requireProfile()
-  const lojas = await lojasQueAdministra(profile)
-  if (lojas.length === 0) redirect('/')
-
-  // A loja pedida só vale se for uma das dela; senão a da sessão, senão a primeira.
-  const pedida = (await searchParams).loja
-  const loja =
-    lojas.find(l => l.id === pedida) ??
-    lojas.find(l => l.id === profile.lojaSelecionada) ??
-    lojas[0]
+  // Sempre a loja da sessão: ?loja= na URL é ignorado (Campinas e Brasília são
+  // sistemas separados; para ver a outra, troca-se a loja no menu).
+  const loja = await lojaDaConfiguracao(profile)
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -43,8 +36,7 @@ export default async function TaxasCartaoPage({ searchParams }: { searchParams: 
         title="Taxas de cartão"
         subtitle={`Maquininha ${MAQUINA} de ${loja.name}. Cada venda no cartão da loja vira recebimentos já descontada a taxa, nas datas dos prazos abaixo.`}
       />
-      {/* key: trocar de loja remonta a grade com os valores da outra loja. */}
-      <TaxasClient key={loja.id} taxas={taxas} lojas={lojas} lojaId={loja.id} />
+      <TaxasClient key={loja.id} taxas={taxas} lojaId={loja.id} />
       <PrazosClient key={`p-${loja.id}`} prazos={prazos} lojaId={loja.id} />
     </div>
   )
