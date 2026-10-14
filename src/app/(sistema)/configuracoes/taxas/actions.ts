@@ -3,13 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getProfile } from '@/lib/auth'
-import { lojasQueAdministra } from '@/lib/lojasQueAdministra'
+import { podeConfigurarLoja } from '@/lib/lojasQueAdministra'
 import { MAQUINA } from '@/lib/taxasCartao'
 
 /*
  * Taxas da maquininha (Laranjinha), POR LOJA. Server action é chamável direto
- * (console, curl): a loja que chega é conferida aqui contra as lojas da pessoa
- * (lojasQueAdministra), nunca aceita só porque a tela mandou.
+ * (console, curl): só vale a loja da SESSÃO (podeConfigurarLoja), nunca a que
+ * a tela mandou. Outra loja = recusa, mesmo para o admin global.
  */
 
 export async function salvarTaxa(input: {
@@ -22,8 +22,7 @@ export async function salvarTaxa(input: {
 }): Promise<{ success: boolean; error?: string }> {
   const perfil = await getProfile()
   if (!perfil) return { success: false, error: 'Não autenticado.' }
-  const lojas = await lojasQueAdministra(perfil)
-  if (!lojas.some(l => l.id === input.store_id)) {
+  if (!(await podeConfigurarLoja(perfil, input.store_id))) {
     return { success: false, error: 'Sem permissão para as taxas desta loja.' }
   }
 
@@ -67,8 +66,7 @@ export async function salvarPrazo(input: {
 }): Promise<{ success: boolean; error?: string }> {
   const perfil = await getProfile()
   if (!perfil) return { success: false, error: 'Não autenticado.' }
-  const lojas = await lojasQueAdministra(perfil)
-  if (!lojas.some(l => l.id === input.store_id)) {
+  if (!(await podeConfigurarLoja(perfil, input.store_id))) {
     return { success: false, error: 'Sem permissão para os prazos desta loja.' }
   }
   const { store_id, brand, card_type, prazo_dias, intervalo_dias, dia_util } = input

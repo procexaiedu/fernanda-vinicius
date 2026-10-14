@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { salvarTaxa } from './actions'
 import { BANDEIRAS, type TaxaCelula } from '@/lib/taxasCartao'
 import styles from './TaxasClient.module.css'
@@ -22,9 +21,8 @@ const fmt = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2,
 
 type Estado = 'salvando' | 'salvo' | 'erro'
 
-export default function TaxasClient({ taxas, lojas, lojaId }: {
+export default function TaxasClient({ taxas, lojaId }: {
   taxas: TaxaCelula[]
-  lojas: { id: string; name: string }[]
   lojaId: string
 }) {
   const inicial = Object.fromEntries(taxas.map(t => [chave(t.brand, t.card_type, t.installments), fmt(t.fee_pct)]))
@@ -60,16 +58,6 @@ export default function TaxasClient({ taxas, lojas, lojaId }: {
 
   return (
     <div className={styles.card}>
-      {lojas.length > 1 && (
-        <nav className={styles.lojas} aria-label="Loja">
-          {lojas.map(l => (
-            <Link key={l.id} href={`/configuracoes/taxas?loja=${l.id}`} data-ativa={l.id === lojaId} aria-current={l.id === lojaId ? 'page' : undefined}>
-              {l.name}
-            </Link>
-          ))}
-          <span className={styles.lojasNota}>Cada loja tem a sua taxa: mudar uma não mexe na outra.</span>
-        </nav>
-      )}
       <div className={styles.legenda}>
         <span>Taxa em % por venda. Deixe vazio para <strong>sem taxa</strong> (entra o valor cheio, com aviso no fluxo de caixa).</span>
         {erro && <span className={styles.erro} role="alert">{erro}</span>}

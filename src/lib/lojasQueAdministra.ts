@@ -1,45 +1,44 @@
 import 'server-only'
+import { redirect } from 'next/navigation'
 import { ehAdmin, type UserProfile } from '@/lib/auth'
+import { lojaDoEscopo } from '@/lib/escopo'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
- * As lojas cuja CONFIGURAÇÃO esta pessoa pode ver e mudar: taxas de cartão,
- * regras do negócio, etiquetas por categoria.
+ * A loja cuja CONFIGURAÇÃO esta pessoa vê e muda agora: taxas de cartão,
+ * prazos, regras do negócio, etiquetas por categoria.
  *
- * Config é da LOJA (regra do dev, 14/10/2026: na FV nada é global, Campinas e
- * Brasília não compartilham configuração). Quem tem `store_id` está preso a
- * ela: a Eleandra mexe só em Brasília. O admin global (a dona) mexe nas duas,
- * uma de cada vez. Operadora: nenhuma.
- *
- * É a mesma regra para a tela e para a server action: o servidor decide,
- * nunca o que vem do navegador.
+ * Regra do dono (14/10/2026, inegociável): Campinas e Brasília são dois
+ * sistemas separados. Nada de outra loja aparece na sessão de uma loja, nem
+ * para o admin global. A loja é SEMPRE a do escopo da sessão (`lojaDoEscopo`):
+ * a fixa de quem tem `store_id`, ou a que o admin global escolheu no "Trocar".
+ * Nada vindo da URL ou do navegador escolhe loja. Operadora: nenhuma.
  */
-export async function lojasQueAdministra(perfil: UserProfile): Promise<{ id: string; name: string }[]> {
-  if (!perfil.is_active || !ehAdmin(perfil)) return []
+export async function lojaDaSessaoParaConfig(perfil: UserProfile): Promise<{ id: string; name: string } | null> {
+  if (!perfil.is_active || !ehAdmin(perfil)) return null
+  const id = lojaDoEscopo(perfil)
+  if (!id) return null
   const admin = createAdminClient()
-  let q = admin.from('stores').select('id, name').eq('is_active', true)
-  if (perfil.store_id) q = q.eq('id', perfil.store_id)
-  const { data, error } = await q.order('name')
-  if (error || !data) throw new Error('Não consegui ler as lojas.')
+  const { data, error } = await admin
+    .from('stores').select('id, name').eq('id', id).eq('is_active', true).maybeSingle()
+  if (error) throw new Error('Não consegui ler a loja.')
   return data
 }
 
 /**
- * A loja da tela de configuração: a pedida na URL só vale se for uma das dela;
- * senão a da sessão; senão a primeira. Sem loja nenhuma → null (não é admin).
+ * Para as páginas: a loja da sessão. Admin global sem loja escolhida vai
+ * escolher (como o resto do sistema); quem não é admin volta ao início.
  */
-export async function lojaDaConfiguracao(
-  perfil: UserProfile,
-  pedida: string | undefined,
-): Promise<{ loja: { id: string; name: string }; lojas: { id: string; name: string }[] } | null> {
-  const lojas = await lojasQueAdministra(perfil)
-  if (lojas.length === 0) return null
-  const loja = lojas.find(l => l.id === pedida) ?? lojas.find(l => l.id === perfil.lojaSelecionada) ?? lojas[0]
-  return { loja, lojas }
+export async function lojaDaConfiguracao(perfil: UserProfile): Promise<{ id: string; name: string }> {
+  if (perfil.is_active && ehAdmin(perfil) && !lojaDoEscopo(perfil)) redirect('/escolher-loja')
+  const loja = await lojaDaSessaoParaConfig(perfil)
+  if (!loja) redirect('/')
+  return loja
 }
 
-/** Guarda das server actions de configuração: a loja que chegou é dela? */
+/** Guarda das server actions de configuração: só a loja da sessão, e ela precisa administrá-la. */
 export async function podeConfigurarLoja(perfil: UserProfile | null, storeId: string): Promise<boolean> {
   if (!perfil || typeof storeId !== 'string') return false
-  return (await lojasQueAdministra(perfil)).some(l => l.id === storeId)
+  const loja = await lojaDaSessaoParaConfig(perfil)
+  return !!loja && loja.id === storeId
 }
