@@ -94,15 +94,15 @@ export default function FluxoCaixaTab() {
   }, [dias, recs])
 
   const linhas = useMemo(() => {
-    let acc = 0
-    return (dias ?? [])
-      .map(d => {
-        const entra = d.pixDinheiro + d.cartaoLiquido + d.outrasEntradas
-        const saldo = entra - d.saidas
-        acc += saldo
-        return { ...d, entra, saldo, acc, vazio: entra === 0 && d.saidas === 0 }
-      })
-      .filter(d => modo === 'semana' || !d.vazio)
+    const base = (dias ?? []).map(d => {
+      const entra = d.pixDinheiro + d.cartaoLiquido + d.outrasEntradas
+      return { ...d, entra, saldo: entra - d.saidas, vazio: entra === 0 && d.saidas === 0 }
+    })
+    const comAcumulado = base.map((d, i) => ({
+      ...d,
+      acc: base.slice(0, i + 1).reduce((s, x) => s + x.saldo, 0),
+    }))
+    return comAcumulado.filter(d => modo === 'semana' || !d.vazio)
   }, [dias, modo])
 
   const pendentes = (recs ?? []).filter(r => r.status === 'previsto')

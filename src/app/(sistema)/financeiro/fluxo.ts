@@ -46,6 +46,15 @@ export interface Recebimento {
   recebidoEm: string | null
 }
 
+interface LinhaRecebimento {
+  id: string; sale_id: string; card_type: 'debit' | 'credit'; brand: string | null
+  installment_number: number; installments_total: number
+  gross_amount: number | string; fee_pct: number | string | null; fee_amount: number | string
+  net_amount: number | string; expected_date: string; status: Recebimento['status']
+  received_amount: number | string | null; received_at: string | null
+  sales: { sale_date: string; status: string; customers: { name: string } | null }
+}
+
 type Resultado<T> = { ok: true; dados: T } | { ok: false; erro: string }
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/
@@ -64,7 +73,7 @@ export async function buscarFluxo(de: string, ate: string): Promise<Resultado<Di
 
   return {
     ok: true,
-    dados: (data as any[]).map(d => ({
+    dados: (data as Record<string, string | number>[]).map(d => ({
       dia: String(d.dia).slice(0, 10),
       pixDinheiro: Number(d.pix_dinheiro),
       cartaoBruto: Number(d.cartao_bruto),
@@ -97,7 +106,7 @@ export async function buscarRecebimentos(de: string, ate: string): Promise<Resul
 
   return {
     ok: true,
-    dados: (data as any[]).map(r => ({
+    dados: (data as unknown as LinhaRecebimento[]).map(r => ({
       id: r.id,
       venda: r.sale_id,
       dataVenda: new Date(r.sales.sale_date).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
