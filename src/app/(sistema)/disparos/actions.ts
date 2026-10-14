@@ -94,6 +94,8 @@ export interface Candidato extends ClienteOption {
   ultima_compra: string | null
   /** Motivo da exclusão ativa; null = pode receber. */
   excluido: MotivoExclusao | null
+  /** Último disparo que saiu para ela NESTA loja nos últimos 30 dias (enviado/entregue/lido). */
+  ultimo_envio: string | null
 }
 
 /*
@@ -143,6 +145,25 @@ export async function listarCandidatos(store_id: string): Promise<{ ok: boolean;
 
     const excl = new Map((await exclusoesAtivas(admin, loja)).map(e => [e.telefone_e164, e.motivo]))
 
+    /* Quem já recebeu (14/10/2026): o filtro da tela esconde quem recebeu
+       disparo da loja nos últimos 7/15/30 dias, para fazer ~250 por dia sem
+       repetir. Data = envio do lote (sent_at) ou, sem ela, a linha. */
+    const desde = new Date(Date.now() - 31 * 86_400_000).toISOString()
+    const ultimoEnvio = new Map<string, string>()
+    for (let de = 0; ; de += 1000) {
+      const { data, error } = await admin.from('disparo_destinatarios')
+        .select('customer_id, created_at, disparos!inner(store_id, sent_at)')
+        .eq('disparos.store_id', loja).in('status', ['enviado', 'entregue', 'lido'])
+        .not('customer_id', 'is', null).gte('created_at', desde)
+        .order('id').range(de, de + 999)
+      if (error) throw new Error('envios anteriores: ' + error.message)
+      for (const r of data as unknown as { customer_id: string; created_at: string; disparos: { sent_at: string | null } }[]) {
+        const quando = r.disparos?.sent_at ?? r.created_at
+        if (quando > (ultimoEnvio.get(r.customer_id) ?? '')) ultimoEnvio.set(r.customer_id, quando)
+      }
+      if (data.length < 1000) break
+    }
+
     return {
       ok: true,
       candidatos: clientes.map(c => {
@@ -154,11 +175,51 @@ export async function listarCandidatos(store_id: string): Promise<{ ok: boolean;
           gasto: Math.round((h?.gasto ?? 0) * 100) / 100,
           ultima_compra: h?.ultima || null,
           excluido: tel ? excl.get(tel) ?? null : null,
+          ultimo_envio: ultimoEnvio.get(c.id) ?? null,
         }
       }),
     }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+export interface ListaSalva {
+  id: string
+  nome: string
+  descricao: string | null
+  customer_ids: string[]
+}
+
+/*
+ * Listas salvas da loja (14/10/2026), para o campo "Lista salva" do seletor.
+ * Só da loja da sessão (lojas isoladas). A lista não fura a exclusão: a tela
+ * só marca quem não está excluída, e o banco barra de novo no envio.
+ */
+export async function listarListas(store_id: string): Promise<{ ok: boolean; error?: string; listas?: ListaSalva[] }> {
+  if (await naoEhAdmin()) return { ok: false, error: 'Só a administração faz disparos.' }
+  const perfil = await getProfile()
+  const loja = perfil ? lojaDoEscopo(perfil, store_id) : null
+  if (!loja) return { ok: false, error: 'Selecione a loja.' }
+
+  const admin = createAdminClient()
+  const { data: ls, error } = await admin.from('disparo_listas')
+    .select('id, nome, descricao').eq('store_id', loja).eq('ativa', true).order('criado_em', { ascending: false })
+  if (error) return { ok: false, error: 'Não consegui ler as listas salvas: ' + error.message }
+  if (!ls.length) return { ok: true, listas: [] }
+
+  const itens: { lista_id: string; customer_id: string }[] = []
+  for (let de = 0; ; de += 1000) {
+    const { data, error: e } = await admin.from('disparo_lista_itens')
+      .select('lista_id, customer_id').in('lista_id', ls.map(l => l.id))
+      .order('lista_id').order('customer_id').range(de, de + 999)
+    if (e) return { ok: false, error: 'Não consegui ler as listas salvas: ' + e.message }
+    itens.push(...data)
+    if (data.length < 1000) break
+  }
+  return {
+    ok: true,
+    listas: ls.map(l => ({ ...l, customer_ids: itens.filter(i => i.lista_id === l.id).map(i => i.customer_id) })),
   }
 }
 

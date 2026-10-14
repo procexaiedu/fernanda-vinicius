@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { ChevronDown, Check, Info, ImagePlus, Loader2, X } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
-import { criarDisparo, atualizarDisparo, enviarDisparo, listarCandidatos, listarDestinatarios, listarTemplates, infoEnvio, type TemplateMeta, type Candidato } from './actions'
-import DestinatariosPicker, { FILTROS_PADRAO, dddDe, type Filtros } from './DestinatariosPicker'
+import { criarDisparo, atualizarDisparo, enviarDisparo, listarCandidatos, listarListas, listarDestinatarios, listarTemplates, infoEnvio, type TemplateMeta, type Candidato, type ListaSalva } from './actions'
+import DestinatariosPicker, { FILTROS_PADRAO, dddDe, recebeuHaPouco, type Filtros } from './DestinatariosPicker'
 import { renderPreview } from './templates'
 import type { StoreOption, DisparoRow } from './page'
 import styles from './NovoDisparoModal.module.css'
@@ -46,6 +46,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
   const [clientesErro, setClientesErro] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_PADRAO)
+  const [listas, setListas] = useState<ListaSalva[]>([])
   const [envio, setEnvio] = useState<{ limiteDia: number | null; saldoUsd: number | null; custoMsgUsd: number }>({ limiteDia: null, saldoUsd: null, custoMsgUsd: 0.0625 })
   const [saving, setSaving]     = useState(false)
   const [sending, setSending]   = useState(false)
@@ -83,6 +84,8 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
     const sid = form.store_id
     if (!sid) return
     infoEnvio(sid).then(r => { if (alive) setEnvio(r) })
+    setListas([])
+    listarListas(sid).then(r => { if (alive && r.ok) setListas(r.listas ?? []) })
     Promise.all([
       listarCandidatos(sid),
       (isEdit && editDisparo) ? listarDestinatarios(editDisparo.disparo_id) : Promise.resolve<string[] | null>(null),
@@ -100,7 +103,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
       const dominante = [...contagem.entries()].filter(([d]) => d !== '—').sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
       setFiltros({ ...FILTROS_PADRAO, ddds: dominante ? [dominante] : [] })
-      setSelectedIds(new Set(compradoras.filter(c => !c.excluido && (!dominante || dddDe(c.phone) === dominante)).map(c => c.id)))
+      setSelectedIds(new Set(compradoras.filter(c => !c.excluido && !recebeuHaPouco(c, FILTROS_PADRAO.semRepetirDias) && (!dominante || dddDe(c.phone) === dominante)).map(c => c.id)))
     })
     return () => { alive = false }
   }, [form.store_id, isEdit, editDisparo])
@@ -265,6 +268,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
             ) : (
               <DestinatariosPicker
                 candidatos={clientes}
+                listas={listas}
                 selecionados={selectedIds}
                 onChange={s => { setSelectedIds(s); setErrors(e => ({ ...e, destinatarios: undefined })) }}
                 filtros={filtros}
