@@ -87,7 +87,6 @@ export default function TaxasClient({ taxas, lojas, lojaId }: {
               <tr key={b.value}>
                 <th scope="row" className={styles.colBandeira}>
                   {b.label}
-                  {!b.noPdv && <span className={styles.fora} title="O PDV ainda não oferece esta bandeira">fora do PDV</span>}
                 </th>
                 {COLUNAS.map(c => {
                   const k = chave(b.value, c.card_type, c.installments)

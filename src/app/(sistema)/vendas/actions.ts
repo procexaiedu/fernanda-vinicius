@@ -220,6 +220,8 @@ async function verifyUser(): Promise<{ userId: string | null; role: string | nul
 
 const BRAND_LABEL: Record<string, string> = {
   visa: 'Visa', mastercard: 'Master', elo: 'Elo', amex: 'Amex', hipercard: 'Hipercard',
+  credz: 'Credz', jcb: 'JCB', banescard: 'Banescard', cup: 'CUP', sorocred: 'Sorocred',
+  sicredi: 'Sicredi', diners: 'Diners', cabal: 'Cabal',
 }
 
 function buildPaymentSummary(payments: SalePaymentRow[], hasExchange: boolean, exchangeCredit: number): string {

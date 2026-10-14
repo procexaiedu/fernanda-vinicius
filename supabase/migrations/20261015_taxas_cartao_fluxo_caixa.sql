@@ -19,6 +19,10 @@
 --   * Bandeira não informada no PDV (é opcional): usa a linha 'nao_informada',
 --     semeada com a taxa de Visa/Master (a mais comum).
 --   * Pix e dinheiro entram no dia (não passam por aqui).
+--   * DIA DA VENDA = data UTC de sales.sale_date. O PDV grava o dia escolhido
+--     como 'YYYY-MM-DD' (meia-noite UTC) e o resto do sistema lê assim; converter
+--     para America/Sao_Paulo jogava a venda para o dia anterior (achado no teste
+--     pelo PDV de verdade, 14/10).
 --   * Vendas antigas: só gera o que ainda NÃO caiu (parcelas de hoje em diante).
 --
 -- NÃO MEXE em PDV nem em fv.salvar_venda: o gatilho AFTER INSERT em
@@ -245,7 +249,7 @@ begin
   select v_pag.sale_id, v_pag.id, v_sale.store_id, v_pag.payment_method, v_brand, c.parcela,
          v_n, c.bruto, v_taxa, c.taxa, c.liquido, c.data_prevista
     from fv.calcular_recebimentos(v_pag.amount, v_n, v_taxa,
-           (v_sale.sale_date at time zone 'America/Sao_Paulo')::date, v_pag.payment_method) c
+           (v_sale.sale_date at time zone 'UTC')::date, v_pag.payment_method) c
    where not p_so_futuros or c.data_prevista >= (now() at time zone 'America/Sao_Paulo')::date;
 
   get diagnostics v_qtd = row_count;
@@ -272,7 +276,7 @@ select fv.gerar_recebimentos_cartao(sp.id, true)
  where sp.payment_method in ('credit', 'debit')
    and s.status <> 'cancelled'
    and not exists (select 1 from fv.card_receivables r where r.sale_payment_id = sp.id)
-   and (s.sale_date at time zone 'America/Sao_Paulo')::date + 31 * greatest(1, coalesce(sp.installments, 1))
+   and (s.sale_date at time zone 'UTC')::date + 31 * greatest(1, coalesce(sp.installments, 1))
        >= (now() at time zone 'America/Sao_Paulo')::date - 1;
 
 -- 6. Fluxo de caixa por dia ───────────────────────────────────────────────────
@@ -295,12 +299,12 @@ as $$
     select d::date as dia from generate_series(p_de, p_ate, interval '1 day') d
   ),
   vendas as (
-    select (s.sale_date at time zone 'America/Sao_Paulo')::date as dia, sum(sp.amount) as v
+    select (s.sale_date at time zone 'UTC')::date as dia, sum(sp.amount) as v
       from fv.sale_payments sp join fv.sales s on s.id = sp.sale_id
      where sp.payment_method in ('pix', 'cash') and s.status <> 'cancelled'
        and (p_loja is null or s.store_id = p_loja)
-       and s.sale_date >= (p_de::timestamp at time zone 'America/Sao_Paulo')
-       and s.sale_date <  ((p_ate + 1)::timestamp at time zone 'America/Sao_Paulo')
+       and s.sale_date >= (p_de::timestamp at time zone 'UTC')
+       and s.sale_date <  ((p_ate + 1)::timestamp at time zone 'UTC')
      group by 1
   ),
   cartao as (

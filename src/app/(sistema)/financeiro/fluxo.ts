@@ -109,7 +109,7 @@ export async function buscarRecebimentos(de: string, ate: string): Promise<Resul
     dados: (data as unknown as LinhaRecebimento[]).map(r => ({
       id: r.id,
       venda: r.sale_id,
-      dataVenda: new Date(r.sales.sale_date).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
+      dataVenda: new Date(r.sales.sale_date).toISOString().slice(0, 10), // dia UTC, como o PDV grava
       cliente: r.sales.customers?.name ?? null,
       tipo: r.card_type,
       bandeira: r.brand,

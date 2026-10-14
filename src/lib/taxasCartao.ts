@@ -8,14 +8,14 @@ export interface TaxaCelula {
   fee_pct: number
 }
 
-/** Bandeiras na ordem da tela. As do PDV primeiro; o resto vem da planilha da Laranjinha. */
-export const BANDEIRAS: { value: string; label: string; noPdv?: boolean }[] = [
-  { value: 'visa', label: 'Visa', noPdv: true },
-  { value: 'mastercard', label: 'Mastercard', noPdv: true },
-  { value: 'elo', label: 'Elo', noPdv: true },
-  { value: 'amex', label: 'Amex', noPdv: true },
-  { value: 'hipercard', label: 'Hipercard', noPdv: true },
-  { value: 'nao_informada', label: 'Sem bandeira no PDV', noPdv: true },
+/** Bandeiras na ordem da tela (as mesmas do seletor do PDV, mesmo código). */
+export const BANDEIRAS: { value: string; label: string }[] = [
+  { value: 'visa', label: 'Visa' },
+  { value: 'mastercard', label: 'Mastercard' },
+  { value: 'elo', label: 'Elo' },
+  { value: 'amex', label: 'Amex' },
+  { value: 'hipercard', label: 'Hipercard' },
+  { value: 'nao_informada', label: 'Sem bandeira no PDV' },
   { value: 'credz', label: 'Credz' },
   { value: 'jcb', label: 'JCB' },
   { value: 'banescard', label: 'Banescard' },
