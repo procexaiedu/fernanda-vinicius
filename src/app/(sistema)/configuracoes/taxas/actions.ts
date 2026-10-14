@@ -2,16 +2,18 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getProfile, podeConfigurarRede } from '@/lib/auth'
+import { getProfile } from '@/lib/auth'
+import { lojasDasTaxas } from './lojas'
 import { MAQUINA } from '@/lib/taxasCartao'
 
 /*
- * Taxas da maquininha (Laranjinha). Valem para a REDE — uma máquina, a mesma
- * taxa nas duas lojas — então só o admin global muda. Server action é chamável
- * direto: a trava é aqui, não só na tela.
+ * Taxas da maquininha (Laranjinha), POR LOJA. Server action é chamável direto
+ * (console, curl): a loja que chega é conferida aqui contra as lojas da pessoa
+ * (lojasDasTaxas), nunca aceita só porque a tela mandou.
  */
 
 export async function salvarTaxa(input: {
+  store_id: string
   brand: string
   card_type: 'debit' | 'credit'
   installments: number
@@ -19,11 +21,13 @@ export async function salvarTaxa(input: {
   fee_pct: number | null
 }): Promise<{ success: boolean; error?: string }> {
   const perfil = await getProfile()
-  if (!perfil || !perfil.is_active || !podeConfigurarRede(perfil)) {
-    return { success: false, error: 'Só a administradora geral muda as taxas.' }
+  if (!perfil) return { success: false, error: 'Não autenticado.' }
+  const lojas = await lojasDasTaxas(perfil)
+  if (!lojas.some(l => l.id === input.store_id)) {
+    return { success: false, error: 'Sem permissão para as taxas desta loja.' }
   }
 
-  const { brand, card_type, installments, fee_pct } = input
+  const { store_id, brand, card_type, installments, fee_pct } = input
   if (!/^[a-z_]{2,30}$/.test(brand)) return { success: false, error: 'Bandeira inválida.' }
   if (card_type !== 'debit' && card_type !== 'credit') return { success: false, error: 'Modalidade inválida.' }
   if (!Number.isInteger(installments) || installments < 1 || installments > 12
@@ -35,12 +39,12 @@ export async function salvarTaxa(input: {
   }
 
   const admin = createAdminClient()
-  const chave = { acquirer: MAQUINA, brand, card_type, installments }
+  const chave = { store_id, acquirer: MAQUINA, brand, card_type, installments }
   const { error } = fee_pct === null
     ? await admin.from('card_fees').delete().match(chave)
     : await admin.from('card_fees').upsert(
         { ...chave, fee_pct: Math.round(fee_pct * 10000) / 10000, updated_at: new Date().toISOString(), updated_by: perfil.id },
-        { onConflict: 'acquirer,card_type,brand,installments' },
+        { onConflict: 'store_id,acquirer,card_type,brand,installments' },
       )
   if (error) return { success: false, error: 'Não consegui salvar a taxa. Tente de novo.' }
 

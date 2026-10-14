@@ -70,6 +70,20 @@ begin
   assert fv.conciliar_recebimentos(array(select id from fv.card_receivables where sale_id = v_sale),
                                    v_store, '2026-11-14', v_user) = 3, 'concilia 3';
 
+  -- 5. Taxa é da loja: mudar a da outra loja não mexe nesta
+  update fv.card_fees set fee_pct = 9.99
+   where store_id <> v_store and brand = 'visa' and card_type = 'credit' and installments = 3;
+  insert into fv.sale_payments (sale_id, payment_method, amount, installments, card_brand)
+       values (v_sale, 'credit', 100, 3, 'visa');
+  assert (select bool_and(fee_pct = 2.81) from fv.card_receivables cr join fv.sale_payments sp on sp.id = cr.sale_payment_id
+           where cr.sale_id = v_sale and sp.amount = 100 and cr.status = 'previsto'), 'taxa da outra loja vazou';
+  update fv.card_fees set fee_pct = 5 where store_id = v_store and brand = 'visa' and card_type = 'credit' and installments = 2;
+  insert into fv.sale_payments (sale_id, payment_method, amount, installments, card_brand)
+       values (v_sale, 'credit', 100, 2, 'visa');
+  assert (select sum(net_amount) from fv.card_receivables cr join fv.sale_payments sp on sp.id = cr.sale_payment_id
+           where sp.sale_id = v_sale and sp.installments = 2 and sp.card_brand = 'visa') = 95, 'usa a taxa da própria loja';
+  assert (select count(distinct store_id) from fv.card_fees) = (select count(*) from fv.stores), 'cada loja tem a sua grade';
+
   raise notice 'OK: taxas_cartao_fluxo_caixa';
 end $$;
 

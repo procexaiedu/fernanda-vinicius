@@ -7,6 +7,9 @@
 -- precisa saber QUANTO cai e QUANDO, e conferir toda semana o que caiu.
 --
 -- DECISÕES (dev + gestora, 14/10/2026):
+--   * TAXA É DA LOJA (regra do dev, 14/10): na FV nada é global; Campinas e
+--     Brasília não compartilham configuração. Cada loja tem a sua grade; a venda
+--     usa a taxa da loja dela. Loja nova nasce SEM taxa (líquido = bruto + aviso).
 --   * Uma máquina só: Laranjinha. Taxas reais da planilha enviada pela Eleandra
 --     (13-10-2026 - taxas_cartao_laranjinha.xlsx), por BANDEIRA, até 6x.
 --   * Crédito: parcela k cai em data da venda + 31*k dias corridos.
@@ -32,6 +35,7 @@ begin;
 -- 1. Cadastro de taxas ────────────────────────────────────────────────────────
 create table if not exists fv.card_fees (
   id            uuid primary key default gen_random_uuid(),
+  store_id      uuid not null references fv.stores(id) on delete cascade,
   acquirer      text not null default 'Laranjinha',
   card_type     text not null check (card_type in ('debit', 'credit')),
   brand         text not null,
@@ -39,17 +43,18 @@ create table if not exists fv.card_fees (
   fee_pct       numeric(6,4) not null check (fee_pct >= 0 and fee_pct < 100),
   updated_at    timestamptz not null default now(),
   updated_by    uuid references fv.users(id) on delete set null,
-  unique (acquirer, card_type, brand, installments),
+  unique (store_id, acquirer, card_type, brand, installments),
   check (card_type = 'credit' or installments = 1)
 );
 
 comment on table fv.card_fees is
-  'Taxa da maquininha por bandeira/modalidade/parcelas. Sem linha = sem taxa (líquido = bruto, aviso na tela).';
+  'Taxa da maquininha POR LOJA, bandeira, modalidade e parcelas. Sem linha = sem taxa (líquido = bruto, aviso na tela).';
 comment on column fv.card_fees.fee_pct is 'Percentual (2.81 = 2,81%).';
 comment on column fv.card_fees.brand is
   'Bandeira como o PDV grava (visa, mastercard, elo, amex...). nao_informada = venda sem bandeira.';
 
-insert into fv.card_fees (brand, card_type, installments, fee_pct) values
+create temp table _seed_taxas (brand text, card_type text, installments smallint, fee_pct numeric) on commit drop;
+insert into _seed_taxas (brand, card_type, installments, fee_pct) values
   ('mastercard', 'debit', 1, 0.91),
   ('mastercard', 'credit', 1, 2.57),
   ('mastercard', 'credit', 2, 2.81),
@@ -122,13 +127,16 @@ insert into fv.card_fees (brand, card_type, installments, fee_pct) values
   ('elo', 'credit', 4, 3.61),
   ('elo', 'credit', 5, 3.61),
   ('elo', 'credit', 6, 3.61)
-on conflict (acquirer, card_type, brand, installments) do nothing;
+;
 
 -- Sem bandeira no PDV → taxa de Visa/Master.
-insert into fv.card_fees (brand, card_type, installments, fee_pct)
-select 'nao_informada', card_type, installments, fee_pct
-  from fv.card_fees where brand = 'visa' and acquirer = 'Laranjinha'
-on conflict (acquirer, card_type, brand, installments) do nothing;
+insert into _seed_taxas select 'nao_informada', card_type, installments, fee_pct from _seed_taxas where brand = 'visa';
+
+-- A mesma planilha para cada loja que existe hoje; daqui em diante cada uma edita a sua.
+insert into fv.card_fees (store_id, brand, card_type, installments, fee_pct)
+select st.id, x.brand, x.card_type, x.installments, x.fee_pct
+  from fv.stores st cross join _seed_taxas x
+on conflict (store_id, acquirer, card_type, brand, installments) do nothing;
 
 -- 2. Recebimentos previstos ───────────────────────────────────────────────────
 create table if not exists fv.card_receivables (
@@ -225,7 +233,8 @@ begin
   v_brand := coalesce(nullif(lower(trim(v_pag.card_brand)), ''), 'nao_informada');
 
   select f.fee_pct into v_taxa from fv.card_fees f
-   where f.acquirer = 'Laranjinha' and f.card_type = v_pag.payment_method
+   where f.store_id = v_sale.store_id
+     and f.acquirer = 'Laranjinha' and f.card_type = v_pag.payment_method
      and f.brand = v_brand and f.installments = v_n;
 
   delete from fv.card_receivables where sale_payment_id = p_payment_id;
@@ -347,18 +356,15 @@ $$;
 
 -- 7. Permissões e RLS ─────────────────────────────────────────────────────────
 -- O app lê e grava com service_role (servidor, escopo por lojaDoEscopo).
--- Pela API com sessão: taxas → qualquer admin lê, só o global escreve;
--- recebimentos → admin da loja (mesma regra de fv.transactions).
+-- Pela API com sessão: taxas e recebimentos → admin da loja (mesma regra de
+-- fv.transactions); o global vê as duas.
 alter table fv.card_fees enable row level security;
 alter table fv.card_receivables enable row level security;
 
-drop policy if exists card_fees_admin_select on fv.card_fees;
-create policy card_fees_admin_select on fv.card_fees for select to authenticated
-  using ((select fv.is_admin()));
-drop policy if exists card_fees_global_write on fv.card_fees;
-create policy card_fees_global_write on fv.card_fees for all to authenticated
-  using ((select fv.is_admin()) and (select fv.e_admin_global()))
-  with check ((select fv.is_admin()) and (select fv.e_admin_global()));
+drop policy if exists card_fees_admin_loja on fv.card_fees;
+create policy card_fees_admin_loja on fv.card_fees for all to authenticated
+  using      ((select fv.is_admin()) and fv.pode_ver_loja(store_id))
+  with check ((select fv.is_admin()) and fv.pode_ver_loja(store_id));
 
 drop policy if exists card_receivables_admin_loja on fv.card_receivables;
 create policy card_receivables_admin_loja on fv.card_receivables for all to authenticated
