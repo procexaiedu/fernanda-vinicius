@@ -29,6 +29,10 @@ export interface Conserto {
   prometidoPara: string | null
   status: StatusConserto
   entregueEm: string | null
+  /** Dia em que voltou pronta do ourives. Nulo nos consertos anteriores a 14/10. */
+  prontoEm: string | null
+  /** Quando a loja avisou a cliente. Nulo + status pronto = falta ligar. */
+  clienteAvisadaEm: string | null
   notes: string | null
   /** Quanto foi cobrado, quando já houve venda. Vem da linha da venda. */
   valorCobrado: number | null
@@ -71,7 +75,7 @@ export async function listarConsertos(): Promise<Conserto[]> {
   const admin = createAdminClient()
   let q = admin
     .from('consertos')
-    .select('id, peca, servico, recebido_em, prometido_para, status, entregue_em, notes, sale_item_id, customers(name, phone), sale_items(subtotal)')
+    .select('id, peca, servico, recebido_em, prometido_para, status, entregue_em, pronto_em, cliente_avisada_em, notes, sale_item_id, customers(name, phone), sale_items(subtotal)')
     .gte('recebido_em', corte.toISOString().slice(0, 10))
 
   if (ctx.loja) q = q.eq('store_id', ctx.loja)
@@ -92,6 +96,8 @@ export async function listarConsertos(): Promise<Conserto[]> {
     prometidoPara: c.prometido_para ? String(c.prometido_para).slice(0, 10) : null,
     status: c.status,
     entregueEm: c.entregue_em ? String(c.entregue_em).slice(0, 10) : null,
+    prontoEm: c.pronto_em ? String(c.pronto_em).slice(0, 10) : null,
+    clienteAvisadaEm: c.cliente_avisada_em ?? null,
     notes: c.notes,
     valorCobrado: c.sale_items?.subtotal != null ? Number(c.sale_items.subtotal) : null,
     pago: !!c.sale_item_id,
@@ -189,19 +195,54 @@ export async function mudarStatus(id: string, status: StatusConserto): Promise<R
   const admin = createAdminClient()
 
   const { data: alvo } = await admin
-    .from('consertos').select('id, store_id').eq('id', id).maybeSingle()
+    .from('consertos').select('id, store_id, pronto_em').eq('id', id).maybeSingle()
 
   if (!alvo) return { success: false, error: 'Conserto não encontrado.' }
   if (ctx.loja && alvo.store_id !== ctx.loja) return { success: false, error: 'Este conserto é de outra loja.' }
 
   const hoje = new Date().toISOString().slice(0, 10)
+  /*
+   * "Voltou pronta" também vira data: é o que mede o tempo do ourives. Ao
+   * entregar, a data de pronta fica (é história); voltar a etapa anterior a
+   * apaga, junto com o aviso, porque a peça deixou de estar pronta.
+   */
+  const voltouAtras = status === 'recebido' || status === 'no_ourives'
   const { error } = await admin.from('consertos').update({
     status,
     entregue_em: status === 'entregue' ? hoje : null,
+    pronto_em: status === 'pronto' ? hoje : voltouAtras ? null : alvo.pronto_em,
+    ...(voltouAtras || status === 'pronto' ? { cliente_avisada_em: null } : {}),
     updated_at: new Date().toISOString(),
   }).eq('id', id)
 
   if (error) return { success: false, error: `Erro ao atualizar: ${error.message}` }
+
+  revalidatePath('/consertos')
+  return { success: true }
+}
+
+/**
+ * "Avisei a cliente": tira a peça pronta da lista de quem falta ligar.
+ *
+ * Só vale para peça pronta. A loja vem do escopo, como em todo o arquivo.
+ */
+export async function marcarClienteAvisada(id: string): Promise<ResultadoConserto> {
+  const ctx = await escopo()
+  if (!ctx) return { success: false, error: 'Não autenticado.' }
+
+  const admin = createAdminClient()
+  const { data: alvo, error: erroAlvo } = await admin
+    .from('consertos').select('id, store_id, status').eq('id', id).maybeSingle()
+
+  if (erroAlvo) return { success: false, error: `Não foi possível carregar o conserto: ${erroAlvo.message}` }
+  if (!alvo) return { success: false, error: 'Conserto não encontrado.' }
+  if (ctx.loja && alvo.store_id !== ctx.loja) return { success: false, error: 'Este conserto é de outra loja.' }
+  if (alvo.status !== 'pronto') return { success: false, error: 'Só dá para avisar a cliente quando a peça está pronta.' }
+
+  const agora = new Date().toISOString()
+  const { error } = await admin.from('consertos')
+    .update({ cliente_avisada_em: agora, updated_at: agora }).eq('id', id)
+  if (error) return { success: false, error: `Erro ao salvar o aviso: ${error.message}` }
 
   revalidatePath('/consertos')
   return { success: true }

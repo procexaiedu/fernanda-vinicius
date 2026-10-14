@@ -226,3 +226,58 @@
    caixa. "A cobrar" é aviso, não erro — por isso âmbar, não vermelho. */
 .selo_pago    { background: var(--success-subtle); color: var(--success); }
 .selo_aCobrar { background: var(--warning-subtle); color: var(--warning); }
+
+/* ── Tempo médio e aviso de peça pronta (14/10) ──────────────────────────── */
+.tempoMedio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+.tempoMedio strong { color: var(--text-primary); }
+
+.periodos { display: inline-flex; gap: 4px; margin-left: auto; }
+.periodo {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.periodoAtivo { border-color: var(--accent); color: var(--accent); }
+
+.avisoPronta {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--success);
+  border-radius: var(--radius-md);
+  background: var(--success-subtle);
+  font-size: 12.5px;
+}
+.avisoTitulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--success);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.avisoLista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.avisoLista li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-primary);
+}

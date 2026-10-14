@@ -18,7 +18,7 @@ test('operadora continua sem o resto do estoque', () => {
 })
 
 test('o que ela já tinha continua', () => {
-  for (const p of ['/pdv', '/vendas', '/vendas/123', '/consertos']) {
+  for (const p of ['/pdv', '/vendas', '/vendas/123', '/consertos', '/estoque/consulta']) {
     assert.equal(operadoraPodeVer(p), true, p)
   }
 })

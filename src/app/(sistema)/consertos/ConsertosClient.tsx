@@ -1,17 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2, AlertTriangle, Check } from 'lucide-react'
+import { Plus, Trash2, AlertTriangle, Check, Phone, Clock } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import {
-  listarConsertos, registrarConserto, mudarStatus, removerConserto,
+  listarConsertos, registrarConserto, mudarStatus, removerConserto, marcarClienteAvisada,
   type Conserto, type StatusConserto,
 } from './actions'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import styles from './Consertos.module.css'
 import DatePicker from '@/components/ui/DatePicker'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
+import { tempoMedioConserto } from '@/lib/consertoTempo'
 
 interface Cliente { id: string; name: string; phone: string | null }
 
@@ -37,6 +38,22 @@ function hoje() {
 function fmtData(iso: string) {
   const [a, m, d] = iso.slice(0, 10).split('-')
   return `${d}/${m}/${a}`
+}
+
+/** Hoje menos N dias, em YYYY-MM-DD local. */
+function diasAtras(n: number) {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/* A lista vem com 120 dias (actions.ts): o maior período não pode passar disso. */
+const PERIODOS = [30, 90, 120] as const
+
+function fmtDias(d: number | null) {
+  if (d == null) return '—'
+  const t = String(d).replace('.', ',')
+  return `${t} dia${d === 1 ? '' : 's'}`
 }
 
 /** O próximo passo do fluxo — é o único botão que a linha precisa mostrar. */
@@ -73,6 +90,7 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
   const [prazo, setPrazo] = useState('')
   const [obs, setObs] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [periodo, setPeriodo] = useState<(typeof PERIODOS)[number]>(30)
 
   /*
    * Recarregar falhando NÃO é o salvar falhando. Sem o try próprio, o erro
@@ -125,6 +143,20 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
     }
   }
 
+  async function avisada(c: Conserto) {
+    setErro(null)
+    setOcupado(c.id)
+    try {
+      const r = await marcarClienteAvisada(c.id)
+      if (!r.success) { setErro(r.error ?? 'Não foi possível salvar o aviso.'); return }
+      await recarregar()
+    } catch (e) {
+      setErro(mensagemDeErroAoSalvar(e))
+    } finally {
+      setOcupado(null)
+    }
+  }
+
   async function apagar(id: string) {
     setErro(null)
     /* Sem o try, falha de rede ou sessão vencida rejeitava em silêncio: o
@@ -152,6 +184,10 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
 
   const atrasados = abertos.filter(c => c.prometidoPara && c.prometidoPara < hoje()).length
 
+  /* Peça que voltou pronta e ninguém ligou ainda: é o que não pode ser esquecido. */
+  const aAvisar = lista.filter(c => c.status === 'pronto' && !c.clienteAvisadaEm)
+  const tempo = tempoMedioConserto(lista, diasAtras(periodo))
+
   return (
     <div className={styles.tela}>
 
@@ -178,6 +214,50 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
           )}
         </div>
       </div>
+
+      {/*
+        Tempo médio: o que ela responde quando a cliente pergunta "fica pronto
+        quando?". Calculado sobre a lista que já está na tela.
+      */}
+      <div className={styles.tempoMedio}>
+        <Clock size={14} />
+        <span>Tempo médio:</span>
+        <span>até voltar pronta <strong>{fmtDias(tempo.ateProntos.dias)}</strong>
+          {tempo.ateProntos.amostra > 0 && <span className={styles.suave}> ({tempo.ateProntos.amostra} peça{tempo.ateProntos.amostra > 1 ? 's' : ''})</span>}
+        </span>
+        <span>até a cliente levar <strong>{fmtDias(tempo.ateEntregue.dias)}</strong>
+          {tempo.ateEntregue.amostra > 0 && <span className={styles.suave}> ({tempo.ateEntregue.amostra} peça{tempo.ateEntregue.amostra > 1 ? 's' : ''})</span>}
+        </span>
+        <span className={styles.periodos}>
+          {PERIODOS.map(p => (
+            <button
+              key={p}
+              className={`${styles.periodo} ${periodo === p ? styles.periodoAtivo : ''}`}
+              onClick={() => setPeriodo(p)}
+            >
+              {p} dias
+            </button>
+          ))}
+        </span>
+      </div>
+
+      {aAvisar.length > 0 && (
+        <div className={styles.avisoPronta}>
+          <div className={styles.avisoTitulo}>
+            <Phone size={14} /> {aAvisar.length === 1 ? 'Uma peça voltou pronta' : `${aAvisar.length} peças voltaram prontas`}: ligar para a cliente
+          </div>
+          <ul className={styles.avisoLista}>
+            {aAvisar.map(c => (
+              <li key={c.id}>
+                <span><strong>{c.cliente}</strong> · {c.peca}{c.clienteTelefone ? ` · ${c.clienteTelefone}` : ' · sem telefone'}</span>
+                <button className={styles.avancar} onClick={() => avisada(c)} disabled={ocupado === c.id}>
+                  {ocupado === c.id ? '…' : <><Check size={12} /> Avisei a cliente</>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {erro && <div className={styles.erro}>{erro}</div>}
 
@@ -283,6 +363,11 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
                     <span className={`${styles.selo} ${styles['selo_' + c.status]}`}>
                       {FLUXO.find(f => f.valor === c.status)?.rotulo}
                     </span>
+                    {c.status === 'pronto' && (
+                      c.clienteAvisadaEm
+                        ? <span className={styles.suave}> · cliente avisada</span>
+                        : <span className={styles.atrasado}> · avisar cliente</span>
+                    )}
                   </td>
                   {/*
                     Pago ou não é o que ela precisa ver de relance: se a cliente
