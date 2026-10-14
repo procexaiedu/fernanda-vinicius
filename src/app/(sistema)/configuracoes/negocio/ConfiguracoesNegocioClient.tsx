@@ -145,11 +145,12 @@ const SECTIONS: SectionDef[] = [
 
 interface Props {
   settings: SettingRow[]
+  storeId: string
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export default function ConfiguracoesNegocioClient({ settings }: Props) {
+export default function ConfiguracoesNegocioClient({ settings, storeId }: Props) {
   // rawValues armazena a string do input (permite campo vazio enquanto o usuário digita)
   // numericValues armazena o último valor numérico válido (usado no save)
   const initialRaw = Object.fromEntries(settings.map(s => [s.key, String(s.value)]))
@@ -173,7 +174,7 @@ export default function ConfiguracoesNegocioClient({ settings }: Props) {
     setErrors(prev => { const n = { ...prev }; delete n[section.id]; return n })
 
     const results = await Promise.all(
-      section.settings.map(s => updateSetting(s.key, numericValues[s.key] ?? 0))
+      section.settings.map(s => updateSetting(storeId, s.key, numericValues[s.key] ?? 0))
     )
     const failed = results.find(r => !r.success)
 

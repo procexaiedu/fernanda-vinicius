@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { exigirAdmin, lojaDoEscopo } from '@/lib/auth'
+import { lojaDaConfig } from '@/lib/configDaLoja'
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -160,6 +161,9 @@ function monthBounds(year: number, month: number) {
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export async function buscarDashboardSettings(): Promise<DashboardSettings> {
+  // Config é da LOJA (16/10): a do escopo da sessão, decidida aqui.
+  const perfil = await exigirAdmin()
+  const loja = await lojaDaConfig(lojaDoEscopo(perfil))
   const admin = createAdminClient()
   // Os três num só `in`: antes `inactive_customer_days` era uma segunda ida à
   // MESMA tabela, direto da página. Cada ida ao Supabase custa ~190ms de rede
@@ -167,6 +171,7 @@ export async function buscarDashboardSettings(): Promise<DashboardSettings> {
   const { data } = await admin
     .from('settings')
     .select('key, value')
+    .eq('store_id', loja)
     .in('key', ['purchase_reserve_pct', 'stale_product_days', 'inactive_customer_days'])
 
   const map: Record<string, number> = {}

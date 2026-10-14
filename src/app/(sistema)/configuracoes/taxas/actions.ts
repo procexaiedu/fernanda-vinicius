@@ -3,13 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getProfile } from '@/lib/auth'
-import { lojasDasTaxas } from './lojas'
+import { lojasQueAdministra } from '@/lib/lojasQueAdministra'
 import { MAQUINA } from '@/lib/taxasCartao'
 
 /*
  * Taxas da maquininha (Laranjinha), POR LOJA. Server action é chamável direto
  * (console, curl): a loja que chega é conferida aqui contra as lojas da pessoa
- * (lojasDasTaxas), nunca aceita só porque a tela mandou.
+ * (lojasQueAdministra), nunca aceita só porque a tela mandou.
  */
 
 export async function salvarTaxa(input: {
@@ -22,7 +22,7 @@ export async function salvarTaxa(input: {
 }): Promise<{ success: boolean; error?: string }> {
   const perfil = await getProfile()
   if (!perfil) return { success: false, error: 'Não autenticado.' }
-  const lojas = await lojasDasTaxas(perfil)
+  const lojas = await lojasQueAdministra(perfil)
   if (!lojas.some(l => l.id === input.store_id)) {
     return { success: false, error: 'Sem permissão para as taxas desta loja.' }
   }

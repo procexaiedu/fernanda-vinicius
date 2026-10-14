@@ -398,10 +398,11 @@ function conferirValores(data: VendaFormData): string | null {
  * leitura caía no padrão (5% e 10%) calada — e se a dona tivesse mudado o
  * percentual, a venda gravava com o desconto velho sem ninguém saber.
  */
-async function lerPercentuais(admin: Admin): Promise<{ pixPct: number; birthdayPct: number } | { error: string }> {
+async function lerPercentuais(admin: Admin, storeId: string): Promise<{ pixPct: number; birthdayPct: number } | { error: string }> {
   const { data: settingsRows, error } = await lerComNovaTentativa('settings de desconto', () => admin
     .from('settings')
     .select('key, value')
+    .eq('store_id', storeId) // desconto é da loja da venda (16/10)
     .in('key', ['pix_discount_pct', 'birthday_discount_pct']))
   if (error || !settingsRows) {
     console.error('[vendas] falha ao ler settings de desconto', error)
@@ -729,7 +730,7 @@ async function prepararVenda(
   const erroValores = conferirValores(data)
   if (erroValores) return { error: erroValores }
 
-  const pct = await lerPercentuais(admin)
+  const pct = await lerPercentuais(admin, storeId)
   if ('error' in pct) return pct
 
   const pecas = await conferirPecasDaLoja(admin, storeId, data)

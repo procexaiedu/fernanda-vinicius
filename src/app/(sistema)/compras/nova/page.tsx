@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { lojaDaConfig } from '@/lib/configDaLoja'
 import PageHeader from '@/components/ui/PageHeader'
 import { requireProfile, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -36,12 +37,13 @@ export default async function NovaCompraPage() {
     return q.order('name')
   }
 
+  const lojaCfg = await lojaDaConfig(escopo)
   const [suppliersRes, storesRes, productsRes, markupRes, categoryMappingsRes, materialsRes] = await Promise.all([
     admin.from('suppliers').select('id, name, initials').eq('is_active', true).order('name'),
     carregarLojasDaCompra(),
     carregarCatalogo(),
-    admin.from('settings').select('value').eq('key', 'default_markup_pct').maybeSingle(),
-    admin.from('category_label_mapping').select('category').eq('is_active', true).order('category'),
+    admin.from('settings').select('value').eq('store_id', lojaCfg).eq('key', 'default_markup_pct').maybeSingle(),
+    admin.from('category_label_mapping').select('category').eq('store_id', lojaCfg).eq('is_active', true).order('category'),
     admin.from('materials').select('name').eq('is_active', true).order('name'),
   ])
 

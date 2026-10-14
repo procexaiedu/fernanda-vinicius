@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { lojaDaConfig } from '@/lib/configDaLoja'
 import { ehAdminGlobal, ehOperadora, lojaDoEscopo, podeFiltrarPorLoja, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ProdutosClient from './ProdutosClient'
@@ -98,14 +99,16 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
     query = query.eq('is_active', true)
   }
 
+  // Config é da LOJA (16/10).
+  const lojaCfg = await lojaDaConfig(effectiveStoreId)
   const [productsRes, materialsRes, storesRes, suppliersRes, categoryMappingsRes, markupRes, staleRes] = await Promise.all([
     query,
     admin.from('materials').select('name').eq('is_active', true).order('name'),
     podeTrocarLoja ? admin.from('stores').select('id, name').order('name') : Promise.resolve({ data: [] }),
     isAdmin ? admin.from('suppliers').select('id, name, initials').eq('is_active', true).order('name') : Promise.resolve({ data: [] }),
-    admin.from('category_label_mapping').select('category, label_format').eq('is_active', true).order('category'),
-    admin.from('settings').select('value').eq('key', 'default_markup_pct').maybeSingle(),
-    admin.from('settings').select('value').eq('key', 'stale_product_days').maybeSingle(),
+    admin.from('category_label_mapping').select('category, label_format').eq('store_id', lojaCfg).eq('is_active', true).order('category'),
+    admin.from('settings').select('value').eq('store_id', lojaCfg).eq('key', 'default_markup_pct').maybeSingle(),
+    admin.from('settings').select('value').eq('store_id', lojaCfg).eq('key', 'stale_product_days').maybeSingle(),
   ])
 
   const products = (productsRes.data ?? []) as ProductWithRelations[]

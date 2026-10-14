@@ -3,12 +3,12 @@ import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import PageHeader from '@/components/ui/PageHeader'
 import TaxasClient from './TaxasClient'
-import { lojasDasTaxas } from './lojas'
+import { lojasQueAdministra } from '@/lib/lojasQueAdministra'
 import { MAQUINA, type TaxaCelula } from '@/lib/taxasCartao'
 
 export default async function TaxasCartaoPage({ searchParams }: { searchParams: Promise<{ loja?: string }> }) {
   const profile = await requireProfile()
-  const lojas = await lojasDasTaxas(profile)
+  const lojas = await lojasQueAdministra(profile)
   if (lojas.length === 0) redirect('/')
 
   // A loja pedida só vale se for uma das dela; senão a da sessão, senão a primeira.

@@ -24,7 +24,7 @@ export function mesAtualSP(): string {
 
 export async function lerConfigDaLoja(admin: Admin, storeId: string): Promise<ConfigMetaLoja> {
   const { data, error } = await admin
-    .from('settings').select('value').eq('key', chaveMetaLoja(storeId)).maybeSingle()
+    .from('settings').select('value').eq('store_id', storeId).eq('key', chaveMetaLoja(storeId)).maybeSingle()
   if (error) throw new Error(`Não foi possível ler a meta da loja: ${error.message}`)
   return lerConfigMetaLoja(data?.value)
 }

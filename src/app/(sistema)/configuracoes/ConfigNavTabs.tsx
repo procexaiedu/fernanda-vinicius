@@ -11,7 +11,8 @@ const tabs = [
   { label: 'Usuários',  href: '/configuracoes/usuarios',  daRede: false },
   // Meta é da LOJA desde 06/10: a admin de loja cuida da dela.
   { label: 'Metas',     href: '/configuracoes/metas',     daRede: false },
-  { label: 'Negócio',   href: '/configuracoes/negocio',   daRede: true },
+  // Regra do negócio é da LOJA desde 16/10.
+  { label: 'Negócio',   href: '/configuracoes/negocio',   daRede: false },
   { label: 'Impressão', href: '/configuracoes/impressao', daRede: false },
   // Taxa é da LOJA (14/10): a admin de loja cuida da dela.
   { label: 'Taxas de cartão', href: '/configuracoes/taxas', daRede: false },
