@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ChevronDown, Check, Info, ImagePlus, Loader2, X } from 'lucide-react'
+import { ChevronDown, Check, Info, ImagePlus, Loader2, X, ArrowLeft, ArrowRight, Send, Users, Ban, Wallet, AlertTriangle } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import { criarDisparo, atualizarDisparo, enviarDisparo, listarCandidatos, listarListas, listarDestinatarios, listarTemplates, infoEnvio, type TemplateMeta, type Candidato, type ListaSalva } from './actions'
-import DestinatariosPicker, { FILTROS_PADRAO, dddDe, recebeuHaPouco, type Filtros } from './DestinatariosPicker'
+import DestinatariosPicker, { FILTROS_PADRAO, dddDe, recebeuHaPouco, aplicar, MOTIVO, type Filtros } from './DestinatariosPicker'
 import { renderPreview } from './templates'
 import type { StoreOption, DisparoRow } from './page'
 import styles from './NovoDisparoModal.module.css'
@@ -48,6 +48,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_PADRAO)
   const [listas, setListas] = useState<ListaSalva[]>([])
   const [envio, setEnvio] = useState<{ limiteDia: number | null; saldoUsd: number | null; custoMsgUsd: number }>({ limiteDia: null, saldoUsd: null, custoMsgUsd: 0.0625 })
+  const [etapa, setEtapa] = useState(0)
   const [saving, setSaving]     = useState(false)
   const [sending, setSending]   = useState(false)
   const [serverErr, setServerErr] = useState<string | null>(null)
@@ -127,7 +128,7 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
   }
 
   async function salvar(disparar: boolean) {
-    if (!validate(disparar)) return
+    if (!validate(disparar)) { setEtapa(erroEtapa0() ? 0 : disparar && selectedIds.size > 0 ? 2 : 1); return }
     setServerErr(null)
     if (disparar) setSending(true); else setSaving(true)
 
@@ -175,11 +176,60 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
 
   const busy = saving || sending
 
+  /* Resumo da etapa 3: quem recebe, quem ficou de fora e por quê. Mesmas
+     regras do picker (aplicar/recebeuHaPouco), só contadas. */
+  const resumo = useMemo(() => {
+    const cs = clientes ?? []
+    const lista = listas.find(l => l.id === filtros.lista) ?? null
+    const membros = lista ? new Set(lista.customer_ids) : null
+    const base = aplicar(cs, { ...filtros, semRepetirDias: null }, membros)
+    const porMotivo = new Map<string, number>()
+    let recentes = 0
+    for (const c of base) {
+      if (c.excluido) porMotivo.set(c.excluido, (porMotivo.get(c.excluido) ?? 0) + 1)
+      else if (recebeuHaPouco(c, filtros.semRepetirDias)) recentes++
+    }
+    const excluidos = [...porMotivo.entries()].sort((a, b) => b[1] - a[1])
+      .map(([m, n]) => ({ motivo: MOTIVO[m] ?? m, n }))
+    const nuncaCompraram = cs.filter(c => selectedIds.has(c.id) && c.compras === 0).length
+    return { excluidos, totalExcl: excluidos.reduce((s, e) => s + e.n, 0), recentes, nuncaCompraram, lista: lista?.nome ?? null }
+  }, [clientes, listas, filtros, selectedIds])
+
+  const total = selectedIds.size
+  const custo = total * envio.custoMsgUsd
+  const passaLimite = envio.limiteDia != null && total > envio.limiteDia
+  const passaSaldo = envio.saldoUsd != null && custo > envio.saldoUsd
+
+  function erroEtapa0() {
+    return !form.titulo.trim() || !tpl || (tpl.bodyVarCount >= 2 && !form.param2.trim()) || (needsImage && !form.image_url)
+  }
+  function irPara(n: number) {
+    if (n > 0 && erroEtapa0()) { validate(); setEtapa(0); return }
+    if (n > 1 && total === 0) { validate(); setEtapa(1); return }
+    setErrors({})
+    setEtapa(n)
+  }
+
+  const ETAPAS = ['Mensagem', 'Público', 'Revisar e enviar']
+
   return (
     <Modal isOpen onClose={onClose} title={isEdit ? 'Editar disparo' : 'Novo disparo'} size="xl2">
+      <ol className={styles.stepper} aria-label="Etapas do disparo">
+        {ETAPAS.map((nome, i) => (
+          <li key={nome}>
+            <button type="button" onClick={() => irPara(i)} aria-current={etapa === i ? 'step' : undefined}
+              className={`${styles.step} ${etapa === i ? styles.stepOn : ''} ${etapa > i ? styles.stepDone : ''}`}>
+              <span className={styles.stepNum}>{etapa > i ? <Check size={13} /> : i + 1}</span>
+              <span className={styles.stepNome}>{nome}</span>
+              {i === 1 && clientes && <span className={styles.stepConta}>{total}</span>}
+            </button>
+          </li>
+        ))}
+      </ol>
+
       <div className={styles.body}>
-        {/* Formulário */}
         <div className={styles.formCol}>
+        {etapa === 0 && (<>
           <Field label="Título do disparo *" error={errors.titulo} hint="Só pra organização interna. O cliente não vê.">
             <input className={`${styles.input} ${errors.titulo ? styles.inputError : ''}`}
               value={form.titulo} onChange={e => set('titulo', e.target.value)}
@@ -252,9 +302,11 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
               <input className={styles.input} value={form.param3} onChange={e => set('param3', e.target.value)} />
             </Field>
           )}
+        </>)}
 
+        {etapa === 1 && (
           <Field
-            label={`Destinatários — ${selectedIds.size} selecionado(s)`}
+            label={`Quem vai receber — ${selectedIds.size} selecionado(s)`}
             error={errors.destinatarios}
             hint="Comece por quem já comprou na loja. Quem está na lista de exclusão aparece apagada e não recebe.">
             {clientes === null ? (
@@ -279,19 +331,74 @@ export default function NovoDisparoModal({ stores, currentUserRole, currentUserS
               />
             )}
           </Field>
+        )}
+
+        {etapa === 2 && (
+          <div className={styles.revisao}>
+            <div className={styles.resumoGrid}>
+              <div className={`${styles.resumoCard} ${styles.resumoOk}`}>
+                <Users size={16} />
+                <span className={styles.resumoRot}>Vão receber</span>
+                <strong className={`${styles.resumoNum} ${passaLimite ? styles.ruim : ''}`}>{total}</strong>
+                <span className={styles.resumoSub}>{envio.limiteDia != null ? `limite de ${envio.limiteDia} por dia` : 'clientes selecionadas'}</span>
+              </div>
+              <div className={`${styles.resumoCard} ${styles.resumoExcl}`}>
+                <Ban size={16} />
+                <span className={styles.resumoRot}>Ficaram de fora</span>
+                <strong className={styles.resumoNum}>{resumo.totalExcl + resumo.recentes}</strong>
+                <span className={styles.resumoSub}>no filtro escolhido</span>
+              </div>
+              <div className={`${styles.resumoCard} ${styles.resumoCusto}`}>
+                <Wallet size={16} />
+                <span className={styles.resumoRot}>Custo estimado</span>
+                <strong className={`${styles.resumoNum} ${passaSaldo ? styles.ruim : ''}`}>US$ {custo.toFixed(2)}</strong>
+                <span className={styles.resumoSub}>{envio.saldoUsd != null ? `saldo US$ ${envio.saldoUsd.toFixed(2)}` : 'saldo não lido'}</span>
+              </div>
+            </div>
+
+            <div className={styles.porque}>
+              <div className={styles.porqueTit}>Por que ficaram de fora</div>
+              {resumo.totalExcl + resumo.recentes === 0 ? (
+                <div className={styles.porqueVazio}>Ninguém do filtro ficou de fora.</div>
+              ) : (
+                <ul className={styles.porqueLista}>
+                  {resumo.recentes > 0 && <li><span>Já receberam disparo nos últimos {filtros.semRepetirDias} dias</span><b>{resumo.recentes}</b></li>}
+                  {resumo.excluidos.map(e => <li key={e.motivo}><span>Lista de exclusão: {e.motivo}</span><b>{e.n}</b></li>)}
+                </ul>
+              )}
+            </div>
+
+            <dl className={styles.ficha}>
+              <div><dt>Campanha</dt><dd>{form.titulo || '—'}</dd></div>
+              <div><dt>Loja / número</dt><dd>{storeName}</dd></div>
+              <div><dt>Template</dt><dd>{tpl?.name ?? '—'}</dd></div>
+              {resumo.lista && <div><dt>Lista salva</dt><dd>{resumo.lista}</dd></div>}
+            </dl>
+
+            {passaLimite && <Aviso>O número só pode iniciar {envio.limiteDia} conversas por dia. Volte ao Público e reduza a seleção (rascunho pode salvar).</Aviso>}
+            {passaSaldo && <Aviso>O saldo da YCloud não cobre este envio. Peça a recarga antes de enviar.</Aviso>}
+            {resumo.nuncaCompraram > 0 && <Aviso>{resumo.nuncaCompraram} selecionada(s) nunca compraram nesta loja.</Aviso>}
+            {errors.destinatarios && <span className={styles.error}>{errors.destinatarios}</span>}
+          </div>
+        )}
 
           {serverErr && <div className={styles.serverError}>{serverErr}</div>}
 
           <div className={styles.actions}>
-            <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+            {etapa === 0
+              ? <Button type="button" variant="ghost" onClick={onClose}>Cancelar</Button>
+              : <Button type="button" variant="ghost" onClick={() => setEtapa(etapa - 1)}><ArrowLeft size={14} /> Voltar</Button>}
+            <span className={styles.actionsGap} />
             <Button type="button" variant="outline" loading={saving} disabled={busy || !tpl} onClick={() => salvar(false)}>{isEdit ? 'Salvar alterações' : 'Salvar rascunho'}</Button>
-            <Button type="button" loading={sending} disabled={busy || !tpl} onClick={() => salvar(true)}>Enviar agora</Button>
+            {etapa < 2
+              ? <Button type="button" onClick={() => irPara(etapa + 1)}>Continuar <ArrowRight size={14} /></Button>
+              : <Button type="button" loading={sending} disabled={busy || !tpl} onClick={() => salvar(true)}><Send size={14} /> Enviar para {total}</Button>}
           </div>
-          <div className={styles.note}>Salvar <b>não</b> envia — o envio é uma ação separada com confirmação.</div>
+          <div className={styles.note}>Salvar <b>não</b> envia. O envio pede confirmação antes de sair.</div>
         </div>
 
         {/* Preview WhatsApp */}
-        <div className={styles.previewCol}>
+        <div className={`${styles.previewCol} ${etapa === 1 ? styles.previewOculta : ''}`}>
           <div className={styles.previewLabel}>Pré-visualização</div>
           <div className={styles.phone}>
             <div className={styles.waTop}>fevinicius</div>
@@ -395,6 +502,10 @@ function StoreSelect({ stores, value, onChange }: { stores: StoreOption[]; value
       )}
     </div>
   )
+}
+
+function Aviso({ children }: { children: React.ReactNode }) {
+  return <div className={styles.aviso}><AlertTriangle size={14} /><span>{children}</span></div>
 }
 
 function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: React.ReactNode }) {

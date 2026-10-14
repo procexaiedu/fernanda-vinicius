@@ -3,7 +3,7 @@
 import { usePersistedState } from '@/hooks/usePersistedState'
 
 import { useState, useMemo } from 'react'
-import { Plus, Trash2, Search, Send, Megaphone, Loader2, Eye, Pencil, Copy, Ban } from 'lucide-react'
+import { Plus, Trash2, Search, Send, Megaphone, Loader2, Eye, Pencil, Copy, Ban, FileEdit, CheckCheck, BookOpen } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import NovoDisparoModal from './NovoDisparoModal'
@@ -88,6 +88,12 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
     enviados:  disparos.filter(d => d.status === 'concluido' || d.status === 'enviando').length,
   }), [disparos])
 
+  // Números do topo: o que já saiu e quanto foi lido.
+  const totais = useMemo(() => {
+    const t = disparos.reduce((a, d) => ({ enviados: a.enviados + d.enviados, entregues: a.entregues + d.entregues, lidos: a.lidos + d.lidos }), { enviados: 0, entregues: 0, lidos: 0 })
+    return { ...t, taxaLeitura: t.enviados ? Math.round((t.lidos / t.enviados) * 100) : null }
+  }, [disparos])
+
   async function handleSend(d: DisparoRow, e: React.MouseEvent) {
     e.stopPropagation()
     if (!confirm(`Disparar "${d.titulo}" para ${d.total} cliente(s) da loja ${d.store_name}?`)) return
@@ -111,6 +117,30 @@ export default function DisparosClient({ disparos, stores, currentUserRole, curr
 
   return (
     <>
+      <div className={styles.kpis}>
+        <div className={`${styles.kpi} ${styles.kpiAccent}`}>
+          <Megaphone size={16} /><span className={styles.kpiRot}>Campanhas</span>
+          <strong className={styles.kpiNum}>{disparos.length}</strong>
+        </div>
+        <div className={`${styles.kpi} ${styles.kpiWarning}`}>
+          <FileEdit size={16} /><span className={styles.kpiRot}>Rascunhos</span>
+          <strong className={styles.kpiNum}>{counts.rascunhos}</strong>
+        </div>
+        <div className={`${styles.kpi} ${styles.kpiInfo}`}>
+          <CheckCheck size={16} /><span className={styles.kpiRot}>Mensagens entregues</span>
+          <strong className={styles.kpiNum}>{totais.entregues}<small> / {totais.enviados}</small></strong>
+        </div>
+        <div className={`${styles.kpi} ${styles.kpiSuccess}`}>
+          <BookOpen size={16} /><span className={styles.kpiRot}>Taxa de leitura</span>
+          <strong className={styles.kpiNum}>{totais.taxaLeitura == null ? '—' : `${totais.taxaLeitura}%`}</strong>
+        </div>
+      </div>
+
+      <div className={styles.secao}>
+        <h2 className={styles.secaoTit}>Histórico de envios</h2>
+        <span className={styles.secaoSub}>Clique numa campanha para ver quem recebeu, entregou e leu.</span>
+      </div>
+
       {/* Toolbar */}
       <div className={styles.toolbar}>
         <div className={styles.toolbarLeft}>
