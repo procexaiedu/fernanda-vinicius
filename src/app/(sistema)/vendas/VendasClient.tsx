@@ -171,7 +171,6 @@ interface Props {
   closings: ClosingOption[]
   userRole: string
   /** Vê mais de uma loja. Só o admin global — admin de loja está preso à dele. */
-  podeTrocarLoja: boolean
   /**
    * A lista veio cortada: há vendas mais antigas que as `limite` carregadas.
    * `proximo` = o limite do "Carregar mais" (null = já no teto).
@@ -179,12 +178,11 @@ interface Props {
   corte: { limite: number; proximo: number | null } | null
 }
 
-export default function VendasClient({ sales: initial, stores, sellers, closings, userRole, podeTrocarLoja, corte }: Props) {
+export default function VendasClient({ sales: initial, stores, sellers, closings, userRole, corte }: Props) {
   const today = todayStr()
 
   const [sales, setSales]             = useState(initial)
   const [search, setSearch]           = useState('')
-  const [filterStore, setFilterStore] = usePersistedState('fv-filtros-vendas-store', '')
   const [filterStatus, setFilterStatus] = usePersistedState('fv-filtros-vendas-status', '')
   const [filterSeller, setFilterSeller] = usePersistedState('fv-filtros-vendas-seller', '')
   const [dateFrom, setDateFrom]       = useState(today)
@@ -240,7 +238,6 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
       }
       /* Filtro guardado de antes da escolha de loja não vale mais quando o
          seletor não aparece: só esconderia tudo, sem jeito de desfazer. */
-      if (podeTrocarLoja && filterStore && s.store_id !== filterStore) return false
       if (filterSeller && s.seller_id !== filterSeller) return false
       if (filterStatus === 'exchange'  && !s.has_exchange)       return false
       if (filterStatus === 'completed' && s.status !== 'completed') return false
@@ -262,7 +259,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
     })
 
     return list
-  }, [sales, search, dateFrom, dateTo, filterStore, podeTrocarLoja, filterSeller, filterStatus, filterNota, sortKey, sortDir, closing])
+  }, [sales, search, dateFrom, dateTo, filterSeller, filterStatus, filterNota, sortKey, sortDir, closing])
 
   /*
    * O período começa antes da venda mais antiga que veio do servidor? Então a
@@ -358,19 +355,6 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          {/*
-            `userRole === 'admin'` deixava o filtro passar para o admin de loja:
-            ele via "Todas as lojas / Brasília / Campinas" numa lista que o
-            servidor já tinha restringido à loja dele. Escolha que não existe.
-          */}
-          {podeTrocarLoja && (
-            <FilterSelect
-              value={filterStore}
-              onChange={setFilterStore}
-              placeholder="Todas as lojas"
-              options={stores.map(s => ({ value: s.id, label: s.name }))}
-            />
-          )}
           {userRole === 'admin' && (
             <FilterSelect
               value={filterSeller}
@@ -485,7 +469,6 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                 <th className={styles.thSortable} onClick={() => toggleSort('customer')}>
                   Cliente <SortIcon col="customer" />
                 </th>
-                {podeTrocarLoja && <th className="col-secondary">Loja</th>}
                 {userRole === 'admin' && <th className="col-secondary">Vendedora</th>}
                 <th className={`${styles.thSortable} col-tertiary`} onClick={() => toggleSort('items')}>
                   Itens <SortIcon col="items" />
@@ -511,7 +494,6 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                 >
                   <td className={`${styles.dateCell} col-date`}>{fmtDate(s.sale_date)}</td>
                   <td className="nome-cliente">{s.customer_name ?? <span className={styles.muted}>—</span>}</td>
-                  {podeTrocarLoja && <td className={`${styles.muted} col-secondary`}>{s.store_name}</td>}
                   {userRole === 'admin' && (
                     <td className={`${styles.muted} col-secondary`}>{s.seller_name ?? <span className={styles.muted}>—</span>}</td>
                   )}

@@ -465,14 +465,11 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
   ]
 
   /*
-   * "Todas as lojas" só aparece para quem TEM as duas.
-   *
-   * A lista já chega cortada do servidor, então para a admin de Brasília isto
-   * mostrava "Todas as lojas / Brasília" — e "todas" ali é uma loja só. Não
-   * vazava dado, mas fazia acreditar que estava vendo as duas, que é pior.
+   * Sem "Todas as lojas" (regra do dono, 14/10/2026): Campinas e Brasília são
+   * sistemas separados, nem o admin global vê as duas juntas. A lista chega do
+   * servidor com a loja da sessão só, e o servidor filtra por ela de novo.
    */
   const storeOptions: DropdownOption[] = [
-    ...(stores.length > 1 ? [{ value: '', label: 'Todas as lojas' }] : []),
     ...stores.map(s => ({ value: s.id, label: s.name })),
   ]
 
@@ -1193,9 +1190,8 @@ function PnlTab({ stores, podeTrocarLoja }: { stores: Store[]; podeTrocarLoja: b
     else setMonth(m => m + 1)
   }
 
-  // Ver a nota do outro `storeOptions`: "todas" com uma loja só engana.
+  // Ver a nota do outro `storeOptions`: sem "Todas as lojas".
   const storeOptions: DropdownOption[] = [
-    ...(stores.length > 1 ? [{ value: '', label: 'Todas as lojas' }] : []),
     ...stores.map(s => ({ value: s.id, label: s.name })),
   ]
 
