@@ -48,6 +48,7 @@ select st.id, s.key, s.value, s.description, s.created_at, now()
 delete from fv.settings where store_id is null;
 
 alter table fv.settings alter column store_id set not null;
+alter table fv.settings drop constraint if exists settings_loja_key;
 alter table fv.settings add constraint settings_loja_key unique (store_id, key);
 
 drop policy if exists settings_admin_select    on fv.settings;
@@ -73,6 +74,7 @@ select st.id, m.category, m.label_format, m.is_active, m.created_at, now()
  where m.store_id is null;
 delete from fv.category_label_mapping where store_id is null;
 alter table fv.category_label_mapping alter column store_id set not null;
+alter table fv.category_label_mapping drop constraint if exists category_label_mapping_pkey;
 alter table fv.category_label_mapping add constraint category_label_mapping_pkey primary key (store_id, category);
 
 drop policy if exists category_label_mapping_admin_write on fv.category_label_mapping;
@@ -95,6 +97,7 @@ select st.id, c.categoria, c.codigo_ncm, c.cest, c.cfop, c.unidade, c.icms_orige
  where c.store_id is null;
 delete from fv.fiscal_categorias where store_id is null;
 alter table fv.fiscal_categorias alter column store_id set not null;
+alter table fv.fiscal_categorias drop constraint if exists fiscal_categorias_pkey;
 alter table fv.fiscal_categorias add constraint fiscal_categorias_pkey primary key (store_id, categoria);
 
 drop policy if exists fiscal_categorias_leitura on fv.fiscal_categorias;
