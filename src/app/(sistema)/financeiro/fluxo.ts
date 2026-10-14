@@ -85,7 +85,7 @@ export async function buscarRecebimentos(de: string, ate: string): Promise<Resul
     .from('card_receivables')
     .select(`id, sale_id, card_type, brand, installment_number, installments_total, gross_amount,
              fee_pct, fee_amount, net_amount, expected_date, status, received_amount, received_at,
-             sales!inner(sale_date, status, customers(full_name))`)
+             sales!inner(sale_date, status, customers(name))`)
     .gte('expected_date', de)
     .lte('expected_date', ate)
     .neq('sales.status', 'cancelled')
@@ -101,7 +101,7 @@ export async function buscarRecebimentos(de: string, ate: string): Promise<Resul
       id: r.id,
       venda: r.sale_id,
       dataVenda: new Date(r.sales.sale_date).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }),
-      cliente: r.sales.customers?.full_name ?? null,
+      cliente: r.sales.customers?.name ?? null,
       tipo: r.card_type,
       bandeira: r.brand,
       parcela: r.installment_number,

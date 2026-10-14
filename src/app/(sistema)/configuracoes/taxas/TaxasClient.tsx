@@ -78,7 +78,7 @@ export default function TaxasClient({ taxas }: { taxas: TaxaCelula[] }) {
                   const k = chave(b.value, c.card_type, c.installments)
                   const v = valores[k] ?? ''
                   return (
-                    <td key={k} data-estado={estado[k]} data-vazio={v === '' || undefined}>
+                    <td key={k} className={styles.td} data-estado={estado[k]} data-vazio={v === '' || undefined}>
                       <input
                         className={styles.celula}
                         inputMode="decimal"
