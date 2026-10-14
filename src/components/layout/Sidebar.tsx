@@ -18,7 +18,7 @@ import {
   Monitor,
   LogOut,
   Sun,
-  Moon, Wrench, ArrowLeftRight,
+  Moon, Wrench, ArrowLeftRight, Search,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './Sidebar.module.css'
@@ -83,7 +83,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Clientes', href: '/clientes', icon: <Users size={18} /> },
       /* Sem `adminOnly`: quem recebe a peça no balcão é a operadora, e é
          ela que a cliente procura ao voltar para buscar. */
-      { label: 'Consertos', href: '/consertos', icon: <Wrench size={18} /> },
+      { label: 'Consertos', href: '/consertos', icon: <Wrench size={18} />, operadoraVe: true },
       { label: 'Disparos', href: '/disparos', icon: <Send size={18} />, adminOnly: true },
     ],
   },
@@ -94,6 +94,8 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'Estoque',  href: '/estoque',  icon: <Warehouse size={18} /> },
       /* Só a operadora: ela não abre /estoque, e é aqui que confere a caixa que
          chegou. A admin chega pelo botão "Transferências" do Estoque. */
+      /* Só a operadora: a admin já tem o /estoque completo. */
+      { label: 'Consulta', href: '/estoque/consulta', icon: <Search size={18} />, operadoraVe: true, soOperadora: true },
       { label: 'Transferências', href: '/estoque/transferencias', icon: <ArrowLeftRight size={18} />, operadoraVe: true, soOperadora: true },
     ],
   },

@@ -20,6 +20,12 @@ export const OPERADORA_PODE = [
    * confere: enviar, cancelar, devolver e acertar exigem admin no servidor.
    */
   '/estoque/transferencias',
+  /*
+   * Consulta de estoque da vendedora (14/10/2026): código, descrição,
+   * quantidade e preço de venda da loja dela. O select da página não traz
+   * custo nem fornecedor.
+   */
+  '/estoque/consulta',
 ]
 
 export function operadoraPodeVer(pathname: string): boolean {
