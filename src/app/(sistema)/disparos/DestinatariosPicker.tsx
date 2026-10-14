@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { AlertTriangle, Check, Search, X, Cake, Ban } from 'lucide-react'
-import type { Candidato } from './actions'
+import { AlertTriangle, Check, Search, X, Cake, Ban, ListChecks } from 'lucide-react'
+import type { Candidato, ListaSalva } from './actions'
 import { formatarTelefone } from '@/lib/telefone'
 import styles from './DestinatariosPicker.module.css'
 
@@ -26,11 +26,15 @@ export interface Filtros {
   aniversariantes: boolean
   ddds: string[]
   busca: string
+  /** Lista salva escolhida: mostra só as clientes dela. */
+  lista: string | null
+  /** Esconde quem recebeu disparo da loja nos últimos N dias; null = mostra todas. */
+  semRepetirDias: number | null
 }
 
 export const FILTROS_PADRAO: Filtros = {
   publico: 'compraram', diasUltimaCompra: null, minCompras: 1, minGasto: 0,
-  aniversariantes: false, ddds: [], busca: '',
+  aniversariantes: false, ddds: [], busca: '', lista: null, semRepetirDias: 7,
 }
 
 /** DDD: só dígitos, sem o 55, os 2 primeiros. A base tem formato misto. */
@@ -46,12 +50,17 @@ const MOTIVO: Record<string, string> = {
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
 const diasDesde = (iso: string | null) => iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000) : null
+const dataCurta = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+/** Recebeu disparo dentro da janela (em dias corridos, contando de agora). */
+export const recebeuHaPouco = (c: Candidato, dias: number | null) =>
+  dias != null && !!c.ultimo_envio && Date.now() - new Date(c.ultimo_envio).getTime() < dias * 86_400_000
 
-function aplicar(cs: Candidato[], f: Filtros): Candidato[] {
+function aplicar(cs: Candidato[], f: Filtros, membros: Set<string> | null): Candidato[] {
   const mes = new Date().getMonth() + 1
   const q = f.busca.trim().toLowerCase()
   const qd = q.replace(/\D/g, '')
   return cs.filter(c => {
+    if (membros && !membros.has(c.id)) return false
     if (c.compras < (f.publico === 'compraram' ? Math.max(1, f.minCompras) : f.minCompras)) return false
     if (f.minGasto > 0 && c.gasto < f.minGasto) return false
     if (f.diasUltimaCompra != null) {
@@ -60,6 +69,7 @@ function aplicar(cs: Candidato[], f: Filtros): Candidato[] {
     }
     if (f.aniversariantes && (!c.birthday || Number(c.birthday.slice(5, 7)) !== mes)) return false
     if (f.ddds.length && !f.ddds.includes(dddDe(c.phone))) return false
+    if (recebeuHaPouco(c, f.semRepetirDias)) return false
     if (q && !(c.name.toLowerCase().includes(q) || (qd && (c.phone || '').replace(/\D/g, '').includes(qd)))) return false
     return true
   })
@@ -75,6 +85,7 @@ function ordenar(cs: Candidato[], o: Ordem): Candidato[] {
 
 interface Props {
   candidatos: Candidato[]
+  listas: ListaSalva[]
   selecionados: Set<string>
   onChange: (s: Set<string>) => void
   filtros: Filtros
@@ -84,13 +95,42 @@ interface Props {
   custoMsgUsd: number
 }
 
-export default function DestinatariosPicker({ candidatos, selecionados, onChange, filtros: f, onFiltros, limiteDia, saldoUsd, custoMsgUsd }: Props) {
+export default function DestinatariosPicker({ candidatos, listas, selecionados, onChange, filtros: f, onFiltros, limiteDia, saldoUsd, custoMsgUsd }: Props) {
   const [ordem, setOrdem] = useState<Ordem>('recencia')
   const [topN, setTopN] = useState('')
   const [dddDigitando, setDddDigitando] = useState('')
   const set = (p: Partial<Filtros>) => onFiltros({ ...f, ...p })
 
-  const visiveis = useMemo(() => ordenar(aplicar(candidatos, f), ordem), [candidatos, f, ordem])
+  const lista = listas.find(l => l.id === f.lista) ?? null
+  const membros = useMemo(() => lista ? new Set(lista.customer_ids) : null, [lista])
+  const visiveis = useMemo(() => ordenar(aplicar(candidatos, f, membros), ordem), [candidatos, f, membros, ordem])
+  /* Quantas o filtro "já recebeu" está escondendo, com os demais filtros iguais. */
+  const escondidasPorEnvio = useMemo(() => f.semRepetirDias == null ? 0
+    : aplicar(candidatos, { ...f, semRepetirDias: null }, membros).filter(c => !c.excluido && recebeuHaPouco(c, f.semRepetirDias)).length,
+  [candidatos, f, membros, visiveis.length])
+
+  /* Lista salva (14/10/2026): a lista vira o filtro e marca de uma vez quem
+     dela pode receber. Excluída e quem não está entre as candidatas (sem
+     telefone, opt-out no cadastro) ficam de fora e são contadas. */
+  const resumoLista = useMemo(() => {
+    if (!lista) return null
+    const porId = new Map(candidatos.map(c => [c.id, c]))
+    let marcaveis = 0, recentes = 0
+    for (const id of lista.customer_ids) {
+      const c = porId.get(id)
+      if (!c || c.excluido) continue
+      if (recebeuHaPouco(c, f.semRepetirDias)) recentes++; else marcaveis++
+    }
+    return { marcaveis, recentes, fora: lista.customer_ids.length - marcaveis - recentes }
+  }, [lista, candidatos, f.semRepetirDias])
+
+  function escolherLista(id: string) {
+    const l = listas.find(x => x.id === id)
+    if (!l) { onFiltros({ ...FILTROS_PADRAO }); return }
+    onFiltros({ ...FILTROS_PADRAO, publico: 'todos', minCompras: 0, lista: l.id, semRepetirDias: f.semRepetirDias })
+    const ids = new Set(l.customer_ids)
+    onChange(new Set(candidatos.filter(c => ids.has(c.id) && !c.excluido && !recebeuHaPouco(c, f.semRepetirDias)).map(c => c.id)))
+  }
   const marcaveis = visiveis.filter(c => !c.excluido)
   const excluidosNoFiltro = visiveis.length - marcaveis.length
   const nuncaCompraramSel = candidatos.filter(c => selecionados.has(c.id) && c.compras === 0).length
@@ -130,6 +170,39 @@ export default function DestinatariosPicker({ candidatos, selecionados, onChange
 
   return (
     <div className={styles.box}>
+      {listas.length > 0 && (
+        <div className={styles.linha}>
+          <label className={styles.filtro}>
+            <ListChecks size={14} /> Lista salva
+            <select className={styles.select} value={f.lista ?? ''} onChange={e => escolherLista(e.target.value)}>
+              <option value="">nenhuma (escolher pelos filtros)</option>
+              {listas.map(l => <option key={l.id} value={l.id}>{l.nome} ({l.customer_ids.length})</option>)}
+            </select>
+          </label>
+          {resumoLista && (
+            <span className={styles.muted}>
+              {resumoLista.marcaveis} da lista{resumoLista.recentes > 0 && <>, {resumoLista.recentes} já recebeu disparo há pouco</>}{resumoLista.fora > 0 && <>, {resumoLista.fora} fora por exclusão/sem telefone válido</>}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Não repetir quem recebeu há pouco (14/10/2026): ligado por padrão. */}
+      <div className={styles.linha}>
+        <label className={styles.filtro}>
+          <input type="checkbox" checked={f.semRepetirDias != null}
+            onChange={e => set({ semRepetirDias: e.target.checked ? 7 : null })} />
+          Esconder quem já recebeu disparo nos últimos
+          <select className={styles.select} value={f.semRepetirDias ?? 7} disabled={f.semRepetirDias == null}
+            onChange={e => set({ semRepetirDias: Number(e.target.value) })}>
+            <option value={7}>7 dias</option>
+            <option value={15}>15 dias</option>
+            <option value={30}>30 dias</option>
+          </select>
+        </label>
+        {escondidasPorEnvio > 0 && <span className={styles.muted}>{escondidasPorEnvio} escondida(s) porque já receberam</span>}
+      </div>
+
       {/* Público + ordenação */}
       <div className={styles.linha}>
         <div className={styles.seg} role="group" aria-label="Público">
@@ -241,6 +314,7 @@ export default function DestinatariosPicker({ candidatos, selecionados, onChange
                 <small>{formatarTelefone(c.phone)}</small>
                 {c.excluido && <span className={styles.tagExcl}><Ban size={10} /> {MOTIVO[c.excluido]}</span>}
                 {!c.excluido && c.compras === 0 && <span className={styles.tagFria}>nunca comprou</span>}
+                {c.ultimo_envio && <span className={styles.tagEnvio} title="Último disparo que saiu para ela">recebeu {dataCurta(c.ultimo_envio)}</span>}
               </span>
               <span className={styles.n}>{c.compras || '—'}</span>
               <span className={styles.n}>{c.gasto ? brl(c.gasto) : '—'}</span>

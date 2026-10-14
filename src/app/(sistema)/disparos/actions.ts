@@ -94,6 +94,8 @@ export interface Candidato extends ClienteOption {
   ultima_compra: string | null
   /** Motivo da exclusão ativa; null = pode receber. */
   excluido: MotivoExclusao | null
+  /** Último disparo que saiu para ela NESTA loja nos últimos 30 dias (enviado/entregue/lido). */
+  ultimo_envio: string | null
 }
 
 /*
@@ -143,6 +145,25 @@ export async function listarCandidatos(store_id: string): Promise<{ ok: boolean;
 
     const excl = new Map((await exclusoesAtivas(admin, loja)).map(e => [e.telefone_e164, e.motivo]))
 
+    /* Quem já recebeu (14/10/2026): o filtro da tela esconde quem recebeu
+       disparo da loja nos últimos 7/15/30 dias, para fazer ~250 por dia sem
+       repetir. Data = envio do lote (sent_at) ou, sem ela, a linha. */
+    const desde = new Date(Date.now() - 31 * 86_400_000).toISOString()
+    const ultimoEnvio = new Map<string, string>()
+    for (let de = 0; ; de += 1000) {
+      const { data, error } = await admin.from('disparo_destinatarios')
+        .select('customer_id, created_at, disparos!inner(store_id, sent_at)')
+        .eq('disparos.store_id', loja).in('status', ['enviado', 'entregue', 'lido'])
+        .not('customer_id', 'is', null).gte('created_at', desde)
+        .order('id').range(de, de + 999)
+      if (error) throw new Error('envios anteriores: ' + error.message)
+      for (const r of data as unknown as { customer_id: string; created_at: string; disparos: { sent_at: string | null } }[]) {
+        const quando = r.disparos?.sent_at ?? r.created_at
+        if (quando > (ultimoEnvio.get(r.customer_id) ?? '')) ultimoEnvio.set(r.customer_id, quando)
+      }
+      if (data.length < 1000) break
+    }
+
     return {
       ok: true,
       candidatos: clientes.map(c => {
@@ -154,6 +175,7 @@ export async function listarCandidatos(store_id: string): Promise<{ ok: boolean;
           gasto: Math.round((h?.gasto ?? 0) * 100) / 100,
           ultima_compra: h?.ultima || null,
           excluido: tel ? excl.get(tel) ?? null : null,
+          ultimo_envio: ultimoEnvio.get(c.id) ?? null,
         }
       }),
     }
