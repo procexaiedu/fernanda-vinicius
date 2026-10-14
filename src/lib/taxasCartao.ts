@@ -8,6 +8,15 @@ export interface TaxaCelula {
   fee_pct: number
 }
 
+/** Prazo de recebimento de uma bandeira/modalidade numa loja (fv.card_prazos). */
+export interface PrazoLinha {
+  brand: string
+  card_type: 'debit' | 'credit'
+  prazo_dias: number
+  intervalo_dias: number
+  dia_util: boolean
+}
+
 /** Bandeiras na ordem da tela (as mesmas do seletor do PDV, mesmo código). */
 export const BANDEIRAS: { value: string; label: string }[] = [
   { value: 'visa', label: 'Visa' },

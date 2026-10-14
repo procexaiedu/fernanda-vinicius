@@ -5,12 +5,26 @@
  * teste SQL usa os mesmos casos).
  *
  * Regras (14/10/2026):
- *   - crédito: parcela k cai em venda + 31*k dias corridos;
- *   - débito: próximo dia útil (sábado/domingo pulam; feriado não);
+ *   - parcela k cai em venda + prazoDias + intervaloDias*(k-1); com diaUtil,
+ *     sábado/domingo passam para segunda (feriado não). O prazo vem de
+ *     fv.card_prazos (por loja e bandeira); sem prazo = padrão da planilha:
+ *     débito 1/0/dia útil, crédito 31/31/corrido;
  *   - taxa TOTAL = round(bruto × taxa, 2) e líquido = bruto − taxa; bruto e líquido divididos em
  *     n partes iguais e a sobra de centavos vai na 1ª parcela;
  *   - taxa null = sem taxa: líquido = bruto.
  */
+
+export interface Prazo {
+  prazoDias: number
+  intervaloDias: number
+  diaUtil: boolean
+}
+
+export function prazoPadrao(tipo: 'debit' | 'credit'): Prazo {
+  return tipo === 'debit'
+    ? { prazoDias: 1, intervaloDias: 0, diaUtil: true }
+    : { prazoDias: 31, intervaloDias: 31, diaUtil: false }
+}
 
 export interface Parcela {
   parcela: number
@@ -34,6 +48,7 @@ export function calcularRecebimentos(
   taxaPct: number | null,
   dataVenda: string,
   tipo: 'debit' | 'credit',
+  prazo: Prazo = prazoPadrao(tipo),
 ): Parcela[] {
   const n = tipo === 'debit' ? 1 : Math.max(1, Math.trunc(parcelas || 1))
   const brutoC = Math.round(valor * 100)
@@ -45,12 +60,9 @@ export function calcularRecebimentos(
 
   const out: Parcela[] = []
   for (let k = 1; k <= n; k++) {
-    let data: Date
-    if (tipo === 'debit') {
-      data = somarDias(dataVenda, 1)
+    let data = somarDias(dataVenda, prazo.prazoDias + prazo.intervaloDias * (k - 1))
+    if (prazo.diaUtil) {
       while (data.getUTCDay() === 0 || data.getUTCDay() === 6) data = somarDias(iso(data), 1)
-    } else {
-      data = somarDias(dataVenda, 31 * k)
     }
     const b = k === 1 ? brutoC - brutoParcC * (n - 1) : brutoParcC
     const l = k === 1 ? liqTotalC - liqParcC * (n - 1) : liqParcC

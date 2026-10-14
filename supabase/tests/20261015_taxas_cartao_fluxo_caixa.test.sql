@@ -30,6 +30,13 @@ begin
     from fv.calcular_recebimentos(700, 7, null, '2026-10-14', 'credit');
   assert r.c = 7 and r.z and r.m = '2027-05-19', 'sem taxa 7x';
 
+  -- Prazo configurado (mesmos casos do teste TS)
+  select array_agg(data_prevista order by parcela)::text as d into r
+    from fv.calcular_recebimentos(90, 3, 2.81, '2026-10-14', 'credit', 30, 30, true);
+  assert r.d = '{2026-11-13,2026-12-14,2027-01-12}', 'prazo 30/30 dia útil: ' || r.d;
+  select * into r from fv.calcular_recebimentos(50, 1, 0.91, '2026-10-16', 'debit', 2, 0, false);
+  assert r.data_prevista = '2026-10-18', 'débito D+2 corrido';
+
   -- 2. O gatilho: pagamento de cartão vira recebimentos; Pix não ─────────────
   select id into v_store from fv.stores limit 1;
   select id into v_user from fv.users limit 1;
@@ -83,6 +90,19 @@ begin
   assert (select sum(net_amount) from fv.card_receivables cr join fv.sale_payments sp on sp.id = cr.sale_payment_id
            where sp.sale_id = v_sale and sp.installments = 2 and sp.card_brand = 'visa') = 95, 'usa a taxa da própria loja';
   assert (select count(distinct store_id) from fv.card_fees) = (select count(*) from fv.stores), 'cada loja tem a sua grade';
+
+  -- 6. Prazo é da loja e da bandeira: mudar o Elo desta loja muda só o Elo desta loja
+  assert (select count(distinct store_id) from fv.card_prazos) = (select count(*) from fv.stores), 'prazos nas duas lojas';
+  update fv.card_prazos set prazo_dias = 2, intervalo_dias = 30, dia_util = false
+   where store_id = v_store and brand = 'elo' and card_type = 'credit';
+  insert into fv.sale_payments (sale_id, payment_method, amount, installments, card_brand)
+       values (v_sale, 'credit', 100, 2, 'elo'), (v_sale, 'credit', 100, 2, 'mastercard');
+  assert (select array_agg(cr.expected_date order by cr.installment_number)::text from fv.card_receivables cr
+            join fv.sale_payments sp on sp.id = cr.sale_payment_id where sp.sale_id = v_sale and sp.card_brand = 'elo')
+         = '{2026-10-16,2026-11-15}', 'prazo do Elo editado';
+  assert (select min(cr.expected_date) from fv.card_receivables cr
+            join fv.sale_payments sp on sp.id = cr.sale_payment_id where sp.sale_id = v_sale and sp.card_brand = 'mastercard')
+         = '2026-11-14', 'Master segue no padrão';
 
   raise notice 'OK: taxas_cartao_fluxo_caixa';
 end $$;

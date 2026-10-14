@@ -12,8 +12,14 @@
 --     usa a taxa da loja dela. Loja nova nasce SEM taxa (líquido = bruto + aviso).
 --   * Uma máquina só: Laranjinha. Taxas reais da planilha enviada pela Eleandra
 --     (13-10-2026 - taxas_cartao_laranjinha.xlsx), por BANDEIRA, até 6x.
---   * Crédito: parcela k cai em data da venda + 31*k dias corridos.
---     Débito: 1 dia útil (sábado e domingo pulam; feriado não é tratado).
+--   * PRAZO de recebimento é CONFIGURÁVEL por loja e bandeira (fv.card_prazos,
+--     pedido do dev para bater com o extrato). Parcela k cai em
+--     venda + prazo_dias + intervalo_dias*(k-1); com dia_util, sábado e domingo
+--     passam para segunda (feriado não é tratado). Padrão = planilha da
+--     Laranjinha: débito "1 dia útil" (1, 0, dia útil); crédito à vista "31
+--     dias" e parcelado "31 dias a cada parcela" (31, 31, corrido). A planilha
+--     é igual para todas as bandeiras e não fala de antecipação, nem se os 31
+--     dias pulam fim de semana. Bandeira sem linha em card_prazos usa esse padrão.
 --   * 7x a 12x e Hipercard: sem taxa cadastrada → líquido = bruto e o
 --     recebimento fica marcado "sem taxa" (fee_pct NULL) para a tela avisar.
 --   * Bandeira não informada no PDV (é opcional): usa a linha 'nao_informada',
@@ -142,6 +148,36 @@ select st.id, x.brand, x.card_type, x.installments, x.fee_pct
   from fv.stores st cross join _seed_taxas x
 on conflict (store_id, acquirer, card_type, brand, installments) do nothing;
 
+-- 1b. Prazos de recebimento ──────────────────────────────────────────────────
+create table if not exists fv.card_prazos (
+  id              uuid primary key default gen_random_uuid(),
+  store_id        uuid not null references fv.stores(id) on delete cascade,
+  acquirer        text not null default 'Laranjinha',
+  card_type       text not null check (card_type in ('debit', 'credit')),
+  brand           text not null,
+  prazo_dias      smallint not null check (prazo_dias between 0 and 365),     -- até a 1ª parcela (ou o débito)
+  intervalo_dias  smallint not null check (intervalo_dias between 0 and 365), -- entre parcelas
+  dia_util        boolean not null default false,                             -- sábado/domingo → segunda
+  updated_at      timestamptz not null default now(),
+  updated_by      uuid references fv.users(id) on delete set null,
+  unique (store_id, acquirer, card_type, brand)
+);
+
+comment on table fv.card_prazos is
+  'Quando o dinheiro do cartão cai, por loja/bandeira/modalidade. Parcela k = venda + prazo_dias + intervalo_dias*(k-1). Sem linha = padrão (débito 1 dia útil; crédito 31/31 corridos).';
+
+-- Padrão da planilha para cada bandeira da tela (inclui Hipercard, que não
+-- está na planilha: sem taxa, mas o prazo segue o padrão), nas duas lojas.
+insert into fv.card_prazos (store_id, card_type, brand, prazo_dias, intervalo_dias, dia_util)
+select st.id, t.card_type, b.brand,
+       case t.card_type when 'debit' then 1 else 31 end,
+       case t.card_type when 'debit' then 0 else 31 end,
+       t.card_type = 'debit'
+  from fv.stores st
+ cross join (select distinct brand from _seed_taxas union select 'hipercard') b
+ cross join (values ('debit'), ('credit')) t(card_type)
+on conflict (store_id, acquirer, card_type, brand) do nothing;
+
 -- 2. Recebimentos previstos ───────────────────────────────────────────────────
 create table if not exists fv.card_receivables (
   id                  uuid primary key default gen_random_uuid(),
@@ -178,7 +214,11 @@ create or replace function fv.calcular_recebimentos(
   p_parcelas    int,
   p_taxa_pct    numeric,    -- NULL = sem taxa
   p_data_venda  date,
-  p_tipo        text        -- 'debit' | 'credit'
+  p_tipo        text,       -- 'debit' | 'credit'
+  -- Prazo (fv.card_prazos). NULL = padrão: débito 1/0/dia útil, crédito 31/31/corrido.
+  p_prazo_dias      int default null,
+  p_intervalo_dias  int default null,
+  p_dia_util        boolean default null
 )
 returns table (parcela int, data_prevista date, bruto numeric, taxa numeric, liquido numeric)
 language plpgsql immutable
@@ -190,17 +230,18 @@ declare
   v_bruto_parc numeric := trunc(p_valor / v_n, 2);
   v_liq_parc numeric := trunc(v_liq_total / v_n, 2);
   v_data date;
+  v_prazo int := coalesce(p_prazo_dias, case when p_tipo = 'debit' then 1 else 31 end);
+  v_intervalo int := coalesce(p_intervalo_dias, case when p_tipo = 'debit' then 0 else 31 end);
+  v_util boolean := coalesce(p_dia_util, p_tipo = 'debit');
   k int;
   b numeric;
   l numeric;
 begin
   if p_tipo = 'debit' then v_n := 1; v_bruto_parc := p_valor; v_liq_parc := v_liq_total; end if;
   for k in 1..v_n loop
-    if p_tipo = 'debit' then
-      v_data := p_data_venda + 1;
+    v_data := p_data_venda + v_prazo + v_intervalo * (k - 1);
+    if v_util then
       while extract(isodow from v_data) in (6, 7) loop v_data := v_data + 1; end loop;
-    else
-      v_data := p_data_venda + 31 * k;
     end if;
     b := v_bruto_parc; l := v_liq_parc;
     if k = 1 then
@@ -225,6 +266,7 @@ declare
   v_brand text;
   v_n int;
   v_taxa numeric;
+  v_prazo fv.card_prazos%rowtype;
   v_qtd int;
 begin
   select * into v_pag from fv.sale_payments where id = p_payment_id;
@@ -241,6 +283,10 @@ begin
      and f.acquirer = 'Laranjinha' and f.card_type = v_pag.payment_method
      and f.brand = v_brand and f.installments = v_n;
 
+  select * into v_prazo from fv.card_prazos p
+   where p.store_id = v_sale.store_id and p.acquirer = 'Laranjinha'
+     and p.card_type = v_pag.payment_method and p.brand = v_brand;
+
   delete from fv.card_receivables where sale_payment_id = p_payment_id;
 
   insert into fv.card_receivables (
@@ -249,7 +295,8 @@ begin
   select v_pag.sale_id, v_pag.id, v_sale.store_id, v_pag.payment_method, v_brand, c.parcela,
          v_n, c.bruto, v_taxa, c.taxa, c.liquido, c.data_prevista
     from fv.calcular_recebimentos(v_pag.amount, v_n, v_taxa,
-           (v_sale.sale_date at time zone 'UTC')::date, v_pag.payment_method) c
+           (v_sale.sale_date at time zone 'UTC')::date, v_pag.payment_method,
+           v_prazo.prazo_dias, v_prazo.intervalo_dias, v_prazo.dia_util) c
    where not p_so_futuros or c.data_prevista >= (now() at time zone 'America/Sao_Paulo')::date;
 
   get diagnostics v_qtd = row_count;
@@ -370,6 +417,14 @@ create policy card_fees_admin_loja on fv.card_fees for all to authenticated
   using      ((select fv.is_admin()) and fv.pode_ver_loja(store_id))
   with check ((select fv.is_admin()) and fv.pode_ver_loja(store_id));
 
+alter table fv.card_prazos enable row level security;
+drop policy if exists card_prazos_admin_loja on fv.card_prazos;
+create policy card_prazos_admin_loja on fv.card_prazos for all to authenticated
+  using      ((select fv.is_admin()) and fv.pode_ver_loja(store_id))
+  with check ((select fv.is_admin()) and fv.pode_ver_loja(store_id));
+grant select, insert, update, delete on fv.card_prazos to authenticated;
+grant all on fv.card_prazos to service_role;
+
 drop policy if exists card_receivables_admin_loja on fv.card_receivables;
 create policy card_receivables_admin_loja on fv.card_receivables for all to authenticated
   using      ((select fv.is_admin()) and fv.pode_ver_loja(store_id))
@@ -379,11 +434,11 @@ grant select, insert, update, delete on fv.card_fees, fv.card_receivables to aut
 grant all on fv.card_fees, fv.card_receivables to service_role;
 
 -- RPCs só pelo servidor (padrão do fv: nenhuma é executável por authenticated).
-revoke all on function fv.calcular_recebimentos(numeric, int, numeric, date, text) from public;
+revoke all on function fv.calcular_recebimentos(numeric, int, numeric, date, text, int, int, boolean) from public;
 revoke all on function fv.gerar_recebimentos_cartao(uuid, boolean) from public;
 revoke all on function fv.tg_sale_payment_recebimentos() from public;
 revoke all on function fv.fluxo_caixa(uuid, date, date) from public;
-grant execute on function fv.calcular_recebimentos(numeric, int, numeric, date, text) to service_role;
+grant execute on function fv.calcular_recebimentos(numeric, int, numeric, date, text, int, int, boolean) to service_role;
 grant execute on function fv.gerar_recebimentos_cartao(uuid, boolean) to service_role;
 grant execute on function fv.fluxo_caixa(uuid, date, date) to service_role;
 revoke all on function fv.conciliar_recebimentos(uuid[], uuid, date, uuid) from public;

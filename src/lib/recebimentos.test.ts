@@ -47,3 +47,14 @@ test('centavos que não dividem: a sobra vai na 1ª', () => {
   assert.deepEqual(p.map(x => x.bruto), [3.34, 3.33, 3.33])
   assert.equal(Math.round(p.reduce((s, x) => s + x.liquido, 0) * 100), 972) // 10 × 0,9719
 })
+
+test('prazo configurado: 30 dias + 30 entre parcelas, jogando para dia útil', () => {
+  // 14/10/2026 + 30 = 13/11 (sex); + 60 = 13/12 (dom → seg 14/12); + 90 = 12/01/2027 (ter)
+  const p = calcularRecebimentos(90, 3, 2.81, '2026-10-14', 'credit', { prazoDias: 30, intervaloDias: 30, diaUtil: true })
+  assert.deepEqual(p.map(x => x.dataPrevista), ['2026-11-13', '2026-12-14', '2027-01-12'])
+})
+
+test('débito D+2 corrido (sem dia útil) numa sexta cai no domingo', () => {
+  const p = calcularRecebimentos(50, 1, 0.91, '2026-10-16', 'debit', { prazoDias: 2, intervaloDias: 0, diaUtil: false })
+  assert.equal(p[0].dataPrevista, '2026-10-18')
+})
