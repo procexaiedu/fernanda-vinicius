@@ -71,7 +71,7 @@
 
 .formLinha {
   display: grid;
-  grid-template-columns: 1.4fr 1.2fr 1.2fr 150px;
+  grid-template-columns: 1.4fr 1.2fr 1.2fr 150px 150px;
   gap: 10px;
 }
 

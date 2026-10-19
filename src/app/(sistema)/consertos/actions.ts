@@ -149,6 +149,8 @@ export async function registrarConserto(dados: {
   customerId: string
   peca: string
   servico?: string
+  /** Dia em que a peça entrou na loja. Vazio = hoje (o default da coluna). */
+  recebidoEm?: string | null
   prometidoPara?: string | null
   notes?: string
 }): Promise<ResultadoConserto> {
@@ -163,6 +165,9 @@ export async function registrarConserto(dados: {
   if (!ctx.loja) return { success: false, error: 'Escolha a loja antes de registrar um conserto.' }
   if (!dados.customerId) return { success: false, error: 'Selecione a cliente — a peça é dela.' }
   if (!dados.peca?.trim()) return { success: false, error: 'Diga qual é a peça.' }
+  if (dados.recebidoEm && !/^\d{4}-\d{2}-\d{2}$/.test(dados.recebidoEm)) {
+    return { success: false, error: 'Data de entrada inválida.' }
+  }
 
   const admin = createAdminClient()
   const { error } = await admin.from('consertos').insert({
@@ -170,6 +175,8 @@ export async function registrarConserto(dados: {
     customer_id:    dados.customerId,
     peca:           dados.peca.trim(),
     servico:        dados.servico?.trim() || null,
+    // Sem data, o default da coluna (CURRENT_DATE) decide.
+    ...(dados.recebidoEm ? { recebido_em: dados.recebidoEm } : {}),
     prometido_para: dados.prometidoPara || null,
     notes:          dados.notes?.trim() || null,
     user_id:        ctx.userId,

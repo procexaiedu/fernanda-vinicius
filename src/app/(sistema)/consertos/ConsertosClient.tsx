@@ -87,6 +87,8 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
   const [cliente, setCliente] = useState('')
   const [peca, setPeca] = useState('')
   const [servico, setServico] = useState('')
+  /* Já vem com hoje: quase sempre a peça entra no dia em que é registrada. */
+  const [entrada, setEntrada] = useState(hoje)
   const [prazo, setPrazo] = useState('')
   const [obs, setObs] = useState('')
   const [salvando, setSalvando] = useState(false)
@@ -114,11 +116,12 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
         customerId: cliente,
         peca,
         servico,
+        recebidoEm: entrada || null,
         prometidoPara: prazo || null,
         notes: obs,
       })
       if (!r.success) { setErro(r.error ?? 'Não foi possível registrar.'); return }
-      setAberto(false); setCliente(''); setPeca(''); setServico(''); setPrazo(''); setObs('')
+      setAberto(false); setCliente(''); setPeca(''); setServico(''); setEntrada(hoje()); setPrazo(''); setObs('')
       await recarregar()
     } catch (e) {
       setErro(mensagemDeErroAoSalvar(e))
@@ -292,6 +295,10 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
                 onChange={e => setServico(e.target.value)}
               />
             </label>
+            <label className={styles.campo} data-novidade="conserto-entrada">
+              <span className={styles.rotulo}>Entrada na loja</span>
+              <DatePicker value={entrada} onChange={setEntrada} />
+            </label>
             <label className={styles.campo}>
               <span className={styles.rotulo}>Prometido para</span>
               {/* O mesmo seletor das outras telas: o nativo abre em inglês no
@@ -335,7 +342,7 @@ export default function ConsertosClient({ inicial, clientes, podeApagar }: {
               <th>Cliente</th>
               <th>Peça</th>
               <th>Serviço</th>
-              <th className="col-date">Recebida</th>
+              <th className="col-date">Entrada</th>
               <th className="col-date">Prometida</th>
               <th>Onde está</th>
               <th>Pagamento</th>
