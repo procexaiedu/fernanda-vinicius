@@ -180,7 +180,7 @@ export default function FluxoCaixaTab() {
         <div className={styles.item}>
           <span className={styles.rotulo}>Sai no período</span>
           <strong className={styles.valor}>{dias ? formatarDinheiro(totais.saidas) : '…'}</strong>
-          <span className={styles.nota}>despesas pelo vencimento</span>
+          <span className={styles.nota}>paga no dia do pagamento; a pagar no vencimento</span>
         </div>
         <div className={styles.item}>
           <span className={styles.rotulo}>Saldo do período</span>

@@ -5,7 +5,7 @@ import { usePersistedState } from '@/hooks/usePersistedState'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   ChevronDown, ChevronLeft, ChevronRight, Plus, Check, Pencil, Trash2, X,
-  RefreshCw, AlertTriangle, ArrowRight,
+  RefreshCw, AlertTriangle, ArrowRight, Download,
 } from 'lucide-react'
 import DatePicker from '@/components/ui/DatePicker'
 import SeletorPeriodo from '@/components/ui/SeletorPeriodo'
@@ -30,6 +30,8 @@ import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
 import ConsertoTab from './ConsertoTab'
 import FluxoCaixaTab from './FluxoCaixaTab'
 import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
+import { montarXlsx, baixarXlsx, dataXlsx, type ColunaXlsx } from '@/lib/exportar/xlsx'
+import { nomeArquivo } from '@/lib/exportar/csv'
 
 const MONTHS_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -60,6 +62,12 @@ function fmtDate(s: string | null) {
   const d = s.slice(0, 10)
   const [y, m, day] = d.split('-')
   return `${day}/${m}/${y}`
+}
+
+// Dia do pagamento (AAAA-MM-DD) no fuso de Brasília; paid_at é timestamp.
+function diaPago(t: { status: string; paid_at: string | null }): string | null {
+  if (t.status !== 'completed' || !t.paid_at) return null
+  return new Date(t.paid_at).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
 }
 
 function today() {
@@ -422,7 +430,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
   async function confirmarPago(id: string, dia: string): Promise<string | null> {
     const res = await marcarComoPago(id, dia)
     if (!res.success) return res.error ?? 'Erro ao marcar como pago.'
-    setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: 'completed', paid_at: `${dia}T12:00:00-03:00` } : t))
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: 'completed', paid_at: `${dia}T12:00:00-03:00`, due_date: t.due_date ?? dia } : t))
     setPendencias(prev => prev.filter(t => t.id !== id))
     setPagandoId(null)
     return null
@@ -447,6 +455,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
   const ord = useOrdenacao(transactions, {
     data:       { valor: t => t.transaction_date, tipo: 'data' },
     vencimento: { valor: t => t.due_date, tipo: 'data' },
+    pago:       { valor: t => diaPago(t), tipo: 'data' },
     descricao:  { valor: t => t.description, tipo: 'texto' },
     categoria:  { valor: t => t.category, tipo: 'texto' },
     loja:       { valor: t => t.store_name, tipo: 'texto' },
@@ -458,6 +467,28 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
   })
 
   const { fatia, pagina, totalPaginas, totalItens, irPara } = usePaginacaoLocal(ord.ordenados)
+
+  /*
+   * Excel (chamado #4): exatamente o que a lista mostra, todas as páginas, na
+   * ordem da tela. A lista já veio do servidor filtrada pela loja da sessão.
+   */
+  function exportarExcel() {
+    const colunas: ColunaXlsx<TransactionRow>[] = [
+      { titulo: 'Lançamento', valor: t => dataXlsx(t.transaction_date), largura: 12 },
+      { titulo: 'Vencimento', valor: t => dataXlsx(t.due_date), largura: 12 },
+      { titulo: 'Pago em',    valor: t => dataXlsx(diaPago(t)), largura: 12 },
+      { titulo: 'Descrição',  valor: t => t.description, largura: 40 },
+      { titulo: 'Categoria',  valor: t => t.category, largura: 18 },
+      { titulo: 'Loja',       valor: t => t.store_name ?? 'Geral', largura: 14 },
+      { titulo: 'Método',     valor: t => METHOD_LABELS[t.payment_method ?? ''] ?? t.payment_method ?? '', largura: 14 },
+      // Saída negativa, como na tela: a coluna soma o saldo do período.
+      { titulo: 'Valor',      valor: t => (t.type === 'income' ? 1 : -1) * Number(t.amount), formato: 'dinheiro', largura: 14 },
+      { titulo: 'Status',     valor: t => t.status === 'completed' ? 'Pago' : 'Pendente', largura: 10 },
+      { titulo: 'Observação', valor: t => t.notes, largura: 30 },
+    ]
+    const nome = nomeArquivo(fType === 'income' ? 'entradas' : fType === 'expense' ? 'despesas' : 'financeiro', new Date())
+    baixarXlsx(montarXlsx(ord.ordenados, colunas, 'Financeiro'), nome.replace(/.csv$/, '.xlsx'))
+  }
 
   const catOptions: DropdownOption[] = [
     { value: '', label: 'Todas' },
@@ -578,6 +609,16 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
         </button>
 
         <div className={styles.toolbarRight}>
+          <button
+            className={styles.btnSecondary}
+            onClick={exportarExcel}
+            disabled={transactions.length === 0}
+            title="Baixar a lista filtrada em Excel"
+            data-novidade="exportar-excel"
+          >
+            <Download size={13} />
+            Exportar
+          </button>
           <button className={styles.btnPrimary} onClick={() => { setEditingTx(null); setShowModal(true) }}>
             <Plus size={14} />
             Nova Despesa
@@ -590,8 +631,9 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
         <table className={styles.table}>
           <thead>
             <tr>
-              <ThOrdenavel ord={ord} coluna="data" className="col-date">Data</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="data" className="col-date">Lançamento</ThOrdenavel>
               <ThOrdenavel ord={ord} coluna="vencimento" className="col-date col-secondary">Vencimento</ThOrdenavel>
+              <ThOrdenavel ord={ord} coluna="pago" className="col-date col-secondary">Pago em</ThOrdenavel>
               <ThOrdenavel ord={ord} coluna="descricao">Descrição</ThOrdenavel>
               <ThOrdenavel ord={ord} coluna="categoria" className="col-tertiary">Categoria</ThOrdenavel>
               <ThOrdenavel ord={ord} coluna="loja" className="col-truncate col-secondary">Loja</ThOrdenavel>
@@ -604,7 +646,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
           <tbody>
             {transactions.length === 0 && (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={10}>
                   <div className={styles.empty}>Nenhuma transação encontrada.</div>
                 </td>
               </tr>
@@ -626,6 +668,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                     apenas no cabeçalho, título e coluna divergiam. */}
                 <td className={`${styles.dateCell} col-date`}>{fmtDate(tx.transaction_date)}</td>
                 <td className={`${styles.dateCell} col-date col-secondary`}>{fmtDate(tx.due_date)}</td>
+                <td className={`${styles.dateCell} col-date col-secondary`}>{fmtDate(diaPago(tx))}</td>
                 <td>
                   <div style={{ fontWeight: 500 }}>{tx.description}</div>
                   {tx.user_name && <div className={styles.muted}>{tx.user_name}</div>}
@@ -928,7 +971,8 @@ function DespesaModal({
   const [amount,      setAmount]      = useState(tx ? String(tx.amount) : '')
   const [catInput,    setCatInput]    = useState(tx?.category ?? '')
   const [storeId,     setStoreId]     = useState(tx?.store_id ?? '')
-  const [date,        setDate]        = useState(tx?.transaction_date ?? today())
+  // Lançamento: só leitura. Nova despesa = hoje (o servidor grava o dia dele).
+  const date = tx?.transaction_date ?? today()
   const [dueDate,     setDueDate]     = useState(tx?.due_date ?? '')
   const [status,      setStatus]      = useState<'completed'|'pending'>(tx?.status ?? 'completed')
   const [costType,    setCostType]    = useState<'fixed'|'variable'>((tx?.cost_type as any) ?? 'variable')
@@ -942,8 +986,16 @@ function DespesaModal({
   const [error,       setError]       = useState('')
 
   async function save() {
-    if (!description.trim() || !amount || !catInput.trim() || !date) {
+    if (!description.trim() || !amount || !catInput.trim()) {
       setError('Preencha todos os campos obrigatórios.')
+      return
+    }
+    if (status === 'pending' && !dueDate) {
+      setError('Informe o vencimento.')
+      return
+    }
+    if (status === 'completed' && !paidDay) {
+      setError('Informe o dia do pagamento.')
       return
     }
     setSaving(true)
@@ -954,8 +1006,7 @@ function DespesaModal({
       amount: parseFloat(amount.replace(',', '.')),
       category: catInput.trim().toLowerCase(),
       store_id: storeId || null,
-      transaction_date: date,
-      due_date: status === 'pending' ? dueDate || null : null,
+      due_date: dueDate || paidDay,
       status,
       cost_type: costType,
       payment_method: method || undefined,
@@ -992,7 +1043,7 @@ function DespesaModal({
       reference_type: 'manual',
       reference_id: null,
       payment_method: data.payment_method ?? null,
-      transaction_date: data.transaction_date,
+      transaction_date: date,
       due_date: data.due_date,
       status: data.status,
       paid_at: data.status === 'completed'
@@ -1086,22 +1137,25 @@ function DespesaModal({
             </div>
           </div>
 
+          {/* Três datas (chamado #3): lançamento é o dia em que entrou no sistema,
+              automático; vencimento é obrigatório e não some ao pagar; "pago em"
+              só existe quando já foi paga. */}
           <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label className={styles.label}>Data *</label>
-              <DatePicker value={date} onChange={setDate} />
+            <div className={styles.formGroup} data-novidade="lancamento">
+              <label className={styles.label}>Lançamento</label>
+              <input
+                className={styles.input}
+                value={fmtDate(date)}
+                readOnly
+                tabIndex={-1}
+                title="Dia em que a despesa foi lançada no sistema"
+                style={{ opacity: 0.7, cursor: 'default' }}
+              />
             </div>
-            {status === 'pending' ? (
-              <div className={styles.formGroup}>
-                <label className={styles.label}>Vencimento</label>
-                <DatePicker value={dueDate} onChange={setDueDate} />
-              </div>
-            ) : (
-              <div className={styles.formGroup} data-novidade="pago-em">
-                <label className={styles.label}>Pago em</label>
-                <DatePicker value={paidDay} onChange={setPaidDay} />
-              </div>
-            )}
+            <div className={styles.formGroup} data-novidade="vencimento">
+              <label className={styles.label}>Vencimento *</label>
+              <DatePicker value={dueDate} onChange={setDueDate} />
+            </div>
           </div>
 
           <div className={styles.formGroup}>
@@ -1112,13 +1166,27 @@ function DespesaModal({
                   key={s}
                   type="button"
                   className={`${styles.radioBtn} ${status === s ? styles.radioBtnActive : ''}`}
-                  onClick={() => setStatus(s)}
+                  onClick={() => {
+                    setStatus(s)
+                    // Pagou e não tinha vencimento: vem com o dia do pagamento (editável).
+                    if (s === 'completed' && !dueDate) setDueDate(paidDay)
+                  }}
                 >
                   {s === 'completed' ? 'Já paguei' : 'A pagar'}
                 </button>
               ))}
             </div>
           </div>
+
+          {status === 'completed' && (
+            <div className={styles.formRow}>
+              <div className={styles.formGroup} data-novidade="pago-em">
+                <label className={styles.label}>Pago em *</label>
+                <DatePicker value={paidDay} onChange={setPaidDay} />
+              </div>
+              <div className={styles.formGroup} />
+            </div>
+          )}
 
           <div className={styles.formGroup}>
             <label className={styles.label}>Tipo de Custo</label>

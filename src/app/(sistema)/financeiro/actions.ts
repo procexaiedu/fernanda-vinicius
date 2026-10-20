@@ -128,7 +128,7 @@ export interface DespesaManualData {
   amount: number
   category: string
   store_id: string | null
-  transaction_date: string
+  /** Vencimento (AAAA-MM-DD). Obrigatório; paga sem vencimento = vence no dia pago. */
   due_date: string | null
   status: 'completed' | 'pending'
   cost_type: 'fixed' | 'variable'
@@ -250,6 +250,22 @@ function pagoEm(dia?: string | null): string {
   return dia && /^\d{4}-\d{2}-\d{2}$/.test(dia) ? `${dia}T12:00:00-03:00` : new Date().toISOString()
 }
 
+const DIA = /^\d{4}-\d{2}-\d{2}$/
+
+function hojeSP(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+}
+
+/*
+ * Vencimento é obrigatório (chamado #3): ele não some mais ao marcar "pago".
+ * Paga sem vencimento informado = venceu no dia em que foi paga.
+ */
+function vencimentoDe(data: DespesaManualData): { dia: string } | { erro: string } {
+  if (data.due_date && DIA.test(data.due_date)) return { dia: data.due_date }
+  if (data.status === 'completed') return { dia: data.paid_at && DIA.test(data.paid_at) ? data.paid_at : hojeSP() }
+  return { erro: 'Informe o vencimento.' }
+}
+
 export async function marcarComoPago(transactionId: string, dia?: string | null): Promise<ActionResult> {
   const { error: authErr } = await verifyAdmin()
   if (authErr) return { success: false, error: authErr }
@@ -270,9 +286,11 @@ export async function marcarComoPago(transactionId: string, dia?: string | null)
     .eq('id', transactionId)
     .single()
 
+  // Mantém o vencimento; só preenche se a conta não tinha (aí venceu no dia pago).
   const { error } = await admin.from('transactions').update({
     status: 'completed',
     paid_at: nowIso,
+    ...(tx && !tx.due_date ? { due_date: dia && DIA.test(dia) ? dia : hojeSP() } : {}),
   }).eq('id', transactionId)
 
   if (error) return { success: false, error: error.message }
@@ -303,7 +321,10 @@ export async function criarDespesaManual(data: DespesaManualData): Promise<Actio
   const escopoW = await lojaParaEscrever()
   if ('erro' in escopoW) return { success: false, error: escopoW.erro }
   const paidAt = data.status === 'completed' ? pagoEm(data.paid_at) : null
+  const venc = vencimentoDe(data)
+  if ('erro' in venc) return { success: false, error: venc.erro }
 
+  // Lançamento é automático: o dia em que a despesa entrou no sistema.
   const { error } = await admin.from('transactions').insert({
     store_id: escopoW.loja ?? data.store_id,
     type: 'expense',
@@ -312,8 +333,8 @@ export async function criarDespesaManual(data: DespesaManualData): Promise<Actio
     description: data.description,
     reference_type: 'manual',
     payment_method: data.payment_method || null,
-    transaction_date: data.transaction_date,
-    due_date: data.due_date || null,
+    transaction_date: hojeSP(),
+    due_date: venc.dia,
     status: data.status,
     paid_at: paidAt,
     cost_type: data.cost_type,
@@ -353,15 +374,17 @@ export async function editarDespesaManual(id: string, data: DespesaManualData): 
     : tx.status === 'completed' && tx.paid_at && (!data.paid_at || data.paid_at === diaAntigo)
       ? tx.paid_at
       : pagoEm(data.paid_at)
+  const venc = vencimentoDe(data)
+  if ('erro' in venc) return { success: false, error: venc.erro }
 
+  // transaction_date (lançamento) não é editável: fica o que já estava.
   const { error } = await admin.from('transactions').update({
     store_id: escopoW.loja ?? data.store_id,
     amount: data.amount,
     category: data.category,
     description: data.description,
     payment_method: data.payment_method || null,
-    transaction_date: data.transaction_date,
-    due_date: data.due_date || null,
+    due_date: venc.dia,
     status: data.status,
     paid_at: paidAt,
     cost_type: data.cost_type,
