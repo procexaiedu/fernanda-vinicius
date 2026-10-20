@@ -837,7 +837,7 @@ function PendenciasModal({
 
   return (
     <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className={styles.modal} style={{ maxWidth: 820 }}>
+      <div className={styles.modal} style={{ maxWidth: 'min(960px, 100%)' }}>
         <div className={styles.modalHeader}>
           <span className={styles.modalTitle}>Contas a Pagar — Todas as pendências</span>
           <button className={styles.closeBtn} onClick={onClose}><X size={16} /></button>
@@ -849,7 +849,16 @@ function PendenciasModal({
             </div>
           ) : (
             <div className={styles.tableWrapper}>
-              <table className={styles.table}>
+              <table className={`${styles.table} ${styles.pendenciasTable}`}>
+                <colgroup>
+                  <col style={{ width: 104 }} />
+                  <col />
+                  <col style={{ width: 112 }} />
+                  <col style={{ width: 150 }} />
+                  <col style={{ width: 90 }} />
+                  <col style={{ width: 112 }} />
+                  <col style={{ width: 48 }} />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Vencimento</th>
@@ -870,7 +879,7 @@ function PendenciasModal({
                           {fmtDate(p.due_date)}{vencida && ' ⚠'}
                         </td>
                         <td>
-                          <div style={{ fontWeight: 500 }}>{p.description}</div>
+                          <div className={styles.clamp2} style={{ fontWeight: 500 }} title={p.description}>{p.description}</div>
                           {p.store_name && <div className={styles.muted}>{p.store_name}</div>}
                         </td>
                         <td><span className={styles.categoryBadge}>{p.category}</span></td>
