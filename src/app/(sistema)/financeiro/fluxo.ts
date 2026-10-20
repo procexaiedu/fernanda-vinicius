@@ -8,8 +8,9 @@ import { exigirAdmin, lojaDoEscopo } from '@/lib/auth'
  *
  * Pix e dinheiro entram no dia da venda. Cartão entra parcela a parcela, já
  * descontada a taxa da maquininha (fv.card_receivables, gerado por gatilho no
- * banco ao gravar o pagamento; ver a migration 20261015). Despesas saem no
- * vencimento.
+ * banco ao gravar o pagamento; ver a migration 20261015). Despesa paga sai no
+ * dia do pagamento; pendente, no vencimento. Compras e despesas antigas sem
+ * vencimento continuam no vencimento/lançamento (migration 20261020 explica).
  *
  * A gestora concilia toda semana: marca o que caiu, ou informa o valor que
  * caiu de fato — se não bate com o previsto, vira "divergente".
