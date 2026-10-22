@@ -4,6 +4,7 @@ import { lojaDoEscopo, requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { montarCsv, nomeArquivo, type ColunaCsv } from '@/lib/exportar/csv'
 import { precoEfetivo } from '@/lib/pricing'
+import { calcularGiro } from '@/lib/giro'
 import { aplicarFiltrosProdutos as aplicarFiltros, type FiltrosProdutos } from '@/lib/estoque/consulta'
 
 /**
@@ -78,6 +79,13 @@ function data(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return ''
   const p = (n: number) => String(n).padStart(2, '0')
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
+/** dd/mm/aaaa no fuso da loja: o container roda em UTC, e uma peça cadastrada
+ *  às 22h sairia com o dia seguinte. */
+function dataBrasilia(d: Date): string {
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 }
 
 /**
@@ -168,6 +176,11 @@ function colunasEstoque(comCusto: boolean): ColunaCsv<LinhaProduto>[] {
     { titulo: 'Consignante', valor: p => (ehConsignado(p) ? (p.consignments?.suppliers?.name ?? p.suppliers?.name) : '') },
     { titulo: 'Fornecedor',  valor: p => p.suppliers?.name },
     { titulo: 'Quantidade',  valor: p => p.quantity_in_stock },
+    /* Chamado #6: o mesmo `calcularGiro` da coluna "Em estoque há" da tela,
+       com a linha no mesmo formato que a tela passa, para os números baterem.
+       `staleDays` só muda a faixa, não os dias. */
+    { titulo: 'Data de entrada', valor: p => dataBrasilia(calcularGiro(p, 30).entrada) },
+    { titulo: 'Dias no estoque', valor: p => calcularGiro(p, 30).diasParado },
   ]
   if (comCusto) lista.push({ titulo: 'Custo unit.', valor: p => p.cost_price })
   lista.push({ titulo: 'Preço venda', valor: p => p.sale_price })
