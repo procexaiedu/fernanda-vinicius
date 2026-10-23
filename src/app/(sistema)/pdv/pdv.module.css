@@ -135,10 +135,9 @@
   .caixaMain { grid-template-columns: 1fr; }
 }
 
-/* O respiro de card do globals.css ([class*="card"]) dava 12px de lado a este
- * .card, que não tem padding: o miolo entrava duas vezes e as linhas divisórias
- * do cabeçalho e da conferência paravam antes da borda. */
+/* O respiro de card do globals.css (classe que termina em card) dava 12px de
+ * lado a este .card, que não tem padding: o miolo entrava duas vezes e as linhas
+ * divisórias do cabeçalho e da conferência paravam antes da borda. */
 @media (max-width: 700px) {
   .caixaMain .card { padding-left: 0 !important; padding-right: 0 !important; }
-  .caixaMain .cardHead { padding-left: 20px !important; padding-right: 20px !important; }
 }

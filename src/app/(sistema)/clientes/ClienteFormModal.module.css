@@ -257,10 +257,3 @@
 }
 
 .duplicataAviso svg { flex-shrink: 0; margin-top: 1px; color: var(--warning); }
-
-/* O respiro de card do globals.css casa por substring ([class*="section"]) e
- * empurrava o texto do título 12px para dentro, desalinhado dos campos e da
- * própria linha de baixo. */
-@media (max-width: 700px) {
-  .form .sectionTitle { padding-left: 0 !important; padding-right: 0 !important; }
-}

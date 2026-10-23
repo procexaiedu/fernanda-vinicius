@@ -1141,19 +1141,6 @@
    * de novo cliente nascia cortado. O conteúdo já se vira com menos. */
   .createCustomerForm { min-width: 0; }
   .createRow { grid-template-columns: 1fr; }
-
-  /* O respiro de card do globals.css casa por substring ([class*="section"],
-   * [class*="card"]) e pegava também o título da seção e o ícone do botão de
-   * pagamento: o título entrava 12px a mais que o conteúdo e o ícone de cartão
-   * (lucide-credit-card) virava um vão de 24px. Aqui só desfaz nesses filhos. */
-  .section .sectionTitle,
-  .section .sectionHeader,
-  .section .sectionStats,
-  .section .cardLabel,
-  .addPayBtn svg {
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-  }
   .sectionHeader { flex-wrap: wrap; gap: 4px 12px; }
 }
 
