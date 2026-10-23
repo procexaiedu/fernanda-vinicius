@@ -509,3 +509,14 @@
   .stats { flex-wrap: wrap; gap: 8px; }
   .stats > .stat { flex: 1 1 calc(50% - 4px); min-width: 0; padding: 12px; }
 }
+
+/* ─── Telefone: detalhe da compra (CompraDetalheModal) ─────────────────────
+ * A tabela de itens tem 8 colunas (881px a 390) e o .modal corta com
+ * overflow: hidden: Material, Qtd e Custo sumiam pela direita sem rolagem.
+ * A tabela vira bloco rolável dentro da seção; e a moldura do overlay cai de
+ * 24px para 8px de lado, que em 390 eram 12% da tela.
+ */
+@media (max-width: 700px) {
+  .overlay { padding: 16px 8px; }
+  .detailTable { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}

@@ -143,6 +143,10 @@
   border-left: 1px solid var(--border);
   white-space: nowrap;
   user-select: none;
+  /* Mesma largura para %, x, DIAS e R$: as caixas da coluna alinham. */
+  box-sizing: border-box;
+  min-width: 52px;
+  text-align: center;
 }
 
 .inputWrap .unit:first-child {
@@ -221,7 +225,7 @@
     padding: 11px 12px;
   }
 
-  .unit { padding: 11px 12px; }
+  .unit { padding: 11px 12px; min-width: 56px; }
 
   .cardFooter {
     padding: 12px 14px;

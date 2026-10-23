@@ -47,7 +47,9 @@
 
 .cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Duas colunas no computador, uma no celular: com 1fr 1fr fixo o card B
+     passava da borda da tela. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 20px;
   margin-bottom: 32px;
 }
@@ -273,4 +275,10 @@
   border-radius: var(--radius-md);
   overflow-x: auto;
   color: var(--color-text-secondary);
+}
+
+/* O layout do sistema já dá a margem lateral no celular; somar os 24px daqui
+   espremia os cards. */
+@media (max-width: 700px) {
+  .container { padding-left: 0; padding-right: 0; }
 }

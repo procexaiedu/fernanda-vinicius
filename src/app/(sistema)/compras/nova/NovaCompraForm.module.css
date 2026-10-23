@@ -79,7 +79,9 @@
   display: grid;
   grid-template-columns: 180px 160px 160px auto;
   gap: 12px 16px;
-  align-items: end;
+  /* `start`: a dica embaixo de "Entrada no estoque" empurrava a Data para baixo
+     do título vizinho quando o alinhamento era pelo pé. */
+  align-items: start;
 }
 
 .field {
@@ -165,6 +167,13 @@
   width: 100%;
   border-collapse: collapse;
   min-width: 1400px;
+}
+
+/* Sem isto o navegador ignorava as larguras abaixo: os inputs ditavam a
+   coluna, Qtd ficava com 92px e Produto espremido em 89px. No telefone a
+   tabela rola de lado e as larguras automáticas não cortam os títulos. */
+@media (min-width: 701px) {
+  .grid { table-layout: fixed; }
 }
 
 .grid thead th {
@@ -328,7 +337,7 @@
   .thIni  { width: 40px; }
   .thCat  { width: 84px; }
   .thMat  { width: 78px; }
-  .thNum2 { width: 68px; }
+  .thNum2 { width: 76px; }
   .thLoja { width: 84px; }
   .thCod  { width: 72px; }
   .thSub  { width: 72px; }

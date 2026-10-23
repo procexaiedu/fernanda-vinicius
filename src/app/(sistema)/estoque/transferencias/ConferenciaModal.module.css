@@ -244,16 +244,18 @@
 
 .rodape {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px 16px;
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
 
 .totais {
   display: flex;
-  gap: 18px;
+  flex-wrap: wrap;
+  gap: 4px 18px;
   font-size: 13px;
   color: var(--text-muted);
 }
@@ -266,6 +268,9 @@
 .acoes {
   display: flex;
   gap: 8px;
+  /* No celular o rodapé quebra: os botões descem juntos e ficam à direita,
+     em vez de o principal sair da caixa. */
+  margin-left: auto;
 }
 
 /* ── Conferência ── */

@@ -1141,6 +1141,7 @@
    * de novo cliente nascia cortado. O conteúdo já se vira com menos. */
   .createCustomerForm { min-width: 0; }
   .createRow { grid-template-columns: 1fr; }
+  .sectionHeader { flex-wrap: wrap; gap: 4px 12px; }
 }
 
 /* ── Alternador R$ / % do desconto manual ── */

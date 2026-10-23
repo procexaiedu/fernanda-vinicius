@@ -575,6 +575,11 @@
   margin-left: auto;
 }
 
+/* Celular: o filtro de período desce para a linha de baixo em vez de vazar da caixa */
+@media (max-width: 560px) {
+  .panelHeader { flex-wrap: wrap; }
+}
+
 /* ── Stock grid ────────────────────────────────────────────────────────────── */
 
 /*

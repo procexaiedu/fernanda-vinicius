@@ -808,14 +808,25 @@ table td:first-child:not([class*="col-"]) {
  * Só o padding LATERAL cai, e só abaixo de 700px. O vertical fica: é ele que dá o
  * ar do card, e altura não é o recurso escasso aqui.
  */
+/*
+ * Casa só classes que TERMINAM em card/panel/section (a caixa), não as que só
+ * contêm a palavra: `sectionTitle`, `cardHead`, `panelHeader` e o ícone
+ * `lucide-credit-card` levavam os 12px e desalinhavam do resto.
+ *
+ * O fim do nome local aparece de dois jeitos, conforme o bundler do CSS Module:
+ * webpack (`next dev --webpack`) gera `Arquivo_metaCard__hash`, e o Turbopack
+ * (`next build`, produção) gera `Arquivo-module__hash__metaCard`. Os dois
+ * formatos estão listados; tirar um deles quebra o ambiente correspondente.
+ */
 @media (max-width: 700px) {
-  [class*="card"],
-  [class*="Card"],
-  [class*="panel"],
-  [class*="Panel"],
-  [class*="section"],
-  [class*="tableCard"],
-  [class*="listCard"] {
+  :is(
+    [class*="_card__"], [class*="Card__"],
+    [class*="_panel__"], [class*="Panel__"],
+    [class*="_section__"], [class*="Section__"],
+    [class$="__card"], [class*="__card "], [class$="Card"], [class*="Card "],
+    [class$="__panel"], [class*="__panel "], [class$="Panel"], [class*="Panel "],
+    [class$="__section"], [class*="__section "], [class$="Section"], [class*="Section "]
+  ):not(svg) {
     padding-left: 12px !important;
     padding-right: 12px !important;
   }
@@ -1016,4 +1027,20 @@ code,
 kbd,
 samp {
   text-transform: none;
+}
+
+/* Impressão do ParaImprimir (ver src/components/ui/ParaImprimir.tsx). Fica aqui
+ * e não no .module.css porque CSS Modules recusa seletor sem classe local.
+ * Só quando existe uma cópia montada (`:has`): sem essa condição, Ctrl+P em
+ * qualquer tela imprimiria uma folha em branco. */
+@media print {
+  body:has(> [data-impressao]) > *:not([data-impressao]) {
+    display: none !important;
+  }
+
+  /* O Modal põe `overflow: hidden` inline no body enquanto está aberto, e isso
+     também corta a impressão na primeira página. */
+  body:has(> [data-impressao]) {
+    overflow: visible !important;
+  }
 }
