@@ -43,11 +43,11 @@ export default function PdvClient({
    */
   /* `aviso`: a venda gravou com pendência (estoque/pagamento). O form remonta
    * para a próxima cliente, então a mensagem mora aqui, no painel que fica. */
-  const [ultimaVenda, setUltimaVenda] = useState<{ id: string; aviso?: string } | null>(null)
+  const [ultimaVenda, setUltimaVenda] = useState<{ id: string; aviso?: string; info?: string } | null>(null)
   const [caixa, setCaixa]     = useState<CaixaData>(initialCaixa)
 
-  async function handleSaved(saleId: string, aviso?: string) {
-    setUltimaVenda(saleId ? { id: saleId, aviso } : null)
+  async function handleSaved(saleId: string, aviso?: string, info?: string) {
+    setUltimaVenda(saleId ? { id: saleId, aviso, info } : null)
     setSaleKey(k => k + 1)                                  // reseta o form p/ a próxima venda
     setCaixa(await buscarCaixaDoDia(caixa.storeId, date))   // atualiza o caixa do dia
   }
@@ -101,7 +101,7 @@ export default function PdvClient({
       </main>
 
       {ultimaVenda && (
-        <PainelNota key={ultimaVenda.id} saleId={ultimaVenda.id} aviso={ultimaVenda.aviso} onFechar={() => setUltimaVenda(null)} />
+        <PainelNota key={ultimaVenda.id} saleId={ultimaVenda.id} aviso={ultimaVenda.aviso} info={ultimaVenda.info} onFechar={() => setUltimaVenda(null)} />
       )}
     </div>
   )

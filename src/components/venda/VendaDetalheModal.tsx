@@ -21,7 +21,7 @@ function fmtDate(s: string) {
 }
 
 const METHOD_LABELS: Record<string, string> = {
-  cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito',
+  cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito', store_credit: 'Crédito da cliente',
 }
 
 interface Props {
@@ -246,11 +246,17 @@ export default function VendaDetalheModal({ saleId, onClose, onDeleted, canDelet
                   )}
 
                   <div className={styles.exchangeDiff}>
-                    {venda.exchange.price_difference > 0
-                      ? `Cliente pagou diferença: ${fmt(venda.exchange.price_difference)}`
-                      : venda.exchange.price_difference < 0
-                        ? `Crédito sobrando: ${fmt(Math.abs(venda.exchange.price_difference))}`
-                        : 'Troca sem diferença de valor'}
+                    {venda.exchange.sobra_destino === 'guardado'
+                      ? `Crédito guardado: ${fmt(venda.exchange.sobra_valor)}`
+                      : venda.exchange.sobra_destino === 'devolvido'
+                        ? `Sobra devolvida em ${venda.exchange.sobra_metodo === 'pix' ? 'Pix' : 'dinheiro'}: ${fmt(venda.exchange.sobra_valor)}`
+                        : venda.exchange.sobra_destino === 'dispensado'
+                          ? `Sobra não guardada (a cliente abriu mão): ${fmt(venda.exchange.sobra_valor)}`
+                          : venda.exchange.price_difference > 0
+                            ? `Cliente pagou diferença: ${fmt(venda.exchange.price_difference)}`
+                            : venda.exchange.price_difference < 0
+                              ? `Crédito sobrando: ${fmt(Math.abs(venda.exchange.price_difference))}`
+                              : 'Troca sem diferença de valor'}
                   </div>
                 </div>
               )}

@@ -121,6 +121,16 @@ export async function buscarCaixaDoDia(storeId: string, date: string): Promise<C
       const m = (p as any).payment_method as keyof typeof totals
       if (m in totals) totals[m] += Number((p as any).amount) || 0
     }
+    /* Sobra de troca devolvida à cliente: o dinheiro SAIU da gaveta (ou do
+     * Pix) nesta venda. Sem abater, o "esperado em dinheiro" do fechamento
+     * ficaria maior que a gaveta. `store_credit` não entra em totals: não é
+     * dinheiro do dia. */
+    const { data: devolucoes } = await admin
+      .from('transactions').select('payment_method, amount')
+      .in('reference_id', saleIds).eq('reference_type', 'sale').eq('category', 'devolucao_troca')
+    for (const d of (devolucoes ?? []) as { payment_method: string; amount: number }[]) {
+      if (d.payment_method === 'cash' || d.payment_method === 'pix') totals[d.payment_method] -= Number(d.amount) || 0
+    }
   }
 
   const totalSales = totals.cash + totals.debit + totals.credit + totals.pix

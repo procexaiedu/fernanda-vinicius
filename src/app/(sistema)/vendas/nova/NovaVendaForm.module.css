@@ -593,6 +593,46 @@
   color: var(--accent);
 }
 
+/* Troca com sobra: escolha do destino, nos mesmos botões do pagamento. */
+.sobraBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(var(--accent-rgb), 0.05);
+  border: 1px solid rgba(var(--accent-rgb), 0.25);
+  border-radius: var(--radius-md);
+}
+
+.sobraTitulo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sobraDica {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sobraAtiva,
+.sobraAtiva:hover {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.creditoInfo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--info);
+}
+
 .addPayBtnExchange {
   display: inline-flex;
   align-items: center;

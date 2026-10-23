@@ -289,12 +289,19 @@ export async function emitirNotaDaVenda(saleId: string): Promise<ResultadoFiscal
     }
   })
 
+  /* Crédito da cliente (sobra de troca guardada) é crédito em loja: tPag 21,
+   * como a peça devolvida. */
   const pagos = pagRes.data.map(p => ({
-    metodo:   p.payment_method as MetodoPagamento,
+    metodo:   (p.payment_method === 'store_credit' ? 'troca' : p.payment_method) as MetodoPagamento,
     valor:    Number(p.amount),
     bandeira: p.card_brand ?? null,
   }))
-  if (creditoTroca > 0) pagos.push({ metodo: 'troca', valor: parseFloat(creditoTroca.toFixed(2)), bandeira: null })
+  /* Troca com sobra: a peça devolvida vale mais que a venda, e o resto foi
+   * guardado, devolvido ou dispensado FORA da nota. Na nota só entra o que
+   * paga esta venda — senão a soma passa do total sem ser troco de dinheiro. */
+  const jaPago = pagos.reduce((s, p) => s + p.valor, 0)
+  const trocaNaNota = Math.min(creditoTroca, Math.max(0, Number(venda.total) - jaPago))
+  if (trocaNaNota > 0.009) pagos.push({ metodo: 'troca', valor: parseFloat(trocaNaNota.toFixed(2)), bandeira: null })
   /* Fiado: o saldo não é gravado em lugar nenhum — sai da conta, como na
    * lista de vendas (`faltaPagar`). Sobra de até 1 centavo não é fiado. */
   const fiado = parseFloat((Number(venda.total) - pagos.reduce((s, p) => s + p.valor, 0)).toFixed(2))

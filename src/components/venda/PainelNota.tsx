@@ -21,7 +21,7 @@ import styles from './PainelNota.module.css'
  *
  * Usado no PDV e na lista de Vendas (depois de lançar por /vendas/nova).
  */
-export default function PainelNota({ saleId, aviso, onFechar }: { saleId: string; aviso?: string; onFechar: () => void }) {
+export default function PainelNota({ saleId, aviso, info, onFechar }: { saleId: string; aviso?: string; info?: string; onFechar: () => void }) {
   const [estado, setEstado] = useState<'pronta' | 'emitindo' | 'ok' | 'erro'>('pronta')
   /*
    * Esta venda pode ganhar nota?
@@ -139,6 +139,7 @@ export default function PainelNota({ saleId, aviso, onFechar }: { saleId: string
 
       {/* Venda gravada com pendência: o mesmo quadro de erro do painel, sem o
           "Tentar de novo" — não há o que repetir, e salvar de novo duplicaria. */}
+      {info && <span className={styles.painelOk} data-novidade="credito-guardado">{info}</span>}
       {aviso && <div className={styles.painelErro}>{aviso}</div>}
       {avisos.map((a, i) => <div key={i} className={styles.painelInfo}>{a}</div>)}
 

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { calcularTotalDaVenda } from '@/lib/vendas/total'
+import { conferirSobra, sobraDaTroca, type DestinoSobra, type MetodoDevolucao } from '@/lib/vendas/sobra'
 import { getProfile, ehAdmin, lojaDoEscopo } from '@/lib/auth'
 import { produtoDeConserto } from '@/lib/conserto'
 import { lojaEmiteNota } from '@/lib/fiscal/emitente'
@@ -21,6 +22,8 @@ export interface ActionResult {
    * o próximo clique lance esta venda de verdade.
    */
   idReusado?: boolean
+  /** Sobra da troca guardada como crédito nesta venda (o comprovante mostra). */
+  creditoGuardado?: number
 }
 
 export interface SaleItem {
@@ -60,7 +63,8 @@ export interface SaleItem {
 }
 
 export interface SalePaymentRow {
-  method: 'cash' | 'pix' | 'debit' | 'credit'
+  /** `store_credit` = crédito da cliente (sobra de troca guardada), tPag 21 na nota. */
+  method: 'cash' | 'pix' | 'debit' | 'credit' | 'store_credit'
   amount: number
   installments: number
   cardBrand?: string | null   // bandeira (crédito/débito), opcional
@@ -94,6 +98,10 @@ export interface VendaFormData {
   manualDiscount: number    // valor fixo R$
   payments: SalePaymentRow[]
   exchangeItems: ExchangeItemSelected[]  // itens a devolver via troca
+  /** A peça devolvida passou do total: o que fazer com a sobra (ver src/lib/vendas/sobra.ts). */
+  sobraDestino?: DestinoSobra | null
+  /** Só com `sobraDestino = 'devolvido'`: por onde o dinheiro sai do caixa. */
+  sobraMetodo?: MetodoDevolucao | null
   /** Data prometida quando a venda fecha com saldo em aberto. Null quando quitada. */
   previsaoPagamento?: string | null
   /** CPF que vai na NFC-e desta venda. Fica na venda, não no cadastro da cliente. */
@@ -143,6 +151,9 @@ export interface VendaDetail {
   exchange: {
     id: string
     price_difference: number
+    sobra_valor: number
+    sobra_destino: DestinoSobra | null
+    sobra_metodo: MetodoDevolucao | null
     returned_items: Array<{ product_name: string; product_code: string; quantity: number; unit_price: number }>
     given_items: Array<{ product_name: string; product_code: string; quantity: number; unit_price: number }>
   } | null
@@ -224,10 +235,10 @@ const BRAND_LABEL: Record<string, string> = {
   sicredi: 'Sicredi', diners: 'Diners', cabal: 'Cabal',
 }
 
-function buildPaymentSummary(payments: SalePaymentRow[], hasExchange: boolean, exchangeCredit: number): string {
+function buildPaymentSummary(payments: SalePaymentRow[], hasExchange: boolean, exchangeCredit: number, sobra: { valor: number; destino: DestinoSobra | null; metodo: MetodoDevolucao | null }): string {
   const labels: string[] = []
   for (const p of payments) {
-    const methodLabel = { cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito' }[p.method] ?? p.method
+    const methodLabel = METODO_LABEL[p.method] ?? p.method
     const brand = p.cardBrand ? ` ${BRAND_LABEL[p.cardBrand] ?? p.cardBrand}` : ''
     if (p.method === 'credit' && p.installments > 1) {
       labels.push(`${methodLabel}${brand} ${p.installments}x`)
@@ -236,7 +247,13 @@ function buildPaymentSummary(payments: SalePaymentRow[], hasExchange: boolean, e
     }
   }
   if (hasExchange) labels.push(`Troca (R$ ${exchangeCredit.toFixed(2).replace('.', ',')})`)
-  return labels.join(' + ')
+  const resumo = labels.join(' + ')
+  if (sobra.valor <= 0 || !sobra.destino) return resumo
+  const v = `R$ ${sobra.valor.toFixed(2).replace('.', ',')}`
+  const destino = sobra.destino === 'guardado' ? `crédito guardado ${v}`
+    : sobra.destino === 'devolvido' ? `devolvido ${v} em ${sobra.metodo === 'pix' ? 'Pix' : 'dinheiro'}`
+    : `sobra de ${v} não guardada`
+  return `${resumo} · ${destino}`
 }
 
 // NOTA: o fechamento de caixa é um SNAPSHOT de conferência de um período (a
@@ -390,6 +407,12 @@ function conferirValores(data: VendaFormData): string | null {
   if (!numeroValido(data.manualDiscount) || data.manualDiscount < 0) {
     return 'Desconto manual inválido.'
   }
+  if (data.payments.some(p => p.method === 'store_credit') && !data.customerId) {
+    return 'Crédito da cliente precisa da cliente selecionada.'
+  }
+  if (data.sobraDestino && !['guardado', 'dispensado', 'devolvido'].includes(data.sobraDestino)) {
+    return 'Destino da sobra da troca inválido.'
+  }
   return null
 }
 
@@ -501,7 +524,7 @@ async function conferirConsertosDaCliente(
 const MSG_ID_DE_OUTRA_VENDA =
   'Este salvamento já foi usado para outra venda. Recarregue a página (F5) e lance de novo — nada desta venda foi gravado.'
 
-const METODO_LABEL: Record<string, string> = { cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito' }
+const METODO_LABEL: Record<string, string> = { cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito', store_credit: 'Crédito da cliente' }
 
 /**
  * A linha de `fv.sales` e o corpo da venda (itens, pagamentos, financeiro,
@@ -547,6 +570,11 @@ function montarPacoteDaVenda(
   const exchangeCredit = data.exchangeItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
   const hasExchange    = data.exchangeItems.length > 0
 
+  /* Sobra: a peça devolvida passou do total. Sem destino (venda sem sobra), fica zero. */
+  const sobraValor   = hasExchange ? sobraDaTroca(total, exchangeCredit) : 0
+  const sobraDestino = sobraValor > 0 ? (data.sobraDestino ?? null) : null
+  const sobraMetodo  = sobraDestino === 'devolvido' ? (data.sobraMetodo ?? null) : null
+
   const sale = {
     store_id:        ctx.storeId,
     customer_id:     data.customerId ?? null,
@@ -564,7 +592,7 @@ function montarPacoteDaVenda(
      * sale_payments, que é a única fonte que não pode divergir. */
     previsao_pagamento: data.previsaoPagamento ?? null,
     destinatario_cpf:   data.destinatarioCpf ?? null,
-    payment_summary: buildPaymentSummary(data.payments, hasExchange, exchangeCredit),
+    payment_summary: buildPaymentSummary(data.payments, hasExchange, exchangeCredit, { valor: sobraValor, destino: sobraDestino, metodo: sobraMetodo }),
     status:          'completed',
     notes:           data.notes || null,
   }
@@ -587,8 +615,9 @@ function montarPacoteDaVenda(
   }))
 
   /* Uma linha do financeiro por pagamento. `reference_id` (a venda) e
-   * `paid_at` (now()) são preenchidos pela função. */
-  const transactions = data.payments.map(p => ({
+   * `paid_at` (now()) são preenchidos pela função. O crédito da cliente não
+   * é dinheiro entrando: o dinheiro entrou na venda que gerou a sobra. */
+  const transactions: Record<string, unknown>[] = data.payments.filter(p => p.method !== 'store_credit').map(p => ({
     store_id:         ctx.storeId,
     type:             'income',
     amount:           p.amount,
@@ -600,6 +629,24 @@ function montarPacoteDaVenda(
     transaction_date: data.saleDate,
     status:           'completed',
   }))
+
+  /* Sobra devolvida: SAI do caixa do dia. Como despesa paga da venda, o
+   * fv.fluxo_caixa a tira em `saidas` (transaction_date = dia da venda) e a
+   * exclusão da venda a apaga junto (reference_type sale). */
+  if (sobraDestino === 'devolvido' && sobraMetodo) {
+    transactions.push({
+      store_id:         ctx.storeId,
+      type:             'expense',
+      amount:           sobraValor,
+      category:         'devolucao_troca',
+      description:      `Devolução da sobra da troca (${sobraMetodo === 'pix' ? 'Pix' : 'dinheiro'})`,
+      reference_type:   'sale',
+      user_id:          ctx.userId,
+      payment_method:   sobraMetodo,
+      transaction_date: data.saleDate,
+      status:           'completed',
+    })
+  }
 
   let exchange = null
   if (hasExchange) {
@@ -614,7 +661,11 @@ function montarPacoteDaVenda(
         exchange_date:    data.saleDate,
         reason:           'Troca de produto',
         price_difference: priceDifference,
-        payment_method:   priceDifference > 0 ? differenceMethod : null,
+        /* Crédito da cliente não é forma da tabela de trocas (CHECK): fica nulo. */
+        payment_method:   priceDifference > 0 && differenceMethod !== 'store_credit' ? differenceMethod : null,
+        sobra_valor:      sobraDestino ? sobraValor : 0,
+        sobra_destino:    sobraDestino,
+        sobra_metodo:     sobraMetodo,
       },
       // Voltam ao estoque (e reativam a peça), com o custo do cadastro para o CMV.
       returned: data.exchangeItems.map(ei => ({
@@ -633,7 +684,7 @@ function montarPacoteDaVenda(
     }
   }
 
-  return { sale, items, payments, transactions, exchange }
+  return { sale, items, payments, transactions, exchange, creditoGuardado: sobraDestino === 'guardado' ? sobraValor : 0 }
 }
 
 type ErroRpc = { code?: string; message?: string } | null
@@ -685,16 +736,21 @@ function revalidarVendas() {
  * estraga nada. Excluir e lançar de novo continua possível.
  */
 async function motivoParaNaoEditar(admin: Admin, saleId: string): Promise<string | null> {
-  const [exchRes, itensRes] = await Promise.all([
+  const [exchRes, itensRes, creditoRes] = await Promise.all([
     admin.from('exchanges').select('id').eq('sale_id', saleId).limit(1),
     admin.from('sale_items').select('id').eq('sale_id', saleId),
+    admin.from('sale_payments').select('id').eq('sale_id', saleId).eq('payment_method', 'store_credit').limit(1),
   ])
-  if (exchRes.error || itensRes.error || !itensRes.data) {
-    console.error('[vendas] falha ao conferir se a venda pode ser editada', exchRes.error ?? itensRes.error)
+  if (exchRes.error || itensRes.error || !itensRes.data || creditoRes.error) {
+    console.error('[vendas] falha ao conferir se a venda pode ser editada', exchRes.error ?? itensRes.error ?? creditoRes.error)
     return 'Não consegui conferir se esta venda pode ser editada. Tente de novo em instantes.'
   }
   if (exchRes.data?.length) {
     return 'Esta venda tem troca (peça devolvida) e não pode ser editada — editar apagaria a troca e o crédito da cliente. Se precisar corrigir, exclua a venda e lance de novo.'
+  }
+
+  if (creditoRes.data?.length) {
+    return 'Esta venda foi paga com o crédito da cliente e não pode ser editada. Se precisar corrigir, exclua a venda (o crédito volta para a cliente) e lance de novo.'
   }
 
   const itemIds = itensRes.data.map(i => i.id as string)
@@ -732,6 +788,26 @@ async function prepararVenda(
 
   const pct = await lerPercentuais(admin, storeId)
   if ('error' in pct) return pct
+
+  /* Sobra da troca: a mesma conferência da tela (src/lib/vendas/sobra.ts),
+   * sobre o total que o servidor calcula. */
+  if (data.exchangeItems.length) {
+    const sub = data.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0)
+    const { total } = calcularTotalDaVenda({
+      subtotal: sub,
+      discountPct: (data.hasPix ? pct.pixPct : 0) + (data.hasBirthday ? pct.birthdayPct : 0),
+      manualDiscount: data.manualDiscount,
+    })
+    const erroSobra = conferirSobra({
+      total,
+      creditoTroca: data.exchangeItems.reduce((s, i) => s + i.unitPrice * i.quantity, 0),
+      pagos: data.payments.reduce((s, p) => s + p.amount, 0),
+      temCliente: !!data.customerId,
+      destino: data.sobraDestino,
+      metodo: data.sobraMetodo,
+    })
+    if (erroSobra) return { error: erroSobra }
+  }
 
   const pecas = await conferirPecasDaLoja(admin, storeId, data)
   if ('error' in pecas) return pecas
@@ -807,7 +883,7 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
   if ('error' in prep) return { success: false, error: prep.error }
 
   // ── 2. Montar o pacote e gravar numa transação ────────────────────────────
-  const pacote = montarPacoteDaVenda(prep.data, {
+  const { creditoGuardado, ...pacote } = montarPacoteDaVenda(prep.data, {
     storeId: finalStoreId, userId, pixPct: prep.pixPct, birthdayPct: prep.birthdayPct, custos: prep.custos,
   })
 
@@ -817,6 +893,10 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
 
   if (error) {
     console.error('[salvarVenda] fv.salvar_venda falhou', error)
+    /* 23514 no saldo do crédito: outro caixa usou antes, ou a tela estava velha. */
+    if (error.code === '23514' && /customer_credits|crédito/i.test(`${error.message} ${(error as { details?: string }).details ?? ''}`)) {
+      return { success: false, error: 'O crédito da cliente não cobre esse valor (o saldo mudou). Nada foi gravado — escolha a cliente de novo para ver o saldo atual.' }
+    }
     if (erroDoBancoRespondeu(error, 'salvarVenda')) {
       /* O banco respondeu com erro: a transação foi desfeita inteira. */
       return { success: false, error: 'Não foi possível gravar a venda. Nada foi registrado — tente salvar de novo em instantes.' }
@@ -865,7 +945,7 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
 
   logarConsertosPendentes('salvarVenda', r.sale_id, r.consertos_pendentes)
   revalidarVendas()
-  return { success: true, saleId: r.sale_id }
+  return { success: true, saleId: r.sale_id, creditoGuardado: creditoGuardado || undefined }
 }
 
 // ─── Action: detalhe de uma venda ─────────────────────────────────────────────
@@ -898,7 +978,7 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
       .eq('sale_id', saleId),
     admin
       .from('exchanges')
-      .select('id, price_difference')
+      .select('id, price_difference, sobra_valor, sobra_destino, sobra_metodo')
       .eq('sale_id', saleId)
       .limit(1),
   ])
@@ -942,6 +1022,9 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
     exchangeDetail = {
       id:               exch.id,
       price_difference: exch.price_difference,
+      sobra_valor:      Number(exch.sobra_valor) || 0,
+      sobra_destino:    exch.sobra_destino ?? null,
+      sobra_metodo:     exch.sobra_metodo ?? null,
       returned_items:   returned.map((e: any) => ({
         product_name: e.products?.name ?? '—',
         product_code: codigo(e.products?.code),
@@ -1114,6 +1197,9 @@ export async function deletarVenda(saleId: string): Promise<ActionResult> {
   const { error } = await admin.rpc('excluir_venda', { p_sale_id: saleId, p_user_id: userId })
   if (error) {
     console.error('[deletarVenda] fv.excluir_venda falhou', { saleId, error })
+    if (error.code === '23514') {
+      return { success: false, error: 'O crédito que esta troca guardou já foi usado pela cliente. Ajuste o crédito dela (Clientes) antes de excluir. Nada foi alterado.' }
+    }
     return {
       success: false,
       error: erroDoBancoRespondeu(error, 'deletarVenda')
@@ -1300,7 +1386,8 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
   const prep = await prepararVenda(admin, finalStoreId, data)
   if ('error' in prep) return { success: false, error: prep.error }
 
-  const pacote = montarPacoteDaVenda(prep.data, {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { creditoGuardado: _semCredito, ...pacote } = montarPacoteDaVenda(prep.data, {
     storeId: finalStoreId, userId, pixPct: prep.pixPct, birthdayPct: prep.birthdayPct, custos: prep.custos,
   })
 
