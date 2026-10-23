@@ -59,7 +59,7 @@ export default async function ClientesPage() {
   const escopo = lojaDoEscopo(profile)
 
   const carregarClientes = () => {
-    let q = admin.from('customers').select('*, stores(name)')
+    let q = admin.from('customers').select('*, stores:origin_store_id(name)')
     if (escopo) q = q.eq('origin_store_id', escopo)
     return q.order('name')
   }
@@ -86,6 +86,12 @@ export default async function ClientesPage() {
     carregarVendas(),
     admin.from('settings').select('value').eq('store_id', lojaCfg).eq('key', 'inactive_customer_days').maybeSingle(),
   ])
+
+  // Erro de leitura não pode virar lista vazia: "Todos 0" parece cadastro
+  // apagado, e foi assim que um embed ambíguo (PGRST201) passou despercebido.
+  for (const res of [customersRes, storesRes, salesRes, settingRes]) {
+    if (res.error) throw new Error(`Clientes: falha ao carregar dados (${res.error.code ?? ''} ${res.error.message})`)
+  }
 
   const customers   = customersRes.data ?? []
   const stores: StoreOption[] = storesRes.data ?? []

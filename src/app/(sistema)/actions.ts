@@ -609,10 +609,11 @@ export async function buscarTopClientes(storeId: string | null): Promise<TopClie
     .slice(0, 10)
     .map(([id]) => id)
 
-  const { data: clientes } = await admin
+  const { data: clientes, error: erroClientes } = await admin
     .from('customers')
-    .select('id, name, phone, cpf, email, birthday, address, city, state, zip_code, origin_store_id, notes, created_at, updated_at, stores(name)')
+    .select('id, name, phone, cpf, email, birthday, address, city, state, zip_code, origin_store_id, notes, created_at, updated_at, stores:origin_store_id(name)')
     .in('id', top10ids)
+  if (erroClientes) throw new Error(erroClientes.message)
 
   return (clientes ?? []).map((c: any) => {
     const stats = statsMap.get(c.id)!
