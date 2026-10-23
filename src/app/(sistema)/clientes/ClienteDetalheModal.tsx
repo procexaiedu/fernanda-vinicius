@@ -11,6 +11,7 @@ import Badge from '@/components/ui/Badge'
 import { buscarComprasDaCliente } from './actions'
 import type { CustomerWithStats } from './page'
 import styles from './ClienteDetalheModal.module.css'
+import CreditoDaCliente from './CreditoDaCliente'
 import { formatarTelefone } from '@/lib/telefone'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { toDiaMes } from '@/lib/date'
@@ -256,6 +257,9 @@ export default function ClienteDetalheModal({ customer, inactiveDays, isAdmin = 
           <span className={styles.notesLabel}>Obs:</span> {customer.notes}
         </div>
       )}
+
+      {/* ── Crédito na loja (sobra de troca guardada) ──────── */}
+      <CreditoDaCliente customerId={customer.id} />
 
       {/* ── Compras recentes ───────────────────────────────── */}
       <div className={styles.salesSection}>

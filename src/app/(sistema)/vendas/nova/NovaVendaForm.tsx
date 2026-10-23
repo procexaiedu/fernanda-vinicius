@@ -8,7 +8,7 @@ import { mensagemDeErroAoSalvar } from '@/lib/erroDeSalvar'
 import { novoIdDeRequisicao } from '@/lib/idempotencia'
 import {
   Plus, Trash2, AlertTriangle, ChevronDown, Cake, X, CreditCard,
-  Banknote, Smartphone, ArrowLeftRight, RefreshCw, User, CheckCircle2, Wrench, RotateCcw,
+  Banknote, Smartphone, ArrowLeftRight, RefreshCw, User, CheckCircle2, Wrench, RotateCcw, Wallet,
 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
@@ -27,6 +27,8 @@ import styles from './NovaVendaForm.module.css'
 import { formatarTelefone, mascararTelefone, normalizarTelefone, validarTelefone } from '@/lib/telefone'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { calcularTotalDaVenda } from '@/lib/vendas/total'
+import { sobraDaTroca, usoMaximoDoCredito, conferirSobra, type DestinoSobra, type MetodoDevolucao } from '@/lib/vendas/sobra'
+import { buscarCreditoDaCliente } from '../credito'
 import SearchableSelect from '@/components/ui/SearchableSelect'
 import { posicionarDropdown, type PosicaoDropdown } from '@/lib/dropdown'
 
@@ -114,7 +116,7 @@ interface VinculoAnterior {
 }
 
 interface PaymentRow {
-  method: 'cash' | 'pix' | 'debit' | 'credit'
+  method: 'cash' | 'pix' | 'debit' | 'credit' | 'store_credit'
   amount: number
   installments: number
   cardBrand?: string | null   // bandeira (crédito/débito), opcional
@@ -158,7 +160,8 @@ interface Props {
    *
    * Também é o que marca o MODO PDV para o rascunho (ver o efeito de carga).
    */
-  onSaved?: (saleId: string, aviso?: string) => void
+  /** `info`: recado que não é aviso de erro (ex.: "Crédito guardado: R$ 180,00"). */
+  onSaved?: (saleId: string, aviso?: string, info?: string) => void
   /**
    * `barcode_number` lido em outra tela do sistema. A venda abre já com essa peça
    * na primeira linha, preenchida com tudo que dá para deduzir do produto.
@@ -947,6 +950,20 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * mais `exchangeCredit` separado — havia dois números para a mesma coisa.
    */
 
+  /*
+   * Troca com sobra (a peça devolvida vale mais que a levada): o que fazer
+   * com o resto. Ver src/lib/vendas/sobra.ts.
+   */
+  const [sobraDestino, setSobraDestino] = useState<DestinoSobra | null>(null)
+  const [sobraMetodo, setSobraMetodo]   = useState<MetodoDevolucao | null>(null)
+
+  /* Crédito guardado da cliente NESTA loja (o servidor decide a loja). `null`
+   * = não carregado ou sem cliente; falha de leitura não vira "zero". */
+  const [creditoLido, setCreditoLido] = useState<{ chave: string; saldo: number } | null>(null)
+  const chaveDoCredito = selectedCustomer?.id && !isEditing ? `${selectedCustomer.id}|${storeId}` : null
+  /* Resposta de outra cliente/loja (chegou atrasada) não vale. */
+  const creditoCliente = creditoLido && creditoLido.chave === chaveDoCredito ? creditoLido.saldo : null
+
   // ── UI ────────────────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
@@ -1064,6 +1081,22 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * como "na loja" para sempre.
    */
   const [consertosAbertos, setConsertosAbertos] = useState<{ id: string; rotulo: string }[]>([])
+
+  /* Saldo do crédito: ao escolher a cliente (ou trocar a loja) ele aparece
+   * sozinho. O pagamento com crédito de outra cliente/loja sai da lista em
+   * `soltarCreditoUsado` (troca de cliente e de loja). */
+  useEffect(() => {
+    let ativo = true
+    if (!chaveDoCredito || !selectedCustomer?.id) return
+    buscarCreditoDaCliente(selectedCustomer.id, storeId || null)
+      .then(r => { if (ativo && r.data) setCreditoLido({ chave: chaveDoCredito, saldo: r.data.saldo }) })
+      .catch(() => { /* sem saldo na tela: o botão de crédito só não aparece */ })
+    return () => { ativo = false }
+  }, [chaveDoCredito, selectedCustomer, storeId])
+
+  function soltarCreditoUsado() {
+    setPayments(prev => prev.some(p => p.method === 'store_credit') ? prev.filter(p => p.method !== 'store_credit') : prev)
+  }
 
   useEffect(() => {
     let ativo = true
@@ -1335,9 +1368,12 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * dois números diferentes espalhados em dois blocos, e a dona teve de fazer a
    * conta de cabeça — "aparece 182 + 152 e falta 30, fica confuso".
    */
-  const aCobrar        = parseFloat((total - creditoTroca).toFixed(2))
-  const coveredTotal   = paidTotal + creditoTroca
+  /* Troca com sobra: nada a cobrar, e a sobra precisa de destino. */
+  const sobra          = sobraDaTroca(total, creditoTroca)
+  const aCobrar        = Math.max(0, parseFloat((total - creditoTroca).toFixed(2)))
+  const coveredTotal   = paidTotal + creditoTroca - sobra
   const balanceDiff    = parseFloat((coveredTotal - total).toFixed(2))
+  const creditoUsado   = payments.filter(p => p.method === 'store_credit').reduce((s, p) => s + p.amount, 0)
 
   // ── Row helpers ───────────────────────────────────────────────────────────
   function updateRow(i: number, patch: Partial<SaleRow>) {
@@ -1407,6 +1443,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    */
   function trocarLoja(novaLoja: string) {
     if (novaLoja === storeId) return
+    soltarCreditoUsado()
     const lojaDe = new Map(products.map(p => [p.id, p.store_id]))
     const saem = rows.filter(r => !r.isConserto && r.productId && lojaDe.get(r.productId) !== novaLoja)
     setStoreId(novaLoja)
@@ -1483,7 +1520,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   }
 
   function selectCustomer(c: CustomerOption | null, text: string) {
-    if ((c?.id ?? null) !== (selectedCustomer?.id ?? null)) soltarConsertosEscolhidos()
+    if ((c?.id ?? null) !== (selectedCustomer?.id ?? null)) { soltarConsertosEscolhidos(); soltarCreditoUsado() }
     setSelectedCustomer(c)
     setCustomerSearch(text)
     /* Sugestão, não regra: se a cliente pedir a nota, o CPF dela já está ali. */
@@ -1492,6 +1529,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   function handleCustomerCreated(c: CustomerOption) {
     soltarConsertosEscolhidos()
+    soltarCreditoUsado()
     // Re-fetch or optimistic: add to local list then select
     setCustomers(prev => [...prev, c])
     setSelectedCustomer(c)
@@ -1503,6 +1541,14 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   // ── Pagamento helpers ─────────────────────────────────────────────────────
   function addPayment(method: PaymentRow['method']) {
     setPayments(prev => [...prev, { method, amount: 0, installments: 1, cardBrand: null }])
+  }
+
+  /* Crédito da cliente já entra com o valor que cabe: o saldo, ou o que falta. */
+  function usarCredito() {
+    const falta = parseFloat((total - creditoTroca - paidTotal).toFixed(2))
+    const valor = usoMaximoDoCredito((creditoCliente ?? 0) - creditoUsado, falta)
+    if (valor <= 0) return
+    setPayments(prev => [...prev, { method: 'store_credit', amount: valor, installments: 1, cardBrand: null }])
   }
 
   function updatePayment(i: number, patch: Partial<PaymentRow>) {
@@ -1609,8 +1655,13 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
      * tem valor a receber. Não existe vale no sistema; enquanto não existir, o
      * certo é resolver no balcão, não gravar torto.
      */
-    if (creditoTroca - subtotal > 0.009) {
-      setError(`As peças devolvidas valem ${fmt(creditoTroca - subtotal)} a mais que as levadas. Acerte no balcão ou adicione outra peça — o sistema ainda não emite vale.`)
+    const erroSobra = conferirSobra({
+      total, creditoTroca, pagos: pagamentosValidos.reduce((s, p) => s + p.amount, 0),
+      temCliente: !!selectedCustomer, destino: sobraDestino, metodo: sobraMetodo,
+    })
+    if (erroSobra) { setError(erroSobra); return }
+    if (creditoUsado > 0.009 && (creditoCliente === null || creditoUsado - creditoCliente > 0.009)) {
+      setError(`O crédito da cliente é ${fmt(creditoCliente ?? 0)}. Diminua o valor em "Crédito da cliente".`)
       return
     }
 
@@ -1686,6 +1737,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       destinatarioCpf: destinatarioCpf.replace(/\D/g, '') || null,
       payments: pagamentosValidos,
       exchangeItems: devolvidos,
+      sobraDestino: sobra > 0 ? sobraDestino : null,
+      sobraMetodo:  sobra > 0 && sobraDestino === 'devolvido' ? sobraMetodo : null,
       notes,
       /* Só na venda nova: `editarVenda` refaz uma venda que já existe. */
       clientRequestId: isEditing ? null : idDaVendaAtual(),
@@ -1759,7 +1812,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     vendaGravada.current = true
     idDaVenda.current = null   // a próxima venda é outra (o PDV remonta o form de qualquer jeito)
     if (!isEditing && !rascunho?.pendente) apagarRascunho()
-    if (onSaved) { onSaved(result.saleId ?? ''); return }   // PDV: fica na tela (o pai reseta o form)
+    const info = result.creditoGuardado ? `Crédito guardado: ${fmt(result.creditoGuardado)}` : undefined
+    if (onSaved) { onSaved(result.saleId ?? '', undefined, info); return }   // PDV: fica na tela (o pai reseta o form)
     /* Venda NOVA fora do PDV também termina com a escolha da nota: a lista
      * abre o mesmo painel do PDV por `?nota=`. Edição não — a nota se emite
      * pelo detalhe da venda. */
@@ -2247,6 +2301,12 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             <span>{creditoTroca > 0 ? 'A cobrar' : 'Total'}</span>
             <strong>{fmt(aCobrar)}</strong>
           </div>
+          {sobra > 0 && (
+            <div className={`${styles.summaryRow} ${styles.trocaRow}`}>
+              <span>Sobra da troca</span>
+              <strong>{fmt(sobra)}</strong>
+            </div>
+          )}
           {/* O faturamento não some: é o que a loja vendeu, e o que vai para o
               banco e para a nota. Fica miúdo porque não é o número do balcão. */}
           {creditoTroca > 0 && (
@@ -2270,8 +2330,61 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                 {opt.icon} {opt.label}
               </button>
             ))}
+            {/* Só com saldo e com algo a cobrar: não é forma "de sempre". */}
+            {!!creditoCliente && creditoCliente - creditoUsado > 0.009 && sobra === 0 && balanceDiff < -0.009 && (
+              <button type="button" className={styles.addPayBtnExchange} onClick={usarCredito} data-novidade="usar-credito-cliente">
+                <Wallet size={13} /> Crédito da cliente
+              </button>
+            )}
           </div>
         </div>
+
+        {!!creditoCliente && creditoCliente > 0.009 && (
+          <div className={styles.creditoInfo} data-novidade="credito-disponivel">
+            <Wallet size={13} /> {selectedCustomer?.name.split(' ')[0] ?? 'A cliente'} tem {fmt(creditoCliente)} de crédito nesta loja
+            {creditoUsado > 0 && <> · usando {fmt(creditoUsado)}, ficam {fmt(Math.max(0, creditoCliente - creditoUsado))}</>}
+          </div>
+        )}
+
+        {/* Troca com sobra: a peça devolvida passou do que a cliente levou. */}
+        {sobra > 0 && (
+          <div className={styles.sobraBox} data-novidade="sobra-da-troca">
+            <div className={styles.sobraTitulo}>
+              As peças devolvidas valem {fmt(sobra)} a mais. O que fazer com a sobra?
+            </div>
+            <div className={styles.paymentActions}>
+              {([
+                ['guardado',   'Guardar como crédito'],
+                ['dispensado', 'Não guardar'],
+                ['devolvido',  'Devolver o dinheiro'],
+              ] as const).map(([v, label]) => (
+                <button key={v} type="button"
+                  className={`${styles.addPayBtn} ${sobraDestino === v ? styles.sobraAtiva : ''}`}
+                  onClick={() => { setSobraDestino(v); if (v !== 'devolvido') setSobraMetodo(null) }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {sobraDestino === 'devolvido' && (
+              <div className={styles.paymentActions}>
+                <span className={styles.sobraDica}>Devolver em:</span>
+                <button type="button" className={`${styles.addPayBtn} ${sobraMetodo === 'cash' ? styles.sobraAtiva : ''}`} onClick={() => setSobraMetodo('cash')}>
+                  <Banknote size={13} /> Dinheiro
+                </button>
+                <button type="button" className={`${styles.addPayBtn} ${sobraMetodo === 'pix' ? styles.sobraAtiva : ''}`} onClick={() => setSobraMetodo('pix')}>
+                  <Smartphone size={13} /> PIX
+                </button>
+              </div>
+            )}
+            <div className={styles.sobraDica}>
+              {sobraDestino === 'guardado' && (selectedCustomer
+                ? `${fmt(sobra)} ficam guardados para a próxima compra de ${selectedCustomer.name.split(' ')[0]} nesta loja.`
+                : 'Para guardar, selecione a cliente.')}
+              {sobraDestino === 'dispensado' && 'A cliente abre mão da sobra. Nada é guardado e nada sai do caixa.'}
+              {sobraDestino === 'devolvido' && `${fmt(sobra)} saem do caixa de hoje${sobraMetodo ? (sobraMetodo === 'pix' ? ' por Pix' : ' em dinheiro') : ''}.`}
+            </div>
+          </div>
+        )}
 
         {/* Lista de pagamentos */}
         {payments.length > 0 && (
@@ -2294,6 +2407,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                       { value: 'cash',   label: 'Dinheiro' },
                       { value: 'debit',  label: 'Débito' },
                       { value: 'credit', label: 'Crédito' },
+                      ...(p.method === 'store_credit' || creditoCliente ? [{ value: 'store_credit', label: 'Crédito da cliente' }] : []),
                     ]}
                     placeholder="Forma"
                     searchable={false}
@@ -2381,7 +2495,15 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             </div>
           )}
           {(payments.length > 0 || creditoTroca > 0) && (
-            balanceDiff > 0.01 ? (
+            sobra > 0 ? (
+              sobraDestino && (sobraDestino !== 'devolvido' || sobraMetodo) && paidTotal <= 0.009 ? (
+                <div className={styles.payStatusOk}>✓ Troca resolvida</div>
+              ) : (
+                <div className={styles.payStatusWarn}>
+                  <AlertTriangle size={13} /> {paidTotal > 0.009 ? 'A troca já cobre a venda: tire os pagamentos' : 'Escolha o que fazer com a sobra da troca'}
+                </div>
+              )
+            ) : balanceDiff > 0.01 ? (
               <div className={styles.payStatusWarn}>
                 <AlertTriangle size={13} /> Recebido {fmt(balanceDiff)} a mais — confira
               </div>
