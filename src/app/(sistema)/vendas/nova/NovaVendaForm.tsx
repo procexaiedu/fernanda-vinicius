@@ -2319,26 +2319,12 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
           <div className={styles.sectionTitle}>Pagamento</div>
-          <div className={styles.paymentActions}>
-            {paymentMethodOptions.map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                className={styles.addPayBtn}
-                onClick={() => addPayment(opt.value as PaymentRow['method'])}
-              >
-                {opt.icon} {opt.label}
-              </button>
-            ))}
-            {/* Só com saldo e com algo a cobrar: não é forma "de sempre". */}
-            {!!creditoCliente && creditoCliente - creditoUsado > 0.009 && sobra === 0 && balanceDiff < -0.009 && (
-              <button type="button" className={styles.addPayBtnExchange} onClick={usarCredito} data-novidade="usar-credito-cliente">
-                <Wallet size={13} /> Crédito da cliente
-              </button>
-            )}
-          </div>
         </div>
 
+        {/* Tudo do pagamento numa coluna só, da largura das linhas: os botões
+            de forma soltos no canto direito e as lixeiras na outra ponta
+            deixavam metade do bloco vazia e longe de quem usa. */}
+        <div className={styles.payBlock}>
         {!!creditoCliente && creditoCliente > 0.009 && (
           <div className={styles.creditoInfo} data-novidade="credito-disponivel">
             <Wallet size={13} /> {selectedCustomer?.name.split(' ')[0] ?? 'A cliente'} tem {fmt(creditoCliente)} de crédito nesta loja
@@ -2422,30 +2408,31 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                     placeholder="R$ 0,00"
                   />
 
-                  {p.method === 'credit' ? (
-                    <div className={styles.installmentsWrap}>
-                      <SearchableSelect
-                        value={String(p.installments)}
-                        onChange={v => updatePayment(i, { installments: parseInt(v) || 1 })}
-                        options={Array.from({ length: maxInstallments }, (_, k) => k + 1).map(n => ({
-                          value: String(n), label: `${n}x`,
-                        }))}
-                        placeholder="1x"
-                        searchable={false}
-                        permitirLimpar={false}
-                      />
-                      {p.installments > 1 && p.amount > 0 && (
-                        <span className={styles.installmentHint}>{fmt(p.amount / p.installments)}/parcela</span>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ flex: 1 }} />
-                  )}
-
-                  <button type="button" className={styles.delBtn} onClick={() => removePayment(i)}>
+                  <button type="button" className={`${styles.delBtn} ${styles.payDelBtn}`} onClick={() => removePayment(i)}>
                     <Trash2 size={13} />
                   </button>
                 </div>
+
+                {/* Parcelas na linha de baixo: ao lado do valor empurravam a
+                    lixeira para fora da caixa no celular. */}
+                {p.method === 'credit' && (
+                  <div className={styles.installmentsWrap}>
+                    <span className={styles.cardLabel}>Parcelas:</span>
+                    <SearchableSelect
+                      value={String(p.installments)}
+                      onChange={v => updatePayment(i, { installments: parseInt(v) || 1 })}
+                      options={Array.from({ length: maxInstallments }, (_, k) => k + 1).map(n => ({
+                        value: String(n), label: `${n}x`,
+                      }))}
+                      placeholder="1x"
+                      searchable={false}
+                      permitirLimpar={false}
+                    />
+                    {p.installments > 1 && p.amount > 0 && (
+                      <span className={styles.installmentHint}>{fmt(p.amount / p.installments)}/parcela</span>
+                    )}
+                  </div>
+                )}
 
                 {/* Bandeira do cartão — crédito e débito (opcional) */}
                 {(p.method === 'credit' || p.method === 'debit') && (
@@ -2478,6 +2465,25 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
           </div>
         )}
 
+        {/* Adicionar forma: logo abaixo das linhas que ela cria. */}
+        <div className={`${styles.paymentActions} ${styles.payQuickActions}`}>
+          {paymentMethodOptions.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              className={styles.addPayBtn}
+              onClick={() => addPayment(opt.value as PaymentRow['method'])}
+            >
+              {opt.icon} {opt.label}
+            </button>
+          ))}
+          {/* Só com saldo e com algo a cobrar: não é forma "de sempre". */}
+          {!!creditoCliente && creditoCliente - creditoUsado > 0.009 && sobra === 0 && balanceDiff < -0.009 && (
+            <button type="button" className={styles.addPayBtnExchange} onClick={usarCredito} data-novidade="usar-credito-cliente">
+              <Wallet size={13} /> Crédito da cliente
+            </button>
+          )}
+        </div>
 
         {/* Resumo de pagamento */}
         {/* "Total da venda" e "Crédito da troca" saíram daqui: subiram para o
@@ -2535,6 +2541,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               </div>
             )
           )}
+        </div>
         </div>
       </div>
 

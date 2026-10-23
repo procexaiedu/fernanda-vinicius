@@ -676,9 +676,47 @@
   gap: 8px;
 }
 
-.paymentRow > div:first-child { width: 122px; flex-shrink: 0; }
-.paymentRow > div:first-child button { min-width: 0; }
-.installmentsWrap > div button { min-width: 0; }
+/* 168px: "Crédito da cliente" + a seta cabem sem encostar no valor. */
+.paymentRow > div:first-child { width: 168px; flex-shrink: 1; min-width: 0; }
+.paymentRow > div:first-child button { min-width: 0; width: 100%; }
+.installmentsWrap > div { width: 76px; }
+.installmentsWrap > div button { min-width: 0; width: 100%; }
+
+/* Coluna única do pagamento: aviso de crédito, sobra, linhas, botões e resumo
+   alinhados à esquerda, na largura das linhas. */
+.payBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+}
+
+.payBlock > .creditoInfo,
+.payBlock > .sobraBox,
+.payBlock > .paymentsList {
+  margin: 0;
+}
+
+.payBlock > .paymentSummary {
+  max-width: none;
+}
+
+.payDelBtn {
+  width: 34px;
+  height: 34px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.payQuickActions {
+  justify-content: flex-start;
+}
+
+.cardLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
 
 .payCell {
   height: 34px;
@@ -699,6 +737,8 @@
 
 .payAmtInput {
   width: 130px;
+  min-width: 0;
+  flex-shrink: 1;
   height: 34px;
   padding: 0 10px;
   background: var(--bg-elevated);
@@ -718,7 +758,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 1;
+  padding-left: 2px;
 }
 
 .installmentHint {
