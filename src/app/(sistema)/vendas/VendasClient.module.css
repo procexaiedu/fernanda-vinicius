@@ -636,6 +636,8 @@
 @media (max-width: 700px) {
   .statsRow { flex-wrap: wrap; gap: 8px; }
   .statsRow > .stat { flex: 1 1 calc(50% - 4px); min-width: 0; padding: 12px; }
+  /* A busca parava em 280px e deixava um vão à direita na linha dela. */
+  .search { flex-basis: 100%; max-width: none; }
 }
 
 /* ── Venda com saldo em aberto ── */
