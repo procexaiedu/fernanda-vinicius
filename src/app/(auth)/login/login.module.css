@@ -3,41 +3,40 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Pedido da dona: sóbrio, fundo liso, sem brilho nem gradiente. */
   background: var(--bg-base);
   padding: 24px;
-
-  /* Padrão sutil de fundo */
-  background-image: radial-gradient(
-    ellipse 80% 60% at 50% -10%,
-    rgba(var(--accent-rgb), 0.06) 0%,
-    transparent 60%
-  );
 }
 
 .card {
   width: 100%;
-  max-width: 380px;
+  max-width: 400px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 40px 36px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+  padding: 44px 40px 40px;
   display: flex;
   flex-direction: column;
   gap: 32px;
 }
 
-/* Logo */
+/* Logo: monograma em cima, nome embaixo, centralizado */
 .logo {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
+  text-align: center;
+  gap: 16px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
 }
 
 /* Mesmo monograma da sidebar, em máscara colorida por `--accent`. Ver
  * Sidebar.module.css → .logoMark. */
 .logoGem {
-  width: 34px;
-  height: 34px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
   background-color: var(--accent);
   -webkit-mask: url('/brand/logo-fv.png') center / contain no-repeat;
@@ -47,11 +46,11 @@
 .logoText {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .logoName {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.01em;
@@ -176,3 +175,8 @@
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 480px) {
+  .page { padding: 16px; }
+  .card { padding: 36px 24px 28px; gap: 28px; }
+}
