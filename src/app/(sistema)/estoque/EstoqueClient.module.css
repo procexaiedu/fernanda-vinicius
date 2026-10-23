@@ -3,12 +3,13 @@
 /* Totais do filtro: o mesmo cartão de Vendas/Compras, um pouco mais baixo. */
 .statsRow {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
 }
 
 .stat {
-  flex: 1;
+  flex: 1 1 140px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -35,7 +36,9 @@
 
 .toolbar {
   display: flex;
-  align-items: center;
+  /* Filtros quebram em duas linhas: os botões ficam na primeira, ao lado
+     da busca, e não soltos no meio das duas. */
+  align-items: flex-start;
   gap: 10px;
   margin-bottom: 16px;
   flex-wrap: wrap;
@@ -53,6 +56,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .search {
@@ -63,7 +67,7 @@
   background: var(--bg-surface);
   color: var(--text-primary);
   font-size: 13px;
-  flex: 1 1 180px;
+  flex: 1 1 220px;
   min-width: 160px;
   max-width: 260px;
   outline: none;
