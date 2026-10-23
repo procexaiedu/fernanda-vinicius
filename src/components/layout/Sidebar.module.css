@@ -345,8 +345,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin: 0 12px 12px;
-  padding: 9px 11px;
+  /* Mesmo respiro acima e abaixo (o `.nav` já soma 10px de padding embaixo) e
+   * as mesmas bordas laterais dos itens do menu, para tudo alinhar numa coluna. */
+  margin: 12px 8px 2px;
+  padding: 9px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-elevated);
@@ -387,7 +389,7 @@
 .lojaAtualRecolhida {
   display: flex;
   justify-content: center;
-  margin: 0 8px 12px;
+  margin: 12px 8px 2px;
 }
 
 .lojaInicial {

@@ -1017,3 +1017,19 @@ kbd,
 samp {
   text-transform: none;
 }
+
+/* Impressão do ParaImprimir (ver src/components/ui/ParaImprimir.tsx). Fica aqui
+ * e não no .module.css porque CSS Modules recusa seletor sem classe local.
+ * Só quando existe uma cópia montada (`:has`): sem essa condição, Ctrl+P em
+ * qualquer tela imprimiria uma folha em branco. */
+@media print {
+  body:has(> [data-impressao]) > *:not([data-impressao]) {
+    display: none !important;
+  }
+
+  /* O Modal põe `overflow: hidden` inline no body enquanto está aberto, e isso
+     também corta a impressão na primeira página. */
+  body:has(> [data-impressao]) {
+    overflow: visible !important;
+  }
+}
