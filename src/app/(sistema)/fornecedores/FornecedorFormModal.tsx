@@ -469,7 +469,7 @@ export default function FornecedorFormModal({ supplier, allInitials, onClose }: 
           </div>
         </div>
 
-        <div className={styles.row}>
+        <div className={`${styles.row} ${styles.addrRow}`}>
           <div className={styles.flex2}>
             <Input label="Bairro" value={form.neighborhood}
               onChange={e => set('neighborhood', e.target.value)} placeholder="Bairro" />
