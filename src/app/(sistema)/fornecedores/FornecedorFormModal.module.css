@@ -23,6 +23,16 @@
   flex-shrink: 0;
 }
 
+/* O gatilho do select tem min-width de 112px e saía 32px da coluna (no
+   telefone, para fora da tela). */
+.stateCol button { min-width: 0; width: 100%; }
+
+/* Telefone: Bairro em linha própria; Cidade e Estado embaixo, sem cortar. */
+@media (max-width: 700px) {
+  .addrRow { flex-wrap: wrap; }
+  .addrRow > .flex2 { flex-basis: 100%; }
+}
+
 /* ─── Alerta iniciais duplicadas ─────────────────────── */
 .dupeAlert {
   display: flex;

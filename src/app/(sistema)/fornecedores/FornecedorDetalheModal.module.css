@@ -494,3 +494,10 @@
   border-radius: var(--radius-sm);
   margin-left: 4px;
 }
+
+/* Telefone: cinco indicadores numa linha cortavam o valor ("R$ 0,") e o
+   rótulo. Duas colunas; o quinto ocupa a linha inteira. */
+@media (max-width: 700px) {
+  .statsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .statsGrid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
