@@ -78,3 +78,4 @@ sessao-*.mjs
 .evid/
 evid/
 .evidencias/
+.prints/
