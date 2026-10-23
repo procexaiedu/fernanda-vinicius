@@ -1,7 +1,9 @@
 /* ─── Toolbar ─────────────────────────────────────────────────────────────── */
 .toolbar {
   display: flex;
-  align-items: center;
+  /* Filtros quebram em duas linhas: os botões ficam na primeira, ao lado
+     da busca, e não soltos no meio das duas. */
+  align-items: flex-start;
   gap: 10px;
   margin-bottom: 16px;
   flex-wrap: wrap;

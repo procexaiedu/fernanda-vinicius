@@ -218,7 +218,7 @@ export default function TransferenciasClient({
                       <span className={styles.itens}>{enviados.length} {enviados.length === 1 ? 'item' : 'itens'}</span>
                     </td>
                     {isAdmin && <td className={`${styles.num} col-num`}>{formatarDinheiro(r.totals?.custo_total ?? 0)}</td>}
-                    <td>
+                    <td className={styles.statusCel}>
                       <Badge variant={COR[r.status]}>{ROTULO[r.status]}</Badge>
                       {isAdmin && r.kind === 'consignacao' && r.acerto_at && (
                         <span className={styles.obs}>acertada</span>
@@ -242,7 +242,8 @@ export default function TransferenciasClient({
                       <span className={styles.pessoa}>{r.enviou}</span>
                       {r.recebeu && <span className={styles.pessoa}>recebeu: {r.recebeu}</span>}
                     </td>
-                    <td className={styles.acoes}>
+                    <td>
+                      <div className={styles.acoes}>
                       <button className={styles.acao} onClick={() => setVendoRomaneio(r)} title="Ver romaneio">
                         <FileText size={14} />
                       </button>
@@ -270,6 +271,7 @@ export default function TransferenciasClient({
                           <XCircle size={14} />
                         </button>
                       )}
+                      </div>
                     </td>
                   </tr>
                 )
