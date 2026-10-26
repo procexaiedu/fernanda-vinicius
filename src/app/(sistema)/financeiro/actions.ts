@@ -157,7 +157,7 @@ export async function buscarTransacoes(filters: TransactionFilters): Promise<{ d
 
   let q = admin
     .from('transactions')
-    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, recurring_expense_id, notes, stores(name), users(full_name)')
+    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, seller_person_id, recurring_expense_id, notes, stores(name), users(full_name), pessoa:sellers!seller_person_id(full_name)')
     .order('transaction_date', { ascending: false })
     .order('created_at', { ascending: false })
 
@@ -190,7 +190,7 @@ export async function buscarTransacoes(filters: TransactionFilters): Promise<{ d
     store_id: t.store_id,
     store_name: t.stores?.name ?? null,
     user_id: t.user_id,
-    user_name: t.users?.full_name ?? null,
+    user_name: t.pessoa?.full_name ?? t.users?.full_name ?? null,
     recurring_expense_id: t.recurring_expense_id,
     notes: t.notes ?? null,
   }))
@@ -206,7 +206,7 @@ export async function buscarPendencias(): Promise<{ data: TransactionRow[]; erro
 
   let pendQ = admin
     .from('transactions')
-    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, recurring_expense_id, notes, stores(name), users(full_name)')
+    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, seller_person_id, recurring_expense_id, notes, stores(name), users(full_name), pessoa:sellers!seller_person_id(full_name)')
     .eq('type', 'expense')
     .eq('status', 'pending')
     .order('due_date', { ascending: true, nullsFirst: false })
@@ -234,7 +234,7 @@ export async function buscarPendencias(): Promise<{ data: TransactionRow[]; erro
     store_id: t.store_id,
     store_name: t.stores?.name ?? null,
     user_id: t.user_id,
-    user_name: t.users?.full_name ?? null,
+    user_name: t.pessoa?.full_name ?? t.users?.full_name ?? null,
     recurring_expense_id: t.recurring_expense_id,
     notes: t.notes ?? null,
   }))
@@ -446,7 +446,7 @@ export async function buscarDetalheComissao(transactionId: string): Promise<{ da
 
   const { data: tx, error: txErr } = await admin
     .from('transactions')
-    .select('id, description, amount, transaction_date, user_id, store_id, users(full_name)')
+    .select('id, description, amount, transaction_date, user_id, seller_person_id, store_id, pessoa:sellers!seller_person_id(full_name), users(full_name)')
     .eq('id', transactionId)
     .eq('reference_type', 'seller_commission')
     .single()
@@ -473,7 +473,7 @@ export async function buscarDetalheComissao(transactionId: string): Promise<{ da
     .select('id, sale_date, total, total_cost, customer_id, store_id, customers(name), stores(name), status')
     /* seller_id, não user_id: user_id é quem DIGITOU a venda (a admin lança
        em nome da vendedora). A comissão é de quem vendeu. */
-    .eq('seller_id', (tx as any).user_id)
+    .eq((tx as any).seller_person_id ? 'seller_person_id' : 'seller_id', (tx as any).seller_person_id ?? (tx as any).user_id)
     .gte('sale_date', dateFrom)
     .lte('sale_date', dateTo)
     .eq('status', 'completed')
@@ -502,7 +502,7 @@ export async function buscarDetalheComissao(transactionId: string): Promise<{ da
     data: {
       transaction_id: tx.id,
       description: (tx as any).description,
-      seller_name: (tx as any).users?.full_name ?? 'Vendedora',
+      seller_name: (tx as any).pessoa?.full_name ?? (tx as any).users?.full_name ?? 'Vendedora',
       month,
       commission_amount: (tx as any).amount,
       total_vendas,

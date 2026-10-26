@@ -1,5 +1,7 @@
 'use server'
 
+import { chaveVendedora } from '@/lib/vendedoras'
+import { diretorioVendedoras } from '@/lib/vendedoras-server'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -402,7 +404,7 @@ export async function buscarHistoricoVendas(productId: string): Promise<SaleHist
   // Passo 2: busca os dados das vendas (sem joins)
   const { data: sales, error: salesErr } = await admin
     .from('sales')
-    .select('id, sale_date, store_id, customer_id, seller_id, user_id')
+    .select('id, sale_date, store_id, customer_id, seller_id, seller_person_id, user_id')
     .in('id', saleIds)
   if (salesErr) throw new Error(`Não foi possível ler as vendas da peça: ${salesErr.message}`)
 
@@ -413,14 +415,12 @@ export async function buscarHistoricoVendas(productId: string): Promise<SaleHist
   // Passo 3: resolve stores, customers e usuários em paralelo
   const storeIds    = [...new Set((sales ?? []).map((s: any) => s.store_id).filter(Boolean))]
   const customerIds = [...new Set((sales ?? []).map((s: any) => s.customer_id).filter(Boolean))]
-  const sellerIds   = [...new Set(
-    (sales ?? []).flatMap((s: any) => [s.seller_id, s.user_id]).filter(Boolean)
-  )]
+
 
   const [storesRes, customersRes, usersRes] = await Promise.all([
     storeIds.length    ? admin.from('stores').select('id, name').in('id', storeIds)       : { data: [] },
     customerIds.length ? admin.from('customers').select('id, name').in('id', customerIds) : { data: [] },
-    sellerIds.length   ? admin.from('users').select('id, full_name').in('id', sellerIds)  : { data: [] },
+    diretorioVendedoras().then(data => ({ data })),
   ])
 
   // Nomes são enfeite da linha ('—' se faltar); a venda em si já foi lida acima.
@@ -430,7 +430,7 @@ export async function buscarHistoricoVendas(productId: string): Promise<SaleHist
 
   return items.filter((i: any) => salesMap.has(i.sale_id)).map((i: any) => {
     const sale     = salesMap.get(i.sale_id)
-    const sellerId = sale?.seller_id ?? sale?.user_id ?? null
+    const sellerId = sale ? chaveVendedora(sale) ?? sale.user_id : null
     return {
       id:            i.id,
       quantity:      i.quantity,

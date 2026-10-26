@@ -1,3 +1,4 @@
+import { chaveVendedora, pessoaDaChave } from '@/lib/vendedoras'
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { computeProgress, monthBounds, monthKeyToFirstDay, resolveGoal, type MetaProgress, type GoalLike } from './compute'
@@ -50,12 +51,12 @@ export async function getProgressByUser(monthKey: string): Promise<Map<string, M
   const monthFirstDay = monthKeyToFirstDay(monthKey)
 
   const [goalsRes, salesRes] = await Promise.all([
-    admin.from('seller_goals').select('id, user_id, month, target_amount, commission_pct'),
-    admin.from('sales').select('id, seller_id, total').gte('sale_date', start).lt('sale_date', end).neq('status', 'cancelled'),
+    admin.from('seller_goals').select('id, user_id, seller_person_id, month, target_amount, commission_pct'),
+    admin.from('sales').select('id, seller_id, seller_person_id, total').gte('sale_date', start).lt('sale_date', end).neq('status', 'cancelled'),
   ])
 
-  const goals = (goalsRes.data ?? []) as GoalRow[]
-  const vendas = (salesRes.data ?? []) as { id: string; seller_id: string | null; total: number | string }[]
+  const goals = (goalsRes.data ?? []).map(g => ({ ...g, user_id: g.seller_person_id ? `pessoa:${g.seller_person_id}` : g.user_id })) as GoalRow[]
+  const vendas = (salesRes.data ?? []).map(s => ({ ...s, seller_id: chaveVendedora(s) })) as { id: string; seller_id: string | null; total: number | string }[]
 
   // Conserto sai da base: a loja não ganha nele. Ver consertoPorVenda.
   const conserto = await consertoPorVenda(admin, vendas.map(v => v.id))
@@ -88,11 +89,11 @@ export async function getUserProgress(userId: string, monthKey: string): Promise
   const monthFirstDay = monthKeyToFirstDay(monthKey)
 
   const [goalsRes, salesRes] = await Promise.all([
-    admin.from('seller_goals').select('id, user_id, month, target_amount, commission_pct').eq('user_id', userId),
-    admin.from('sales').select('id, total').eq('seller_id', userId).gte('sale_date', start).lt('sale_date', end).neq('status', 'cancelled'),
+    admin.from('seller_goals').select('id, user_id, seller_person_id, month, target_amount, commission_pct').eq(pessoaDaChave(userId) ? 'seller_person_id' : 'user_id', pessoaDaChave(userId) ?? userId),
+    admin.from('sales').select('id, total').eq(pessoaDaChave(userId) ? 'seller_person_id' : 'seller_id', pessoaDaChave(userId) ?? userId).gte('sale_date', start).lt('sale_date', end).neq('status', 'cancelled'),
   ])
 
-  const goals = (goalsRes.data ?? []) as GoalRow[]
+  const goals = (goalsRes.data ?? []).map(g => ({ ...g, user_id: g.seller_person_id ? `pessoa:${g.seller_person_id}` : g.user_id })) as GoalRow[]
   const { target, pct } = resolveGoal(goals, userId, monthFirstDay)
   const rows = (salesRes.data ?? []) as { id: string; total: number | string }[]
 

@@ -1,3 +1,4 @@
+import { chaveVendedora } from '@/lib/vendedoras'
 import 'server-only'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAll } from '@/lib/supabase/fetch-all'
@@ -43,8 +44,8 @@ export async function apurarLoja(storeId: string, mes: string): Promise<Apuracao
   const [config, vendas] = await Promise.all([
     lerConfigDaLoja(admin, storeId),
     // Paginado: uma loja passa de mil vendas no mês, e o PostgREST corta calado.
-    fetchAll<{ id: string; seller_id: string | null; total: number | string }>((de, ate) =>
-      admin.from('sales').select('id, seller_id, total')
+    fetchAll<{ id: string; seller_id: string | null; seller_person_id: string | null; total: number | string }>((de, ate) =>
+      admin.from('sales').select('id, seller_id, seller_person_id, total')
         .eq('store_id', storeId)
         .gte('sale_date', inicio).lt('sale_date', fim)
         .neq('status', 'cancelled')
@@ -82,7 +83,7 @@ export async function apurarLoja(storeId: string, mes: string): Promise<Apuracao
   }
 
   const apurado = apurarMes(
-    vendas.map(v => ({ id: v.id, seller_id: v.seller_id, total: Number(v.total) })),
+    vendas.map(v => ({ id: v.id, seller_id: chaveVendedora(v), total: Number(v.total) })),
     consertoPorVenda, creditoPorVenda, config, mes, todaySP(),
   )
   return { config, ...apurado }

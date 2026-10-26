@@ -1,3 +1,5 @@
+import { chaveVendedora } from '@/lib/vendedoras'
+import { diretorioVendedoras } from '@/lib/vendedoras-server'
 import { lojaDoEscopo, requireProfile } from '@/lib/auth'
 import { escopoDaListaDeVendas } from '@/lib/escopo'
 import { todaySP } from '@/lib/date'
@@ -97,7 +99,7 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
           .from('sales')
           .select(`
             id, sale_date, created_at, subtotal, discount_pct, discount_amount, total,
-            payment_summary, status, store_id, seller_id, previsao_pagamento, nfce_status,
+            payment_summary, status, store_id, seller_id, seller_person_id, previsao_pagamento, nfce_status,
             customers(name, id),
             stores(name)
           `)
@@ -135,11 +137,7 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
       if (loja) q = q.eq('id', loja)
       return q.order('name')
     })(),
-    (() => {
-      let q = admin.from('users').select('id, full_name').eq('is_active', true)
-      if (loja) q = q.eq('store_id', loja)
-      return q.order('full_name')
-    })(),
+    diretorioVendedoras().then(data => ({ data, error: null })),
     closingsQuery,
   ])
 
@@ -160,7 +158,7 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
   const temMais = (salesRes.data ?? []).length > limite
   const rawSales = (salesRes.data ?? []).slice(0, limite)
   const saleIds: string[] = rawSales.map((s: any) => s.id)
-  const sellerIds = [...new Set(rawSales.map((s: any) => s.seller_id).filter(Boolean))] as string[]
+
 
   /*
    * Lote 2 — tudo que depende dos ids das vendas, também em paralelo.
@@ -174,7 +172,7 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
     emLotes(saleIds, lote => admin.from('sale_items').select('sale_id').in('sale_id', lote), 'os itens das vendas'),
     emLotes(saleIds, lote => admin.from('exchanges').select('id, sale_id, original_sale_id').in('sale_id', lote), 'as trocas'),
     emLotes(saleIds, lote => admin.from('exchanges').select('id, sale_id, original_sale_id').in('original_sale_id', lote), 'as trocas'),
-    emLotes(sellerIds, lote => admin.from('users').select('id, full_name').in('id', lote), 'as vendedoras'),
+    Promise.resolve(usersRes.data ?? []),
     emLotes(saleIds, lote => admin.from('sale_payments').select('sale_id, amount').in('sale_id', lote), 'os pagamentos'),
   ])
 
@@ -199,8 +197,8 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
     customer_id:     s.customers?.id ?? null,
     store_name:      s.stores?.name ?? '—',
     store_id:        s.store_id,
-    seller_name:     s.seller_id ? (sellersMap.get(s.seller_id) ?? null) : null,
-    seller_id:       s.seller_id ?? null,
+    seller_name:     chaveVendedora(s) ? (sellersMap.get(chaveVendedora(s)!) ?? null) : null,
+    seller_id:       chaveVendedora(s),
     items_count:     resumo.get(s.id)?.itens ?? 0,
     subtotal:        Number(s.subtotal),
     discount_pct:    Number(s.discount_pct),
@@ -219,7 +217,7 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
   const sellers = usersRes.data ?? []
 
   const storeNameById = new Map((stores as any[]).map(s => [s.id, s.name]))
-  const userNameById  = new Map((sellers as any[]).map(u => [u.id, u.full_name]))
+  const userNameById  = new Map((sellers as any[]).filter(u => !u.id.startsWith('pessoa:')).map(u => [u.id, u.full_name.replace(/ \(legado\)$/, '')]))
 
   const closings: ClosingOption[] = ((closingsRes.data ?? []) as any[]).map(c => ({
     id:              c.id,

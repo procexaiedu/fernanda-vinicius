@@ -1,9 +1,11 @@
 import { requireProfile, podeConfigurarRede } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 import ConfigNavTabs from './ConfigNavTabs'
 import styles from './layout.module.css'
 
 export default async function ConfiguracoesLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireProfile()
+  if (profile.role !== 'admin') redirect('/pdv')
 
   /*
    * Lojas, Metas e Negócio valem para a REDE; Usuários e Impressão, não.

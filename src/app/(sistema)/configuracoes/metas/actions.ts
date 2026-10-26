@@ -1,5 +1,7 @@
 'use server'
 
+import { diretorioVendedoras } from '@/lib/vendedoras-server'
+import { pessoaDaChave } from '@/lib/vendedoras'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getProfile, ehAdmin, lojaDoEscopo } from '@/lib/auth'
@@ -129,15 +131,14 @@ export async function gerarComissoesDoMes(mes: string): Promise<GerarComissoesRe
   }
 
   const [usersRes, existingRes] = await Promise.all([
-    admin.from('users').select('id, full_name'),
-    admin.from('transactions').select('id, user_id, status')
+    diretorioVendedoras().then(data => ({ data, error: null })),
+    admin.from('transactions').select('id, user_id, seller_person_id, status')
       .eq('reference_type', 'seller_commission').eq('transaction_date', txDate).eq('store_id', r.loja),
   ])
-  if (usersRes.error) return { success: false, error: `Não foi possível ler as vendedoras: ${usersRes.error.message}` }
   if (existingRes.error) return { success: false, error: `Não foi possível ler as comissões já lançadas: ${existingRes.error.message}` }
 
   const nomes = new Map((usersRes.data ?? []).map(u => [u.id as string, u.full_name as string]))
-  const existentes = new Map((existingRes.data ?? []).map(t => [t.user_id as string | null, t.id as string]))
+  const existentes = new Map((existingRes.data ?? []).map(t => [(t.seller_person_id ? `pessoa:${t.seller_person_id}` : t.user_id) as string | null, t.id as string]))
   /* Comissão já PAGA (status completed) não muda nem some: o dinheiro saiu.
      Se a conta mudou depois, quem acerta é a admin, à mão, no Financeiro. */
   const pagas = new Set((existingRes.data ?? []).filter(t => t.status === 'completed').map(t => t.id as string))
@@ -158,7 +159,7 @@ export async function gerarComissoesDoMes(mes: string): Promise<GerarComissoesRe
       const { error } = await admin.from('transactions').insert({
         type: 'expense', cost_type: 'variable', category: 'Comissão', amount: c.comissao,
         description: desc, reference_type: 'seller_commission', reference_id: null,
-        user_id: c.sellerId, store_id: r.loja,
+        user_id: pessoaDaChave(c.sellerId) ? null : c.sellerId, seller_person_id: pessoaDaChave(c.sellerId), store_id: r.loja,
         transaction_date: txDate, due_date: dueDate, status: 'pending',
       })
       if (error) return { success: false, error: `Erro ao criar comissão: ${error.message}` }

@@ -1,0 +1,19 @@
+.area { display: grid; grid-template-columns: minmax(260px, 360px) minmax(0, 1fr); gap: 24px; margin-top: 24px; }
+.form, .lista { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; min-width: 0; }
+.form { display: flex; flex-direction: column; gap: 18px; align-self: start; }
+.form h2, .lista h2 { font-size: 18px; margin: 0 0 8px; }
+.form label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.form input:not([type=checkbox]), .form select { width: 100%; min-height: 44px; padding: 10px 12px; background: var(--bg-elevated); color: inherit; border: 1px solid var(--border-light); border-radius: 8px; font: inherit; box-sizing: border-box; }
+.form .check { flex-direction: row; align-items: center; }
+.check input { width: 18px; height: 18px; }
+.form p, .pessoa p { font-size: 13px; line-height: 1.5; color: var(--text-secondary, #aaa); margin: 0; }
+.botoes { display: flex; gap: 10px; flex-wrap: wrap; }
+.botoes button, .pessoa button { min-height: 44px; padding: 10px 16px; border: 1px solid var(--border-light); border-radius: 8px; background: var(--bg-elevated); color: var(--text-on-base); font: inherit; font-size: 14px; cursor: pointer; }
+.botoes button:first-child { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+.botoes button:disabled, .pessoa button:disabled { opacity: .5; cursor: wait; }
+.botoes button:focus-visible, .pessoa button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.pessoa { display: flex; gap: 16px; justify-content: space-between; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--border, #333); }
+.pessoa > div { min-width: 0; }
+.pessoa strong { overflow-wrap: anywhere; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (max-width: 800px) { .area { grid-template-columns: 1fr; gap: 16px; } .form, .lista { padding: 18px; } }
