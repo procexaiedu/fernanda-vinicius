@@ -157,7 +157,7 @@ export async function buscarTransacoes(filters: TransactionFilters): Promise<{ d
 
   let q = admin
     .from('transactions')
-    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, recurring_expense_id, notes, stores(name), users(full_name)')
+    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, seller_person_id, recurring_expense_id, notes, stores(name), users(full_name), pessoa:sellers!seller_person_id(full_name)')
     .order('transaction_date', { ascending: false })
     .order('created_at', { ascending: false })
 
@@ -190,7 +190,7 @@ export async function buscarTransacoes(filters: TransactionFilters): Promise<{ d
     store_id: t.store_id,
     store_name: t.stores?.name ?? null,
     user_id: t.user_id,
-    user_name: t.users?.full_name ?? null,
+    user_name: t.pessoa?.full_name ?? t.users?.full_name ?? null,
     recurring_expense_id: t.recurring_expense_id,
     notes: t.notes ?? null,
   }))
@@ -206,7 +206,7 @@ export async function buscarPendencias(): Promise<{ data: TransactionRow[]; erro
 
   let pendQ = admin
     .from('transactions')
-    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, recurring_expense_id, notes, stores(name), users(full_name)')
+    .select('id, type, amount, category, description, reference_type, reference_id, payment_method, transaction_date, due_date, status, paid_at, cost_type, store_id, user_id, seller_person_id, recurring_expense_id, notes, stores(name), users(full_name), pessoa:sellers!seller_person_id(full_name)')
     .eq('type', 'expense')
     .eq('status', 'pending')
     .order('due_date', { ascending: true, nullsFirst: false })
@@ -234,7 +234,7 @@ export async function buscarPendencias(): Promise<{ data: TransactionRow[]; erro
     store_id: t.store_id,
     store_name: t.stores?.name ?? null,
     user_id: t.user_id,
-    user_name: t.users?.full_name ?? null,
+    user_name: t.pessoa?.full_name ?? t.users?.full_name ?? null,
     recurring_expense_id: t.recurring_expense_id,
     notes: t.notes ?? null,
   }))

@@ -1,9 +1,9 @@
 .area { display: grid; grid-template-columns: minmax(260px, 360px) minmax(0, 1fr); gap: 24px; margin-top: 24px; }
-.form, .lista { background: var(--bg-card, #171719); border: 1px solid var(--border, #333); border-radius: 12px; padding: 24px; min-width: 0; }
+.form, .lista { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; min-width: 0; }
 .form { display: flex; flex-direction: column; gap: 18px; align-self: start; }
 .form h2, .lista h2 { font-size: 18px; margin: 0 0 8px; }
 .form label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
-.form input:not([type=checkbox]), .form select { width: 100%; min-height: 44px; padding: 10px 12px; background: var(--bg-input, #202023); color: inherit; border: 1px solid var(--border, #555); border-radius: 8px; font: inherit; box-sizing: border-box; }
+.form input:not([type=checkbox]), .form select { width: 100%; min-height: 44px; padding: 10px 12px; background: var(--bg-elevated); color: inherit; border: 1px solid var(--border-light); border-radius: 8px; font: inherit; box-sizing: border-box; }
 .form .check { flex-direction: row; align-items: center; }
 .check input { width: 18px; height: 18px; }
 .form p, .pessoa p { font-size: 13px; line-height: 1.5; color: var(--text-secondary, #aaa); margin: 0; }

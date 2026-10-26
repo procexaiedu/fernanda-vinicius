@@ -1,8 +1,10 @@
 -- Base mínima REPRESENTATIVA para PostgreSQL descartável, sem dados/DDL de produção.
 -- Permite executar as RPCs reais do repositório, não substitui ensaio no schema completo.
-create role anon;
-create role authenticated;
-create role service_role bypassrls;
+do $$ begin
+  if not exists(select 1 from pg_roles where rolname='anon') then create role anon; end if;
+  if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if;
+  if not exists(select 1 from pg_roles where rolname='service_role') then create role service_role bypassrls; end if;
+end $$;
 create schema auth;
 create schema fv;
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true),'')::uuid $$;

@@ -41,6 +41,8 @@ alter table fv.sales add column seller_person_id uuid references fv.sellers(id);
 alter table fv.sales add constraint sales_single_seller check (seller_person_id is null or seller_id is null);
 create index sales_person_idx on fv.sales(seller_person_id) where seller_person_id is not null;
 alter table fv.transactions add column seller_person_id uuid references fv.sellers(id);
+create unique index transactions_person_commission_month on fv.transactions(store_id, transaction_date, seller_person_id)
+  where reference_type = 'seller_commission' and seller_person_id is not null;
 -- Metas individuais antigas continuam ligadas à conta legada. Nenhum backfill.
 alter table fv.seller_goals alter column user_id drop not null;
 alter table fv.seller_goals add column seller_person_id uuid references fv.sellers(id);
@@ -61,12 +63,23 @@ create policy seller_goals_person_admin on fv.seller_goals for all to authentica
   and exists (select 1 from fv.sellers s where s.id = seller_person_id and fv.pode_ver_loja(s.store_id))
 );
 
--- A edição pode conservar pessoa inativa ou vínculo legado. Nova atribuição exige pessoa ativa da loja.
+-- Transição compatível: app antigo ainda pode enviar seller_id (conta).
+-- O app novo exige pessoa no servidor, sem fallback para login.
+-- Enforcement estrito opcional em supabase/propostas, só após trocar todas as instâncias.
 create function fv.check_sale_seller() returns trigger language plpgsql set search_path = '' as $$
 begin
   if tg_op = 'UPDATE' then
     if new.seller_person_id is not distinct from old.seller_person_id
       and new.seller_id is not distinct from old.seller_id and new.store_id = old.store_id then return new; end if;
+    if old.seller_person_id is not null and new.seller_person_id is null then
+      raise exception 'Uma instancia antiga nao pode substituir pessoa por conta';
+    end if;
+  end if;
+  if new.seller_person_id is null and new.seller_id is not null then
+    perform 1 from fv.users u where u.id = new.seller_id and u.is_active
+      and (u.store_id is null or u.store_id = new.store_id);
+    if not found then raise exception 'Conta legada invalida ou de outra loja'; end if;
+    return new;
   end if;
   if new.seller_person_id is null or new.seller_id is not null then raise exception 'Escolha uma vendedora cadastrada'; end if;
   perform 1 from fv.sellers s where s.id = new.seller_person_id and s.store_id = new.store_id and s.is_active for share;

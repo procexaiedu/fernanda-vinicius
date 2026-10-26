@@ -29,6 +29,12 @@ do $$ begin
 end $$;
 select set_config('request.jwt.claim.sub','20000000-0000-0000-0000-000000000004',false);
 select pg_temp.ok((select count(*)=0 from fv.sellers),'conta inativa sem leitura');
+select set_config('request.jwt.claim.sub','20000000-0000-0000-0000-000000000001',false);
+select pg_temp.ok((select count(*)=4 from fv.sellers),'admin global ve cadastros das duas lojas');
+set role anon;
+do $$ begin
+ begin perform count(*) from fv.sellers; raise exception 'anon leu'; exception when insufficient_privilege then raise notice 'PASS: anon sem acesso'; end;
+end $$;
 reset role;
 -- Pacote executado pelas RPCs REAIS da migration 20261001, sem mock de estoque/pagamento.
 create function pg_temp.pacote(pessoa uuid) returns jsonb language sql as $$ select jsonb_build_object(
@@ -51,6 +57,14 @@ select pg_temp.ok((select count(*)=1 from fv.sales where seller_person_id is not
 select pg_temp.ok((select quantity_in_stock=9 from fv.products limit 1),'estoque baixou uma vez');
 select pg_temp.ok((select sum(amount)=100 from fv.sale_payments),'pagamento gravado uma vez');
 select pg_temp.ok((select seller_id is null and user_id='20000000-0000-0000-0000-000000000003' from fv.sales where seller_person_id is not null),'pessoa separada da autoria');
+select pg_temp.ok(fv.salvar_venda(pg_temp.pacote('60000000-0000-0000-0000-000000000002'))->>'erro'='id_reusado','mesmo request com outra pessoa nao reatribui venda');
+insert into fv.transactions(store_id, seller_person_id, reference_type, transaction_date, status, amount)
+ values('10000000-0000-0000-0000-000000000001','60000000-0000-0000-0000-000000000001','seller_commission','2026-10-31','completed',3);
+do $$ begin
+ begin insert into fv.transactions(store_id, seller_person_id, reference_type, transaction_date, status, amount)
+ values('10000000-0000-0000-0000-000000000001','60000000-0000-0000-0000-000000000001','seller_commission','2026-10-31','pending',4);
+ raise exception 'comissao duplicada'; exception when unique_violation then raise notice 'PASS: indice rejeita comissao duplicada da pessoa'; end;
+end $$;
 update fv.sellers set is_active=false where id='60000000-0000-0000-0000-000000000001';
 select fv.editar_venda(pg_temp.pacote('60000000-0000-0000-0000-000000000001') || jsonb_build_object('sale_id',(select id from fv.sales where seller_person_id is not null)));
 select pg_temp.ok((select quantity_in_stock=9 from fv.products limit 1),'edicao inativa conserva estoque');
@@ -58,3 +72,14 @@ select pg_temp.ok((select sum(amount)=100 from fv.sale_payments),'edicao conserv
 update fv.sales set notes='edicao legada' where id='40000000-0000-0000-0000-000000000001';
 select pg_temp.ok((select amount=30 and status='completed' and seller_person_id is null from fv.transactions where id='50000000-0000-0000-0000-000000000001'),'comissao paga legada inalterada');
 select pg_temp.ok((select user_id='20000000-0000-0000-0000-000000000003' from fv.sales where seller_person_id is not null),'edicao preserva autoria');
+do $$ begin
+ begin update fv.sales set seller_person_id=null,seller_id='20000000-0000-0000-0000-000000000003' where seller_person_id is not null;
+ raise exception 'instancia antiga apagou pessoa'; exception when others then if sqlerrm='instancia antiga apagou pessoa' then raise; end if; raise notice 'PASS: instancia antiga nao substitui pessoa por login'; end;
+end $$;
+-- Compatibilidade de deploy: somente a chamada antiga ainda pode lançar uma conta.
+begin;
+select pg_temp.ok((fv.salvar_venda(pg_temp.pacote(null) || jsonb_build_object(
+ 'client_request_id','80000000-0000-0000-0000-000000000001',
+ 'sale',(pg_temp.pacote(null)->'sale') || jsonb_build_object('seller_id','20000000-0000-0000-0000-000000000003')
+))->>'sale_id') is not null,'RPC antiga continua operando na fase aditiva');
+rollback;

@@ -61,5 +61,25 @@ async function main() {
   const resultado=apurarMes([{id:'1',seller_id:chaveVendedora({seller_person_id:'x'}),total:100},{id:'2',seller_id:'x',total:50},{id:'3',seller_id:null,total:0}],new Map(),new Map(),lerConfigMetaLoja(null),'2026-10','2026-10-26')
   assert.equal(resultado.porVendedora.length,2);assert.equal(resultado.progresso.realizado,150)
   console.log('PASS: ranking/comissao separa pessoa e conta legada, inclusive total zero')
+  mocks['@/components/ui/PageHeader']={default:()=>null};mocks['./VendedorasClient']={default:()=>null}
+  perfil={...perfil,role:'operator'}
+  const pagina=load('src/app/(sistema)/configuracoes/vendedoras/page.tsx').default
+  const antes=chamadas.length;await assert.rejects(pagina(),/REDIRECT:\/pdv/);assert.equal(chamadas.length,antes)
+  console.log('PASS: rota propria bloqueia operadora antes de ler cadastros')
+  perfil={...perfil,role:'admin'}
+  mocks['@/lib/auth'].ehAdmin=p=>p.role==='admin'
+  let devidas=[{sellerId:'pessoa:nova',comissao:3,pct:3},{sellerId:'legada',comissao:2,pct:3}]
+  mocks['@/lib/metas/lojaServer']={apurarLoja:async()=>({porVendedora:devidas})}
+  mocks['@/lib/vendedoras-server']={diretorioVendedoras:async()=>[{id:'pessoa:nova',full_name:'Pessoa teste'},{id:'legada',full_name:'Conta legada'}]}
+  const tx=[{id:'paga',user_id:'legada',seller_person_id:null,status:'completed',amount:99}]
+  const mutations=[]
+  admin.from=table=>{assert.equal(table,'transactions');let op='read',v,filter;const q={select(){return q},eq(k,val){if(k==='id')filter=val;return q},insert(data){op='insert';v=data;return q},update(data){op='update';v=data;return q},delete(){op='delete';return q},then(ok,bad){if(op==='read')return Promise.resolve({data:tx,error:null}).then(ok,bad);mutations.push({op,id:filter,v});if(op==='insert')tx.push({id:'nova',...v});if(op==='update')Object.assign(tx.find(t=>t.id===filter),v);if(op==='delete')tx.splice(tx.findIndex(t=>t.id===filter),1);return Promise.resolve({error:null}).then(ok,bad)}};return q}
+  const {gerarComissoesDoMes}=load('src/app/(sistema)/configuracoes/metas/actions.ts')
+  assert.equal((await gerarComissoesDoMes('2026-10')).success,true)
+  assert.equal(tx.length,2);assert.equal(tx.find(t=>t.id==='nova').seller_person_id,'nova');assert.equal(tx.find(t=>t.id==='nova').user_id,null)
+  assert.equal((await gerarComissoesDoMes('2026-10')).success,true);assert.equal(tx.length,2)
+  devidas=[];assert.equal((await gerarComissoesDoMes('2026-10')).success,true);assert.equal(tx.length,1)
+  assert.equal(tx[0].id,'paga');assert.equal(tx[0].amount,99);assert(!mutations.some(m=>m.id==='paga'))
+  console.log('PASS: gerar comissoes nova/repetida/zero mantem separacao, sem duplicar, preservando paga de 99')
 }
 main().catch(e=>{console.error(e);process.exitCode=1})
