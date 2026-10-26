@@ -327,6 +327,22 @@ function vinculoDoConserto(
 
 type Admin = ReturnType<typeof createAdminClient>
 
+/** A operadora vende em seu nome; o admin escolhe uma pessoa da loja. */
+async function conferirVendedora(admin: Admin, storeId: string, data: VendaFormData, userId: string, role: string | null, vendedoraOriginal?: string | null) {
+  if (role === 'operator') {
+    data.sellerId = vendedoraOriginal ?? userId
+    if (!vendedoraOriginal) return null
+  }
+  if (!data.sellerId) return 'Escolha a vendedora da venda.'
+  const { data: vendedora, error } = await lerComNovaTentativa<{ id: string; store_id: string | null; is_active: boolean }>('vendedora da venda', () => admin
+    .from('users').select('id, store_id, is_active').eq('id', data.sellerId!).single())
+  if (error || !vendedora) return 'Não consegui conferir a vendedora. Escolha novamente antes de salvar.'
+  if (!vendedora.is_active || (vendedora.store_id && vendedora.store_id !== storeId)) {
+    return 'Escolha uma vendedora ativa da loja da venda.'
+  }
+  return null
+}
+
 /**
  * Leitura de conferência com até duas novas tentativas.
  *
@@ -857,7 +873,7 @@ async function prepararVenda(
  * (PGRST202/42883) salvar responde erro e o log diz qual migration falta.
  */
 export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
-  const { userId, storeId: userStoreId, error: authErr } = await verifyUser()
+  const { userId, role, storeId: userStoreId, error: authErr } = await verifyUser()
   if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
 
   const admin = createAdminClient()
@@ -874,6 +890,9 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
    */
   const finalStoreId = userStoreId ?? data.storeId
   if (!finalStoreId) return { success: false, error: 'Loja não definida.' }
+
+  const erroVendedora = await conferirVendedora(admin, finalStoreId, data, userId, role)
+  if (erroVendedora) return { success: false, error: erroVendedora }
 
   /* Id inválido = salva sem idempotência, como antes (ver src/lib/idempotencia.ts). */
   const idReq = idDeRequisicaoValido(data.clientRequestId)
@@ -1362,7 +1381,7 @@ export async function buscarVendaParaEdicao(saleId: string): Promise<{ data: Edi
 // (aplicar ANTES do push; sem caminho antigo).
 
 export async function editarVenda(saleId: string, data: VendaFormData): Promise<ActionResult> {
-  const { userId, storeId: userStoreId, error: authErr } = await verifyUser()
+  const { userId, role, storeId: userStoreId, error: authErr } = await verifyUser()
   if (authErr || !userId) return { success: false, error: authErr ?? 'Erro de auth.' }
 
   const admin = createAdminClient()
@@ -1371,11 +1390,15 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
   const finalStoreId = userStoreId ?? data.storeId
   if (!finalStoreId) return { success: false, error: 'Loja não definida.' }
 
-  const { data: existing, error: exErr } = await admin.from('sales').select('id, sale_date, store_id').eq('id', saleId).single()
+  const { data: existing, error: exErr } = await admin.from('sales').select('id, sale_date, store_id, seller_id').eq('id', saleId).single()
   if (exErr || !existing) return { success: false, error: 'Venda não encontrada.' }
   // Quem tem loja só edita venda da loja dele (antes editava e "mudava de loja"
   // venda alheia pelo id). 07/10/2026.
   if (userStoreId && existing.store_id !== userStoreId) return { success: false, error: 'Venda não encontrada.' }
+
+  // Na edição por operadora, a atribuição vem da venda no banco, nunca do cliente.
+  const erroVendedora = await conferirVendedora(admin, finalStoreId, data, userId, role, existing.seller_id)
+  if (erroVendedora) return { success: false, error: erroVendedora }
 
   /* A tela de edição já não abre nesses casos; aqui é a garantia para quem
    * estava com ela aberta antes, ou chamou a ação por outro caminho. */
