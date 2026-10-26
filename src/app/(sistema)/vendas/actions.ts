@@ -1,5 +1,6 @@
 'use server'
 
+import { pessoaDaChave, chaveVendedora } from '@/lib/vendedoras'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -328,18 +329,14 @@ function vinculoDoConserto(
 type Admin = ReturnType<typeof createAdminClient>
 
 /** Login compartilhado: quem vendeu é independente da conta que salva. */
-async function conferirVendedora(admin: Admin, storeId: string, data: VendaFormData, role: string | null, vendedoraOriginal?: string | null) {
-  if (role === 'operator' && vendedoraOriginal) {
-    // Editar a boleta não permite reatribuir uma venda existente da colega.
-    data.sellerId = vendedoraOriginal
-  }
-  if (!data.sellerId) return 'Escolha a vendedora da venda.'
-  const { data: vendedora, error } = await lerComNovaTentativa<{ id: string; store_id: string | null; is_active: boolean; full_name: string }>('vendedora da venda', () => admin
-    .from('users').select('id, store_id, is_active, full_name').eq('id', data.sellerId!).single())
-  if (error || !vendedora) return 'Não consegui conferir a vendedora. Escolha novamente antes de salvar.'
-  if (!vendedora.is_active || vendedora.full_name === 'ProceX' || (vendedora.store_id && vendedora.store_id !== storeId)) {
-    return 'Escolha uma vendedora ativa da loja da venda.'
-  }
+async function conferirVendedora(admin: Admin, storeId: string, data: VendaFormData, role: string | null, original?: { seller_id: string | null; seller_person_id: string | null; store_id: string }) {
+  const anterior = original ? chaveVendedora(original) : null
+  if (original && role === 'operator') data.sellerId = anterior
+  if (original && data.sellerId === anterior && storeId === original.store_id) return null
+  const pessoaId = pessoaDaChave(data.sellerId)
+  if (!pessoaId) return 'Escolha uma vendedora cadastrada da loja da venda.'
+  const { data: pessoa, error } = await admin.from('sellers').select('id, store_id, is_active').eq('id', pessoaId).eq('store_id', storeId).single()
+  if (error || !pessoa?.is_active) return 'Escolha uma vendedora ativa da loja da venda.'
   return null
 }
 
@@ -595,7 +592,8 @@ function montarPacoteDaVenda(
     store_id:        ctx.storeId,
     customer_id:     data.customerId ?? null,
     user_id:         ctx.userId,
-    seller_id:       data.sellerId,
+    seller_id:       pessoaDaChave(data.sellerId) ? null : data.sellerId,
+    seller_person_id: pessoaDaChave(data.sellerId),
     sale_date:       data.saleDate,
     subtotal,
     discount_type:   discountType,
@@ -984,7 +982,7 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
   const [saleRes, itemsRes, paymentsRes, exchangesRes] = await Promise.all([
     admin
       .from('sales')
-      .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, seller_id, store_id, destinatario_cpf, nfce_status, nfce_chave, nfce_numero, nfce_serie, nfce_danfe_url, nfce_motivo_rejeicao, nfce_emitida_em, customers(name, phone), stores(name)')
+      .select('id, sale_date, subtotal, discount_type, discount_pct, discount_amount, total, total_cost, payment_summary, status, notes, customer_id, seller_id, seller_person_id, store_id, destinatario_cpf, nfce_status, nfce_chave, nfce_numero, nfce_serie, nfce_danfe_url, nfce_motivo_rejeicao, nfce_emitida_em, customers(name, phone), stores(name)')
       .eq('id', saleId)
       .single(),
     admin
@@ -1013,12 +1011,12 @@ export async function buscarDetalheVenda(saleId: string): Promise<{ data: VendaD
   const exchanges = exchangesRes.data
 
   // Lote 2 — vendedora e itens da troca também em paralelo
-  const sellerIdVal = (sale as any).seller_id
+  const sellerIdVal = (sale as any).seller_person_id ?? (sale as any).seller_id
   const exchId = exchanges && exchanges.length > 0 ? exchanges[0].id : null
 
   const [sellerRes, exchItemsRes, emiteNota] = await Promise.all([
     sellerIdVal
-      ? admin.from('users').select('full_name').eq('id', sellerIdVal).single()
+      ? admin.from((sale as any).seller_person_id ? 'sellers' : 'users').select('full_name').eq('id', sellerIdVal).single()
       : Promise.resolve({ data: null }),
     exchId
       ? admin.from('exchange_items').select('direction, quantity, unit_price, products(name, code)').eq('exchange_id', exchId)
@@ -1234,6 +1232,7 @@ export async function deletarVenda(saleId: string): Promise<ActionResult> {
 // ─── Action: carregar venda para edição ───────────────────────────────────────
 
 export interface EditSaleData {
+  sellerName?: string
   id: string
   storeId: string
   saleDate: string   // YYYY-MM-DD
@@ -1288,7 +1287,7 @@ export async function buscarVendaParaEdicao(saleId: string): Promise<{ data: Edi
 
   const { data: sale, error: saleErr } = await admin
     .from('sales')
-    .select('id, store_id, sale_date, customer_id, seller_id, discount_type, manual_discount, notes, status, total, destinatario_cpf, previsao_pagamento')
+    .select('id, store_id, sale_date, customer_id, seller_id, seller_person_id, discount_type, manual_discount, notes, status, total, destinatario_cpf, previsao_pagamento')
     .eq('id', saleId)
     .single()
   /* PGRST116 = nenhuma linha: a venda não existe (vira 404). Qualquer outro
@@ -1347,7 +1346,8 @@ export async function buscarVendaParaEdicao(saleId: string): Promise<{ data: Edi
       fiado,
       previsaoPagamento: s.previsao_pagamento ? String(s.previsao_pagamento).slice(0, 10) : null,
       bloqueio,
-      sellerId:      s.seller_id ?? null,
+      sellerId:      chaveVendedora(s),
+      sellerName:    s.seller_person_id ? (await admin.from('sellers').select('full_name').eq('id', s.seller_person_id).single()).data?.full_name ?? 'Vendedora' : 'Vendedora legada (original)',
       hasPix:        discountType.includes('pix'),
       hasBirthday:   discountType.includes('birthday'),
       manualDiscount: Number(s.manual_discount) || 0,
@@ -1390,14 +1390,14 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
   const finalStoreId = userStoreId ?? data.storeId
   if (!finalStoreId) return { success: false, error: 'Loja não definida.' }
 
-  const { data: existing, error: exErr } = await admin.from('sales').select('id, sale_date, store_id, seller_id').eq('id', saleId).single()
+  const { data: existing, error: exErr } = await admin.from('sales').select('id, sale_date, store_id, seller_id, seller_person_id').eq('id', saleId).single()
   if (exErr || !existing) return { success: false, error: 'Venda não encontrada.' }
   // Quem tem loja só edita venda da loja dele (antes editava e "mudava de loja"
   // venda alheia pelo id). 07/10/2026.
   if (userStoreId && existing.store_id !== userStoreId) return { success: false, error: 'Venda não encontrada.' }
 
   // Na edição por operadora, a atribuição vem da venda no banco, nunca do cliente.
-  const erroVendedora = await conferirVendedora(admin, finalStoreId, data, role, existing.seller_id)
+  const erroVendedora = await conferirVendedora(admin, finalStoreId, data, role, existing)
   if (erroVendedora) return { success: false, error: erroVendedora }
 
   /* A tela de edição já não abre nesses casos; aqui é a garantia para quem

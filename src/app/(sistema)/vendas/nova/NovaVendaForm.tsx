@@ -829,8 +829,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   // A conta pode ser compartilhada: cada nova venda exige escolher quem vendeu.
   const vendedorInicial = ''
   const [sellerId, setSellerId]   = useState<string>(
-    users.some(u => u.id === editSale?.sellerId && (!u.store_id || u.store_id === storeId))
-      ? editSale!.sellerId! : vendedorInicial,
+    editSale ? (editSale.sellerId ?? '') : vendedorInicial,
   )
 
   /*
@@ -845,7 +844,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * Quem NÃO tem loja (a própria Fernanda) continua na lista: ela vende nas
    * duas. Em venda nova, o administrador precisa escolher explicitamente.
    */
-  const vendedorasDaLoja = users.filter(u => !u.store_id || u.store_id === storeId)
+  const vendedorasDaLoja = users.filter(u => u.store_id === storeId)
 
   const [notes, setNotes]         = useState(editSale?.notes ?? '')
 
@@ -1201,7 +1200,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     setManualValor(Number(d.manualValor) || 0)
     setManualPct(Number(d.manualPct) || 0)
     setNotes(d.notes ?? '')
-    setSellerId(users.some(u => u.id === d.sellerId && (!u.store_id || u.store_id === d.storeId))
+    setSellerId(users.some(u => u.id === d.sellerId && (u.store_id === d.storeId))
         ? d.sellerId : '')
     setAceitouFiado(!!d.aceitouFiado)
     setPrevisaoPagamento(d.previsaoPagamento ?? '')
@@ -1492,7 +1491,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     /* A vendedora escolhida não é de lá? Limpa — e AVISA. Sem limpar, a venda
      * iria com uma vendedora da outra loja; limpando calada, ia no nome de
      * quem está digitando. */
-    const vendedoraSai = !!sellerId && !users.some(u => u.id === sellerId && (!u.store_id || u.store_id === novaLoja))
+    const vendedoraSai = !!sellerId && !users.some(u => u.id === sellerId && (u.store_id === novaLoja))
     if (vendedoraSai) setSellerId('')
 
     const partes: string[] = []
@@ -1638,7 +1637,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
      * limpa a vendedora que não é de lá, e antes a venda ia assim mesmo — no
      * nome de quem estava digitando, sem ninguém ter escolhido.
      */
-    if (!vendedorasDaLoja.some(u => u.id === sellerId)) {
+    if (!isEditing && !vendedorasDaLoja.some(u => u.id === sellerId)) {
       setError('Escolha a vendedora da venda.')
       return
     }
@@ -2006,8 +2005,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
           {/* Vendedora */}
             <div className={styles.field} data-vendedora>
               <label className={styles.label}>Vendedora (obrigatório)</label>
-              {isEditing && userProfile.role === 'operator' && editSale?.sellerId ? (
-                <div className={styles.headerInput}>{vendedorasDaLoja.find(u => u.id === sellerId)?.full_name ?? 'Escolha uma vendedora ativa da loja.'}</div>
+              {isEditing ? (
+                <div className={styles.headerInput}>{editSale?.sellerName ?? vendedorasDaLoja.find(u => u.id === sellerId)?.full_name ?? 'Escolha uma vendedora ativa da loja.'}</div>
               ) : <StoreSelect
                 value={sellerId}
                 onChange={setSellerId}
@@ -2628,7 +2627,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
             <div><span>Peças</span><strong>{conferencia?.pecas}</strong></div>
             <div><span>Total final</span><strong>{fmt(conferencia?.total ?? 0)}</strong></div>
           </div>
-          <p>Vendedora: {users.find(u => u.id === conferencia?.data.sellerId)?.full_name ?? userProfile.fullName}</p>
+          <p>Vendedora: {editSale?.sellerName ?? users.find(u => u.id === conferencia?.data.sellerId)?.full_name ?? 'Vendedora original'}</p>
           <div className={styles.conferenciaAcoes}>
             <Button variant="ghost" onClick={() => setConferencia(null)}>Voltar e conferir</Button>
             <Button onClick={confirmarVenda} disabled={saving}>Confirmar e salvar</Button>

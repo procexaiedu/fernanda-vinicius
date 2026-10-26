@@ -1,3 +1,4 @@
+import { diretorioVendedoras } from '@/lib/vendedoras-server'
 import { redirect } from 'next/navigation'
 import { requireProfile, ehAdmin, lojaDoEscopo } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -27,17 +28,16 @@ export default async function MetasPage({ searchParams }: PageProps) {
 
   const [apuracao, usersRes, txRes, lojaRes] = await Promise.all([
     apurarLoja(loja, mes),
-    admin.from('users').select('id, full_name'),
-    admin.from('transactions').select('user_id, amount, status')
+    diretorioVendedoras().then(data => ({ data, error: null })),
+    admin.from('transactions').select('user_id, seller_person_id, amount, status')
       .eq('reference_type', 'seller_commission').eq('store_id', loja)
       .gte('transaction_date', `${mes}-01`).lt('transaction_date', limitesDoMesSP(mes).fim.slice(0, 10)),
     admin.from('stores').select('name').eq('id', loja).single(),
   ])
-  if (usersRes.error) throw new Error(`Não foi possível ler as vendedoras: ${usersRes.error.message}`)
   if (txRes.error) throw new Error(`Não foi possível ler as comissões lançadas: ${txRes.error.message}`)
 
   const nomes = new Map((usersRes.data ?? []).map(u => [u.id as string, u.full_name as string]))
-  const lancadas = new Map((txRes.data ?? []).map(t => [t.user_id as string, { valor: Number(t.amount), paga: t.status === 'completed' }]))
+  const lancadas = new Map((txRes.data ?? []).map(t => [(t.seller_person_id ? `pessoa:${t.seller_person_id}` : t.user_id) as string, { valor: Number(t.amount), paga: t.status === 'completed' }]))
 
   const linhas: LinhaComissao[] = apuracao.porVendedora
     .map(c => ({

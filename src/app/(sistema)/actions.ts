@@ -1,5 +1,7 @@
 'use server'
 
+import { chaveVendedora, pessoaDaChave } from '@/lib/vendedoras'
+import { diretorioVendedoras } from '@/lib/vendedoras-server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { exigirAdmin, lojaDoEscopo } from '@/lib/auth'
@@ -652,7 +654,7 @@ export async function buscarTopVendedoras(
   // Busca apenas os campos necessários sem join ambíguo (seller_id e user_id apontam para users)
   let q = admin
     .from('sales')
-    .select('seller_id, user_id, total')
+    .select('seller_id, seller_person_id, user_id, total')
     .neq('status', 'cancelled')
     .gte('sale_date', dateFrom)
     .lte('sale_date', dateTo)
@@ -664,7 +666,7 @@ export async function buscarTopVendedoras(
   // Agrupa por seller (usa seller_id se preenchido, fallback para user_id)
   const agg = new Map<string, { count: number; total: number }>()
   for (const s of salesData) {
-    const uid = ((s as any).seller_id ?? (s as any).user_id) as string | null
+    const uid = (chaveVendedora(s) ?? (s as any).user_id) as string | null
     if (!uid) continue
     const cur = agg.get(uid) ?? { count: 0, total: 0 }
     cur.count++
@@ -675,11 +677,7 @@ export async function buscarTopVendedoras(
   if (!agg.size) return []
 
   // Busca usuários e lojas em queries separadas (sem join PostgREST)
-  const userIds = Array.from(agg.keys())
-  const { data: usersData } = await admin
-    .from('users')
-    .select('id, full_name, store_id')
-    .in('id', userIds)
+  const usersData = (await diretorioVendedoras()).filter(u => agg.has(u.id))
 
   const storeIds = [...new Set((usersData ?? []).map((u: any) => u.store_id).filter(Boolean))]
   const { data: storesData } = storeIds.length
@@ -1212,7 +1210,7 @@ export async function buscarVendasDoMes(
    */
   let q = admin
     .from('sales')
-    .select('id, sale_date, total, total_cost, customers(name), vendedora:users!seller_id(full_name), operador:users!user_id(full_name), stores(name)')
+    .select('id, sale_date, total, total_cost, customers(name), pessoa:sellers!seller_person_id(full_name), vendedora:users!seller_id(full_name), operador:users!user_id(full_name), stores(name)')
     .neq('status', 'cancelled')
     .gte('sale_date', dateFrom)
     .lte('sale_date', dateTo)
@@ -1235,7 +1233,7 @@ export async function buscarVendasDoMes(
     // que deixar um traço que parece dado faltando.
     cliente: r.customers?.name ?? 'Venda avulsa',
     // Mesma regra do ranking de vendedoras: vale quem vendeu; sem isso, quem operou.
-    vendedora: r.vendedora?.full_name ?? r.operador?.full_name ?? '—',
+    vendedora: r.pessoa?.full_name ?? r.vendedora?.full_name ?? r.operador?.full_name ?? '—',
     loja: r.stores?.name ?? null,
     total: Number(r.total),
     custo: Number(r.total_cost ?? 0),
@@ -1366,14 +1364,14 @@ export async function buscarVendasDaVendedora(
   // Traz `total_cost`: só admin, e só a loja dele. O id vai colado no `.or()`,
   // então tem de ser um uuid de verdade, senão vira injeção de filtro.
   const escopo = await escopoDeLoja(null)
-  if (!/^[0-9a-f-]{36}$/i.test(vendedoraId)) throw new Error('Vendedora inválida.')
+  if (!/^[0-9a-f-]{36}$/i.test(pessoaDaChave(vendedoraId) ?? vendedoraId)) throw new Error('Vendedora inválida.')
   const admin = createAdminClient()
   const { dateFrom, dateTo } = monthBounds(year, month)
 
   let q = admin
     .from('sales')
     .select('id, sale_date, total, total_cost, status, stores(name), sale_items(id)')
-    .or(`seller_id.eq.${vendedoraId},and(seller_id.is.null,user_id.eq.${vendedoraId})`)
+    .or(pessoaDaChave(vendedoraId) ? `seller_person_id.eq.${pessoaDaChave(vendedoraId)}` : `and(seller_person_id.is.null,seller_id.eq.${vendedoraId}),and(seller_person_id.is.null,seller_id.is.null,user_id.eq.${vendedoraId})`)
     .neq('status', 'cancelled')
     .gte('sale_date', dateFrom)
     .lte('sale_date', dateTo)
