@@ -42,12 +42,12 @@ export function listasDoEscopo(admin: SupabaseClient<any, any, any>, escopo: str
 
     /** Quem pode aparecer como vendedora da venda. */
     usuarios() {
-      let q = admin.from('users').select('id, full_name, store_id').eq('is_active', true)
+      let q = admin.from('users').select('id, full_name, store_id').eq('is_active', true).neq('full_name', 'ProceX')
       if (escopo) {
         // Loja do escopo + a DONA (sem loja fixa), que vende em qualquer uma —
         // senão a Fernanda some do seletor de vendedora no PDV das funcionárias.
         // Fora o usuário de sistema da ProceX, que não é vendedora.
-        q = q.or(`store_id.eq.${escopo},store_id.is.null`).neq('full_name', 'ProceX')
+        q = q.or(`store_id.eq.${escopo},store_id.is.null`)
       }
       return q.order('full_name')
     },
