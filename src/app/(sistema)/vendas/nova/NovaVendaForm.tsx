@@ -826,7 +826,11 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   const [saleDate, setSaleDate]   = useState(editSale?.saleDate ?? today())
   // Admin que bipa uma peça de Brasília abre a venda já naquela loja
   const [storeId, setStoreId]     = useState(editSale?.storeId ?? userProfile.storeId ?? produtoBipado?.store_id ?? defaultAdminStore)
-  const [sellerId, setSellerId]   = useState<string>(editSale?.sellerId ?? userProfile.userId)
+  const vendedorInicial = userProfile.role === 'operator' ? userProfile.userId : ''
+  const [sellerId, setSellerId]   = useState<string>(
+    users.some(u => u.id === editSale?.sellerId && (!u.store_id || u.store_id === storeId))
+      ? editSale!.sellerId! : vendedorInicial,
+  )
 
   /*
    * A VENDEDORA SEGUE A LOJA DA VENDA, não o perfil de quem está no balcão.
@@ -838,7 +842,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * venda de Campinas e o seletor oferecia Alba e Rayane, de Brasília.
    *
    * Quem NÃO tem loja (a própria Fernanda) continua na lista: ela vende nas
-   * duas, e é o valor inicial do campo.
+   * duas. Em venda nova, o administrador precisa escolher explicitamente.
    */
   const vendedorasDaLoja = users.filter(u => !u.store_id || u.store_id === storeId)
 
@@ -966,6 +970,13 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
   // ── UI ────────────────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false)
+  const gravando = useRef(false)
+  const [conferencia, setConferencia] = useState<{
+    data: VendaFormData; pecas: number; total: number
+  } | null>(null)
+  const [repeticao, setRepeticao] = useState<{ nome: string; continuar: () => void } | null>(null)
+  const rowsAtuais = useRef(rows)
+  useEffect(() => { rowsAtuais.current = rows }, [rows])
   const [error, setError]   = useState('')
 
   // ── Scanner HID ───────────────────────────────────────────────────────────
@@ -1006,6 +1017,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
     if (match) {
       const achado = match
+      const adicionar = () => {
       let aviso: string | null = null
 
       setRows(prev => {
@@ -1035,6 +1047,15 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
         return [...prev, newRow]
       })
       setScanFeedback(aviso ? { text: aviso, ok: false } : { text: `${achado.name} adicionado`, ok: true })
+      }
+      // O hook restaura o input antes de chamar onScan, mas o React ainda
+      // pode estar com a linha desvinculada pelas teclas do leitor.
+      const jaEstaNaBoleta = rowsAtuais.current.some((r, i) => r.productId === achado.id
+        || (r.vinculoAnterior?.productId === achado.id
+          && document.querySelector<HTMLInputElement>(`input[data-row="${i}"][data-col="0"]`)?.value === r.vinculoAnterior.nome))
+      if (jaEstaNaBoleta) {
+        setRepeticao({ nome: `${code} (${achado.name})`, continuar: adicionar })
+      } else adicionar()
     } else {
       setScanFeedback({ text: `Código "${code}" não encontrado`, ok: false })
     }
@@ -1046,7 +1067,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * venda. Antes entrava: ela bipava achando que ia para o campo do modal e a
    * peça era somada por trás, na grade que ela não estava vendo.
    */
-  useBarcodeScanner({ onScan: aoBipar, ativo: !showCreateCustomer && !editandoCliente })
+  useBarcodeScanner({ onScan: aoBipar, ativo: !showCreateCustomer && !editandoCliente && !conferencia && !repeticao && !saving })
 
   // No modo edição, os descontos vêm da venda salva — não deixar os efeitos
   // auto-derivarem (e sobrescreverem) no primeiro render. Liberados após montar.
@@ -1179,7 +1200,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     setManualValor(Number(d.manualValor) || 0)
     setManualPct(Number(d.manualPct) || 0)
     setNotes(d.notes ?? '')
-    if (d.sellerId) setSellerId(d.sellerId)
+    setSellerId(userProfile.role === 'operator' ? userProfile.userId
+      : users.some(u => u.id === d.sellerId && (!u.store_id || u.store_id === d.storeId))
+        ? d.sellerId : '')
     setAceitouFiado(!!d.aceitouFiado)
     setPrevisaoPagamento(d.previsaoPagamento ?? '')
     setDestinatarioCpf(d.destinatarioCpf ?? '')
@@ -1209,7 +1232,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     setManualValor(0)
     setManualPct(0)
     setNotes('')
-    setSellerId(userProfile.userId)
+    setSellerId(vendedorInicial)
     setAceitouFiado(false)
     setPrevisaoPagamento('')
     setDestinatarioCpf('')
@@ -1382,7 +1405,18 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   function addRow() { setRows(prev => [...prev, emptyRow()]) }
   function removeRow(i: number) { setRows(prev => prev.filter((_, idx) => idx !== i)) }
 
-  function handleProductSelect(i: number, name: string, p: ProductOption | null) {
+  function handleProductSelect(i: number, name: string, p: ProductOption | null, confirmado = false) {
+    const escolhido = p ?? produtoExato(products.filter(x => x.store_id === storeId), name)
+    const atual = rowsAtuais.current[i]
+    const anterior = atual?.vinculoAnterior
+    const restaurando = !!anterior && anterior.productId === escolhido?.id
+      && normalize(anterior.nome) === normalize(name)
+    if (!confirmado && escolhido && atual?.productId !== escolhido.id && !restaurando
+      && rowsAtuais.current.some((r, idx) => idx !== i && r.productId === escolhido.id)) {
+      setRepeticao({ nome: `${escolhido.barcode_number || escolhido.code} (${escolhido.name})`,
+        continuar: () => handleProductSelect(i, name, p, true) })
+      return
+    }
     const vincular = (prod: ProductOption): Partial<SaleRow> => ({
       productId: prod.id,
       productName: prod.name,
@@ -1570,7 +1604,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   async function handleSubmit() {
     setError('')
     /* Duplo clique: o segundo chega antes de o React desenhar o botão travado. */
-    if (saving) return
+    if (gravando.current || conferencia || repeticao) return
 
     /* Linhas em branco (Enter no fim da grade, "Adicionar produto" sem usar)
      * não contam — nem na conferência, nem no que vai para o servidor. */
@@ -1604,7 +1638,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
      * limpa a vendedora que não é de lá, e antes a venda ia assim mesmo — no
      * nome de quem estava digitando, sem ninguém ter escolhido.
      */
-    if (userProfile.role === 'admin' && !sellerId) {
+    if (userProfile.role === 'admin' && !vendedorasDaLoja.some(u => u.id === sellerId)) {
       setError('Escolha a vendedora da venda.')
       return
     }
@@ -1728,7 +1762,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       saleDate,
       customerId:            selectedCustomer?.id ?? null,
       customerBirthdayMonth: selectedCustomer?.birthday ? parseInt(selectedCustomer.birthday.slice(5, 7)) : null,
-      sellerId:              sellerId || null,
+      sellerId:              userProfile.role === 'operator' && !isEditing ? userProfile.userId : sellerId,
       items,
       hasPix,
       hasBirthday,
@@ -1744,6 +1778,19 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       clientRequestId: isEditing ? null : idDaVendaAtual(),
     }
 
+    setConferencia({
+      data: formData,
+      pecas: activeRows.filter(r => !r.isTroca && !r.isService && !r.isConserto)
+        .reduce((s, r) => s + Number(r.quantity), 0),
+      total,
+    })
+  }
+
+  async function confirmarVenda() {
+    if (!conferencia || gravando.current) return
+    gravando.current = true
+    const formData = conferencia.data
+    setConferencia(null)
     setSaving(true)
 
     /*
@@ -1766,6 +1813,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
        * recarregar. Na edição não há rascunho: a mensagem avisa para NÃO
        * recarregar — ver src/lib/erroDeSalvar.ts. */
       setError(mensagemDeErroAoSalvar(e, { temRascunho: !isEditing }))
+      gravando.current = false
       setSaving(false)
       return
     }
@@ -1803,6 +1851,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
         } catch { /* sem rascunho legível — o id novo da tela já basta */ }
       }
       setError(result.error ?? 'Erro ao salvar.')
+      gravando.current = false
       setSaving(false)
       return
     }
@@ -1957,7 +2006,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
           {/* Vendedora */}
           {userProfile.role === 'admin' && (
             <div className={styles.field}>
-              <label className={styles.label}>Vendedora</label>
+              <label className={styles.label}>Vendedora (obrigatório)</label>
               <StoreSelect
                 value={sellerId}
                 onChange={setSellerId}
@@ -2560,6 +2609,31 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
           {isEditing ? 'Salvar alterações' : 'Salvar Venda →'}
         </Button>
       </div>
+
+      <Modal isOpen={!!repeticao} onClose={() => setRepeticao(null)} title="Código repetido na boleta" size="sm">
+        <div className={styles.conferencia}>
+          <p>O código {repeticao?.nome} já está nesta boleta. Quer continuar e adicionar a peça novamente?</p>
+          <div className={styles.conferenciaAcoes}>
+            <Button variant="ghost" onClick={() => setRepeticao(null)}>Cancelar repetição</Button>
+            <Button onClick={() => { const acao = repeticao?.continuar; setRepeticao(null); acao?.() }}>Continuar e adicionar</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={!!conferencia} onClose={() => setConferencia(null)} title="Confira a boleta antes de salvar" size="sm">
+        <div className={styles.conferencia}>
+          <p>Confira a quantidade de peças e o valor final com os descontos aplicados.</p>
+          <div className={styles.conferenciaNumeros}>
+            <div><span>Peças</span><strong>{conferencia?.pecas}</strong></div>
+            <div><span>Total final</span><strong>{fmt(conferencia?.total ?? 0)}</strong></div>
+          </div>
+          <p>Vendedora: {users.find(u => u.id === conferencia?.data.sellerId)?.full_name ?? userProfile.fullName}</p>
+          <div className={styles.conferenciaAcoes}>
+            <Button variant="ghost" onClick={() => setConferencia(null)}>Voltar e conferir</Button>
+            <Button onClick={confirmarVenda} disabled={saving}>Confirmar e salvar</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ── Modal criar cliente ───────────────────────────────────────────── */}
       {editandoCliente && clienteCompleto && (
