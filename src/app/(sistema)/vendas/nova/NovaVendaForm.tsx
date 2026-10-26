@@ -826,7 +826,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   const [saleDate, setSaleDate]   = useState(editSale?.saleDate ?? today())
   // Admin que bipa uma peça de Brasília abre a venda já naquela loja
   const [storeId, setStoreId]     = useState(editSale?.storeId ?? userProfile.storeId ?? produtoBipado?.store_id ?? defaultAdminStore)
-  const vendedorInicial = userProfile.role === 'operator' ? userProfile.userId : ''
+  // A conta pode ser compartilhada: cada nova venda exige escolher quem vendeu.
+  const vendedorInicial = ''
   const [sellerId, setSellerId]   = useState<string>(
     users.some(u => u.id === editSale?.sellerId && (!u.store_id || u.store_id === storeId))
       ? editSale!.sellerId! : vendedorInicial,
@@ -1200,8 +1201,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     setManualValor(Number(d.manualValor) || 0)
     setManualPct(Number(d.manualPct) || 0)
     setNotes(d.notes ?? '')
-    setSellerId(userProfile.role === 'operator' ? userProfile.userId
-      : users.some(u => u.id === d.sellerId && (!u.store_id || u.store_id === d.storeId))
+    setSellerId(users.some(u => u.id === d.sellerId && (!u.store_id || u.store_id === d.storeId))
         ? d.sellerId : '')
     setAceitouFiado(!!d.aceitouFiado)
     setPrevisaoPagamento(d.previsaoPagamento ?? '')
@@ -1634,11 +1634,11 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     if (!storeId) { setError('Selecione a loja.'); return }
 
     /*
-     * Quem vê o seletor de vendedora (admin) tem de escolher. Trocar a loja
+     * Toda venda exige escolher a vendedora. Trocar a loja
      * limpa a vendedora que não é de lá, e antes a venda ia assim mesmo — no
      * nome de quem estava digitando, sem ninguém ter escolhido.
      */
-    if (userProfile.role === 'admin' && !vendedorasDaLoja.some(u => u.id === sellerId)) {
+    if (!vendedorasDaLoja.some(u => u.id === sellerId)) {
       setError('Escolha a vendedora da venda.')
       return
     }
@@ -1762,7 +1762,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       saleDate,
       customerId:            selectedCustomer?.id ?? null,
       customerBirthdayMonth: selectedCustomer?.birthday ? parseInt(selectedCustomer.birthday.slice(5, 7)) : null,
-      sellerId:              userProfile.role === 'operator' && !isEditing ? userProfile.userId : sellerId,
+      sellerId,
       items,
       hasPix,
       hasBirthday,
@@ -2004,16 +2004,17 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
           </div>
 
           {/* Vendedora */}
-          {userProfile.role === 'admin' && (
-            <div className={styles.field}>
+            <div className={styles.field} data-vendedora>
               <label className={styles.label}>Vendedora (obrigatório)</label>
-              <StoreSelect
+              {isEditing && userProfile.role === 'operator' && editSale?.sellerId ? (
+                <div className={styles.headerInput}>{vendedorasDaLoja.find(u => u.id === sellerId)?.full_name ?? 'Escolha uma vendedora ativa da loja.'}</div>
+              ) : <StoreSelect
                 value={sellerId}
                 onChange={setSellerId}
                 stores={vendedorasDaLoja.map(u => ({ id: u.id, name: u.full_name, city: '' }))}
-              />
+              />}
+              {vendedorasDaLoja.length === 0 && <span className={styles.cpfDica}>Nenhuma vendedora ativa disponível nesta loja. Peça à administração para conferir o cadastro.</span>}
             </div>
-          )}
 
           {/* Observações */}
           <div className={styles.field} style={{ gridColumn: '1 / -1' }}>

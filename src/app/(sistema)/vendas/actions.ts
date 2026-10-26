@@ -327,17 +327,17 @@ function vinculoDoConserto(
 
 type Admin = ReturnType<typeof createAdminClient>
 
-/** A operadora vende em seu nome; o admin escolhe uma pessoa da loja. */
-async function conferirVendedora(admin: Admin, storeId: string, data: VendaFormData, userId: string, role: string | null, vendedoraOriginal?: string | null) {
-  if (role === 'operator') {
-    data.sellerId = vendedoraOriginal ?? userId
-    if (!vendedoraOriginal) return null
+/** Login compartilhado: quem vendeu é independente da conta que salva. */
+async function conferirVendedora(admin: Admin, storeId: string, data: VendaFormData, role: string | null, vendedoraOriginal?: string | null) {
+  if (role === 'operator' && vendedoraOriginal) {
+    // Editar a boleta não permite reatribuir uma venda existente da colega.
+    data.sellerId = vendedoraOriginal
   }
   if (!data.sellerId) return 'Escolha a vendedora da venda.'
-  const { data: vendedora, error } = await lerComNovaTentativa<{ id: string; store_id: string | null; is_active: boolean }>('vendedora da venda', () => admin
-    .from('users').select('id, store_id, is_active').eq('id', data.sellerId!).single())
+  const { data: vendedora, error } = await lerComNovaTentativa<{ id: string; store_id: string | null; is_active: boolean; full_name: string }>('vendedora da venda', () => admin
+    .from('users').select('id, store_id, is_active, full_name').eq('id', data.sellerId!).single())
   if (error || !vendedora) return 'Não consegui conferir a vendedora. Escolha novamente antes de salvar.'
-  if (!vendedora.is_active || (vendedora.store_id && vendedora.store_id !== storeId)) {
+  if (!vendedora.is_active || vendedora.full_name === 'ProceX' || (vendedora.store_id && vendedora.store_id !== storeId)) {
     return 'Escolha uma vendedora ativa da loja da venda.'
   }
   return null
@@ -595,7 +595,7 @@ function montarPacoteDaVenda(
     store_id:        ctx.storeId,
     customer_id:     data.customerId ?? null,
     user_id:         ctx.userId,
-    seller_id:       data.sellerId ?? ctx.userId,
+    seller_id:       data.sellerId,
     sale_date:       data.saleDate,
     subtotal,
     discount_type:   discountType,
@@ -891,7 +891,7 @@ export async function salvarVenda(data: VendaFormData): Promise<ActionResult> {
   const finalStoreId = userStoreId ?? data.storeId
   if (!finalStoreId) return { success: false, error: 'Loja não definida.' }
 
-  const erroVendedora = await conferirVendedora(admin, finalStoreId, data, userId, role)
+  const erroVendedora = await conferirVendedora(admin, finalStoreId, data, role)
   if (erroVendedora) return { success: false, error: erroVendedora }
 
   /* Id inválido = salva sem idempotência, como antes (ver src/lib/idempotencia.ts). */
@@ -1397,7 +1397,7 @@ export async function editarVenda(saleId: string, data: VendaFormData): Promise<
   if (userStoreId && existing.store_id !== userStoreId) return { success: false, error: 'Venda não encontrada.' }
 
   // Na edição por operadora, a atribuição vem da venda no banco, nunca do cliente.
-  const erroVendedora = await conferirVendedora(admin, finalStoreId, data, userId, role, existing.seller_id)
+  const erroVendedora = await conferirVendedora(admin, finalStoreId, data, role, existing.seller_id)
   if (erroVendedora) return { success: false, error: erroVendedora }
 
   /* A tela de edição já não abre nesses casos; aqui é a garantia para quem
