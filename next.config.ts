@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot,
   },
-  experimental: {
+  experimental: { cpus: 1,
     serverActions: {
       bodySizeLimit: '10mb',
     },

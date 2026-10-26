@@ -7,6 +7,3 @@ export function pessoaDaChave(id: string | null): string | null {
   return id?.startsWith('pessoa:') ? id.slice(7) : null
 }
 
-export function nomeNormalizado(nome: string): string {
-  return nome.trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-BR')
-}

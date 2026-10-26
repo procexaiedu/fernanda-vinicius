@@ -1335,6 +1335,14 @@ export async function buscarVendaParaEdicao(saleId: string): Promise<{ data: Edi
    * troca não chega aqui editável, então o crédito da troca não entra na conta. */
   const pago = (rawPayments ?? []).reduce((soma: number, p: { amount: unknown }) => soma + (Number(p.amount) || 0), 0)
   const fiado = Number(s.total) - pago > 0.009
+  let sellerName = 'Sem atribuição (histórico preservado)'
+  if (s.seller_person_id || s.seller_id) {
+    const { data: responsavel, error: erroResponsavel } = await admin
+      .from(s.seller_person_id ? 'sellers' : 'users').select('full_name')
+      .eq('id', s.seller_person_id ?? s.seller_id).single()
+    if (erroResponsavel || !responsavel) return { data: null, error: 'Não consegui carregar a vendedora original. Tente novamente.' }
+    sellerName = `${responsavel.full_name}${s.seller_person_id ? '' : ' (legado)'}`
+  }
 
   return {
     data: {
@@ -1347,7 +1355,7 @@ export async function buscarVendaParaEdicao(saleId: string): Promise<{ data: Edi
       previsaoPagamento: s.previsao_pagamento ? String(s.previsao_pagamento).slice(0, 10) : null,
       bloqueio,
       sellerId:      chaveVendedora(s),
-      sellerName:    s.seller_person_id ? (await admin.from('sellers').select('full_name').eq('id', s.seller_person_id).single()).data?.full_name ?? 'Vendedora' : 'Vendedora legada (original)',
+      sellerName,
       hasPix:        discountType.includes('pix'),
       hasBirthday:   discountType.includes('birthday'),
       manualDiscount: Number(s.manual_discount) || 0,

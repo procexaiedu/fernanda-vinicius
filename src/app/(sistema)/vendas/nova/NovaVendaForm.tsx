@@ -841,8 +841,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * acontecer aqui, contra o `storeId` do formulário. Sem isto ela lançava uma
    * venda de Campinas e o seletor oferecia Alba e Rayane, de Brasília.
    *
-   * Quem NÃO tem loja (a própria Fernanda) continua na lista: ela vende nas
-   * duas. Em venda nova, o administrador precisa escolher explicitamente.
+   * A lista vem do cadastro de pessoas da loja, independente do login.
    */
   const vendedorasDaLoja = users.filter(u => u.store_id === storeId)
 
@@ -2012,7 +2011,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                 onChange={setSellerId}
                 stores={vendedorasDaLoja.map(u => ({ id: u.id, name: u.full_name, city: '' }))}
               />}
-              {vendedorasDaLoja.length === 0 && <span className={styles.cpfDica}>Nenhuma vendedora ativa disponível nesta loja. Peça à administração para conferir o cadastro.</span>}
+              {!isEditing && vendedorasDaLoja.length === 0 && <span className={styles.cpfDica}>Nenhuma vendedora ativa disponível nesta loja. Peça à administração para conferir o cadastro.</span>}
             </div>
 
           {/* Observações */}

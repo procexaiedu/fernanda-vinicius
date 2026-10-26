@@ -81,6 +81,7 @@ do $$ declare src text; atualizado text; begin
   src := pg_get_functiondef('fv.salvar_venda(jsonb)'::regprocedure);
   atualizado := replace(src, 'user_id, seller_id, sale_date, subtotal,', 'user_id, seller_id, seller_person_id, sale_date, subtotal,');
   atualizado := replace(atualizado, 'v_nova.user_id, v_nova.seller_id, v_nova.sale_date,', 'v_nova.user_id, v_nova.seller_id, v_nova.seller_person_id, v_nova.sale_date,');
+  atualizado := replace(atualizado, 'OR v_existente.customer_id IS DISTINCT FROM v_nova.customer_id', 'OR v_existente.seller_person_id IS DISTINCT FROM v_nova.seller_person_id OR v_existente.seller_id IS DISTINCT FROM v_nova.seller_id OR v_existente.customer_id IS DISTINCT FROM v_nova.customer_id');
   if atualizado = src or position('seller_person_id, sale_date' in atualizado) = 0 then raise exception 'RPC salvar_venda divergente'; end if;
   execute atualizado;
   src := pg_get_functiondef('fv.editar_venda(jsonb)'::regprocedure);

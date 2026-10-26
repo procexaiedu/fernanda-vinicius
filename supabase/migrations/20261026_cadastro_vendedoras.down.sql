@@ -12,6 +12,7 @@ do $$ declare src text; begin
   src := pg_get_functiondef('fv.salvar_venda(jsonb)'::regprocedure);
   src := replace(src, 'user_id, seller_id, seller_person_id, sale_date, subtotal,', 'user_id, seller_id, sale_date, subtotal,');
   src := replace(src, 'v_nova.user_id, v_nova.seller_id, v_nova.seller_person_id, v_nova.sale_date,', 'v_nova.user_id, v_nova.seller_id, v_nova.sale_date,');
+  src := replace(src, 'OR v_existente.seller_person_id IS DISTINCT FROM v_nova.seller_person_id OR v_existente.seller_id IS DISTINCT FROM v_nova.seller_id OR v_existente.customer_id IS DISTINCT FROM v_nova.customer_id', 'OR v_existente.customer_id IS DISTINCT FROM v_nova.customer_id');
   execute src;
   src := pg_get_functiondef('fv.editar_venda(jsonb)'::regprocedure);
   execute replace(src, 'seller_id          = v_nova.seller_id, seller_person_id = v_nova.seller_person_id,', 'seller_id          = v_nova.seller_id,');
