@@ -415,7 +415,7 @@ export async function buscarHistoricoVendas(productId: string): Promise<SaleHist
   // Passo 3: resolve stores, customers e usuários em paralelo
   const storeIds    = [...new Set((sales ?? []).map((s: any) => s.store_id).filter(Boolean))]
   const customerIds = [...new Set((sales ?? []).map((s: any) => s.customer_id).filter(Boolean))]
-  
+
 
   const [storesRes, customersRes, usersRes] = await Promise.all([
     storeIds.length    ? admin.from('stores').select('id, name').in('id', storeIds)       : { data: [] },

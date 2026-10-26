@@ -6,4 +6,3 @@ export function chaveVendedora(s: { seller_person_id?: string | null; seller_id?
 export function pessoaDaChave(id: string | null): string | null {
   return id?.startsWith('pessoa:') ? id.slice(7) : null
 }
-

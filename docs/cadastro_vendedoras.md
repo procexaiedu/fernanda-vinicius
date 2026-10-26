@@ -72,3 +72,41 @@ Sequência compatível:
 Rollback: voltar app e executar `.down.sql` somente se não houver referências
 novas. Havendo vendas, metas ou comissões por pessoa, a reversão recusa perda de
 identidade e exige plano específico. Não converter pessoas em contas.
+
+## Evidências desta execução
+
+Artefatos em `C:\Users\felip\AppData\Local\Temp\fv-sellers-w6`:
+
+- `build-original.log`: `npm run build` original passou, compilação em 30s,
+  checagem de tipos em 88s e 37 páginas geradas. Sem exclusão de testes nem
+  alterações em next.config, tsconfig, package ou lock contra 629790e.
+- Esse build antecedeu os ajustes finais de botões CSS e habilitação do submit
+  após hidratação (`pronto`). Depois, o Next dev recompilou os componentes e
+  os cenários Playwright abaixo passaram novamente nos dois tamanhos.
+  A guarda final do layout de Configurações foi validada pelo teste Node
+  direcionado de bloqueio de operadora, junto da guarda própria da página.
+- `sql-final.log`: 27 PASS em PostgreSQL 15 descartável, incluindo RLS,
+  RPCs reais, idempotência, compatibilidade antiga, estoque/pagamento,
+  edição inativa, legado e comissão paga. `rollback-final.log`: up/down
+  em banco vazio de pessoas. Reversão com referências novas também recusou.
+  `migration-guard-final.log`: após ampliar as asserções de compatibilidade
+  do patch, up/down finais passaram novamente, sem repetir a bateria inteira.
+- `actions-final.log`: 7 grupos de testes da fonte real com adaptadores
+  controlados; inclui rota/action não-admin e comissão nova/repetida/zero/paga.
+- `ui-final.json` e `ui-scenario.js`: Playwright em contextos novos 1440/390,
+  sem cookies/localStorage prévios. Cadastro criar/duplicar/inativar; PDV sem
+  pessoa rejeitado, somente ativas da loja, confirmação e reset. Zero erros
+  de console e HTTP 4xx/5xx, sem overflow horizontal da página. O sistema
+  não tem banner de consentimento de cookies nesse fluxo.
+- `cadastro-depois-1440.png`, `cadastro-depois-390.png`,
+  `pdv-depois-1440.png`, `pdv-depois-390.png`: prints finais inspecionados.
+  `antes-1440.png`/`antes-390.png`: componente anterior com fixtures.
+  `pdv-vazio-390.png`: vazio orienta a administração, sem fallback para login.
+
+Limites: interface usa fixture, não E2E autenticado contra PostgREST/GoTrue.
+Banco tem schema mínimo representativo, não clone completo de produção.
+Enforcement estrito opcional ainda precisa de ensaio próprio antes de aplicar.
+Lint foi interrompido pela proteção de memória, sem resultado; TypeScript
+standalone reportou somente o import vitest ausente do teste baseline
+`src/lib/etiquetas/ppla.test.ts`. `git diff --check` passou após limpeza.
+Nenhuma migration, conta ou venda real foi alterada; sem push ou deploy.

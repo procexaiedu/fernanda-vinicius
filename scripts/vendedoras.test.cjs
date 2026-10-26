@@ -65,7 +65,10 @@ async function main() {
   perfil={...perfil,role:'operator'}
   const pagina=load('src/app/(sistema)/configuracoes/vendedoras/page.tsx').default
   const antes=chamadas.length;await assert.rejects(pagina(),/REDIRECT:\/pdv/);assert.equal(chamadas.length,antes)
-  console.log('PASS: rota propria bloqueia operadora antes de ler cadastros')
+  mocks['./ConfigNavTabs']={default:()=>null};mocks['./layout.module.css']={}
+  const layout=load('src/app/(sistema)/configuracoes/layout.tsx').default
+  await assert.rejects(layout({children:null}),/REDIRECT:\/pdv/)
+  console.log('PASS: rota e layout de Configuracoes bloqueiam operadora antes de ler cadastros')
   perfil={...perfil,role:'admin'}
   mocks['@/lib/auth'].ehAdmin=p=>p.role==='admin'
   let devidas=[{sellerId:'pessoa:nova',comissao:3,pct:3},{sellerId:'legada',comissao:2,pct:3}]

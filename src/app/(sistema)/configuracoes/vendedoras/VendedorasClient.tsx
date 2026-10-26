@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { salvarVendedora } from './actions'
 import styles from './page.module.css'
@@ -15,6 +15,8 @@ export default function VendedorasClient({ pessoas, lojas }: { pessoas: Pessoa[]
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
   const [pending, startTransition] = useTransition()
+  const [pronto, setPronto] = useState(false)
+  useEffect(() => { setPronto(true) }, [])
   function limpar() { setEditando(null); setNome(''); setAtiva(true); setLoja(lojas[0]?.id ?? '') }
   return <section className={styles.area} data-novidade="cadastro-vendedoras">
     <form className={styles.form} onSubmit={e => { e.preventDefault(); setErro(''); setMensagem(''); startTransition(async () => {
@@ -29,7 +31,7 @@ export default function VendedorasClient({ pessoas, lojas }: { pessoas: Pessoa[]
       <label>Loja<select name="store_id" required value={loja} disabled={!!editando || lojas.length === 1} onChange={e => setLoja(e.target.value)}>{lojas.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
       <label className={styles.check}><input type="checkbox" checked={ativa} onChange={e => setAtiva(e.target.checked)} />Ativa para novas vendas</label>
       <p>Inativar mantém o histórico. Nomes repetidos na mesma loja não são permitidos.</p>
-      <div className={styles.botoes}><button className="btn btn-primary" disabled={pending || !loja}>{pending ? 'Salvando…' : 'Salvar vendedora'}</button>{editando && <button className="btn btn-secondary" type="button" disabled={pending} onClick={limpar}>Cancelar edição</button>}</div>
+      <div className={styles.botoes}><button className="btn btn-primary" disabled={!pronto || pending || !loja}>{pending ? 'Salvando…' : 'Salvar vendedora'}</button>{editando && <button className="btn btn-secondary" type="button" disabled={pending} onClick={limpar}>Cancelar edição</button>}</div>
       {erro && <p role="alert">{erro}</p>}{mensagem && <p role="status">{mensagem}</p>}
     </form>
     <div className={styles.lista}><h2>Vendedoras cadastradas</h2>{!pessoas.length && <p>Nenhuma vendedora cadastrada nesta loja. Cadastre uma pessoa para selecioná-la no PDV.</p>}
