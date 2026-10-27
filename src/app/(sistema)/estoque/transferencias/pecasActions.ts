@@ -8,6 +8,10 @@ import type { EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrint
 export interface PecaRomaneio {
   id: string
   nome: string
+  nomeHistorico: string
+  productId: string | null
+  storeId: string | null
+  bloqueioNome: string | null
   etiqueta: string
   foto: string | null
   precoRomaneio: number | null
@@ -53,7 +57,10 @@ export async function consultarPecasRomaneio(transferId: string): Promise<PecaRo
         : loja && loja !== t.to_store_id ? 'Somente a administração da loja de destino pode corrigir este lote.'
           : !p || p.store_id !== t.to_store_id ? 'Cadastro da peça indisponível nesta loja.' : null
     return {
-      id: i.id, nome: i.product_name, etiqueta: i.barcode_number, foto: p?.photo_url ?? null,
+      id: i.id, nome: p?.name ?? i.product_name, nomeHistorico: i.product_name,
+      productId: p?.id ?? null, storeId: p?.store_id ?? null,
+      bloqueioNome: bloqueio?.replace('corrigir preços', 'corrigir o nome') ?? null,
+      etiqueta: i.barcode_number, foto: p?.photo_url ?? null,
       precoRomaneio: i.unit_sale_price == null ? null : Number(i.unit_sale_price),
       precoVenda: Number(p?.sale_price ?? 0), precoPromocional: p?.promotional_price == null ? null : Number(p.promotional_price),
       promocaoAtiva: promo, precoEtiqueta: p ? Number(promo ? p.promotional_price : p.sale_price) : null, bloqueio,

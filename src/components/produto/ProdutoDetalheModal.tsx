@@ -14,6 +14,7 @@ import styles from './ProdutoDetalheModal.module.css'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { calcularGiro, ROTULO_FAIXA, textoDias } from '@/lib/giro'
 import SearchableSelect from '@/components/ui/SearchableSelect'
+import NomeProdutoEditor from './NomeProdutoEditor'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -134,6 +135,8 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
   const [salePrice, setSalePrice] = useState(produto.sale_price)
   const [promoPrice, setPromoPrice] = useState<number | null>(produto.promotional_price)
   const [category, setCategory] = useState(produto.category)
+  const [nome, setNome] = useState(produto.name)
+  const [editandoNome, setEditandoNome] = useState(false)
   const [togglingPromo, setTogglingPromo] = useState(false)
   const [promoError, setPromoError] = useState<string | null>(null)
 
@@ -151,6 +154,8 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
     setSalePrice(produto.sale_price)
     setPromoPrice(produto.promotional_price)
     setCategory(produto.category)
+    setNome(produto.name)
+    setEditandoNome(false)
     setEditorOpen(false)
     setPromoError(null)
   }, [produto])
@@ -165,7 +170,7 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
   const printerItem: EtiquetasPrinterItem | null = produto.barcode_number && labelFormat
     ? {
         id: produto.id,
-        name: produto.name,
+        name: nome,
         // A 2ª linha da etiqueta (referência interna) usa o code do produto
         supplier_reference: produto.code,
         sale_price: effectivePrice,
@@ -312,7 +317,10 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
           }
 
           <div className={styles.headerInfo}>
-            <div className={styles.productName}>{produto.name}</div>
+            <div className={styles.productName}>{nome}</div>
+            {interno && <div className={styles.nameEditorAction}><NomeProdutoEditor key={produto.id}
+              productId={produto.id} storeId={produto.store_id} nome={nome} onEditing={setEditandoNome}
+              onSaved={novo => { setNome(novo); router.refresh() }} /></div>}
             <div className={styles.headerMeta}>
               {/* Código só na visão interna (admin): ele carrega o custo (05/10/2026).
                   Fora dela, a etiqueta identifica a peça. */}
@@ -330,7 +338,7 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
               {produto.is_active ? <Badge variant="success">Ativo</Badge> : <Badge variant="muted">Inativo</Badge>}
               {produto.ownership_type === 'consignment' && <Badge variant="accent">Consignação</Badge>}
               {!modoBalcao && printerItem && (
-                <Button size="sm" variant="ghost" onClick={() => setPrinterOpen(true)}>
+                <Button size="sm" variant="ghost" disabled={editandoNome} onClick={() => setPrinterOpen(true)}>
                   <Printer size={13} /> Imprimir etiqueta
                 </Button>
               )}

@@ -5,6 +5,7 @@
 .foto img { display: block; width: 120px; height: 120px; object-fit: contain; }
 .dados { display: grid; gap: 10px; min-width: 0; width: 100%; }
 .dados h3 { margin: 0; overflow-wrap: anywhere; }
+.dados button[data-name-edit-button] { width: fit-content; justify-self: start; }
 .dados form { display: grid; gap: 8px; justify-items: start; }
 .dados input { width: 100%; max-width: 220px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-elevated); color: var(--text-primary); font: inherit; }
 .erro, .bloqueio { color: var(--text-primary); padding: 12px; background: var(--bg-elevated); border-left: 3px solid #d8933b; }

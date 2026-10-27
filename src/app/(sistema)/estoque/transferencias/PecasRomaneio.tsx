@@ -8,6 +8,7 @@ import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etique
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { consultarPecasRomaneio, corrigirPrecoPeca, etiquetaPersistidaRomaneio, type PecaRomaneio } from './pecasActions'
 import styles from './PecasRomaneio.module.css'
+import NomeProdutoEditor from '@/components/produto/NomeProdutoEditor'
 
 export default function PecasRomaneio({ transferId, isAdmin, onClose }: {
   transferId: string; isAdmin: boolean; onClose: () => void
@@ -20,6 +21,7 @@ export default function PecasRomaneio({ transferId, isAdmin, onClose }: {
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [etiqueta, setEtiqueta] = useState<EtiquetasPrinterItem | null>(null)
+  const [editandoNome, setEditandoNome] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     let ativo = true
@@ -62,7 +64,7 @@ export default function PecasRomaneio({ transferId, isAdmin, onClose }: {
   return <>
     <Modal isOpen title="Fotos e itens do romaneio" size="xl" onClose={() => { if (!ocupado) onClose() }}>
       <div className={styles.conteudo} data-novidade="pecas-romaneio">
-        <p>O preço do romaneio registra o envio. A reimpressão consulta o cadastro atual da peça.</p>
+        <p>O nome e o preço atuais vêm do cadastro da peça e são usados na reimpressão. Os registros do envio são preservados.</p>
         {carregando && <p role="status">Consultando peças…</p>}
         {erro && <p role="alert" className={styles.erro}>{erro}</p>}
         {aviso && <p role="status" className={styles.sucesso}>{aviso}</p>}
@@ -79,6 +81,17 @@ export default function PecasRomaneio({ transferId, isAdmin, onClose }: {
             </div>
             <div className={styles.dados}>
               <h3>{p.nome}</h3><p>Etiqueta {p.etiqueta}</p>
+              {p.nomeHistorico !== p.nome && <p>Nome no envio: {p.nomeHistorico}</p>}
+              {isAdmin && (p.bloqueioNome || !p.productId || !p.storeId
+                ? <p className={styles.bloqueio}>{p.bloqueioNome ?? 'Cadastro da peça indisponível nesta loja.'}</p>
+                : <NomeProdutoEditor productId={p.productId} storeId={p.storeId} nome={p.nome}
+                  romaneio={{ transferId, itemId: p.id }}
+                  onEditing={editing => setEditandoNome(v => ({ ...v, [p.id]: editing }))}
+                  onSaved={async () => {
+                    setPecas(await consultarPecasRomaneio(transferId))
+                    setAviso('Nome salvo no cadastro. Reimprima a etiqueta abaixo.')
+                    router.refresh()
+                  }} />)}
               <p>Preço no romaneio: <strong>{p.precoRomaneio == null ? 'Não registrado' : formatarDinheiro(p.precoRomaneio)}</strong></p>
               {isAdmin && <>
                 <p>Etiqueta atual: <strong>{p.precoEtiqueta == null ? 'Cadastro indisponível' : formatarDinheiro(p.precoEtiqueta)}</strong></p>
@@ -91,7 +104,7 @@ export default function PecasRomaneio({ transferId, isAdmin, onClose }: {
                   <Button size="sm" type="submit" disabled={ocupado || !alterado}>Salvar preço</Button>
                 </form>}
                 {alterado && !p.bloqueio && <p>Salve a alteração antes de reimprimir.</p>}
-                <Button size="sm" variant="outline" disabled={ocupado || (alterado && !p.bloqueio)} onClick={() => void imprimir(p)}>
+                <Button size="sm" variant="outline" disabled={ocupado || editandoNome[p.id] || (alterado && !p.bloqueio)} onClick={() => void imprimir(p)}>
                   Reimprimir etiqueta
                 </Button>
               </>}
