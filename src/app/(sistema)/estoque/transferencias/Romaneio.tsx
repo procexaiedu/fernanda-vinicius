@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import PecasRomaneio from './PecasRomaneio'
 import { Printer } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { formatarDinheiro } from '@/lib/dinheiro'
@@ -26,12 +27,14 @@ import { TITULO_ROMANEIO } from '@/lib/consignacaoEntreLojas'
  * fornecedor ele carrega o custo (FEF09110 = custo R$ 110). Etiqueta + nome
  * bastam para conferir. O custo continua na lista, só para admin.
  */
-export default function Romaneio({ r, onFechar, recemEnviado = false }: {
+export default function Romaneio({ r, onFechar, recemEnviado = false, isAdmin = false }: {
   r: RomaneioT
+  isAdmin?: boolean
   onFechar: () => void
   /* Aberto sozinho logo após fechar a remessa: já chama a impressão. */
   recemEnviado?: boolean
 }) {
+  const [pecasAbertas, setPecasAbertas] = useState(false)
   /* Pedido da Eleandra (05/10/2026): fechou o consignado, o papel já aparece
      para imprimir e ir na caixa. O atraso deixa o portal de impressão montar. */
   useEffect(() => {
@@ -61,12 +64,16 @@ export default function Romaneio({ r, onFechar, recemEnviado = false }: {
           <span className={styles.recemEnviado}>Remessa enviada. Imprima e coloque o romaneio na caixa.</span>
         )}
         <Button size="sm" variant="ghost" onClick={onFechar}>Fechar</Button>
+        <Button size="sm" variant="outline" data-novidade="abrir-pecas-romaneio" onClick={() => setPecasAbertas(true)}>
+          Fotos e itens{isAdmin ? ' / corrigir preço' : ''}
+        </Button>
         <Button size="sm" onClick={() => window.print()}>
           <Printer size={14} />
           Imprimir romaneio
         </Button>
       </div>
 
+      {pecasAbertas && <PecasRomaneio transferId={r.id} isAdmin={isAdmin} onClose={() => setPecasAbertas(false)} />}
       <ParaImprimir>
       <div className={styles.folha}>
         <header className={styles.cabecalho}>
