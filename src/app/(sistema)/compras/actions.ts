@@ -96,10 +96,8 @@ export interface CompraFormData {
    */
   clientRequestId?: string | null
   /**
-   * Desde 12/10/2026 a compra NÃO entra direto no estoque: cada loja de
-   * destino recebe uma remessa ("lote do fornecedor") em Transferências e as
-   * peças só entram quando a loja conferir. `true` = a admin marcou que as
-   * peças já estão na loja (a Fernanda trouxe na mão): entra direto, como antes.
+   * Apenas consignações: a admin pode declarar que as peças já estão na loja.
+   * Em compras próprias o banco decide pela filial, ignorando este campo.
    */
   entraDireto?: boolean
 }
@@ -201,6 +199,32 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
    */
   const admin = createAdminClient()
   const idReq = idDeRequisicaoValido(data.clientRequestId)
+
+  // O cliente envia destinos por linha, mas service_role ignora RLS.
+  // Refazemos escopo e vínculo da peça antes de qualquer gravação.
+  const perfil = await getProfile()
+  if (!perfil?.is_active || perfil.id !== userId) return { success: false, error: 'Acesso negado.' }
+  const loja = lojaDoEscopo(perfil)
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (data.rows.some(r => !uuid.test(r.storeId) || (loja && r.storeId !== loja))) {
+    return { success: false, error: 'Selecione uma loja de destino permitida para esta sessão.' }
+  }
+  const destinos = [...new Set(data.rows.map(r => r.storeId))]
+  const { data: lojas, error: lojasErr } = await admin.from('stores')
+    .select('id').in('id', destinos).eq('is_active', true)
+  if (lojasErr || lojas?.length !== destinos.length) {
+    return { success: false, error: 'Não foi possível confirmar as lojas de destino ativas. Nada foi gravado.' }
+  }
+  const idsProdutos = [...new Set(data.rows.map(r => r.productId).filter((id): id is string => !!id))]
+  if (idsProdutos.some(id => !uuid.test(id))) return { success: false, error: 'Peça inválida.' }
+  if (idsProdutos.length) {
+    const { data: produtos, error: produtosErr } = await admin.from('products')
+      .select('id, store_id').in('id', idsProdutos)
+    if (produtosErr || produtos?.length !== idsProdutos.length || data.rows.some(r =>
+      r.productId && produtos?.find(p => p.id === r.productId)?.store_id !== r.storeId)) {
+      return { success: false, error: 'Uma peça não pertence à loja de destino. Confira os itens. Nada foi gravado.' }
+    }
+  }
 
   /*
    * CONSIGNAÇÃO É POR FORNECEDOR E POR LOJA.
@@ -575,13 +599,13 @@ export async function salvarCompra(data: CompraFormData): Promise<ActionResult> 
 
   /*
    * `salvar_compra_conferida` grava a compra e, na MESMA transação, abre uma
-   * remessa por loja de destino: as peças só entram no estoque quando a loja
-   * conferir em Estoque > Transferências (migration
-   * 20261012_compra_entra_na_conferencia). Sem fallback para `salvar_compra`:
+   * remessa nas filiais que exigem conferência. Campinas entra direto;
+   * Brasília confere em Estoque > Transferências (migration 20261027).
+   * Sem fallback para `salvar_compra`:
    * se a função não existir, gravar pelo caminho antigo poria a compra direto
    * no estoque, que é exatamente o que a loja pediu para não acontecer.
    */
-  const gravar = () => admin.rpc('salvar_compra_conferida', { p: payload, p_entra_direto: !!data.entraDireto })
+  const gravar = () => admin.rpc('salvar_compra_conferida', { p: payload, p_entra_direto: data.isConsignment && !!data.entraDireto })
 
   let { data: resp, error: rpcErr } = await gravar()
   if (rpcErr?.code === 'PGRST202') {
