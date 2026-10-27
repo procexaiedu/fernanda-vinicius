@@ -65,7 +65,7 @@ export default function Romaneio({ r, onFechar, recemEnviado = false, isAdmin = 
         )}
         <Button size="sm" variant="ghost" onClick={onFechar}>Fechar</Button>
         <Button size="sm" variant="outline" data-novidade="abrir-pecas-romaneio" onClick={() => setPecasAbertas(true)}>
-          Fotos e itens{isAdmin ? ' / corrigir preço' : ''}
+          Fotos e itens{isAdmin ? ' / corrigir nome ou preço' : ''}
         </Button>
         <Button size="sm" onClick={() => window.print()}>
           <Printer size={14} />
