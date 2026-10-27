@@ -14,7 +14,7 @@ export interface PecaRomaneio {
   precoVenda: number
   precoPromocional: number | null
   promocaoAtiva: boolean
-  precoEtiqueta: number
+  precoEtiqueta: number | null
   bloqueio: string | null
   versao: Record<string, unknown> | null
 }
@@ -56,7 +56,7 @@ export async function consultarPecasRomaneio(transferId: string): Promise<PecaRo
       id: i.id, nome: i.product_name, etiqueta: i.barcode_number, foto: p?.photo_url ?? null,
       precoRomaneio: i.unit_sale_price == null ? null : Number(i.unit_sale_price),
       precoVenda: Number(p?.sale_price ?? 0), precoPromocional: p?.promotional_price == null ? null : Number(p.promotional_price),
-      promocaoAtiva: promo, precoEtiqueta: Number(promo ? p?.promotional_price : p?.sale_price ?? 0), bloqueio,
+      promocaoAtiva: promo, precoEtiqueta: p ? Number(promo ? p.promotional_price : p.sale_price) : null, bloqueio,
       versao: bloqueio || !p ? null : {
         transfer_updated_at: t.updated_at, product_updated_at: p.updated_at,
         sale_price: p.sale_price, promotional_price: p.promotional_price,

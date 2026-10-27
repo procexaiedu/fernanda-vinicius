@@ -1,0 +1,47 @@
+{
+  "project_id": "6a922c17-1db6-434f-b12b-dc6daa26217d",
+  "task_ids": ["091773a7-f294-43b0-ba03-d4bfd018aaf1"],
+  "site_url": "http://localhost:5315",
+  "titulo": "Consultar peças e corrigir o preço antes de receber o lote",
+  "passos": [
+    {
+      "path": "/estoque/transferencias",
+      "abrir_antes": { "css": "[title=\"Ver romaneio\"]" },
+      "alvo": { "marca": "abrir-pecas-romaneio" },
+      "titulo": "Abra as peças do romaneio",
+      "texto": "Agora você pode consultar fotos e itens, corrigir o preço de um lote do fornecedor que ainda aguarda recebimento e preparar uma nova etiqueta.",
+      "antes": {
+        "imagem": "/api/novidades/imagem/8928f71a-8d86-47d0-a60e-aee6a3b04ee9.html",
+        "largura": 1440,
+        "recorte": { "x": 270, "y": 193, "w": 900, "h": 499 },
+        "legenda": "Exemplo com dados fictícios"
+      },
+      "depois": {
+        "imagem": "/api/novidades/imagem/555a2574-aecd-440c-b22f-e0162396d808.html",
+        "largura": 1440,
+        "recorte": { "x": 270, "y": 193, "w": 900, "h": 499 },
+        "pontos": [
+          { "x": 709, "y": 258, "w": 192, "h": 33 },
+          { "x": 741, "y": 483, "w": 109, "h": 27 }
+        ]
+      },
+      "marcas": [
+        { "alvo": { "marca": "abrir-pecas-romaneio" }, "estilo": "contorno", "nota": "Fotos, itens e correção de preço" },
+        { "alvo": { "css": "[role=\"dialog\"] tbody tr:first-child td:nth-child(5)" }, "estilo": "marca_texto", "nota": "Preço corrigido e salvo neste exemplo" }
+      ]
+    },
+    {
+      "path": "/estoque/transferencias",
+      "abrir_antes": { "marca": "abrir-pecas-romaneio" },
+      "alvo": { "marca": "pecas-romaneio" },
+      "titulo": "Confira o preço que será impresso",
+      "texto": "Só administradores podem salvar o preço de venda em lotes aguardando recebimento. Se houver promoção ativa, ela é mantida e o valor da etiqueta aparece antes de salvar."
+    },
+    {
+      "path": "/estoque/transferencias",
+      "alvo": { "texto": "Reimprimir etiqueta" },
+      "titulo": "Reimprima com o valor salvo",
+      "texto": "Depois de salvar, use Reimprimir etiqueta. A impressão consulta o cadastro atualizado da peça e mantém o formato da etiqueta da compra."
+    }
+  ]
+}

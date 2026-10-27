@@ -81,7 +81,7 @@ export default function PecasRomaneio({ transferId, isAdmin, onClose }: {
               <h3>{p.nome}</h3><p>Etiqueta {p.etiqueta}</p>
               <p>Preço no romaneio: <strong>{p.precoRomaneio == null ? 'Não registrado' : formatarDinheiro(p.precoRomaneio)}</strong></p>
               {isAdmin && <>
-                <p>Etiqueta atual: <strong>{formatarDinheiro(p.precoEtiqueta)}</strong></p>
+                <p>Etiqueta atual: <strong>{p.precoEtiqueta == null ? 'Cadastro indisponível' : formatarDinheiro(p.precoEtiqueta)}</strong></p>
                 {p.promocaoAtiva && <p className={styles.promocao}>Promoção ativa: {formatarDinheiro(p.precoPromocional ?? 0)}. A promoção será mantida e continua valendo na etiqueta.</p>}
                 {p.bloqueio ? <p className={styles.bloqueio}>{p.bloqueio}</p> : <form onSubmit={e => { e.preventDefault(); void salvar(p) }}>
                   <label htmlFor={`preco-${p.id}`}>Preço de venda (R$)</label>

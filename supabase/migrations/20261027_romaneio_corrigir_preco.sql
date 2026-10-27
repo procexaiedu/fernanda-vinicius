@@ -1,7 +1,7 @@
 -- Correção administrativa explícita, só lote de fornecedor aguardando chegada.
 -- Não toca custo, quantidade, financeiro, identidade ou vendas.
 BEGIN;
-CREATE TABLE fv.romaneio_price_changes (
+CREATE TABLE IF NOT EXISTS fv.romaneio_price_changes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   transfer_id uuid NOT NULL REFERENCES fv.transfers(id),
   item_id uuid NOT NULL REFERENCES fv.transfer_items(id),
@@ -17,7 +17,7 @@ ALTER TABLE fv.romaneio_price_changes ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON fv.romaneio_price_changes FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT ON fv.romaneio_price_changes TO service_role;
 
-CREATE FUNCTION fv.corrigir_preco_romaneio(
+CREATE OR REPLACE FUNCTION fv.corrigir_preco_romaneio(
   p_transfer_id uuid, p_item_id uuid, p_sale_price numeric,
   p_expected jsonb, p_user_id uuid, p_store_scope uuid DEFAULT NULL
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path = fv, pg_temp AS $$

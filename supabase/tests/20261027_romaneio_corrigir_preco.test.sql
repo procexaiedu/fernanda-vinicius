@@ -8,7 +8,8 @@ UPDATE fv.transfers SET totals=jsonb_set(totals,'{venda_total}','2377');
 CREATE FUNCTION pg_temp.versao() RETURNS jsonb LANGUAGE sql AS $$
  SELECT jsonb_build_object('transfer_updated_at', t.updated_at, 'product_updated_at', p.updated_at,
  'sale_price',p.sale_price,'promotional_price',p.promotional_price,'promotional_active',p.promotional_active,'unit_sale_price',i.unit_sale_price)
- FROM fv.transfers t JOIN fv.transfer_items i ON i.transfer_id=t.id JOIN fv.products p ON p.id=i.product_id LIMIT 1;
+ FROM fv.transfers t JOIN fv.transfer_items i ON i.transfer_id=t.id JOIN fv.products p ON p.id=i.product_id
+ WHERE i.id='60000000-0000-0000-0000-000000000001';
 $$;
 CREATE FUNCTION pg_temp.corrigir(preco numeric DEFAULT 237, usuario uuid DEFAULT '20000000-0000-0000-0000-000000000001', loja uuid DEFAULT NULL, versao jsonb DEFAULT NULL) RETURNS jsonb LANGUAGE sql AS $$
  SELECT fv.corrigir_preco_romaneio('50000000-0000-0000-0000-000000000001','60000000-0000-0000-0000-000000000001',preco,COALESCE(versao,pg_temp.versao()),usuario,loja);
@@ -48,6 +49,13 @@ BEGIN
  UPDATE fv.products SET barcode_number='outro';
  ASSERT NOT (pg_temp.corrigir()->>'success')::boolean, 'identity';
  UPDATE fv.products SET barcode_number='12724';
+ UPDATE fv.transfer_items SET quantity_received=0;
+ ASSERT NOT (pg_temp.corrigir()->>'success')::boolean, 'item already checked';
+ UPDATE fv.transfer_items SET quantity_received=NULL;
+ INSERT INTO fv.transfer_items(id,transfer_id,product_id,quantity_sent,unit_sale_price)
+ VALUES ('60000000-0000-0000-0000-000000000002','50000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001',1,2377);
+ ASSERT NOT (pg_temp.corrigir()->>'success')::boolean, 'shared product';
+ DELETE FROM fv.transfer_items WHERE id='60000000-0000-0000-0000-000000000002';
  antiga := pg_temp.versao();
  r := pg_temp.corrigir(); ASSERT (r->>'success')::boolean, r::text;
  ASSERT (SELECT sale_price=237 AND cost_price=84 AND quantity_in_stock=0 AND code='FNO108499' AND barcode_number='12724' FROM fv.products), 'product invariant';
@@ -66,6 +74,20 @@ BEGIN
  UPDATE fv.products SET promotional_price=190,promotional_active=false;
  ASSERT (pg_temp.corrigir(270)->>'effective_price')::numeric=270, 'inactive promo ignored';
 END $$;
+-- Vizinho no mesmo romaneio: total muda, preço/quantidade/custo do outro item não.
+INSERT INTO fv.products(id,store_id,code,name,barcode_number,category,sale_price,cost_price)
+VALUES ('40000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001','VIZINHO','Anel teste','12725','anel',10,5);
+INSERT INTO fv.transfer_items(id,transfer_id,product_id,product_code,product_name,barcode_number,quantity_sent,unit_sale_price,unit_cost)
+VALUES ('60000000-0000-0000-0000-000000000002','50000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000002','VIZINHO','Anel teste','12725',2,10,5);
+DO $$ BEGIN
+ ASSERT (pg_temp.corrigir(280)->>'success')::boolean, 'neighbor correction';
+ ASSERT (SELECT totals->>'venda_total'='300.00' FROM fv.transfers), 'neighbor total';
+ ASSERT (SELECT sale_price=10 AND cost_price=5 FROM fv.products WHERE code='VIZINHO'), 'neighbor product';
+ ASSERT (SELECT quantity_sent=2 AND unit_cost=5 AND unit_sale_price=10 FROM fv.transfer_items WHERE product_code='VIZINHO'), 'neighbor item';
+END $$;
+DELETE FROM fv.transfer_items WHERE product_code='VIZINHO';
+DELETE FROM fv.products WHERE code='VIZINHO';
+SELECT pg_temp.corrigir(270);
 -- Falha induzida DEPOIS de produto/item/auditoria: toda a transação deve reverter.
 CREATE FUNCTION pg_temp.falhar() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'falha induzida'; END $$;
 CREATE TRIGGER teste_falha BEFORE UPDATE ON fv.transfers FOR EACH ROW EXECUTE FUNCTION pg_temp.falhar();

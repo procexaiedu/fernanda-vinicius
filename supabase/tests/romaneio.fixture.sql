@@ -13,6 +13,7 @@ CREATE TABLE fv.transfer_items(id uuid PRIMARY KEY,transfer_id uuid REFERENCES f
 CREATE TABLE fv.purchase_items(id uuid DEFAULT gen_random_uuid(),purchase_id uuid REFERENCES fv.purchases,product_id uuid REFERENCES fv.products,label_format text DEFAULT 'B',quantity int DEFAULT 1);
 CREATE TABLE fv.sale_items(id uuid DEFAULT gen_random_uuid(),product_id uuid REFERENCES fv.products);
 CREATE TABLE fv.stock_movements(id uuid DEFAULT gen_random_uuid(),product_id uuid,delta integer);
+ALTER TABLE fv.stock_movements ADD quantity_before int, ADD quantity_after int, ADD reason text, ADD ref_type text, ADD ref_id uuid, ADD user_id uuid;
 CREATE TABLE fv.transactions(id uuid DEFAULT gen_random_uuid(),amount numeric,status text);
 INSERT INTO fv.stores VALUES ('10000000-0000-0000-0000-000000000001','Brasília (teste)'),('10000000-0000-0000-0000-000000000002','Campinas (teste)');
 INSERT INTO fv.users(id,full_name,role) VALUES ('20000000-0000-0000-0000-000000000001','Admin teste','admin'),('20000000-0000-0000-0000-000000000002','Operadora teste','operator');

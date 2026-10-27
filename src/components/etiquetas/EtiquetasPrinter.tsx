@@ -418,7 +418,7 @@ function AgentStatusBar({ agent }: { agent: ReturnType<typeof useLocalPrintAgent
       <CheckCircle2 size={14} />
       <div className={styles.statusContent}>
         <strong>Agente conectado</strong>
-        <p>
+        <div className={styles.printerSelect}>
           Impressora:{' '}
           <SearchableSelect
             value={agent.selectedPrinter ?? ''}
@@ -430,7 +430,7 @@ function AgentStatusBar({ agent }: { agent: ReturnType<typeof useLocalPrintAgent
             placeholder="Escolha a impressora"
             searchable={false}
           />
-        </p>
+        </div>
       </div>
     </div>
   )
