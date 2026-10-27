@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Pencil } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { corrigirNomeProduto } from '@/app/(sistema)/produtos/nomeActions'
 import styles from './NomeProdutoEditor.module.css'
@@ -17,9 +18,9 @@ export default function NomeProdutoEditor({ productId, storeId, nome, romaneio, 
   const [erro, setErro] = useState('')
   useEffect(() => { setDraft(nome) }, [nome])
 
-  if (!aberto) return <Button size="sm" variant="ghost" onClick={() => {
+  if (!aberto) return <Button size="sm" variant="outline" data-name-edit-button onClick={() => {
     setDraft(nome); setErro(''); setAberto(true); onEditing(true)
-  }}>Editar nome</Button>
+  }}><Pencil size={14} />Editar nome do produto</Button>
 
   return <form className={styles.editor} data-novidade="editar-nome" onSubmit={async e => {
     e.preventDefault(); setErro(''); setSalvando(true)

@@ -318,8 +318,9 @@ export default function ProdutoDetalheModal({ produto, categoryLabelMap, categor
 
           <div className={styles.headerInfo}>
             <div className={styles.productName}>{nome}</div>
-            {interno && <NomeProdutoEditor key={produto.id} productId={produto.id} storeId={produto.store_id}
-              nome={nome} onEditing={setEditandoNome} onSaved={novo => { setNome(novo); router.refresh() }} />}
+            {interno && <div className={styles.nameEditorAction}><NomeProdutoEditor key={produto.id}
+              productId={produto.id} storeId={produto.store_id} nome={nome} onEditing={setEditandoNome}
+              onSaved={novo => { setNome(novo); router.refresh() }} /></div>}
             <div className={styles.headerMeta}>
               {/* Código só na visão interna (admin): ele carrega o custo (05/10/2026).
                   Fora dela, a etiqueta identifica a peça. */}

@@ -50,6 +50,7 @@
   letter-spacing: -0.02em;
   line-height: 1.2;
 }
+.nameEditorAction { display: flex; width: fit-content; max-width: 100%; }
 
 .headerMeta {
   display: flex;
