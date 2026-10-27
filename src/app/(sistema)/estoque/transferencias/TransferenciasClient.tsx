@@ -327,13 +327,13 @@ export default function TransferenciasClient({
 
       {vendoRomaneio && (
         <Modal isOpen size="xl" hideHeader onClose={() => setVendoRomaneio(null)}>
-          <Romaneio r={vendoRomaneio} onFechar={() => setVendoRomaneio(null)} />
+          <Romaneio r={romaneios.find(r => r.id === vendoRomaneio.id) ?? vendoRomaneio} isAdmin={isAdmin} onFechar={() => setVendoRomaneio(null)} />
         </Modal>
       )}
 
       {!vendoRomaneio && romaneioRecemEnviado && (
         <Modal isOpen size="xl" hideHeader onClose={() => setRecemEnviado(null)}>
-          <Romaneio r={romaneioRecemEnviado} recemEnviado onFechar={() => setRecemEnviado(null)} />
+          <Romaneio r={romaneioRecemEnviado} isAdmin={isAdmin} recemEnviado onFechar={() => setRecemEnviado(null)} />
         </Modal>
       )}
 

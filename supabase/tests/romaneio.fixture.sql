@@ -1,0 +1,26 @@
+-- Schema REPRESENTATIVO, somente teste descartável. Não é schema base de produção.
+CREATE ROLE anon NOLOGIN;
+CREATE ROLE authenticated NOLOGIN;
+CREATE ROLE service_role NOLOGIN BYPASSRLS;
+CREATE SCHEMA fv;
+GRANT USAGE ON SCHEMA fv TO service_role;
+CREATE TABLE fv.stores(id uuid PRIMARY KEY, name text, is_active boolean DEFAULT true);
+CREATE TABLE fv.users(id uuid PRIMARY KEY,full_name text,role text,store_id uuid REFERENCES fv.stores,is_active boolean DEFAULT true);
+CREATE TABLE fv.purchases(id uuid PRIMARY KEY);
+CREATE TABLE fv.products(id uuid PRIMARY KEY,store_id uuid REFERENCES fv.stores,code text,name text,barcode_number text,photo_url text,category text,label_format text DEFAULT 'A',sale_price numeric(12,2),promotional_price numeric(12,2),promotional_active boolean DEFAULT false,quantity_in_stock integer DEFAULT 0,is_active boolean DEFAULT false,cost_price numeric DEFAULT 84,updated_at timestamptz DEFAULT now());
+CREATE TABLE fv.transfers(id uuid PRIMARY KEY,from_store_id uuid REFERENCES fv.stores,to_store_id uuid REFERENCES fv.stores,status text DEFAULT 'enviada',sent_at timestamptz DEFAULT now(),received_at timestamptz,notes text,receipt_notes text,totals jsonb,kind text DEFAULT 'lote_fornecedor',purchase_id uuid REFERENCES fv.purchases,consignacao_id uuid,acerto_at timestamptz,falta_decisao text,falta_valor numeric,sent_by uuid REFERENCES fv.users,received_by uuid REFERENCES fv.users,updated_at timestamptz DEFAULT now());
+CREATE TABLE fv.transfer_items(id uuid PRIMARY KEY,transfer_id uuid REFERENCES fv.transfers,product_id uuid REFERENCES fv.products,dest_product_id uuid REFERENCES fv.products,product_code text,product_name text,barcode_number text,quantity_sent int DEFAULT 1,quantity_received int,unit_cost numeric DEFAULT 84,unit_sale_price numeric(12,2),reetiquetar boolean DEFAULT false,divergence_type text);
+CREATE TABLE fv.purchase_items(id uuid DEFAULT gen_random_uuid(),purchase_id uuid REFERENCES fv.purchases,product_id uuid REFERENCES fv.products,label_format text DEFAULT 'B',quantity int DEFAULT 1);
+CREATE TABLE fv.sale_items(id uuid DEFAULT gen_random_uuid(),product_id uuid REFERENCES fv.products);
+CREATE TABLE fv.stock_movements(id uuid DEFAULT gen_random_uuid(),product_id uuid,delta integer);
+ALTER TABLE fv.stock_movements ADD quantity_before int, ADD quantity_after int, ADD reason text, ADD ref_type text, ADD ref_id uuid, ADD user_id uuid;
+CREATE TABLE fv.transactions(id uuid DEFAULT gen_random_uuid(),amount numeric,status text);
+INSERT INTO fv.stores VALUES ('10000000-0000-0000-0000-000000000001','Brasília (teste)'),('10000000-0000-0000-0000-000000000002','Campinas (teste)');
+INSERT INTO fv.users(id,full_name,role) VALUES ('20000000-0000-0000-0000-000000000001','Admin teste','admin'),('20000000-0000-0000-0000-000000000002','Operadora teste','operator');
+INSERT INTO fv.purchases VALUES ('30000000-0000-0000-0000-000000000001');
+INSERT INTO fv.products(id,store_id,code,name,barcode_number,category,sale_price) VALUES ('40000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','FNO108499','COLAR PEROLA','12724','colar',2377);
+INSERT INTO fv.transfers(id,to_store_id,purchase_id,sent_by,totals) VALUES ('50000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','{"pecas":1,"itens":1,"custo_total":84,"venda_total":2377}');
+INSERT INTO fv.transfer_items(id,transfer_id,product_id,product_code,product_name,barcode_number,unit_sale_price) VALUES ('60000000-0000-0000-0000-000000000001','50000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','FNO108499','COLAR PEROLA','12724',2377);
+INSERT INTO fv.purchase_items(purchase_id,product_id) VALUES ('30000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001');
+INSERT INTO fv.transactions(amount,status) VALUES (84,'pending');
+GRANT ALL ON ALL TABLES IN SCHEMA fv TO service_role;

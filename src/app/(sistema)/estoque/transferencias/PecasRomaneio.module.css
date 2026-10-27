@@ -1,0 +1,19 @@
+.conteudo { padding: 20px; display: grid; gap: 16px; color: var(--text-primary); }
+.conteudo p { margin: 0; line-height: 1.5; }
+.peca { display: flex; gap: 20px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+.foto { flex: 0 0 120px; min-height: 120px; background: var(--bg-elevated); display: grid; place-items: center; text-align: center; font-size: 12px; color: var(--text-muted); }
+.foto img { display: block; width: 120px; height: 120px; object-fit: contain; }
+.dados { display: grid; gap: 10px; min-width: 0; width: 100%; }
+.dados h3 { margin: 0; overflow-wrap: anywhere; }
+.dados form { display: grid; gap: 8px; justify-items: start; }
+.dados input { width: 100%; max-width: 220px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-elevated); color: var(--text-primary); font: inherit; }
+.erro, .bloqueio { color: var(--text-primary); padding: 12px; background: var(--bg-elevated); border-left: 3px solid #d8933b; }
+.sucesso { padding: 12px; border-left: 3px solid #39a778; background: var(--bg-elevated); }
+.promocao { font-size: 13px; color: var(--text-secondary); }
+@media (max-width: 600px) {
+  .conteudo { padding: 12px; }
+  .peca { flex-direction: column; padding: 12px; gap: 12px; }
+  .foto { flex-basis: auto; min-height: 90px; }
+  .foto img { height: 100px; }
+  .dados button { width: 100%; }
+}
