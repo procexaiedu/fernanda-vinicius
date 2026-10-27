@@ -24,7 +24,7 @@ export default async function NovaCompraPage() {
    * destinar as peças a Campinas, que é exatamente o que a separação impede.
    */
   const carregarLojasDaCompra = () => {
-    let q = admin.from('stores').select('id, name, city').eq('is_active', true)
+    let q = admin.from('stores').select('id, name, city, purchase_enters_directly').eq('is_active', true)
     if (escopo) q = q.eq('id', escopo)
     return q.order('name')
   }
@@ -47,6 +47,7 @@ export default async function NovaCompraPage() {
     admin.from('materials').select('name').eq('is_active', true).order('name'),
   ])
 
+  if (storesRes.error) throw new Error('Não foi possível ler a política de entrada das filiais. Avise o suporte.')
   const suppliers      = suppliersRes.data ?? []
   const stores         = storesRes.data ?? []
   const products       = productsRes.data ?? []

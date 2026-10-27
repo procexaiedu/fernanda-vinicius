@@ -24,7 +24,7 @@ import { mensagemConsignacaoMisturada } from '@/lib/compras/consignacao'
 // ─── Tipos de props ────────────────────────────────────────────────────────────
 
 interface SupplierOption { id: string; name: string; initials: string }
-interface StoreOption    { id: string; name: string; city: string }
+interface StoreOption    { id: string; name: string; city: string; purchase_enters_directly: boolean }
 interface ProductOption  {
   id: string; name: string; code: string; category: string; material: string
   cost_price: number; sale_price: number; promotional_price: number | null
@@ -1290,20 +1290,32 @@ export default function NovaCompraForm({ suppliers: initialSuppliers, stores, pr
             </>
           )}
 
-          {/* Desde 12/10/2026 a compra vira remessa em Transferências e só
-              entra no estoque quando a loja confere. Marcado = as peças já
-              estão na loja (trazidas na mão): entram direto, como antes. */}
-          <div className={styles.field} style={{ gridColumn: isConsignment ? 'auto' : '2 / -1' }}>
+          <div data-compra-entrada className={styles.field} style={{ gridColumn: isConsignment ? 'auto' : '2 / -1' }}>
             <label className={styles.label}>Entrada no estoque</label>
-            <label className={styles.entraDireto}>
-              <input type="checkbox" checked={entraDireto} onChange={e => setEntraDireto(e.target.checked)} />
-              Peças já estão na loja (entram direto)
-            </label>
-            <span className={styles.remessaDica}>
-              {entraDireto
-                ? 'As peças entram no estoque ao salvar, sem conferência.'
-                : 'Vai para Estoque › Transferências: entra no estoque quando a loja conferir a chegada.'}
-            </span>
+            {isConsignment ? (
+              <>
+                <label className={styles.entraDireto}>
+                  <input type="checkbox" checked={entraDireto} onChange={e => setEntraDireto(e.target.checked)} />
+                  Peças já estão na loja (entram direto)
+                </label>
+                <span className={styles.remessaDica}>
+                  {entraDireto
+                    ? 'As peças entram no estoque ao salvar, sem conferência.'
+                    : 'Vai para Estoque › Transferências: entra no estoque quando a loja conferir a chegada.'}
+                </span>
+              </>
+            ) : (
+              <div role="status" className={styles.remessaDica}>
+                {stores.filter(s => rows.some(r => r.storeId === s.id)).map(s => (
+                  <p key={s.id}>
+                    <strong>{s.name}:</strong>{' '}
+                    {s.purchase_enters_directly
+                      ? 'as peças entram no estoque ao salvar a compra.'
+                      : 'vai para Estoque › Transferências. As peças só entram no estoque após a conferência do romaneio.'}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
