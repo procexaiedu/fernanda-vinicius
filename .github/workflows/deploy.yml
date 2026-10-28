@@ -1,0 +1,45 @@
+name: build-deploy
+# Monta a imagem do site fernanda-vinicius nos servidores do GitHub (não na VPS), publica no ghcr.io e troca o serviço
+# fevinicius_web pelo Portainer (se a versão nova cair, o Swarm volta para a anterior). Mesmo desenho do DevContext.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**/*.md']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-fernanda-vinicius
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ghcr.io/procexaiedu/fernanda-vinicius:latest
+            ghcr.io/procexaiedu/fernanda-vinicius:${{ github.sha }}
+      - name: Deploy no Swarm (Portainer)
+        env:
+          PORTAINER_TOKEN: ${{ secrets.PORTAINER_TOKEN }}
+        run: node .github/scripts/deploy-portainer.mjs fevinicius_web ghcr.io/procexaiedu/fernanda-vinicius:${{ github.sha }}
