@@ -165,8 +165,15 @@ export async function buscarTransacoes(filters: TransactionFilters): Promise<{ d
   if (filters.status)   q = q.eq('status', filters.status)
   if (loja)             q = q.eq('store_id', loja)
   if (filters.category) q = q.eq('category', filters.category)
-  if (filters.dateFrom) q = q.gte('transaction_date', filters.dateFrom)
-  if (filters.dateTo)   q = q.lte('transaction_date', filters.dateTo)
+  // Período casa com o lançamento OU com o vencimento: uma conta lançada em
+  // outubro que vence em novembro precisa aparecer quando se filtra novembro.
+  if (filters.dateFrom || filters.dateTo) {
+    const faixa = (col: string) => [
+      filters.dateFrom ? `${col}.gte.${filters.dateFrom}` : null,
+      filters.dateTo   ? `${col}.lte.${filters.dateTo}`   : null,
+    ].filter(Boolean).join(',')
+    q = q.or(`and(${faixa('transaction_date')}),and(${faixa('due_date')})`)
+  }
   if (filters.userId)   q = q.eq('user_id', filters.userId)
 
   const { data, error } = await q

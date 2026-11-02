@@ -835,6 +835,22 @@ function PendenciasModal({
       : rt
   }
 
+  // Excel das contas a pagar, na ordem do quadro (vencimento).
+  function exportarPendencias() {
+    const colunas: ColunaXlsx<TransactionRow>[] = [
+      { titulo: 'Vencimento', valor: t => dataXlsx(t.due_date), largura: 12 },
+      { titulo: 'Descrição',  valor: t => t.description, largura: 40 },
+      { titulo: 'Categoria',  valor: t => t.category, largura: 18 },
+      { titulo: 'Origem',     valor: t => origemLabel(t.reference_type), largura: 18 },
+      { titulo: 'Loja',       valor: t => t.store_name ?? 'Geral', largura: 14 },
+      { titulo: 'Método',     valor: t => METHOD_LABELS[t.payment_method ?? ''] ?? t.payment_method ?? '', largura: 14 },
+      { titulo: 'Valor',      valor: t => Number(t.amount), formato: 'dinheiro', largura: 14 },
+      { titulo: 'Observação', valor: t => t.notes, largura: 30 },
+    ]
+    const nome = nomeArquivo('contas-a-pagar', new Date())
+    baixarXlsx(montarXlsx(pendencias, colunas, 'Contas a pagar'), nome.replace(/.csv$/, '.xlsx'))
+  }
+
   return (
     <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div className={styles.modal} style={{ maxWidth: 'min(960px, 100%)' }}>
@@ -909,6 +925,9 @@ function PendenciasModal({
           <span style={{ marginRight: 'auto', fontWeight: 700 }}>
             Total pendente: <span style={{ color: 'var(--accent)' }}>{fmt(total)}</span>
           </span>
+          {pendencias.length > 0 && (
+            <button className={styles.btnSecondary} onClick={exportarPendencias}>Exportar</button>
+          )}
           <button className={styles.btnSecondary} onClick={onClose}>Fechar</button>
         </div>
       </div>
