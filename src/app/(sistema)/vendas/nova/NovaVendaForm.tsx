@@ -2186,14 +2186,21 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                       )}
                       {!row.isConserto && (() => {
                         const peca = row.productId ? products.find(p => p.id === row.productId) : undefined
-                        return peca ? <div className={styles.pecaChipsLinha}><DetalhesDaPeca p={peca} /></div> : null
+                        const aviso = stockWarn && (
+                          <span className={`${styles.pecaChip} ${styles.pecaChipAviso}`}>
+                            <AlertTriangle size={10} />
+                            {noStock ? 'Sem estoque' : `Apenas ${row.stockAvailable} em estoque`}
+                          </span>
+                        )
+                        if (!peca && !aviso) return null
+                        // Selos e aviso de estoque numa linha só, alinhados ao texto do nome.
+                        return (
+                          <div className={styles.pecaChipsLinha}>
+                            {peca && <DetalhesDaPeca p={peca} />}
+                            {aviso}
+                          </div>
+                        )
                       })()}
-                      {!row.isConserto && stockWarn && (
-                        <div className={styles.stockWarn}>
-                          <AlertTriangle size={11} />
-                          {noStock ? 'Sem estoque' : `Apenas ${row.stockAvailable} em estoque`}
-                        </div>
-                      )}
                     </td>
 
                     {/*

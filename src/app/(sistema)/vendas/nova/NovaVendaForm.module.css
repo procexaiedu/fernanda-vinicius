@@ -1373,14 +1373,26 @@
    Distinguem peças de mesmo nome e preço sem revelar custo. A etiqueta vem
    em destaque: é o número que a vendedora confere impresso na peça. */
 .pecaChipsLinha {
-  padding: 0 6px;
-  margin-top: 4px;
-}
-.pecaChips {
+  /* 7px = padding (6) + borda (1) do input: começa junto com o texto do nome */
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
-  margin-top: 4px;
+  padding: 0 7px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+.pecaChips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.comboOption .pecaChips { margin-top: 4px; }
+.pecaChipAviso {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.08);
+  color: var(--warning);
+  font-weight: 600;
 }
 .pecaChip {
   display: inline-flex;
