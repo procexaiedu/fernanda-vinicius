@@ -9,6 +9,7 @@ import { novoIdDeRequisicao } from '@/lib/idempotencia'
 import {
   Plus, Trash2, AlertTriangle, ChevronDown, Cake, X, CreditCard,
   Banknote, Smartphone, ArrowLeftRight, RefreshCw, User, CheckCircle2, Wrench, RotateCcw, Wallet,
+  Tag,
 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
@@ -49,13 +50,26 @@ interface ProductOption {
  * vendedora "vai só pelo valor e tem medo de errar o brinco". O nº da
  * etiqueta é único e está impresso na peça: dá para conferir olhando.
  */
-function detalhesDaPeca(p: ProductOption): string {
-  const partes: string[] = []
-  if (p.barcode_number) partes.push(`Etiqueta ${p.barcode_number}`)
-  if (p.supplier_reference) partes.push(`Ref ${p.supplier_reference}`)
-  if (p.material) partes.push(p.material)
-  if (p.purchase_month && p.purchase_year) partes.push(`entrada ${String(p.purchase_month).padStart(2, '0')}/${p.purchase_year}`)
-  return partes.join(' · ')
+function DetalhesDaPeca({ p }: { p: ProductOption }) {
+  const extras: Array<[string, string]> = []
+  if (p.supplier_reference) extras.push(['Ref', p.supplier_reference])
+  if (p.material) extras.push(['', p.material])
+  if (p.purchase_month && p.purchase_year) extras.push(['Entrada', `${String(p.purchase_month).padStart(2, '0')}/${p.purchase_year}`])
+  if (!p.barcode_number && extras.length === 0) return null
+  return (
+    <span className={styles.pecaChips}>
+      {p.barcode_number && (
+        <span className={`${styles.pecaChip} ${styles.pecaChipEtiqueta}`} title="Nº impresso na etiqueta da peça">
+          <Tag size={10} /> {p.barcode_number}
+        </span>
+      )}
+      {extras.map(([rot, val]) => (
+        <span key={rot + val} className={styles.pecaChip}>
+          {rot && <span className={styles.pecaChipRotulo}>{rot}</span>}{val}
+        </span>
+      ))}
+    </span>
+  )
 }
 
 interface CustomerOption {
@@ -642,12 +656,12 @@ function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGrid
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 {/* Código só para admin: ele carrega o custo. A busca por código continua. */}
                 {mostrarCodigo && <>{p.code} · </>}
-                {detalhesDaPeca(p) && <>{detalhesDaPeca(p)} · </>}
                 {fmt(p.promotional_active && p.promotional_price ? p.promotional_price : p.sale_price)}
                 {p.promotional_active && p.promotional_price && (
                   <span style={{ color: '#4CAF7D', marginLeft: 4 }}>promo</span>
                 )}
               </span>
+              <DetalhesDaPeca p={p} />
             </div>
           ))}
         </div>
@@ -2172,8 +2186,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                       )}
                       {!row.isConserto && (() => {
                         const peca = row.productId ? products.find(p => p.id === row.productId) : undefined
-                        const det = peca ? detalhesDaPeca(peca) : ''
-                        return det ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{det}</div> : null
+                        return peca ? <div className={styles.pecaChipsLinha}><DetalhesDaPeca p={peca} /></div> : null
                       })()}
                       {!row.isConserto && stockWarn && (
                         <div className={styles.stockWarn}>
