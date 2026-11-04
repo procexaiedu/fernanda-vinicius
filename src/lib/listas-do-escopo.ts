@@ -34,7 +34,7 @@ export function listasDoEscopo(admin: SupabaseClient<any, any, any>, escopo: str
      */
     produtos(de: number, ate: number) {
       let q = admin.from('products')
-        .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, quantity_in_stock, is_service')
+        .select('id, name, code, barcode_number, category, store_id, sale_price, promotional_price, promotional_active, quantity_in_stock, is_service, material, supplier_reference, purchase_month, purchase_year')
         .eq('is_active', true)
       if (escopo) q = q.eq('store_id', escopo)
       return q.order('name').range(de, ate)

@@ -39,6 +39,23 @@ interface ProductOption {
   sale_price: number; promotional_price: number | null; promotional_active: boolean
   /** Não vem mais do servidor (07/10/2026): o custo é relido no banco ao salvar. */
   cost_price?: number; quantity_in_stock: number; is_service: boolean
+  material?: string | null; supplier_reference?: string | null
+  purchase_month?: number | null; purchase_year?: number | null
+}
+
+/**
+ * O que distingue peças de mesmo nome e preço, sem revelar custo (o `code`
+ * carrega o custo e segue só para admin). Pedido da dona em 04/11/2026: a
+ * vendedora "vai só pelo valor e tem medo de errar o brinco". O nº da
+ * etiqueta é único e está impresso na peça: dá para conferir olhando.
+ */
+function detalhesDaPeca(p: ProductOption): string {
+  const partes: string[] = []
+  if (p.barcode_number) partes.push(`Etiqueta ${p.barcode_number}`)
+  if (p.supplier_reference) partes.push(`Ref ${p.supplier_reference}`)
+  if (p.material) partes.push(p.material)
+  if (p.purchase_month && p.purchase_year) partes.push(`entrada ${String(p.purchase_month).padStart(2, '0')}/${p.purchase_year}`)
+  return partes.join(' · ')
 }
 
 interface CustomerOption {
@@ -550,6 +567,7 @@ function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGrid
   const { inputRef, pos, openAt, close } = useFixedDropdown()
   const filtered = products.filter(p =>
     matchText(p.name, value) || matchText(p.code, value)   // trecho, ignora acento
+      || matchText(p.barcode_number, value) || matchText(p.supplier_reference ?? '', value)
   ).slice(0, 10)
 
   // Opção destacada para navegar com ↑/↓ e escolher com Enter
@@ -624,6 +642,7 @@ function ProductCombobox({ value, onChange, products, rowIndex, colIndex, onGrid
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                 {/* Código só para admin: ele carrega o custo. A busca por código continua. */}
                 {mostrarCodigo && <>{p.code} · </>}
+                {detalhesDaPeca(p) && <>{detalhesDaPeca(p)} · </>}
                 {fmt(p.promotional_active && p.promotional_price ? p.promotional_price : p.sale_price)}
                 {p.promotional_active && p.promotional_price && (
                   <span style={{ color: '#4CAF7D', marginLeft: 4 }}>promo</span>
@@ -2151,6 +2170,11 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                         onGridKeyDown={handleGridKeyDown}
                       />
                       )}
+                      {!row.isConserto && (() => {
+                        const peca = row.productId ? products.find(p => p.id === row.productId) : undefined
+                        const det = peca ? detalhesDaPeca(peca) : ''
+                        return det ? <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{det}</div> : null
+                      })()}
                       {!row.isConserto && stockWarn && (
                         <div className={styles.stockWarn}>
                           <AlertTriangle size={11} />
