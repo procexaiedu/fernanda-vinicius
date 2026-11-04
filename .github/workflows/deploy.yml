@@ -41,5 +41,5 @@ jobs:
             ghcr.io/procexaiedu/fernanda-vinicius:${{ github.sha }}
       - name: Deploy no Swarm (Portainer)
         env:
-          PORTAINER_TOKEN: ${{ secrets.PORTAINER_TOKEN }}
-        run: node .github/scripts/deploy-portainer.mjs fevinicius_web ghcr.io/procexaiedu/fernanda-vinicius:${{ github.sha }}
+          PORTAINER_WEBHOOKS: ${{ secrets.PORTAINER_WEBHOOKS }}
+        run: node .github/scripts/deploy-webhook.mjs fevinicius_web ghcr.io/procexaiedu/fernanda-vinicius:${{ github.sha }}
