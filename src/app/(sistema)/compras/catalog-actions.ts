@@ -84,7 +84,8 @@ export async function criarFornecedorRapido(
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('suppliers')
-    .insert({ name: cleanName, initials: cleanInitials })
+    // `phones` é NOT NULL sem DEFAULT no banco: manda lista vazia.
+    .insert({ name: cleanName, initials: cleanInitials, phones: [] })
     .select('id, name, initials')
     .single()
 

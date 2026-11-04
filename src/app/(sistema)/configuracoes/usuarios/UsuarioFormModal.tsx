@@ -316,6 +316,7 @@ export default function UsuarioFormModal({ user, stores, onClose, onSaved }: Pro
                 onChange={e => setEmail(e.target.value)}
                 error={errors.email}
                 placeholder="email@exemplo.com"
+                autoComplete="off"
               />
 
               <div className={styles.fieldGroup}>
@@ -328,6 +329,8 @@ export default function UsuarioFormModal({ user, stores, onClose, onSaved }: Pro
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="Mín. 6 caracteres"
+                      name="senha-inicial"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"

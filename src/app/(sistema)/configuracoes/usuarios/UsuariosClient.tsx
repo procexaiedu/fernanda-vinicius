@@ -129,6 +129,9 @@ export default function UsuariosClient({ users: initialUsers, stores, currentUse
           <input
             className={styles.searchInput}
             placeholder="Buscar por nome ou e-mail…"
+            type="search"
+            name="busca-usuarias"
+            autoComplete="off"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -387,6 +390,8 @@ export default function UsuariosClient({ users: initialUsers, stores, currentUse
                 type={resetShowPwd ? 'text' : 'password'}
                 className={styles.resetInput}
                 placeholder="Nova senha (mín. 6 caracteres)"
+                name="nova-senha"
+                autoComplete="new-password"
                 value={resetPwd}
                 onChange={e => setResetPwd(e.target.value)}
               />
