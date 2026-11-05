@@ -97,6 +97,7 @@ export interface VendaFormData {
   hasPix: boolean
   hasBirthday: boolean
   manualDiscount: number    // valor fixo R$
+  arredondarTotal?: boolean // com desconto manual: sobe o total para o inteiro seguinte?
   payments: SalePaymentRow[]
   exchangeItems: ExchangeItemSelected[]  // itens a devolver via troca
   /** A peça devolvida passou do total: o que fazer com a sobra (ver src/lib/vendas/sobra.ts). */
@@ -571,6 +572,7 @@ function montarPacoteDaVenda(
   /* Um cálculo só para tela e banco — ver src/lib/vendas/total.ts. */
   const { total, discountAmt } = calcularTotalDaVenda({
     subtotal, discountPct, manualDiscount: data.manualDiscount,
+    arredondarTotal: data.arredondarTotal,
   })
 
   const discountTypeParts: string[] = []
@@ -811,6 +813,7 @@ async function prepararVenda(
       subtotal: sub,
       discountPct: (data.hasPix ? pct.pixPct : 0) + (data.hasBirthday ? pct.birthdayPct : 0),
       manualDiscount: data.manualDiscount,
+      arredondarTotal: data.arredondarTotal,
     })
     const erroSobra = conferirSobra({
       total,
@@ -1257,6 +1260,8 @@ export interface EditSaleData {
   hasPix: boolean
   hasBirthday: boolean
   manualDiscount: number
+  /** Venda antiga com desconto manual e total inteiro: a edição não pode mudar o valor. */
+  arredondarTotal: boolean
   notes: string
   rows: Array<{
     productId: string
@@ -1359,7 +1364,8 @@ export async function buscarVendaParaEdicao(saleId: string): Promise<{ data: Edi
       hasPix:        discountType.includes('pix'),
       hasBirthday:   discountType.includes('birthday'),
       manualDiscount: Number(s.manual_discount) || 0,
-      notes:         s.notes ?? '',
+      arredondarTotal: Number(s.manual_discount) > 0 && Number.isInteger(Number(s.total)),
+      notes:        s.notes ?? '',
       rows: (rawItems ?? []).map((i: any) => ({
         productId:      i.product_id,
         productName:    i.products?.name ?? '—',

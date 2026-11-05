@@ -36,6 +36,12 @@ export interface EntradaTotal {
   discountPct: number
   /** Desconto em reais digitado pela operadora. */
   manualDiscount: number
+  /**
+   * Só conta com desconto manual (decisão de 05/11/2026): `false` mantém os
+   * centavos, `true` sobe para o inteiro seguinte. Sem o campo, vale a regra
+   * antiga e arredonda. Pix e aniversário sozinhos sempre arredondam.
+   */
+  arredondarTotal?: boolean
 }
 
 export interface TotalDaVenda {
@@ -44,7 +50,7 @@ export interface TotalDaVenda {
   discountAmt: number
 }
 
-export function calcularTotalDaVenda({ subtotal, discountPct, manualDiscount }: EntradaTotal): TotalDaVenda {
+export function calcularTotalDaVenda({ subtotal, discountPct, manualDiscount, arredondarTotal }: EntradaTotal): TotalDaVenda {
   const rawDiscount = subtotal * discountPct / 100 + manualDiscount
   const rawTotal    = Math.max(0, subtotal - rawDiscount)
 
@@ -56,7 +62,8 @@ export function calcularTotalDaVenda({ subtotal, discountPct, manualDiscount }: 
    * (255,01 continua subindo para 256, que é a regra).
    */
   const totalEmCentavos = Math.round(rawTotal * 100) / 100
-  const total = rawDiscount > 0
+  const manterCentavos = manualDiscount > 0 && arredondarTotal === false
+  const total = rawDiscount > 0 && !manterCentavos
     ? Math.ceil(totalEmCentavos)
     : totalEmCentavos
 

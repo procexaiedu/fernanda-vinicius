@@ -45,6 +45,22 @@ interface ProductOption {
 }
 
 /**
+ * Campo de desconto manual: deixa só dígitos e UM separador, com até 2 casas.
+ * É texto, não `type="number"`: no número, "10," chega vazio ao onChange e o
+ * campo controlado apagava o que já estava digitado — os centavos nunca entravam.
+ */
+function limparDecimal(texto: string): string {
+  const t = texto.replace(/[^\d.,]/g, '')
+  const i = t.search(/[.,]/)
+  if (i < 0) return t
+  return `${t.slice(0, i)},${t.slice(i + 1).replace(/[.,]/g, '').slice(0, 2)}`
+}
+
+function lerDecimal(texto: string): number {
+  return parseFloat(texto.replace(',', '.')) || 0
+}
+
+/**
  * O que distingue peças de mesmo nome e preço. O `code` só entra com
  * `mostrarCodigo` (peça já escolhida na venda). Pedido da dona em 04/11/2026: a
  * vendedora "vai só pelo valor e tem medo de errar o brinco". O nº da
@@ -329,6 +345,7 @@ interface VendaDraft {
   aniversarioTocado: boolean
   manualModo: 'valor' | 'pct'
   manualValor: number
+  arredondarTotal?: boolean
   manualPct: number
   notes: string
   sellerId: string
@@ -969,8 +986,11 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   const [previsaoPagamento, setPrevisaoPagamento] = useState(editSale?.previsaoPagamento ?? '')
 
   const [manualModo, setManualModo]     = useState<'valor' | 'pct'>('valor')
-  const [manualValor, setManualValor]   = useState(editSale?.manualDiscount ?? 0)
-  const [manualPct, setManualPct]       = useState(0)
+  const [manualValorTexto, setManualValorTexto] = useState(editSale?.manualDiscount ? limparDecimal(String(editSale.manualDiscount)) : '')
+  const [manualPctTexto, setManualPctTexto]     = useState('')
+  const [arredondarTotal, setArredondarTotal]   = useState(editSale?.arredondarTotal ?? false)
+  const manualValor = lerDecimal(manualValorTexto)
+  const manualPct   = lerDecimal(manualPctTexto)
 
   // ── Pagamentos ────────────────────────────────────────────────────────────
   const [payments, setPayments] = useState<PaymentRow[]>(editSale?.payments ?? [])
@@ -1230,8 +1250,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     setHasPix(!!d.hasPix)
     setHasBirthday(!!d.hasBirthday)
     setManualModo(d.manualModo === 'pct' ? 'pct' : 'valor')
-    setManualValor(Number(d.manualValor) || 0)
-    setManualPct(Number(d.manualPct) || 0)
+    setManualValorTexto(Number(d.manualValor) ? limparDecimal(String(d.manualValor)) : '')
+    setManualPctTexto(Number(d.manualPct) ? limparDecimal(String(d.manualPct)) : '')
+    setArredondarTotal(!!d.arredondarTotal)
     setNotes(d.notes ?? '')
     setSellerId(users.some(u => u.id === d.sellerId && (u.store_id === d.storeId))
         ? d.sellerId : '')
@@ -1261,8 +1282,9 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     setHasPix(false)
     setHasBirthday(false)
     setManualModo('valor')
-    setManualValor(0)
-    setManualPct(0)
+    setManualValorTexto('')
+    setManualPctTexto('')
+    setArredondarTotal(false)
     setNotes('')
     setSellerId(vendedorInicial)
     setAceitouFiado(false)
@@ -1334,7 +1356,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
         }),
         selectedCustomer, customerSearch, payments,
         hasPix, hasBirthday, aniversarioTocado: aniversarioTocado.current,
-        manualModo, manualValor, manualPct,
+        manualModo, manualValor, manualPct, arredondarTotal,
         notes, sellerId, aceitouFiado, previsaoPagamento, destinatarioCpf,
         clientRequestId: idDaVendaAtual(),
       }
@@ -1351,7 +1373,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * recriada a cada render — entrar na lista regravaria sem motivo. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing, rascunhoCarregado, rascunho, storeId, rows, selectedCustomer, customerSearch, payments,
-      hasPix, hasBirthday, manualModo, manualValor, manualPct, notes, sellerId, aceitouFiado,
+      hasPix, hasBirthday, manualModo, manualValor, manualPct, arredondarTotal, notes, sellerId, aceitouFiado,
       previsaoPagamento, destinatarioCpf])
 
   /*
@@ -1412,7 +1434,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
    * Enquanto os dois importarem daqui, tela e banco não podem divergir.
    */
   const { total, discountAmt } = calcularTotalDaVenda({
-    subtotal, discountPct, manualDiscount,
+    subtotal, discountPct, manualDiscount, arredondarTotal,
   })
   const paidTotal      = payments.reduce((s, p) => s + p.amount, 0)
   /*
@@ -1799,6 +1821,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       hasPix,
       hasBirthday,
       manualDiscount,
+      arredondarTotal,
       previsaoPagamento: aceitouFiado && previsaoPagamento ? previsaoPagamento : null,
       destinatarioCpf: destinatarioCpf.replace(/\D/g, '') || null,
       payments: pagamentosValidos,
@@ -2318,7 +2341,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
           <div className={styles.discountRow}>
             <input type="checkbox" checked={manualDiscount > 0}
-              onChange={e => { if (!e.target.checked) { setManualValor(0); setManualPct(0) } }} />
+              onChange={e => { if (!e.target.checked) { setManualValorTexto(''); setManualPctTexto('') } }} />
             <span>Manual</span>
 
             {/* Alternador R$ / %. Trocar o modo NÃO converte o valor: são dois
@@ -2335,20 +2358,23 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
             {manualModo === 'valor' ? (
               <input
-                type="number" min="0" step="0.01"
+                type="text" inputMode="decimal"
                 className={styles.manualDiscInput}
-                value={manualValor || ''}
-                onChange={e => setManualValor(Math.max(0, parseFloat(e.target.value) || 0))}
+                value={manualValorTexto}
+                onChange={e => setManualValorTexto(limparDecimal(e.target.value))}
                 placeholder="0,00"
               />
             ) : (
               <input
-                type="number" min="0" max="100" step="1"
+                type="text" inputMode="decimal"
                 className={styles.manualDiscInput}
-                value={manualPct || ''}
+                value={manualPctTexto}
                 /* Trava em 100: desconto maior que o subtotal viraria venda
                    com total negativo. */
-                onChange={e => setManualPct(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))}
+                onChange={e => {
+                  const texto = limparDecimal(e.target.value)
+                  setManualPctTexto(lerDecimal(texto) > 100 ? '100' : texto)
+                }}
                 placeholder="0"
               />
             )}
@@ -2359,6 +2385,15 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
               <span className={styles.discountAmt}>{fmt(manualDiscount)}</span>
             )}
           </div>
+
+          {/* Opcional: com desconto manual o total fica exato, com centavos. */}
+          {manualDiscount > 0 && (
+            <label className={styles.discountRow}>
+              <input type="checkbox" checked={arredondarTotal}
+                onChange={e => setArredondarTotal(e.target.checked)} />
+              <span>Arredondar total para cima</span>
+            </label>
+          )}
         </div>
 
         {/*
