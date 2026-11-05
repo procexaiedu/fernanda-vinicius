@@ -45,13 +45,14 @@ interface ProductOption {
 }
 
 /**
- * O que distingue peças de mesmo nome e preço, sem revelar custo (o `code`
- * carrega o custo e segue só para admin). Pedido da dona em 04/11/2026: a
+ * O que distingue peças de mesmo nome e preço. O `code` só entra com
+ * `mostrarCodigo` (peça já escolhida na venda). Pedido da dona em 04/11/2026: a
  * vendedora "vai só pelo valor e tem medo de errar o brinco". O nº da
  * etiqueta é único e está impresso na peça: dá para conferir olhando.
  */
-function DetalhesDaPeca({ p }: { p: ProductOption }) {
+function DetalhesDaPeca({ p, mostrarCodigo = false }: { p: ProductOption; mostrarCodigo?: boolean }) {
   const extras: Array<[string, string]> = []
+  if (mostrarCodigo && p.code) extras.push(['', p.code])
   if (p.supplier_reference) extras.push(['Ref', p.supplier_reference])
   if (p.material) extras.push(['', p.material])
   if (p.purchase_month && p.purchase_year) extras.push(['Entrada', `${String(p.purchase_month).padStart(2, '0')}/${p.purchase_year}`])
@@ -2196,7 +2197,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                         // Selos e aviso de estoque numa linha só, alinhados ao texto do nome.
                         return (
                           <div className={styles.pecaChipsLinha}>
-                            {peca && <DetalhesDaPeca p={peca} />}
+                            {/* Código visível também à vendedora: decisão de 05/11/2026 (já vem impresso na etiqueta). */}
+                            {peca && <DetalhesDaPeca p={peca} mostrarCodigo />}
                             {aviso}
                           </div>
                         )
