@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { createHash, timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizePhoneBR, recebidaNoFv } from '@/lib/ycloud'
 import { excluirTelefone, motivoDaFalha, pedeOptOut } from '@/lib/disparo/exclusoes'
@@ -29,12 +30,18 @@ const ok = () => new NextResponse('ok', { status: 200 })
 
 export async function POST(req: NextRequest) {
   try {
-    /* Rota pública. Se YCLOUD_WEBHOOK_TOKEN estiver definida, exige ?token=;
-       sem ela, aceita qualquer chamada — que é como a Edge Function funcionava.
-       Sem o token, um terceiro que descubra a URL consegue, no máximo, mexer no
-       status de mensagens cujo id ele já conheça. */
+    /* Rota pública, mas exige ?token= igual ao YCLOUD_WEBHOOK_TOKEN (cadastrado na URL do painel da
+       YCloud). Sem a variável o webhook RECUSA (fail-closed, auditoria 05/11/2026): antes aceitava
+       qualquer chamada, e quem descobrisse a URL marcava opt-out/status de qualquer telefone. */
     const esperado = process.env.YCLOUD_WEBHOOK_TOKEN
-    if (esperado && req.nextUrl.searchParams.get('token') !== esperado) {
+    if (!esperado) {
+      console.error('[ycloud-webhook] YCLOUD_WEBHOOK_TOKEN não configurado — recusando')
+      return new NextResponse('webhook sem token configurado', { status: 503 })
+    }
+    const recebido = req.nextUrl.searchParams.get('token') ?? ''
+    const a = createHash('sha256').update(recebido).digest()
+    const b = createHash('sha256').update(esperado).digest()
+    if (!recebido || !timingSafeEqual(a, b)) {
       return new NextResponse('unauthorized', { status: 401 })
     }
 
