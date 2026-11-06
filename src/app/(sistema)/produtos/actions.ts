@@ -55,6 +55,116 @@ async function verifyAdmin(): Promise<{ userId: string | null; error: string | n
   return { userId: user.id, error: null }
 }
 
+/**
+ * Peça que está na loja mas não no sistema (reunião de 05/11/2026).
+ *
+ * `reintegrar`: a etiqueta já existe, então número e código são gravados como
+ * foram digitados. `sem_etiqueta`: só nome, venda e custo; o número sai da
+ * sequência do banco. Nos dois casos não há compra: a entrada fica no histórico
+ * de estoque, com quem fez.
+ */
+export interface PecaForaDoSistema {
+  modo: 'reintegrar' | 'sem_etiqueta'
+  store_id: string
+  name: string
+  cost_price: number
+  sale_price: number
+  quantity: number
+  supplier_id?: string | null
+  barcode_number?: string
+  code?: string
+  purchase_month?: number
+  purchase_year?: number
+}
+
+export async function cadastrarPecaForaDoSistema(data: PecaForaDoSistema): Promise<ActionResult> {
+  const { userId, error: authErr } = await verifyAdmin()
+  if (authErr || !userId) return { success: false, error: authErr ?? 'Não autenticado.' }
+
+  /* A loja vem do escopo: a admin de Brasília não cadastra em Campinas. */
+  const perfil = await getProfile()
+  const loja = perfil ? lojaDoEscopo(perfil, data.store_id) : null
+  if (!loja || (data.store_id && loja !== data.store_id)) return { success: false, error: 'Escolha uma loja válida.' }
+
+  const name = data.name?.trim()
+  if (!name) return { success: false, error: 'Informe o nome.' }
+  if (!(data.cost_price > 0)) return { success: false, error: 'Informe o custo.' }
+  if (!(data.sale_price > 0)) return { success: false, error: 'Informe o preço de venda.' }
+  if (!Number.isInteger(data.quantity) || data.quantity < 1) return { success: false, error: 'Quantidade inválida.' }
+
+  const agora = new Date()
+  let mes = agora.getMonth() + 1
+  let ano = agora.getFullYear()
+  let codigo = generateCode('SE', mes, data.cost_price)
+  let etiqueta: string | undefined
+
+  const admin = createAdminClient()
+
+  if (data.modo === 'reintegrar') {
+    etiqueta = data.barcode_number?.trim()
+    codigo = data.code?.trim().toUpperCase() ?? ''
+    if (!etiqueta || !/^\d+$/.test(etiqueta)) return { success: false, error: 'Digite o número da etiqueta, só com algarismos.' }
+    if (!codigo) return { success: false, error: 'Digite o código da etiqueta.' }
+    mes = Number(data.purchase_month)
+    ano = Number(data.purchase_year)
+    if (!Number.isInteger(mes) || mes < 1 || mes > 12 || !Number.isInteger(ano)) {
+      return { success: false, error: 'Informe o mês e o ano da compra.' }
+    }
+
+    const { data: existente, error: lerErr } = await admin
+      .from('products')
+      .select('name')
+      .eq('store_id', loja)
+      .eq('barcode_number', etiqueta)
+      .maybeSingle()
+    if (lerErr) return { success: false, error: `Não foi possível conferir a etiqueta: ${lerErr.message}` }
+    if (existente) return { success: false, error: `A etiqueta ${etiqueta} já é de "${existente.name}" nesta loja.` }
+  }
+
+  const { data: criado, error } = await admin.from('products').insert({
+    ...(etiqueta ? { barcode_number: etiqueta } : {}),
+    code: codigo,
+    name,
+    category: 'sem categoria',
+    material: 'não informado',
+    supplier_id: data.supplier_id || null,
+    store_id: loja,
+    cost_price: data.cost_price,
+    sale_price: data.sale_price,
+    quantity_in_stock: data.quantity,
+    ownership_type: 'own',
+    purchase_month: mes,
+    purchase_year: ano,
+    is_active: true,
+  }).select('id').single()
+
+  if (error || !criado) {
+    if (error?.code === '23505') return { success: false, error: `A etiqueta ${etiqueta ?? ''} já existe nesta loja.` }
+    return { success: false, error: error?.message ?? 'Erro ao cadastrar a peça.' }
+  }
+
+  /* Sem o histórico a entrada ficaria sem autor: desfaz em vez de deixar pela metade. */
+  const { error: movErr } = await admin.from('stock_movements').insert({
+    product_id: criado.id,
+    quantity_before: 0,
+    delta: data.quantity,
+    quantity_after: data.quantity,
+    reason: data.modo === 'reintegrar' ? 'reintegracao_peca' : 'cadastro_sem_etiqueta',
+    ref_type: 'manual',
+    user_id: userId,
+    notes: data.modo === 'reintegrar' ? `Reintegrada com a etiqueta ${etiqueta}` : 'Cadastrada sem etiqueta',
+  })
+  if (movErr) {
+    await admin.from('products').delete().eq('id', criado.id)
+    return { success: false, error: `A peça não foi cadastrada: ${movErr.message}` }
+  }
+
+  revalidatePath('/produtos')
+  revalidatePath('/estoque')
+  revalidatePath('/vendas/nova')
+  return { success: true }
+}
+
 export async function createProduct(data: ProductFormData): Promise<ActionResult> {
   const { error: authErr } = await verifyAdmin()
   if (authErr) return { success: false, error: authErr }

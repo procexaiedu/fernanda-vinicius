@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useMemo, useTransition, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Pencil, Power, Plus, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Gem, Printer } from 'lucide-react'
+import { Pencil, Power, Plus, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Gem, Printer, RotateCcw, Tag } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import ProdutoFormModal from './ProdutoFormModal'
+import PecaForaDoSistemaModal from './PecaForaDoSistemaModal'
 import ProdutoDetalheModal from '@/components/produto/ProdutoDetalheModal'
 import EtiquetasPrinter, { type EtiquetasPrinterItem } from '@/components/etiquetas/EtiquetasPrinter'
 import { toggleProductStatus } from './actions'
@@ -73,6 +74,7 @@ export default function ProdutosClient({
   const [pendente, startTransition] = useTransition()
 
   const [formOpen, setFormOpen] = useState(false)
+  const [pecaFora, setPecaFora] = useState<'reintegrar' | 'sem_etiqueta' | null>(null)
   const [editing, setEditing] = useState<ProductWithRelations | null>(null)
   const [detalhe, setDetalhe] = useState<ProductWithRelations | null>(null)
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null)
@@ -352,10 +354,20 @@ export default function ProdutosClient({
           */}
           <BotaoExportar exportar={() => exportarProdutos(filters)} rotulo="Exportar" />
           {isAdmin && (
-            <Button size="sm" onClick={openCreate}>
-              <Plus size={14} />
-              Novo Produto
-            </Button>
+            <>
+              <Button size="sm" variant="ghost" onClick={() => setPecaFora('reintegrar')}>
+                <RotateCcw size={14} />
+                Reintegrar peça
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setPecaFora('sem_etiqueta')}>
+                <Tag size={14} />
+                Cadastrar sem etiqueta
+              </Button>
+              <Button size="sm" onClick={openCreate}>
+                <Plus size={14} />
+                Novo Produto
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -567,6 +579,15 @@ export default function ProdutosClient({
           materials={materials}
           defaultMarkupPct={defaultMarkupPct}
           onClose={() => setFormOpen(false)}
+        />
+      )}
+
+      {pecaFora && isAdmin && (
+        <PecaForaDoSistemaModal
+          modo={pecaFora}
+          stores={stores}
+          suppliers={suppliers}
+          onClose={() => setPecaFora(null)}
         />
       )}
 

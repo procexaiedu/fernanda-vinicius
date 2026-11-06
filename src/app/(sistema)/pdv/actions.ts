@@ -4,6 +4,16 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, lojaDoEscopo } from '@/lib/auth'
+import { chaveVendedora } from '@/lib/vendedoras'
+import { diretorioVendedoras } from '@/lib/vendedoras-server'
+
+/** Quanto cada vendedora vendeu na janela atual (pedido da Eleandra, 05/11/2026). */
+export interface CaixaVendedora {
+  chave: string
+  nome: string
+  vendas: number
+  total: number
+}
 
 export interface CaixaLancamento {
   id: string
@@ -33,6 +43,7 @@ export interface CaixaDoDia {
   totalSales: number
   salesCount: number
   lancamentos: CaixaLancamento[]
+  porVendedora: CaixaVendedora[]
   /** Último fechamento do dia, se houver — só informativo. */
   lastClosing: CaixaFechamento | null
 }
@@ -63,7 +74,7 @@ export async function buscarCaixaDoDia(storeId: string, date: string): Promise<C
 
   const empty: CaixaDoDia = {
     date, storeId, totals: { cash: 0, debit: 0, credit: 0, pix: 0 },
-    totalSales: 0, salesCount: 0, lancamentos: [], lastClosing: null,
+    totalSales: 0, salesCount: 0, lancamentos: [], porVendedora: [], lastClosing: null,
   }
   if (!storeId) return empty
 
@@ -91,7 +102,7 @@ export async function buscarCaixaDoDia(storeId: string, date: string): Promise<C
 
   let salesQuery = admin
     .from('sales')
-    .select('id, sale_date, created_at, total, payment_summary, customers(name)')
+    .select('id, sale_date, created_at, total, payment_summary, seller_id, seller_person_id, customers(name)')
     .eq('store_id', storeId)
     .eq('status', 'completed')
     .gte('sale_date', `${date}T00:00:00`)
@@ -144,7 +155,30 @@ export async function buscarCaixaDoDia(storeId: string, date: string): Promise<C
     total:          Number(s.total) || 0,
   }))
 
-  return { date, storeId, totals, totalSales, salesCount: saleRows.length, lancamentos, lastClosing }
+  /* Falhar ao ler os nomes não pode derrubar o caixa: o total segue certo e a
+   * linha aparece como "Vendedora não identificada". */
+  const nomes = new Map<string, string>()
+  if (saleRows.length) {
+    try {
+      for (const v of await diretorioVendedoras()) nomes.set(v.id, v.full_name)
+    } catch { /* sem nomes; os valores continuam corretos */ }
+  }
+  const acumulado = new Map<string, CaixaVendedora>()
+  for (const s of saleRows as any[]) {
+    const chave = chaveVendedora(s) ?? 'sem-vendedora'
+    const linha = acumulado.get(chave) ?? {
+      chave,
+      nome: chave === 'sem-vendedora' ? 'Sem vendedora' : nomes.get(chave) ?? 'Vendedora não identificada',
+      vendas: 0,
+      total: 0,
+    }
+    linha.vendas += 1
+    linha.total += Number(s.total) || 0
+    acumulado.set(chave, linha)
+  }
+  const porVendedora = [...acumulado.values()].sort((a, b) => b.total - a.total)
+
+  return { date, storeId, totals, totalSales, salesCount: saleRows.length, lancamentos, porVendedora, lastClosing }
 }
 
 export interface FinalizarResult { success: boolean; error?: string }

@@ -206,6 +206,25 @@ export default function CaixaDoDia({ stores, isAdmin, date, caixa, onCaixaChange
               </tbody>
             </table>
           )}
+          {caixa.porVendedora.length > 0 && (
+            <>
+              <div className={`${styles.cardHead} ${styles.cardHeadSecao}`}><h2>Por vendedora</h2></div>
+              <table className={styles.table}>
+                <thead>
+                  <tr><th>Vendedora</th><th>Vendas</th><th className={styles.r}>Total</th></tr>
+                </thead>
+                <tbody>
+                  {caixa.porVendedora.map(v => (
+                    <tr key={v.chave}>
+                      <td>{v.nome}</td>
+                      <td className={styles.muted}>{v.vendas} {v.vendas === 1 ? 'venda' : 'vendas'}</td>
+                      <td className={styles.amt}>{fmt(v.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </section>
 
         {/* Fechamento */}

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { ehAdminGlobal, exigirAdmin, lojaDoEscopo } from '@/lib/auth'
+import { buscarPrevistas } from '@/lib/financeiro/previstas'
 
 /**
  * A loja que ESTA requisição pode ver — decidida pelo perfil, não pelo cliente.
@@ -201,6 +202,48 @@ export async function buscarTransacoes(filters: TransactionFilters): Promise<{ d
     recurring_expense_id: t.recurring_expense_id,
     notes: t.notes ?? null,
   }))
+
+  /* Meses futuros: as recorrentes aparecem como previstas, sem gravar nada.
+   * Só despesa pendente da loja: com outro filtro, elas não fariam parte. */
+  const cabemPrevistas = filters.dateTo && filters.type !== 'income'
+    && filters.status !== 'completed' && !filters.userId
+  if (cabemPrevistas) {
+    try {
+      const previstas = await buscarPrevistas(admin, loja, filters.dateFrom ?? null, filters.dateTo!)
+      const nomesLoja = new Map<string, string>()
+      if (previstas.length) {
+        const { data: lojas } = await admin.from('stores').select('id, name')
+        for (const l of lojas ?? []) nomesLoja.set(l.id, l.name)
+      }
+      for (const p of previstas) {
+        if (filters.category && p.recorrente.category !== filters.category) continue
+        rows.push({
+          id: `previsto:${p.recorrente.id}:${p.lancamento}`,
+          type: 'expense',
+          amount: p.recorrente.amount,
+          category: p.recorrente.category,
+          description: p.recorrente.description,
+          reference_type: 'previsto',
+          reference_id: null,
+          payment_method: null,
+          transaction_date: p.lancamento,
+          due_date: p.vencimento,
+          status: 'pending',
+          paid_at: null,
+          cost_type: p.recorrente.cost_type,
+          store_id: p.recorrente.store_id,
+          store_name: p.recorrente.store_id ? nomesLoja.get(p.recorrente.store_id) ?? null : null,
+          user_id: null,
+          user_name: null,
+          recurring_expense_id: p.recorrente.id,
+          notes: null,
+        })
+      }
+      rows.sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
+    } catch (e) {
+      return { data: rows, error: `Não consegui calcular as recorrentes previstas: ${(e as Error).message}` }
+    }
+  }
 
   return { data: rows }
 }
@@ -736,10 +779,27 @@ export async function editarRecorrente(id: string, data: RecurrenteData): Promis
 
   if (error) return { success: false, error: error.message }
   revalidatePath('/financeiro')
-  if (data.is_active) {
-    const erroMes = await lancarDoMes(admin, id)
-    if (erroMes) return { success: false, error: erroMes }
-  }
+
+  /*
+   * Editar não cria cobrança: atualiza nome e valor da conta do mês, que é o
+   * mesmo desconto. Conta paga é fato consumado e fica como está. Vale o mês do
+   * lançamento ou do vencimento, porque há conta lançada em outubro que vence
+   * em novembro.
+   */
+  const hoje = hojeSP()
+  const inicioMes = `${hoje.slice(0, 7)}-01`
+  const [ano, mes] = hoje.split('-').map(Number)
+  const inicioProximo = mes === 12 ? `${ano + 1}-01-01` : `${ano}-${String(mes + 1).padStart(2, '0')}-01`
+  const { error: contaErr } = await admin.from('transactions').update({
+    description: data.description,
+    amount: data.amount,
+    category: data.category,
+    cost_type: data.cost_type,
+  })
+    .eq('recurring_expense_id', id)
+    .eq('status', 'pending')
+    .or(`and(transaction_date.gte.${inicioMes},transaction_date.lt.${inicioProximo}),and(due_date.gte.${inicioMes},due_date.lt.${inicioProximo})`)
+  if (contaErr) return { success: false, error: `Recorrente salva, mas a conta do mês não foi atualizada: ${contaErr.message}` }
   return { success: true }
 }
 

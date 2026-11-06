@@ -21,7 +21,7 @@ import { usePaginacaoLocal } from '@/hooks/usePaginacaoLocal'
 import {
   buscarTransacoes, buscarPendencias, marcarComoPago, criarDespesaManual, editarDespesaManual,
   deletarDespesaManual, buscarPnl, buscarRecorrentes, criarRecorrente,
-  editarRecorrente, toggleRecorrente, deletarRecorrente, gerarRecorrentesManual,
+  editarRecorrente, toggleRecorrente, deletarRecorrente,
   type TransactionRow, type PnlData, type RecurrenteRow,
   type DespesaManualData, type RecurrenteData,
 } from './actions'
@@ -483,7 +483,7 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
       { titulo: 'Método',     valor: t => METHOD_LABELS[t.payment_method ?? ''] ?? t.payment_method ?? '', largura: 14 },
       // Saída negativa, como na tela: a coluna soma o saldo do período.
       { titulo: 'Valor',      valor: t => (t.type === 'income' ? 1 : -1) * Number(t.amount), formato: 'dinheiro', largura: 14 },
-      { titulo: 'Status',     valor: t => t.status === 'completed' ? 'Pago' : 'Pendente', largura: 10 },
+      { titulo: 'Status',     valor: t => t.status === 'completed' ? 'Pago' : t.reference_type === 'previsto' ? 'Previsto' : 'Pendente', largura: 10 },
       { titulo: 'Observação', valor: t => t.notes, largura: 30 },
     ]
     const nome = nomeArquivo(fType === 'income' ? 'entradas' : fType === 'expense' ? 'despesas' : 'financeiro', new Date())
@@ -684,12 +684,13 @@ function TransacoesTab({ stores, podeTrocarLoja, users, categories, initialTrans
                 </td>
                 <td className="col-center">
                   <span className={`${styles.statusBadge} ${tx.status === 'completed' ? styles.statusCompleted : styles.statusPending}`}>
-                    {tx.status === 'completed' ? 'Pago' : 'Pendente'}
+                    {tx.status === 'completed' ? 'Pago' : tx.reference_type === 'previsto' ? 'Previsto' : 'Pendente'}
                   </span>
                 </td>
                 <td onClick={e => e.stopPropagation()}>
                   <div className={styles.actionsCell}>
-                    {tx.status === 'pending' && (
+                    {/* Prevista ainda não é conta: só vira no dia 1º do mês dela. */}
+                    {tx.status === 'pending' && tx.reference_type !== 'previsto' && (
                       <button
                         className={`icon-btn ${styles.iconBtnSuccess}`}
                         title="Marcar como pago"
@@ -1465,8 +1466,6 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing]     = useState<RecurrenteRow | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [generating, setGenerating] = useState(false)
-  const [genMsg, setGenMsg]       = useState('')
   const [avisoSalvo, setAvisoSalvo] = useState('')
 
   async function load() {
@@ -1491,23 +1490,9 @@ function RecorrentesTab({ stores, categories }: { stores: Store[]; categories: s
     setDeleteConfirm(null)
   }
 
-  async function handleGenerate() {
-    setGenerating(true)
-    setGenMsg('')
-    const res = await gerarRecorrentesManual()
-    setGenMsg(res.success ? 'Gerado com sucesso!' : res.error ?? 'Erro ao gerar.')
-    setGenerating(false)
-    setTimeout(() => setGenMsg(''), 4000)
-  }
-
   return (
     <div>
       <div className={styles.toolbar}>
-        <button className={styles.btnSecondary} onClick={handleGenerate} disabled={generating}>
-          <RefreshCw size={13} />
-          {generating ? 'Gerando...' : 'Gerar agora'}
-        </button>
-        {genMsg && <span style={{ fontSize: 13, color: genMsg.includes('sucesso') ? '#4CAF7D' : 'var(--danger)' }}>{genMsg}</span>}
         {avisoSalvo && <span style={{ fontSize: 13, color: '#4CAF7D' }} role="status">{avisoSalvo}</span>}
         <div className={styles.toolbarRight}>
           <button className={styles.btnPrimary} onClick={() => { setEditing(null); setShowModal(true) }}>

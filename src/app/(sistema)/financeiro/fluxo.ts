@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { exigirAdmin, lojaDoEscopo } from '@/lib/auth'
+import { buscarPrevistas } from '@/lib/financeiro/previstas'
 
 /**
  * Fluxo de caixa: QUANDO o dinheiro cai, não quando a venda aconteceu.
@@ -72,17 +73,31 @@ export async function buscarFluxo(de: string, ate: string): Promise<Resultado<Di
   const { data, error } = await admin.rpc('fluxo_caixa', { p_loja: lojaDoEscopo(perfil), p_de: de, p_ate: ate })
   if (error || !data) return { ok: false, erro: 'Não consegui ler o fluxo de caixa. Tente de novo.' }
 
+  /* Recorrentes futuras saem no vencimento, como a conta pendente real. */
+  const previstasPorDia = new Map<string, number>()
+  try {
+    for (const p of await buscarPrevistas(admin, lojaDoEscopo(perfil), de, ate)) {
+      if (p.vencimento < de || p.vencimento > ate) continue
+      previstasPorDia.set(p.vencimento, (previstasPorDia.get(p.vencimento) ?? 0) + p.recorrente.amount)
+    }
+  } catch {
+    return { ok: false, erro: 'Não consegui calcular as recorrentes previstas. Tente de novo.' }
+  }
+
   return {
     ok: true,
-    dados: (data as Record<string, string | number>[]).map(d => ({
-      dia: String(d.dia).slice(0, 10),
-      pixDinheiro: Number(d.pix_dinheiro),
-      cartaoBruto: Number(d.cartao_bruto),
-      cartaoTaxa: Number(d.cartao_taxa),
-      cartaoLiquido: Number(d.cartao_liquido),
-      outrasEntradas: Number(d.outras_entradas),
-      saidas: Number(d.saidas),
-    })),
+    dados: (data as Record<string, string | number>[]).map(d => {
+      const dia = String(d.dia).slice(0, 10)
+      return {
+        dia,
+        pixDinheiro: Number(d.pix_dinheiro),
+        cartaoBruto: Number(d.cartao_bruto),
+        cartaoTaxa: Number(d.cartao_taxa),
+        cartaoLiquido: Number(d.cartao_liquido),
+        outrasEntradas: Number(d.outras_entradas),
+        saidas: Number(d.saidas) + (previstasPorDia.get(dia) ?? 0),
+      }
+    }),
   }
 }
 
