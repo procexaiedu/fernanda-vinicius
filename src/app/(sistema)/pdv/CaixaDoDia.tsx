@@ -52,6 +52,7 @@ export default function CaixaDoDia({ stores, isAdmin, date, caixa, onCaixaChange
   const [error, setError]           = useState('')
   const [detalheId, setDetalheId]   = useState<string | null>(null)
   const [justClosed, setJustClosed] = useState<JustClosed | null>(null)
+  const [confirmando, setConfirmando] = useState(false)
 
   // Sincroniza o "dinheiro contado" com o esperado ao trocar de loja/dia.
   useEffect(() => {
@@ -59,6 +60,7 @@ export default function CaixaDoDia({ stores, isAdmin, date, caixa, onCaixaChange
     setNotes('')
     setError('')
     setJustClosed(null)
+    setConfirmando(false)
   }, [caixa.storeId, caixa.date])
 
   async function changeStore(storeId: string) {
@@ -74,6 +76,7 @@ export default function CaixaDoDia({ stores, isAdmin, date, caixa, onCaixaChange
 
   async function handleFinalizar() {
     setError('')
+    setConfirmando(false)
     setFinalizing(true)
     // Guarda o que está sendo fechado para mostrar o resumo depois de zerar
     const snapshot: JustClosed = {
@@ -258,9 +261,24 @@ export default function CaixaDoDia({ stores, isAdmin, date, caixa, onCaixaChange
 
           {error && <div className={styles.err}><AlertTriangle size={13} /> {error}</div>}
 
-          <button className={styles.finalize} onClick={handleFinalizar} disabled={finalizing || semVendas}>
-            <Lock size={16} /> {finalizing ? 'Fechando…' : 'Fechar caixa'}
-          </button>
+          {/* Chamado #26 (08/11/2026): confirmar o DIA antes de fechar. */}
+          {confirmando ? (
+            <div className={styles.confirmaFechar}>
+              <p>Você deseja fechar o caixa do dia {fmtDateBR(date)}?</p>
+              <div className={styles.confirmaAcoes}>
+                <button className={styles.confirmaNao} onClick={() => setConfirmando(false)} disabled={finalizing}>
+                  Não
+                </button>
+                <button className={styles.confirmaSim} onClick={handleFinalizar} disabled={finalizing}>
+                  <Lock size={16} /> {finalizing ? 'Fechando…' : 'Sim, fechar'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button className={styles.finalize} onClick={() => setConfirmando(true)} disabled={finalizing || semVendas}>
+              <Lock size={16} /> Fechar caixa
+            </button>
+          )}
           <p className={styles.hint}>
             Registra o resumo deste período (totais, dinheiro contado e diferença) e <strong>zera a visão</strong>.
             As vendas seguem normalmente — fechar não trava nada.

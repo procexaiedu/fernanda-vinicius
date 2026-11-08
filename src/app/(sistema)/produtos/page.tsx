@@ -84,6 +84,8 @@ export default async function ProdutosPage({ searchParams }: PageProps) {
     .range(offset, offset + PAGE_SIZE - 1)
 
   if (effectiveStoreId) query = query.eq('store_id', effectiveStoreId)
+  /* Conserto é serviço, não peça (chamado #29). */
+  query = query.eq('is_service', false)
 
   if (params.q) {
     const q = params.q.trim()

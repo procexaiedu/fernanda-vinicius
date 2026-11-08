@@ -32,6 +32,8 @@ export function aplicarFiltrosProdutos<Q>(
 ): Q {
   let q = consulta as any
   if (loja) q = q.eq('store_id', loja)
+  /* Conserto é serviço, não peça: fora da lista, dos totais e do Exportar (chamado #29). */
+  q = q.eq('is_service', false)
 
   if (filtros.q) {
     // Entre aspas: vírgula ou parêntese no termo quebrava o `.or()`.

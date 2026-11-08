@@ -6,7 +6,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil, Plus, Monitor, Trash2,
+  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil, Plus, Monitor, Trash2, Wrench,
 } from 'lucide-react'
 import btn from '@/components/ui/Button.module.css'
 import Badge from '@/components/ui/Badge'
@@ -521,6 +521,12 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                     */}
                     {s.has_exchange && (
                       <span className={styles.exchangeBadge}><ArrowLeftRight size={11} /> Troca</span>
+                    )}
+                    {/* Chamado #27: conserto identificado na lista, sem abrir a venda. */}
+                    {s.tipo_lancamento !== 'venda' && (
+                      <span className={styles.consertoBadge}>
+                        <Wrench size={11} /> {s.tipo_lancamento === 'conserto' ? 'Conserto' : 'Venda + conserto'}
+                      </span>
                     )}
                     {/*
                       Saldo em aberto ganha a coluna de status.

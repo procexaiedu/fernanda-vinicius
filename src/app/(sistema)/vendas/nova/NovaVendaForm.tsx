@@ -1990,7 +1990,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
           {/* Data */}
           <div className={styles.field}>
-            <label className={styles.label}>Data da venda</label>
+            <label className={styles.label}>Data do caixa</label>
             <DatePicker value={saleDate} onChange={setSaleDate} className={styles.headerInput} />
           </div>
 
@@ -2702,14 +2702,20 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
 
       <Modal isOpen={!!conferencia} onClose={() => setConferencia(null)} title="Confira a boleta antes de salvar" size="sm">
         <div className={styles.conferencia}>
-          <p>Confira a quantidade de peças e o valor final com os descontos aplicados.</p>
+          <p>Confira a data do caixa, a quantidade de peças e o valor final com os descontos aplicados.</p>
           <div className={styles.conferenciaNumeros}>
+            {/* Chamado #26 (08/11/2026): venda retroativa caía no dia em que foi
+                digitada porque a data vinha como hoje e ninguém trocava. */}
+            <div><span>Vai para o caixa de</span><strong>{saleDate.split('-').reverse().join('/')}</strong></div>
             <div><span>Peças</span><strong>{conferencia?.pecas}</strong></div>
             <div><span>Total final</span><strong>{fmt(conferencia?.total ?? 0)}</strong></div>
           </div>
+          {saleDate !== today() && (
+            <p><strong>Atenção:</strong> esta venda não vai para o caixa de hoje.</p>
+          )}
           <p>Vendedora: {editSale?.sellerName ?? users.find(u => u.id === conferencia?.data.sellerId)?.full_name ?? 'Vendedora original'}</p>
           <div className={styles.conferenciaAcoes}>
-            <Button variant="ghost" onClick={() => setConferencia(null)}>Voltar e conferir</Button>
+            <Button variant="ghost" onClick={() => setConferencia(null)}>Corrigir data ou boleta</Button>
             <Button onClick={confirmarVenda} disabled={saving}>Confirmar e salvar</Button>
           </div>
         </div>

@@ -35,6 +35,16 @@ export function lojaDoEscopo(p: PerfilDeEscopo, filtroDaUrl?: string | null): st
   return p.store_id ?? p.lojaSelecionada ?? (filtroDaUrl || null)
 }
 
+/** Quantos dias, contando hoje, a operadora consulta em Vendas. */
+export const DIAS_DA_OPERADORA = 31
+
+/** 'AAAA-MM-DD' menos n dias. */
+function diasAntes(iso: string, n: number): string {
+  const d = new Date(`${iso}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - n)
+  return d.toISOString().slice(0, 10)
+}
+
 /** O pedaço do query builder do PostgREST que o escopo usa. */
 interface ConsultaFiltravel<Q> {
   eq(coluna: string, valor: string): Q
@@ -47,9 +57,10 @@ interface ConsultaFiltravel<Q> {
  *
  *   - loja: a de `lojaDoEscopo`. Sem loja só o admin global que ainda não
  *     escolheu, e esse é mandado para /escolher-loja antes de chegar aqui.
- *   - operadora: só HOJE (no fuso de Brasília). Não é sigilo, é o que ela
- *     precisa; e limitar aqui é o que impede que mudar o período na tela
- *     revele o resto.
+ *   - operadora: os últimos 31 dias, hoje incluso (no fuso de Brasília). Era
+ *     só hoje; a Eleandra pediu que elas conferissem o que lançaram em cada
+ *     dia (chamado #25, 08/11/2026). Limitar aqui é o que impede que mudar o
+ *     período na tela revele o resto.
  *
  * Os períodos da tela (hoje, 7 dias, 30 dias, mês, intervalo) filtram DEPOIS,
  * no navegador, sobre o que saiu daqui. Por isso o corte de loja tem que estar
@@ -63,6 +74,6 @@ export function escopoDaListaDeVendas<Q extends ConsultaFiltravel<Q>>(
   let q = consulta
   const loja = lojaDoEscopo(perfil)
   if (loja) q = q.eq('store_id', loja)
-  if (perfil.role === 'operator') q = q.gte('sale_date', hoje).lte('sale_date', hoje)
+  if (perfil.role === 'operator') q = q.gte('sale_date', diasAntes(hoje, DIAS_DA_OPERADORA - 1)).lte('sale_date', hoje)
   return q
 }

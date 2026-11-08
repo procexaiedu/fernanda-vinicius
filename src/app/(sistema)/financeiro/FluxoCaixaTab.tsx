@@ -56,7 +56,8 @@ function mover(modo: Modo, ancora: string, passo: 1 | -1) {
 const STATUS: Record<Recebimento['status'], string> = { previsto: 'Previsto', recebido: 'Recebido', divergente: 'Divergente' }
 
 export default function FluxoCaixaTab() {
-  const [modo, setModo] = useState<Modo>('semana')
+  /* Mês por padrão: pedido da Eleandra (chamado #31, 08/11/2026). */
+  const [modo, setModo] = useState<Modo>('mes')
   const [ancora, setAncora] = useState(hojeSP())
   const p = useMemo(() => periodo(modo, ancora), [modo, ancora])
 

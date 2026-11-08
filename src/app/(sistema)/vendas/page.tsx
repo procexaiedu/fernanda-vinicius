@@ -41,6 +41,8 @@ export interface SaleRow {
   payment_summary: string | null
   status: string
   has_exchange: boolean
+  /** Só peças, só conserto, ou os dois na mesma venda. */
+  tipo_lancamento: 'venda' | 'conserto' | 'venda_conserto'
   /*
    * Saldo em aberto: total menos o que entrou em `sale_payments`.
    *
@@ -169,7 +171,7 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
    * repetia a lista de ids duas vezes na mesma URL.
    */
   const [itens, trocasDaVendaNova, trocasDaOriginal, vendedoras, pagamentos] = await Promise.all([
-    emLotes(saleIds, lote => admin.from('sale_items').select('sale_id').in('sale_id', lote), 'os itens das vendas'),
+    emLotes(saleIds, lote => admin.from('sale_items').select('sale_id, products(is_service)').in('sale_id', lote), 'os itens das vendas'),
     emLotes(saleIds, lote => admin.from('exchanges').select('id, sale_id, original_sale_id').in('sale_id', lote), 'as trocas'),
     emLotes(saleIds, lote => admin.from('exchanges').select('id, sale_id, original_sale_id').in('original_sale_id', lote), 'as trocas'),
     Promise.resolve(usersRes.data ?? []),
@@ -185,6 +187,15 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
 
   /* Quanto entrou por venda: `sale_payments` + peça devolvida na troca. Nunca de uma coluna em `sales`. */
   const resumo = resumirVendas({ itens, pagamentos, trocas, devolvidos })
+
+  /* Selo "Conserto" na lista (chamado #27, 08/11/2026): a linha de conserto é
+     o produto-serviço da loja (src/lib/conserto.ts). */
+  const comConserto = new Set<string>()
+  const comPeca = new Set<string>()
+  for (const i of itens as any[]) {
+    const p = Array.isArray(i.products) ? i.products[0] : i.products
+    ;(p?.is_service ? comConserto : comPeca).add(i.sale_id)
+  }
 
   const sellersMap = new Map<string, string>()
   for (const u of vendedoras) sellersMap.set(u.id, u.full_name)
@@ -207,6 +218,7 @@ export default async function VendasPage({ searchParams }: { searchParams: Promi
     payment_summary: s.payment_summary,
     status:          s.status,
     has_exchange:    resumo.get(s.id)?.temTroca ?? false,
+    tipo_lancamento: comConserto.has(s.id) ? (comPeca.has(s.id) ? 'venda_conserto' : 'conserto') : 'venda',
     valor_pago:      (resumo.get(s.id)?.pago ?? 0) + (resumo.get(s.id)?.creditoTroca ?? 0),
     falta_pagar:     faltaPagar(Number(s.total), resumo.get(s.id)),
     previsao_pagamento: s.previsao_pagamento ?? null,

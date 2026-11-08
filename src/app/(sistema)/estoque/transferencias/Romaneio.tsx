@@ -22,10 +22,10 @@ import { TITULO_ROMANEIO } from '@/lib/consignacaoEntreLojas'
  * papel dentro da caixa e a tela de quem confere digam a mesma coisa mesmo que
  * a peça seja renomeada ou reprecificada no meio do caminho.
  *
- * SEM CUSTO E SEM CÓDIGO, para ninguém (05/10/2026): o papel vai para a outra
- * loja e quem confere é funcionária. O código saiu junto porque nas peças de
- * fornecedor ele carrega o custo (FEF09110 = custo R$ 110). Etiqueta + nome
- * bastam para conferir. O custo continua na lista, só para admin.
+ * SEM CUSTO, para ninguém (05/10/2026): o papel vai para a outra loja e quem
+ * confere é funcionária. O custo continua na lista, só para admin. O código
+ * tinha saído junto e voltou para todos (Felipe, 06/11/2026), mesmo carregando
+ * o custo nas peças de fornecedor (FEF09110 = custo R$ 110).
  */
 export default function Romaneio({ r, onFechar, recemEnviado = false, isAdmin = false }: {
   r: RomaneioT
@@ -121,6 +121,7 @@ export default function Romaneio({ r, onFechar, recemEnviado = false, isAdmin = 
             <tr>
               <th>#</th>
               <th>Etiqueta</th>
+              <th>Código</th>
               <th>Peça</th>
               <th className={`${styles.num} col-num`}>Qtd.</th>
               <th className={`${styles.num} col-num`}>Venda un.</th>
@@ -143,6 +144,7 @@ export default function Romaneio({ r, onFechar, recemEnviado = false, isAdmin = 
                   {i.barcode_number}
                   {i.reetiquetar && <span className={styles.tagReetiquetar}>nova no destino</span>}
                 </td>
+                <td className={styles.etiqueta}>{i.product_code}</td>
                 <td className={styles.nomePeca} title={i.product_name}>{i.product_name}</td>
                 <td className={`${styles.num} col-num`}>{i.quantity_sent}</td>
                 {/* "—" nos itens anteriores a 15/09: o preço do dia não foi guardado. */}
@@ -167,7 +169,7 @@ export default function Romaneio({ r, onFechar, recemEnviado = false, isAdmin = 
           {/* Pedido de 06/10: os totais também no FIM da lista, onde termina a conferência. */}
           <tfoot>
             <tr>
-              <td colSpan={3}>Total</td>
+              <td colSpan={4}>Total</td>
               <td className={`${styles.num} col-num`}>{pecas}</td>
               <td />
               <td className={`${styles.num} col-num`}>{venda === undefined ? '—' : formatarDinheiro(venda)}</td>

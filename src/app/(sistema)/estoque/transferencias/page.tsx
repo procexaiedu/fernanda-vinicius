@@ -154,11 +154,11 @@ export default async function TransferenciasPage({ searchParams }: PageProps) {
    * 05/10/2026: "essa informação não pode aparecer para elas"). Esconder só na
    * tela não basta, o payload vai inteiro para o navegador.
    *
-   * O CÓDIGO vai junto: nas peças de fornecedor ele carrega o custo
-   * (FEF09110 = custo R$ 110). Para conferir, a etiqueta e o nome bastam.
+   * O CÓDIGO volta para todos (Felipe, 06/11/2026), mesmo carregando o custo
+   * nas peças de fornecedor (FEF09110 = custo R$ 110): decisão consciente.
    */
   const semCusto = (i: ItemRomaneio): ItemRomaneio =>
-    isAdmin ? i : { ...i, unit_cost: 0, product_code: '' }
+    isAdmin ? i : { ...i, unit_cost: 0 }
   const totaisSemCusto = (t: Romaneio['totals']): Romaneio['totals'] => {
     if (isAdmin || !t) return t
     const resto = { ...t }

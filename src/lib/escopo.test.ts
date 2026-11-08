@@ -69,9 +69,12 @@ for (const [quem, perfil, loja] of PERFIS) {
   }
 }
 
-test('operadora só recebe hoje do servidor, qualquer período que escolha', () => {
+/* Chamado #25 (08/11/2026): a operadora consulta os últimos 31 dias, não só hoje. */
+test('operadora recebe só os últimos 31 dias do servidor, qualquer período que escolha', () => {
   const op: PerfilDeEscopo = { role: 'operator', store_id: CPS, lojaSelecionada: null }
-  assert.deepEqual(naTela(op, PERIODOS['30 dias']).map(v => v.id), ['cps-hoje'])
+  assert.deepEqual(naTela(op, PERIODOS['30 dias']).map(v => v.id), ['cps-hoje', 'cps-7d', 'cps-30d', 'cps-mes'])
+  // Intervalo que alcança agosto: o antigo (15/08) não chega ao navegador.
+  assert.deepEqual(naTela(op, PERIODOS.intervalo).map(v => v.id), ['cps-30d'])
 })
 
 test('o filtro da URL não tira ninguém da loja da sessão', () => {
