@@ -3,7 +3,7 @@
 import { usePersistedState } from '@/hooks/usePersistedState'
 
 import { useState, useMemo } from 'react'
-import { Plus, Pencil, Trash2, Eye, Search, Users, Cake, Clock, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, Search, Users, Cake, Clock, ChevronUp, ChevronDown, ShoppingBag } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import ClienteFormModal from './ClienteFormModal'
@@ -17,6 +17,9 @@ import { formatarTelefone } from '@/lib/telefone'
 import Paginacao from '@/components/ui/Paginacao'
 import { usePaginacaoLocal } from '@/hooks/usePaginacaoLocal'
 import { formatarDinheiro } from '@/lib/dinheiro'
+import BotaoExportar from '@/components/ui/BotaoExportar'
+import { montarCsv, nomeArquivo, type ColunaCsv } from '@/lib/exportar/csv'
+import { situacaoDaCliente, ROTULO_SITUACAO } from '@/lib/clientes/situacao'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,15 +60,26 @@ function isBirthdayThisMonth(birthday: string | null): boolean {
   return parseInt(birthday.split('-')[1]) === new Date().getMonth() + 1
 }
 
+/* Três situações (chamado #33): quem nunca comprou é "Sem compra", não inativa. */
 function isInactive(lastSaleDate: string | null, inactiveDays: number): boolean {
-  if (!lastSaleDate) return true
-  const diff = (Date.now() - new Date(lastSaleDate).getTime()) / 86400000
-  return diff >= inactiveDays
+  return situacaoDaCliente(lastSaleDate, inactiveDays) === 'inativa'
+}
+
+/* Planilha da tela (chamado #33): as colunas que ela vê + a situação depois do total. */
+function colunasExportacao(inactiveDays: number): ColunaCsv<CustomerWithStats>[] {
+  return [
+    { titulo: 'Cliente',       valor: c => c.name },
+    { titulo: 'Loja',          valor: c => c.origin_store_name },
+    { titulo: 'Telefone',      valor: c => formatarTelefone(c.phone) },
+    { titulo: 'Última compra', valor: c => c.last_sale_date ? formatDate(c.last_sale_date) : 'Nunca' },
+    { titulo: 'Total gasto',   valor: c => c.total_spent },
+    { titulo: 'Situação',      valor: c => ROTULO_SITUACAO[situacaoDaCliente(c.last_sale_date, inactiveDays)] },
+  ]
 }
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type FilterType = 'todos' | 'aniversariantes' | 'inativos'
+type FilterType = 'todos' | 'aniversariantes' | 'inativos' | 'sem_compra'
 type SortKey    = 'name' | 'last_sale_date'
 type SortDir    = 'asc'  | 'desc'
 
@@ -114,6 +128,7 @@ export default function ClientesClient({
       if (lojaAba && c.origin_store_id !== lojaAba) return false
       if (filter === 'aniversariantes' && !isBirthdayThisMonth(c.birthday)) return false
       if (filter === 'inativos' && !isInactive(c.last_sale_date, inactiveDays)) return false
+      if (filter === 'sem_compra' && c.last_sale_date) return false
       if (q) {
         const haystack = `${c.name} ${c.phone} ${c.cpf ?? ''}`.toLowerCase()
         if (!haystack.includes(q)) return false
@@ -143,7 +158,20 @@ export default function ClientesClient({
   const counts = useMemo(() => ({
     aniversariantes: customers.filter(c => isBirthdayThisMonth(c.birthday)).length,
     inativos:        customers.filter(c => isInactive(c.last_sale_date, inactiveDays)).length,
+    semCompra:       customers.filter(c => !c.last_sale_date).length,
   }), [customers, inactiveDays])
+
+  /* Exporta o que está na tela: mesma busca, filtro, aba de loja e ordem. */
+  async function exportarClientes() {
+    return {
+      success: true as const,
+      arquivo: {
+        nome:     nomeArquivo('clientes', new Date()),
+        conteudo: montarCsv(filtered, colunasExportacao(inactiveDays)),
+        linhas:   filtered.length,
+      },
+    }
+  }
 
   /* Quantas clientes por loja — o número na aba evita clicar para descobrir. */
   const porLoja = useMemo(() => {
@@ -279,13 +307,30 @@ export default function ClientesClient({
                 </span>
               )}
             </button>
+            <button
+              className={`${styles.filterBtn} ${filter === 'sem_compra' ? styles.filterActive : ''}`}
+              onClick={() => setFilter('sem_compra')}
+              title="Clientes sem nenhuma compra lançada no sistema"
+            >
+              <ShoppingBag size={13} />
+              Sem compra
+              {counts.semCompra > 0 && (
+                <span className={styles.filterCount}>{counts.semCompra}</span>
+              )}
+            </button>
           </div>
         </div>
 
-        <Button size="sm" onClick={openCreate}>
-          <Plus size={14} />
-          Novo Cliente
-        </Button>
+        <div className={styles.toolbarAcoes}>
+          {/* Planilha com telefone das clientes: só a administração. */}
+          {currentUserRole === 'admin' && filtered.length > 0 && (
+            <BotaoExportar exportar={exportarClientes} />
+          )}
+          <Button size="sm" onClick={openCreate}>
+            <Plus size={14} />
+            Novo Cliente
+          </Button>
+        </div>
       </div>
 
       {/* Tabela */}

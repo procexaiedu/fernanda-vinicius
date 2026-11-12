@@ -102,6 +102,13 @@
   color: var(--accent);
 }
 
+.toolbarAcoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .filterCountInactive {
   background: var(--warning-subtle);
   color: var(--warning);

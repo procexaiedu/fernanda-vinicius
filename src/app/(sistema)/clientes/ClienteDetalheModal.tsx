@@ -15,6 +15,7 @@ import CreditoDaCliente from './CreditoDaCliente'
 import { formatarTelefone } from '@/lib/telefone'
 import { formatarDinheiro } from '@/lib/dinheiro'
 import { toDiaMes } from '@/lib/date'
+import { situacaoDaCliente } from '@/lib/clientes/situacao'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,9 +90,9 @@ function isBirthdayThisMonth(birthday: string | null): boolean {
   return parseInt(birthday.split('-')[1]) === new Date().getMonth() + 1
 }
 
+/* Quem nunca comprou é "Sem compra", não inativa (chamado #33). */
 function isCustomerInactive(lastSaleDate: string | null, inactiveDays: number): boolean {
-  if (!lastSaleDate) return true
-  return (Date.now() - new Date(lastSaleDate).getTime()) / 86400000 >= inactiveDays
+  return situacaoDaCliente(lastSaleDate, inactiveDays) === 'inativa'
 }
 
 function discountLabel(type: string): string {
