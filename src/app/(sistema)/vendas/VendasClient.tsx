@@ -6,8 +6,11 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil, Plus, Monitor, Trash2, Wrench,
+  ChevronUp, ChevronDown, ArrowLeftRight, BarChart2, Pencil, Plus, Monitor, Trash2, Wrench, Download,
 } from 'lucide-react'
+import { montarXlsx, baixarXlsx, dataXlsx, type ColunaXlsx } from '@/lib/exportar/xlsx'
+import { nomeArquivo } from '@/lib/exportar/csv'
+import { pecasParaExportar, type PecasDaVenda } from './exportar'
 import btn from '@/components/ui/Button.module.css'
 import Badge from '@/components/ui/Badge'
 import SeletorPeriodo from '@/components/ui/SeletorPeriodo'
@@ -270,6 +273,38 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
     (min, s) => (min === null || s.sale_date.slice(0, 10) < min ? s.sale_date.slice(0, 10) : min), null)
   const periodoPassaDoCorte = !!corte && !closing && (!dateFrom || (vendaMaisAntiga !== null && dateFrom < vendaMaisAntiga))
 
+  /*
+   * Excel (chamado #35): uma linha por venda, exatamente o que a lista mostra
+   * (mesmo filtro e ordem), com os códigos vendidos numa coluna. Os códigos e o
+   * custo vêm do servidor, que confere a loja e o papel (só admin).
+   */
+  const [exportando, setExportando] = useState(false)
+  const [erroExportar, setErroExportar] = useState<string | null>(null)
+  async function exportarExcel() {
+    setExportando(true); setErroExportar(null)
+    const r = await pecasParaExportar(filtered.map(s => s.id))
+    setExportando(false)
+    if (!r.success) { setErroExportar(r.error); return }
+    type Linha = SaleRow & { p: PecasDaVenda | undefined }
+    const linhas: Linha[] = filtered.map(s => ({ ...s, p: r.porVenda[s.id] }))
+    const centavos = (n: number) => Math.round(n * 100) / 100
+    const colunas: ColunaXlsx<Linha>[] = [
+      { titulo: 'Data',             valor: s => dataXlsx(s.sale_date), largura: 12 },
+      { titulo: 'Hora',             valor: s => horaBR(s.created_at), largura: 8 },
+      { titulo: 'Vendedora',        valor: s => s.seller_name ?? '', largura: 16 },
+      { titulo: 'Cliente',          valor: s => s.customer_name ?? '', largura: 24 },
+      { titulo: 'Códigos vendidos', valor: s => s.p?.codigos ?? '', largura: 40 },
+      { titulo: 'Peças',            valor: s => s.p?.pecas ?? s.items_count, largura: 8 },
+      { titulo: 'Valor bruto',      valor: s => s.subtotal, formato: 'dinheiro', largura: 14 },
+      { titulo: 'Desconto',         valor: s => s.discount_amount, formato: 'dinheiro', largura: 12 },
+      { titulo: 'Valor líquido',    valor: s => s.total, formato: 'dinheiro', largura: 14 },
+      { titulo: 'Pagamento',        valor: s => s.payment_summary ?? '', largura: 24 },
+      { titulo: 'Custo',            valor: s => s.p?.custo ?? null, formato: 'dinheiro', largura: 12 },
+      { titulo: 'Margem',           valor: s => (s.p ? centavos(s.total - s.p.custo) : null), formato: 'dinheiro', largura: 12 },
+    ]
+    baixarXlsx(montarXlsx(linhas, colunas, 'Vendas'), nomeArquivo('vendas', new Date()).replace(/\.csv$/, '.xlsx'))
+  }
+
   // Stats refletem o período e filtros ativos
   const totalRevenue = filtered.reduce((s, v) => s + v.total, 0)
   const avgTicket    = filtered.length ? totalRevenue / filtered.length : 0
@@ -398,6 +433,23 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
             />
           </span>
         </div>
+        {userRole === 'admin' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {erroExportar && <span role="status" style={{ fontSize: 11, color: 'var(--danger)' }}>{erroExportar}</span>}
+            <button
+              type="button"
+              className={`${btn.btn} ${btn.ghost} ${btn.sm}`}
+              onClick={exportarExcel}
+              disabled={exportando || filtered.length === 0}
+              title="Baixar as vendas filtradas em Excel"
+            >
+              <span className={btn.label}>
+                <Download size={14} />
+                {exportando ? 'Exportando...' : 'Exportar'}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Aviso do fechamento selecionado — a faixa de datas fica ignorada */}
