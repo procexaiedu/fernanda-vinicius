@@ -188,7 +188,9 @@ export default function VendaDetalheModal({ saleId, onClose, onDeleted, canDelet
                    fiscal.ts); cancelar segue só do admin. Era `podeEmitir={canDelete}`:
                    a operadora via "sem nota" e não tinha como emitir depois. */
                 podeEmitir
-                podeCancelar={canDelete}
+                /* Cancelar a nota também é de quem está no balcão: são só 30 minutos
+                   e a gerência nem sempre está na loja (Felipe, 19/11/2026). */
+                podeCancelar
                 lojaEmite={venda.emiteNota}
                 onMudou={() => buscarDetalheVenda(saleId).then(r => r.data && setVenda(r.data))}
               />

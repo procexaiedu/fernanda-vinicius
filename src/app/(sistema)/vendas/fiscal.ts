@@ -437,7 +437,9 @@ export async function sincronizarNota(saleId: string): Promise<ResultadoFiscal> 
  * (nota de devolução), e o erro que volta explica.
  */
 export async function cancelarNotaDaVenda(saleId: string, justificativa: string): Promise<ResultadoFiscal> {
-  const { error: authErr } = await verificarAdmin()
+  /* Operadora também cancela (Felipe, 19/11/2026): o SEFAZ só dá 30 minutos e
+     a gerência muitas vezes não está na loja. Continua presa à loja da sessão. */
+  const { error: authErr } = await verificarUsuario()
   if (authErr) return { success: false, error: authErr }
 
   const admin = createAdminClient()
