@@ -563,6 +563,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                     {s.payment_summary ?? '—'}
                   </td>
                   <td>
+                    <div className={styles.statusCell}>
                     {/*
                       O selo de troca mora AQUI, junto do status, e não na
                       própria coluna: aquela era `col-tertiary` e sumia nas
@@ -602,6 +603,7 @@ export default function VendasClient({ sales: initial, stores, sellers, closings
                         {s.status === 'completed' ? 'OK' : s.status}
                       </Badge>
                     )}
+                    </div>
                   </td>
                   <td>
                     {(() => {
