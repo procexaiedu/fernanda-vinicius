@@ -983,6 +983,8 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   const [cpfAberto, setCpfAberto] = useState(false)
 
   const [aceitouFiado, setAceitouFiado] = useState(editSale?.fiado ?? false)
+  /* Troco: dinheiro recebido a mais só vale se quem está no balcão marcar. */
+  const [darTroco, setDarTroco] = useState(false)
   const [previsaoPagamento, setPrevisaoPagamento] = useState(editSale?.previsaoPagamento ?? '')
 
   const [manualModo, setManualModo]     = useState<'valor' | 'pct'>('valor')
@@ -1288,6 +1290,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
     setNotes('')
     setSellerId(vendedorInicial)
     setAceitouFiado(false)
+    setDarTroco(false)
     setPrevisaoPagamento('')
     setDestinatarioCpf('')
   }
@@ -1451,6 +1454,14 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   const coveredTotal   = paidTotal + creditoTroca - sobra
   const balanceDiff    = parseFloat((coveredTotal - total).toFixed(2))
   const creditoUsado   = payments.filter(p => p.method === 'store_credit').reduce((s, p) => s + p.amount, 0)
+  /*
+   * Troco (pedido do Felipe, 19/11/2026): só sai do dinheiro, e só quando o
+   * dinheiro cobre a sobra. A venda grava o dinheiro já sem o troco, então
+   * caixa, financeiro e nota fiscal ficam com o valor que realmente ficou.
+   */
+  const dinheiroRecebido = payments.filter(p => p.method === 'cash').reduce((s, p) => s + p.amount, 0)
+  const trocoPossivel  = sobra === 0 && balanceDiff > 0.009 && dinheiroRecebido - balanceDiff > -0.009
+  const troco          = trocoPossivel && darTroco ? balanceDiff : 0
 
   // ── Row helpers ───────────────────────────────────────────────────────────
   function updateRow(i: number, patch: Partial<SaleRow>) {
@@ -1627,8 +1638,10 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
   }
 
   // ── Pagamento helpers ─────────────────────────────────────────────────────
+  /* A forma nova já vem com o que falta receber (pedido do Felipe, 19/11/2026). */
   function addPayment(method: PaymentRow['method']) {
-    setPayments(prev => [...prev, { method, amount: 0, installments: 1, cardBrand: null }])
+    const falta = Math.max(0, parseFloat((total - creditoTroca - paidTotal).toFixed(2)))
+    setPayments(prev => [...prev, { method, amount: falta, installments: 1, cardBrand: null }])
   }
 
   /* Crédito da cliente já entra com o valor que cabe: o saldo, ou o que falta. */
@@ -1720,7 +1733,14 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       setError(`Pagamento ${iNegativo + 1}: valor inválido. Corrija ou remova a linha.`)
       return
     }
-    const pagamentosValidos = payments.filter(p => p.amount > 0)
+    /* Troco sai do dinheiro, da última linha para a primeira. */
+    let restoTroco = troco
+    const pagamentosValidos = [...payments].reverse().map(p => {
+      if (p.method !== 'cash' || restoTroco <= 0.009) return p
+      const tira = Math.min(p.amount, restoTroco)
+      restoTroco = parseFloat((restoTroco - tira).toFixed(2))
+      return { ...p, amount: parseFloat((p.amount - tira).toFixed(2)) }
+    }).reverse().filter(p => p.amount > 0)
 
     /*
      * Troca exige cliente: `fv.exchanges.customer_id` é NOT NULL. Sem esta
@@ -1775,7 +1795,7 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
       setError('Adicione ao menos uma forma de pagamento.')
       return
     }
-    if (balanceDiff > 0.009) {
+    if (balanceDiff > 0.009 && troco <= 0) {
       setError(`O pagamento está ${fmt(balanceDiff)} MAIOR que o total da venda. Confira os valores.`)
       return
     }
@@ -2639,9 +2659,22 @@ export default function NovaVendaForm({ stores, products, customers: initialCust
                 </div>
               )
             ) : balanceDiff > 0.01 ? (
-              <div className={styles.payStatusWarn}>
-                <AlertTriangle size={13} /> Recebido {fmt(balanceDiff)} a mais — confira
-              </div>
+              <>
+                {troco > 0 ? (
+                  <div className={styles.payStatusOk}>✓ Troco: {fmt(troco)}</div>
+                ) : (
+                  <div className={styles.payStatusWarn}>
+                    <AlertTriangle size={13} /> Recebido {fmt(balanceDiff)} a mais — confira
+                  </div>
+                )}
+                {trocoPossivel && (
+                  <label className={styles.fiadoRow}>
+                    <input type="checkbox" checked={darTroco}
+                      onChange={e => setDarTroco(e.target.checked)} />
+                    <span>Dar troco de {fmt(balanceDiff)} em dinheiro</span>
+                  </label>
+                )}
+              </>
             ) : balanceDiff < -0.01 ? (
               <>
                 <div className={styles.payStatusError}>
